@@ -1,12 +1,14 @@
 import dayjs from 'dayjs'
 import { useNavigate, useParams } from 'react-router-dom'
 import useScheduleDetail from '../hooks/useScheduleDetail'
+import useScheduleActions from '../hooks/useScheduleActions'
 import './ScheduleDetailPage.css'
 
 const ScheduleDetailPage = () => {
   const { scheduleId } = useParams()
   const navigate = useNavigate()
-  const { schedule, isLoading, refetch } = useScheduleDetail(scheduleId)
+  const { schedule, isLoading } = useScheduleDetail(scheduleId)
+  const scheduleActions = useScheduleActions(schedule?.state ?? 'PENDING')
 
   if (isLoading || !schedule) {
     return <p className="schedule-detail__loading">일정 정보를 불러오는 중...</p>
@@ -43,16 +45,22 @@ const ScheduleDetailPage = () => {
         </p>
       </section>
       <footer className="schedule-detail__actions">
-        <button type="button" onClick={() => refetch()}>
-          새로고침
+        <button type="button" disabled={!scheduleActions.canStart || scheduleActions.isMutating} onClick={scheduleActions.start}>
+          시작
         </button>
-        <button type="button" className="is-primary">
-          일정 수정
+        <button type="button" disabled={!scheduleActions.canPause || scheduleActions.isMutating} onClick={scheduleActions.pause}>
+          일시중지
+        </button>
+        <button type="button" disabled={!scheduleActions.canComplete || scheduleActions.isMutating} onClick={scheduleActions.complete}>
+          완료
+        </button>
+        <button type="button" disabled={!scheduleActions.canCancel || scheduleActions.isMutating} onClick={scheduleActions.cancel}>
+          취소
         </button>
       </footer>
+      {scheduleActions.lastMessage && <p className="schedule-detail__message">{scheduleActions.lastMessage}</p>}
     </section>
   )
 }
 
 export default ScheduleDetailPage
-
