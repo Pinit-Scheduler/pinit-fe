@@ -2,13 +2,25 @@ import useWeeklyStatistics from '../hooks/useWeeklyStatistics'
 import StatisticCard from '../components/statistics/StatisticCard'
 import DonutChart from '../components/statistics/DonutChart'
 import WeeklyBarChart from '../components/statistics/WeeklyBarChart'
+import StatusPanel from '../components/common/StatusPanel'
 import './StatisticsTabPage.css'
 
 const StatisticsTabPage = () => {
-  const { stats, isLoading, refetch } = useWeeklyStatistics()
+  const { stats, isLoading, error, refetch } = useWeeklyStatistics()
 
-  if (isLoading || !stats) {
-    return <p className="statistics-tab__loading">통계를 불러오는 중...</p>
+  if (isLoading) {
+    return <StatusPanel variant="loading" title="통계를 불러오는 중" />
+  }
+
+  if (error || !stats) {
+    return (
+      <StatusPanel
+        variant="error"
+        title="통계를 불러오는데 실패했어요"
+        description={error ?? '다시 시도해 주세요.'}
+        action={<button onClick={refetch}>재시도</button>}
+      />
+    )
   }
 
   const { weekStartLabel, deepWorkMinutes, adminWorkMinutes, totalMinutes, deepWorkRatio, adminWorkRatio } = stats

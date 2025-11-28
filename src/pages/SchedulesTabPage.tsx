@@ -6,6 +6,7 @@ import useWeeklySchedulePresence from '../hooks/useWeeklySchedulePresence'
 import useOverdueSchedulesSummary from '../hooks/useOverdueSchedulesSummary'
 import ScheduleCard from '../components/schedules/ScheduleCard'
 import useScheduleList from '../hooks/useScheduleList'
+import StatusPanel from '../components/common/StatusPanel'
 import './SchedulesTabPage.css'
 
 const SchedulesTabPage = () => {
@@ -15,7 +16,7 @@ const SchedulesTabPage = () => {
     useWeeklySchedulePresence({ weekStart: currentWeekStart })
   const { summary: overdueSummary, isLoading: isOverdueLoading, refetch: refetchOverdue } =
     useOverdueSchedulesSummary()
-  const { schedules, isLoading: isScheduleLoading, refetch: refetchSchedules } =
+  const { schedules, isLoading: isScheduleLoading, error: scheduleError, refetch: refetchSchedules } =
     useScheduleList(selectedDate)
 
   const handleRefresh = () => {
@@ -27,13 +28,13 @@ const SchedulesTabPage = () => {
   return (
     <section className="schedules-tab">
       {isOverdueLoading ? (
-        <div className="schedules-tab__skeleton">미완료 일정 정보를 불러오는 중...</div>
-      ) : (
+        <StatusPanel variant="loading" title="미완료 일정 정보를 불러오는 중" />
+      ) : overdueSummary.hasOverdue ? (
         <OverdueBanner
           summary={overdueSummary}
           onNavigateToDate={(dateKey) => selectDate(dayjs(dateKey).tz())}
         />
-      )}
+      ) : null}
       <WeeklyDateStrip
         weekStart={currentWeekStart}
         selectedDate={selectedDate}
@@ -49,11 +50,22 @@ const SchedulesTabPage = () => {
       </header>
       <div className="schedules-tab__list">
         {isPresenceLoading || isScheduleLoading ? (
-          <p>일정을 불러오는 중...</p>
+          <StatusPanel variant="loading" title="일정을 불러오는 중" />
+        ) : scheduleError ? (
+          <StatusPanel
+            variant="error"
+            title="일정을 불러오지 못했어요"
+            description={scheduleError}
+            action={<button onClick={refetchSchedules}>재시도</button>}
+          />
         ) : schedules.length ? (
           schedules.map((schedule) => <ScheduleCard key={schedule.id} schedule={schedule} />)
         ) : (
-          <p>이 날짜에는 일정이 없습니다. 새로운 일정을 추가해보세요.</p>
+          <StatusPanel
+            variant="empty"
+            title="등록된 일정이 없어요"
+            description="일정 추가 탭에서 새로운 일정을 만들어보세요."
+          />
         )}
       </div>
     </section>
