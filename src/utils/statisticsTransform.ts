@@ -12,7 +12,7 @@ export const toWeeklyStatisticsView = (payload: StatisticsResponse): WeeklyStati
   const totalMinutes = parseElapsedTime(payload.totalWorkElapsedTime)
 
   return {
-    weekStartLabel: `${dayjs(payload.weekStart).format('M월 D일')} ~ ${dayjs(payload.weekStart)
+    weekStartLabel: `${dayjs(payload.startOfWeek).format('M월 D일')} ~ ${dayjs(payload.startOfWeek)
       .add(6, 'day')
       .format('M월 D일')}`,
     deepWorkMinutes,
@@ -22,4 +22,3 @@ export const toWeeklyStatisticsView = (payload: StatisticsResponse): WeeklyStati
     adminWorkRatio: totalMinutes ? adminWorkMinutes / totalMinutes : 0,
   }
 }
-

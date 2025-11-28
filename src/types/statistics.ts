@@ -1,5 +1,6 @@
 export type StatisticsResponse = {
-  weekStart: string
+  memberId: number
+  startOfWeek: string
   deepWorkElapsedTime: string
   adminWorkElapsedTime: string
   totalWorkElapsedTime: string
@@ -13,4 +14,3 @@ export type WeeklyStatisticsView = {
   deepWorkRatio: number
   adminWorkRatio: number
 }
-

@@ -5,29 +5,50 @@ import type {
   ScheduleSummary,
   OverdueSummary,
 } from '../types/schedule'
+import { MEMBER_ID } from '../constants/member'
 
 export const fetchScheduleSummaries = (date: string) =>
-  httpClient<ScheduleSummary[]>(`/schedules?date=${date}`)
+  httpClient<ScheduleSummary[]>(`/schedules?memberId=${MEMBER_ID}&date=${date}`)
 
 export const fetchScheduleDetail = (scheduleId: number) =>
-  httpClient<ScheduleResponse>(`/schedules/${scheduleId}`)
+  httpClient<ScheduleResponse>(`/schedules/${scheduleId}?memberId=${MEMBER_ID}`)
 
 export const createSchedule = (payload: ScheduleRequest) =>
-  httpClient<ScheduleResponse>('/schedules', {
+  httpClient<ScheduleResponse>(`/schedules?memberId=${MEMBER_ID}`, {
     method: 'POST',
     json: payload,
   })
 
 export const updateSchedule = (scheduleId: number, payload: Partial<ScheduleRequest>) =>
-  httpClient<ScheduleResponse>(`/schedules/${scheduleId}`, {
+  httpClient<ScheduleResponse>(`/schedules/${scheduleId}?memberId=${MEMBER_ID}`, {
     method: 'PATCH',
     json: payload,
   })
 
 export const deleteSchedule = (scheduleId: number) =>
-  httpClient<void>(`/schedules/${scheduleId}`, {
+  httpClient<void>(`/schedules/${scheduleId}?memberId=${MEMBER_ID}`, {
     method: 'DELETE',
   })
 
-export const fetchOverdueSummary = () => httpClient<OverdueSummary>('/schedules/overdue-summary')
+export const fetchOverdueSummary = () =>
+  httpClient<OverdueSummary>(`/schedules/overdue-summary?memberId=${MEMBER_ID}`)
 
+export const startSchedule = (scheduleId: number) =>
+  httpClient<void>(`/schedules/${scheduleId}/start?memberId=${MEMBER_ID}`, {
+    method: 'POST',
+  })
+
+export const suspendSchedule = (scheduleId: number) =>
+  httpClient<void>(`/schedules/${scheduleId}/suspend?memberId=${MEMBER_ID}`, {
+    method: 'POST',
+  })
+
+export const completeSchedule = (scheduleId: number) =>
+  httpClient<void>(`/schedules/${scheduleId}/complete?memberId=${MEMBER_ID}`, {
+    method: 'POST',
+  })
+
+export const cancelSchedule = (scheduleId: number) =>
+  httpClient<void>(`/schedules/${scheduleId}/cancel?memberId=${MEMBER_ID}`, {
+    method: 'POST',
+  })

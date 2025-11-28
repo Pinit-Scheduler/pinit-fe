@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 
 import { fetchWeeklyStatistics } from '../api/statistics'
 import { toWeeklyStatisticsView } from '../utils/statisticsTransform'
+import { getTodayKST } from '../utils/datetime'
 import type { WeeklyStatisticsView } from '../types/statistics'
 
 type UseWeeklyStatisticsReturn = {
@@ -23,7 +24,10 @@ const useWeeklyStatistics = (): UseWeeklyStatisticsReturn => {
       setIsLoading(true)
       setError(null)
       try {
-        const response = await fetchWeeklyStatistics()
+        const response = await fetchWeeklyStatistics({
+          memberId: 1,
+          time: getTodayKST().toISOString(),
+        })
         const view = toWeeklyStatisticsView(response)
         if (isMounted) setStats(view)
       } catch (err) {
