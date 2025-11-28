@@ -8,8 +8,33 @@ const taskTypeOptions: { value: ScheduleTaskType; label: string }[] = [
   { value: 'ADMIN_TASK', label: '행정 작업' },
 ]
 
+const dependencyMockOptions = [
+  { id: 101, title: '기획안 마무리' },
+  { id: 102, title: '자료 조사' },
+  { id: 103, title: '리뷰 일정' },
+]
+
 const ScheduleForm = () => {
   const { values, errors, isSubmitting, onChange, onSubmit, reset } = useScheduleForm()
+
+  const toggleId = (list: number[], id: number) =>
+    list.includes(id) ? list.filter((item) => item !== id) : [...list, id]
+
+  const handlePreviousToggle = (id: number) => {
+    const updated = toggleId(values.previousTaskIds, id)
+    onChange('previousTaskIds', updated)
+    if (values.nextTaskIds.includes(id)) {
+      onChange('nextTaskIds', values.nextTaskIds.filter((item) => item !== id))
+    }
+  }
+
+  const handleNextToggle = (id: number) => {
+    const updated = toggleId(values.nextTaskIds, id)
+    onChange('nextTaskIds', updated)
+    if (values.previousTaskIds.includes(id)) {
+      onChange('previousTaskIds', values.previousTaskIds.filter((item) => item !== id))
+    }
+  }
 
   return (
     <form
@@ -97,6 +122,41 @@ const ScheduleForm = () => {
         {errors.deadline && <small>{errors.deadline}</small>}
       </label>
 
+      <section className="schedule-form__dependency">
+        <header>
+          <h3>이전/이후 일정</h3>
+          <p>같은 일정을 두 목록에 동시에 추가할 수 없어요.</p>
+        </header>
+        <div className="schedule-form__dependency-groups">
+          <div>
+            <h4>이전에 해야 하는 일정</h4>
+            {dependencyMockOptions.map((option) => (
+              <label key={option.id} className="schedule-form__checkbox">
+                <input
+                  type="checkbox"
+                  checked={values.previousTaskIds.includes(option.id)}
+                  onChange={() => handlePreviousToggle(option.id)}
+                />
+                <span>{option.title}</span>
+              </label>
+            ))}
+          </div>
+          <div>
+            <h4>이후에 해야 하는 일정</h4>
+            {dependencyMockOptions.map((option) => (
+              <label key={option.id} className="schedule-form__checkbox">
+                <input
+                  type="checkbox"
+                  checked={values.nextTaskIds.includes(option.id)}
+                  onChange={() => handleNextToggle(option.id)}
+                />
+                <span>{option.title}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <div className="schedule-form__actions">
         <button type="button" onClick={reset} disabled={isSubmitting}>
           초기화
@@ -110,4 +170,3 @@ const ScheduleForm = () => {
 }
 
 export default ScheduleForm
-

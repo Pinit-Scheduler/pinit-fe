@@ -47,3 +47,25 @@
   color: #fff;
 }
 
+.schedule-form__dependency {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.schedule-form__dependency header {
+  margin-bottom: 12px;
+}
+
+.schedule-form__dependency-groups {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.schedule-form__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
