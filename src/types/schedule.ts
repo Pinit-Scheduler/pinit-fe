@@ -56,6 +56,18 @@ export type ScheduleFormValues = {
   nextTaskIds: number[]
 }
 
+export type ScheduleSummary = {
+  id: number
+  title: string
+  description: string
+  date: string
+  deadline: string
+  importance: number
+  urgency: number
+  taskType: ScheduleTaskType
+  state: ScheduleState
+}
+
 export type DateSchedulePresence = Record<string, boolean>
 
 export type OverdueSummary = {

@@ -1,0 +1,76 @@
+.schedule-card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.schedule-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.schedule-card__title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.schedule-card__subtitle {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.schedule-card__state {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+.schedule-card__state--pending {
+  background-color: #e0ecff;
+  color: #1d4ed8;
+}
+
+.schedule-card__state--in_progress {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.schedule-card__state--completed {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.schedule-card__state--canceled {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.schedule-card__state--suspended {
+  background-color: #e2e8f0;
+  color: #334155;
+}
+
+.schedule-card__description {
+  font-size: 14px;
+  color: #475569;
+}
+
+.schedule-card__footer {
+  display: flex;
+  gap: 8px;
+}
+
+.schedule-card__pill {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background-color: #f1f5f9;
+}
+

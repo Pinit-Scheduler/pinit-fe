@@ -4,6 +4,8 @@ import WeeklyDateStrip from '../components/schedules/WeeklyDateStrip'
 import OverdueBanner from '../components/schedules/OverdueBanner'
 import useWeeklySchedulePresence from '../hooks/useWeeklySchedulePresence'
 import useOverdueSchedulesSummary from '../hooks/useOverdueSchedulesSummary'
+import ScheduleCard from '../components/schedules/ScheduleCard'
+import useScheduleList from '../hooks/useScheduleList'
 import './SchedulesTabPage.css'
 
 const SchedulesTabPage = () => {
@@ -13,10 +15,13 @@ const SchedulesTabPage = () => {
     useWeeklySchedulePresence({ weekStart: currentWeekStart })
   const { summary: overdueSummary, isLoading: isOverdueLoading, refetch: refetchOverdue } =
     useOverdueSchedulesSummary()
+  const { schedules, isLoading: isScheduleLoading, refetch: refetchSchedules } =
+    useScheduleList(selectedDate)
 
   const handleRefresh = () => {
     refetchPresence()
     refetchOverdue()
+    refetchSchedules()
   }
 
   return (
@@ -43,10 +48,12 @@ const SchedulesTabPage = () => {
         </button>
       </header>
       <div className="schedules-tab__list">
-        {isPresenceLoading ? (
+        {isPresenceLoading || isScheduleLoading ? (
           <p>일정을 불러오는 중...</p>
+        ) : schedules.length ? (
+          schedules.map((schedule) => <ScheduleCard key={schedule.id} schedule={schedule} />)
         ) : (
-          <p>예정된 일정 데이터를 여기에 배치합니다.</p>
+          <p>이 날짜에는 일정이 없습니다. 새로운 일정을 추가해보세요.</p>
         )}
       </div>
     </section>
