@@ -1,11 +1,15 @@
-.mini-player {
+.mini-player-wrapper {
   position: sticky;
-  bottom: 56px;
+  bottom: 80px;
+  margin: 0 16px 12px;
+  z-index: 90;
+}
+
+.mini-player {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  margin: 0 16px 12px;
   border-radius: 16px;
   background-color: #1d4ed8;
   color: #fff;

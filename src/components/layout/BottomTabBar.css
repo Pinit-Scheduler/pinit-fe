@@ -6,6 +6,7 @@
   background-color: #fff;
   border-top: 1px solid #e2e8f0;
   padding: 8px 0;
+  z-index: 100;
 }
 
 .bottom-tab__item {
@@ -38,15 +39,47 @@
 }
 
 .bottom-tab__item--add {
-  color: #2563eb;
+  position: absolute;
+  left: 50%;
+  top: -20px;
+  transform: translateX(-50%);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
   font-weight: 600;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0;
+  flex: none;
+  padding: 0;
+  transition: all 0.3s ease;
+  z-index: 110;
 }
 
 .bottom-tab__item--add:hover {
-  color: #1e40af;
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
+  transform: translateX(-50%) translateY(-2px);
+  color: #fff;
+}
+
+.bottom-tab__item--add:active {
+  transform: translateX(-50%) translateY(0px);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
 }
 
 .bottom-tab__item--add .bottom-tab__icon {
-  font-size: 24px;
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.bottom-tab__item--add .bottom-tab__label {
+  display: none;
 }
 

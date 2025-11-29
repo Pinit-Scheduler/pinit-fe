@@ -45,17 +45,16 @@ const BottomTabBar = ({ activePath }: BottomTabBarProps) => {
       ))}
       <button
         type="button"
+        aria-label="일정 추가"
         className="bottom-tab__item bottom-tab__item--add"
         onClick={handleAddClick}
       >
         <span className="bottom-tab__icon" aria-hidden>
           ＋
         </span>
-        <span className="bottom-tab__label">추가</span>
       </button>
     </nav>
   )
 }
 
 export default BottomTabBar
-
