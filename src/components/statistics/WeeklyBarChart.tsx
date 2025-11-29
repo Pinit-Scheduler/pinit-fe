@@ -6,6 +6,21 @@ type WeeklyBarChartProps = {
   totalMinutes: number
 }
 
+const formatMinutesToTime = (totalMinutes: number): string => {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours === 0) {
+    return `${minutes}분`
+  }
+
+  if (minutes === 0) {
+    return `${hours}시간`
+  }
+
+  return `${hours}시간 ${minutes}분`
+}
+
 const WeeklyBarChart = ({ deepWorkMinutes, adminWorkMinutes, totalMinutes }: WeeklyBarChartProps) => {
   const deepRatio = totalMinutes ? deepWorkMinutes / totalMinutes : 0
   const adminRatio = totalMinutes ? adminWorkMinutes / totalMinutes : 0
@@ -17,9 +32,9 @@ const WeeklyBarChart = ({ deepWorkMinutes, adminWorkMinutes, totalMinutes }: Wee
         <span style={{ flexGrow: adminRatio }} className="weekly-bar__segment weekly-bar__segment--admin" />
       </div>
       <div className="weekly-bar__legend">
-        <p>집중 작업 {deepWorkMinutes}분</p>
-        <p>행정 작업 {adminWorkMinutes}분</p>
-        <p>총 {totalMinutes}분</p>
+        <p>집중 작업 {formatMinutesToTime(deepWorkMinutes)}</p>
+        <p>행정 작업 {formatMinutesToTime(adminWorkMinutes)}</p>
+        <p>총 {formatMinutesToTime(totalMinutes)}</p>
       </div>
     </section>
   )

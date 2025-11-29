@@ -5,6 +5,21 @@ import WeeklyBarChart from '../components/statistics/WeeklyBarChart'
 import StatusPanel from '../components/common/StatusPanel'
 import './StatisticsTabPage.css'
 
+const formatMinutesToTime = (totalMinutes: number): string => {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+
+  if (hours === 0) {
+    return `${minutes}분`
+  }
+
+  if (minutes === 0) {
+    return `${hours}시간`
+  }
+
+  return `${hours}시간 ${minutes}분`
+}
+
 const StatisticsTabPage = () => {
   const { stats, isLoading, error, refetch } = useWeeklyStatistics()
 
@@ -33,9 +48,9 @@ const StatisticsTabPage = () => {
         <button type="button" onClick={refetch}>새로고침</button>
       </header>
       <div className="statistics-tab__cards">
-        <StatisticCard label="집중 작업" value={`${deepWorkMinutes}분`} description="딥워크" />
-        <StatisticCard label="행정 작업" value={`${adminWorkMinutes}분`} description="행정 업무" />
-        <StatisticCard label="총 작업 시간" value={`${totalMinutes}분`} />
+        <StatisticCard label="집중 작업" value={formatMinutesToTime(deepWorkMinutes)} description="딥워크" />
+        <StatisticCard label="행정 작업" value={formatMinutesToTime(adminWorkMinutes)} description="행정 업무" />
+        <StatisticCard label="총 작업 시간" value={formatMinutesToTime(totalMinutes)} />
       </div>
       <DonutChart deepWorkRatio={deepWorkRatio} adminWorkRatio={adminWorkRatio} />
       <WeeklyBarChart deepWorkMinutes={deepWorkMinutes} adminWorkMinutes={adminWorkMinutes} totalMinutes={totalMinutes} />
