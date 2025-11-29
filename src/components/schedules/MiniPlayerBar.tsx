@@ -4,7 +4,7 @@ import './MiniPlayerBar.css'
 
 const MiniPlayerBar = () => {
   const activeSchedule = useActiveSchedule()
-  const scheduleActions = useScheduleActions(activeSchedule?.id ?? null, activeSchedule?.state ?? 'PENDING')
+  const scheduleActions = useScheduleActions(activeSchedule?.id ?? null, activeSchedule?.state ?? 'NOT_STARTED')
 
   if (!activeSchedule) return null
 

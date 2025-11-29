@@ -27,25 +27,51 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
     const fetchList = async () => {
       setIsLoading(true)
       setError(null)
-      const cached = getDateSchedules(dateKey)
-      if (cached) {
-        setSchedules(cached)
-        setIsLoading(false)
-        return
+
+      console.log('🔄 useScheduleList: Starting fetch', { dateKey, timestamp })
+
+      // 개발 중 캐시 비활성화 (문제 진단을 위해 임시로 false)
+      const USE_CACHE = false
+
+      if (USE_CACHE) {
+        const cached = getDateSchedules(dateKey)
+        if (cached) {
+          console.log('📦 Cache HIT:', {
+            dateKey,
+            count: cached.length,
+            items: cached.map(s => ({ id: s.id, title: s.title, state: s.state }))
+          })
+          setSchedules(cached)
+          setIsLoading(false)
+          return
+        }
       }
+
+      console.log('🌐 Cache MISS, calling API:', dateKey)
+
       try {
         const response = await fetchScheduleSummaries(dateKey)
+        console.log('✅ API Response received:', {
+          dateKey,
+          count: response.length,
+          items: response.map(s => ({ id: s.id, title: s.title, state: s.state }))
+        })
+
         if (isMounted) {
           setSchedules(response)
           setDateSchedules(dateKey, response)
+          console.log('💾 Data saved to state and cache')
         }
-      } catch (err) {
+      } catch (error) {
+        console.error('❌ Fetch error:', { dateKey, error })
         if (isMounted) {
-          setError('일정을 불러오지 못했습니다.')
+          const message = error instanceof Error ? error.message : '일정을 불러오지 못했습니다.'
+          setError(message)
         }
       } finally {
         if (isMounted) {
           setIsLoading(false)
+          console.log('✅ useScheduleList: Fetch complete', { dateKey })
         }
       }
     }
@@ -55,6 +81,7 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
     return () => {
       isMounted = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateKey, timestamp])
 
   return {

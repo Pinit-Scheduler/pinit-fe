@@ -2,7 +2,7 @@ import { useState } from 'react'
 import dayjs from 'dayjs'
 import type { ScheduleFormValues } from '../types/schedule'
 
-const buildDefaultDate = () => dayjs().tz().minute(0).second(0)
+const buildDefaultDate = () => dayjs().tz('Asia/Seoul').minute(0).second(0)
 
 const createInitialValues = (overrides?: Partial<ScheduleFormValues>): ScheduleFormValues => {
   const base = buildDefaultDate()
@@ -14,7 +14,6 @@ const createInitialValues = (overrides?: Partial<ScheduleFormValues>): ScheduleF
     importance: 5,
     urgency: 5,
     taskType: 'DEEP_WORK',
-    estimatedMinutes: 60,
     previousTaskIds: [],
     nextTaskIds: [],
   }

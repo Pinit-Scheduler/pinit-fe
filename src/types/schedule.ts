@@ -1,9 +1,8 @@
 export type ScheduleState =
-  | 'PENDING'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELED'
-  | 'SUSPENDED'
+  | 'NOT_STARTED'   // 미시작 - 시작 버튼만
+  | 'IN_PROGRESS'   // 진행 중 - 일시정지, 취소, 완료 버튼
+  | 'COMPLETED'     // 완료 - 취소 버튼만
+  | 'SUSPENDED'     // 일시정지 - 시작, 취소 버튼
 
 export type ScheduleTaskType = 'DEEP_WORK' | 'QUICK_TASK' | 'ADMIN_TASK'
 
@@ -16,17 +15,12 @@ export type ScheduleResponse = {
   deadline: string
   importance: number
   urgency: number
-  taskType: ScheduleTaskType
   state: ScheduleState
-  estimatedMinutes?: number
-  actualMinutes?: number
-  createdAt: string
-  updatedAt: string
 }
 
 export type DependencyRequest = {
-  fromScheduleId: number
-  toScheduleId: number
+  fromId: number
+  toId: number
 }
 
 export type ScheduleRequest = {
@@ -37,7 +31,6 @@ export type ScheduleRequest = {
   importance: number
   urgency: number
   taskType: ScheduleTaskType
-  estimatedMinutes?: number
   addDependencies?: DependencyRequest[]
   removeDependencies?: DependencyRequest[]
 }
@@ -50,7 +43,6 @@ export type ScheduleFormValues = {
   importance: number
   urgency: number
   taskType: ScheduleTaskType
-  estimatedMinutes?: number
   previousTaskIds: number[]
   nextTaskIds: number[]
 }
@@ -63,7 +55,7 @@ export type ScheduleSummary = {
   deadline: string
   importance: number
   urgency: number
-  taskType: ScheduleTaskType
+  taskType?: ScheduleTaskType // 백엔드에서 제공하지 않을 수 있음
   state: ScheduleState
 }
 

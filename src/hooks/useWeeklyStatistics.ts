@@ -30,7 +30,7 @@ const useWeeklyStatistics = (): UseWeeklyStatisticsReturn => {
         })
         const view = toWeeklyStatisticsView(response)
         if (isMounted) setStats(view)
-      } catch (err) {
+      } catch {
         if (isMounted) setError('통계를 불러오는데 실패했습니다.')
       } finally {
         if (isMounted) setIsLoading(false)

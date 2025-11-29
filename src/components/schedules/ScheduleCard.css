@@ -6,6 +6,17 @@
   flex-direction: column;
   gap: 8px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.schedule-card:hover {
+  box-shadow: 0 4px 6px rgba(15, 23, 42, 0.12);
+  transform: translateY(-2px);
+}
+
+.schedule-card:active {
+  transform: translateY(0);
 }
 
 .schedule-card__header {
@@ -13,6 +24,13 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 16px;
+}
+
+.schedule-card__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .schedule-card__title {
@@ -57,6 +75,30 @@
   color: #334155;
 }
 
+.schedule-card__delete-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background-color: transparent;
+  color: #ef4444;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.schedule-card__delete-btn:hover {
+  background-color: #fee2e2;
+  transform: scale(1.1);
+}
+
+.schedule-card__delete-btn:active {
+  transform: scale(0.95);
+}
+
 .schedule-card__description {
   font-size: 14px;
   color: #475569;
@@ -64,7 +106,16 @@
 
 .schedule-card__footer {
   display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.schedule-card__meta {
+  display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .schedule-card__pill {
@@ -72,5 +123,75 @@
   padding: 4px 8px;
   border-radius: 999px;
   background-color: #f1f5f9;
+}
+
+.schedule-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.schedule-card__action-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background-color: #f1f5f9;
+  color: #334155;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.schedule-card__action-btn:hover:not(:disabled) {
+  transform: scale(1.1);
+}
+
+.schedule-card__action-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.schedule-card__action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.schedule-card__action-btn--start {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.schedule-card__action-btn--start:hover:not(:disabled) {
+  background-color: #bfdbfe;
+}
+
+.schedule-card__action-btn--pause {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.schedule-card__action-btn--pause:hover:not(:disabled) {
+  background-color: #fde68a;
+}
+
+.schedule-card__action-btn--complete {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.schedule-card__action-btn--complete:hover:not(:disabled) {
+  background-color: #bbf7d0;
+}
+
+.schedule-card__action-btn--cancel {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.schedule-card__action-btn--cancel:hover:not(:disabled) {
+  background-color: #fecaca;
 }
 

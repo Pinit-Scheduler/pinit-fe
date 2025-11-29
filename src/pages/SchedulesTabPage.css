@@ -27,5 +27,90 @@
   border-radius: 16px;
   background-color: #fff;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.schedules-tab__item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.schedules-tab__item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.schedules-tab__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.schedules-tab__action-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.schedules-tab__action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.schedules-tab__action-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.schedules-tab__action-btn:not(:disabled):active {
+  transform: translateY(0);
+}
+
+.schedules-tab__action-btn--start {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.schedules-tab__action-btn--start:hover:not(:disabled) {
+  background-color: #bfdbfe;
+}
+
+.schedules-tab__action-btn--pause {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.schedules-tab__action-btn--pause:hover:not(:disabled) {
+  background-color: #fde68a;
+}
+
+.schedules-tab__action-btn--complete {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.schedules-tab__action-btn--complete:hover:not(:disabled) {
+  background-color: #bbf7d0;
+}
+
+.schedules-tab__action-btn--cancel {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.schedules-tab__action-btn--cancel:hover:not(:disabled) {
+  background-color: #fecaca;
 }
 

@@ -1,7 +1,7 @@
 import dayjs from 'dayjs'
 import { useContext } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ScheduleModalContext } from '../components/layout/AppShell'
+import { ScheduleModalContext } from '../context/ScheduleModalContext'
 import useScheduleDetail from '../hooks/useScheduleDetail'
 import useScheduleActions from '../hooks/useScheduleActions'
 import './ScheduleDetailPage.css'
@@ -10,7 +10,7 @@ const ScheduleDetailPage = () => {
   const { scheduleId } = useParams()
   const navigate = useNavigate()
   const { schedule, isLoading } = useScheduleDetail(scheduleId)
-  const scheduleActions = useScheduleActions(schedule?.id ?? null, schedule?.state ?? 'PENDING')
+  const scheduleActions = useScheduleActions(schedule?.id ?? null, schedule?.state ?? 'NOT_STARTED')
   const modal = useContext(ScheduleModalContext)
 
   if (isLoading || !schedule) {
@@ -39,12 +39,6 @@ const ScheduleDetailPage = () => {
         <p>
           시작: {startTime}
           <br />마감: {deadline}
-        </p>
-      </section>
-      <section className="schedule-detail__section">
-        <h2>추정/실제</h2>
-        <p>
-          추정 {schedule.estimatedMinutes ?? 0}분 · 진행 {schedule.actualMinutes ?? 0}분
         </p>
       </section>
       <footer className="schedule-detail__actions">

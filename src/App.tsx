@@ -1,5 +1,5 @@
 import './App.css'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import AppShell from './components/layout/AppShell'
 import SchedulesTabPage from './pages/SchedulesTabPage'
 import ScheduleCreateTabPage from './pages/ScheduleCreateTabPage'
@@ -13,13 +13,14 @@ function App() {
     <ScheduleCacheProvider>
       <BrowserRouter>
         <Routes>
-          <Route element={<AppShell />}>
-            <Route path="/" element={<SchedulesTabPage />} />
-            <Route path="/app/schedules" element={<SchedulesTabPage />} />
-            <Route path="/app/new" element={<ScheduleCreateTabPage />} />
-            <Route path="/app/statistics" element={<StatisticsTabPage />} />
-            <Route path="/app/settings" element={<SettingsPage />} />
-            <Route path="/app/schedules/:scheduleId" element={<ScheduleDetailPage />} />
+          <Route path="/" element={<Navigate to="/app/schedules" replace />} />
+          <Route path="/app" element={<AppShell />}>
+            <Route index element={<Navigate to="/app/schedules" replace />} />
+            <Route path="schedules" element={<SchedulesTabPage />} />
+            <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
+            <Route path="new" element={<ScheduleCreateTabPage />} />
+            <Route path="statistics" element={<StatisticsTabPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -3,12 +3,14 @@ import type {
   ScheduleResponse,
   ScheduleRequest,
   ScheduleSummary,
-  OverdueSummary,
 } from '../types/schedule'
 import { MEMBER_ID } from '../constants/member'
 
 export const fetchScheduleSummaries = (date: string) =>
   httpClient<ScheduleSummary[]>(`/schedules?memberId=${MEMBER_ID}&date=${date}`)
+
+export const fetchWeeklySchedules = (time: string) =>
+  httpClient<ScheduleResponse[]>(`/schedules/week?memberId=${MEMBER_ID}&time=${encodeURIComponent(time)}`)
 
 export const fetchScheduleDetail = (scheduleId: number) =>
   httpClient<ScheduleResponse>(`/schedules/${scheduleId}?memberId=${MEMBER_ID}`)
@@ -30,23 +32,27 @@ export const deleteSchedule = (scheduleId: number) =>
     method: 'DELETE',
   })
 
-export const fetchOverdueSummary = () =>
-  httpClient<OverdueSummary>(`/schedules/overdue-summary?memberId=${MEMBER_ID}`)
 
-export const startSchedule = (scheduleId: number) =>
-  httpClient<void>(`/schedules/${scheduleId}/start?memberId=${MEMBER_ID}`, {
+export const startSchedule = (scheduleId: number) => {
+  const time = new Date().toISOString()
+  return httpClient<void>(`/schedules/${scheduleId}/start?memberId=${MEMBER_ID}&time=${encodeURIComponent(time)}`, {
     method: 'POST',
   })
+}
 
-export const suspendSchedule = (scheduleId: number) =>
-  httpClient<void>(`/schedules/${scheduleId}/suspend?memberId=${MEMBER_ID}`, {
+export const suspendSchedule = (scheduleId: number) => {
+  const time = new Date().toISOString()
+  return httpClient<void>(`/schedules/${scheduleId}/suspend?memberId=${MEMBER_ID}&time=${encodeURIComponent(time)}`, {
     method: 'POST',
   })
+}
 
-export const completeSchedule = (scheduleId: number) =>
-  httpClient<void>(`/schedules/${scheduleId}/complete?memberId=${MEMBER_ID}`, {
+export const completeSchedule = (scheduleId: number) => {
+  const time = new Date().toISOString()
+  return httpClient<void>(`/schedules/${scheduleId}/complete?memberId=${MEMBER_ID}&time=${encodeURIComponent(time)}`, {
     method: 'POST',
   })
+}
 
 export const cancelSchedule = (scheduleId: number) =>
   httpClient<void>(`/schedules/${scheduleId}/cancel?memberId=${MEMBER_ID}`, {

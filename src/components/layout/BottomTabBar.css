@@ -18,6 +18,15 @@
   color: #94a3b8;
   text-decoration: none;
   font-size: 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 8px;
+  transition: color 0.2s;
+}
+
+.bottom-tab__item:hover {
+  color: #2563eb;
 }
 
 .bottom-tab__icon {
@@ -26,5 +35,18 @@
 
 .bottom-tab__item.is-active {
   color: #2563eb;
+}
+
+.bottom-tab__item--add {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.bottom-tab__item--add:hover {
+  color: #1e40af;
+}
+
+.bottom-tab__item--add .bottom-tab__icon {
+  font-size: 24px;
 }
 

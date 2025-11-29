@@ -66,8 +66,9 @@ export const ScheduleCacheProvider = ({ children }: { children: ReactNode }) => 
         deadline: schedule.deadline,
         importance: schedule.importance,
         urgency: schedule.urgency,
-        taskType: schedule.taskType,
         state: schedule.state,
+        // taskType은 ScheduleResponse에 없으므로 ScheduleSummary에만 있을 수 있음
+        ...(('taskType' in schedule && schedule.taskType) ? { taskType: schedule.taskType } : {}),
       }
       const nextList = [...current]
       if (existingIndex >= 0) {
@@ -106,6 +107,7 @@ export const ScheduleCacheProvider = ({ children }: { children: ReactNode }) => 
   return <ScheduleCacheContext.Provider value={value}>{children}</ScheduleCacheContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useScheduleCache = () => {
   const ctx = useContext(ScheduleCacheContext)
   if (!ctx) {
