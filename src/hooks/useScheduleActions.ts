@@ -4,13 +4,13 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ScheduleState } from '../types/schedule'
 
 // 실제 백엔드 상태에 맞게 수정
-// NOT_STARTED: 시작만 가능
+// NOT_STARTED: 시작, 완료 가능
 const allowedStartStates: ScheduleState[] = ['NOT_STARTED', 'SUSPENDED']
 // IN_PROGRESS: 일시정지, 취소, 완료 가능
 const allowedPauseStates: ScheduleState[] = ['IN_PROGRESS']
-const allowedCompleteStates: ScheduleState[] = ['IN_PROGRESS']
-// 취소는 COMPLETED를 제외한 모든 상태에서 가능
-const allowedCancelStates: ScheduleState[] = ['NOT_STARTED', 'IN_PROGRESS', 'SUSPENDED', 'COMPLETED']
+const allowedCompleteStates: ScheduleState[] = ['NOT_STARTED', 'IN_PROGRESS']
+// 취소는 IN_PROGRESS, SUSPENDED, COMPLETED 상태에서만 가능
+const allowedCancelStates: ScheduleState[] = ['IN_PROGRESS', 'SUSPENDED', 'COMPLETED']
 
 console.log('📌 Allowed states configuration:', {
   allowedStartStates,
