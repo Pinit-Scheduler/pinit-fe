@@ -13,13 +13,22 @@ type UseScheduleListReturn = {
 }
 
 const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
-  const { getDateSchedules, setDateSchedules } = useScheduleCache()
+  const { getDateSchedules, setDateSchedules, schedulesByDate } = useScheduleCache()
   const [schedules, setSchedules] = useState<ScheduleSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timestamp, setTimestamp] = useState(() => Date.now())
 
   const dateKey = useMemo(() => toDateKey(selectedDate), [selectedDate])
+
+  // 캐시 변경 감지하여 자동 업데이트
+  useEffect(() => {
+    const cached = getDateSchedules(dateKey)
+    if (cached && cached.length > 0) {
+      console.log('📦 Cache updated, syncing schedules:', { dateKey, count: cached.length })
+      setSchedules(cached)
+    }
+  }, [schedulesByDate, dateKey, getDateSchedules])
 
   useEffect(() => {
     let isMounted = true
@@ -30,8 +39,8 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
 
       console.log('🔄 useScheduleList: Starting fetch', { dateKey, timestamp })
 
-      // 개발 중 캐시 비활성화 (문제 진단을 위해 임시로 false)
-      const USE_CACHE = false
+      // 캐시 사용 활성화
+      const USE_CACHE = true
 
       if (USE_CACHE) {
         const cached = getDateSchedules(dateKey)
