@@ -4,6 +4,7 @@ type StatisticCardProps = {
   label: string
   value: string
   description?: string
+  tone?: 'positive' | 'negative' | 'neutral'
 }
 
 /**
@@ -13,9 +14,9 @@ type StatisticCardProps = {
  * @param description - 추가 설명 (예: "딥워크", "행정 업무")
  * @constructor
  */
-const StatisticCard = ({ label, value, description }: StatisticCardProps) => {
+const StatisticCard = ({ label, value, description, tone = 'neutral' }: StatisticCardProps) => {
   return (
-    <article className="stat-card">
+    <article className={['stat-card', `stat-card--${tone}`].join(' ')}>
       <p className="stat-card__label">{label}</p>
       <p className="stat-card__value">{value}</p>
       {description && <p className="stat-card__description">{description}</p>}
@@ -24,4 +25,3 @@ const StatisticCard = ({ label, value, description }: StatisticCardProps) => {
 }
 
 export default StatisticCard
-

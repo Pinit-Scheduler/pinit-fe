@@ -14,3 +14,8 @@ export type WeeklyStatisticsView = {
   deepWorkRatio: number
   adminWorkRatio: number
 }
+
+export type WeeklyStatisticsSet = {
+  current: WeeklyStatisticsView | null
+  previous: WeeklyStatisticsView | null
+}

@@ -7,6 +7,4 @@ type WeeklyStatisticsParams = {
 }
 
 export const fetchWeeklyStatistics = ({ memberId, time }: WeeklyStatisticsParams) =>
-  httpClient<StatisticsResponse>(
-    `/statistics?memberId=${memberId}&time=${encodeURIComponent(time)}`,
-  )
+  httpClient<StatisticsResponse>(`/statistics?memberId=${memberId}&time=${encodeURIComponent(time)}`)

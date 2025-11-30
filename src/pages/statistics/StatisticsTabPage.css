@@ -10,12 +10,28 @@
   gap: 4px;
 }
 
-.statistics-tab__header button {
-  align-self: flex-start;
+.statistics-tab__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.statistics-tab__week-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.statistics-tab__controls button {
   border: none;
   border-radius: 12px;
   padding: 8px 12px;
   background-color: #e2e8f0;
+}
+
+.statistics-tab__controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .statistics-tab__cards {
@@ -23,4 +39,3 @@
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px;
 }
-
