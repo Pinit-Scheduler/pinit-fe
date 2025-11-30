@@ -9,25 +9,28 @@ import { ScheduleCacheProvider } from './context/ScheduleCacheContext'
 import ScheduleCreateModal from './components/modals/ScheduleCreateModal.tsx'
 import ScheduleEditModal from './components/modals/ScheduleEditModal.tsx'
 import { ScheduleViewStateProvider } from './context/ScheduleViewStateContext'
+import { ToastProvider } from './context/ToastContext'
 
 function App() {
   return (
     <ScheduleCacheProvider>
       <ScheduleViewStateProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Navigate to="/app/schedules" replace />} />
-            <Route path="/app" element={<AppShell />}>
-              <Route index element={<Navigate to="/app/schedules" replace />} />
-              <Route path="schedules" element={<SchedulesTabPage />} />
-              <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
-              <Route path="schedules/:scheduleId/edit" element={<ScheduleEditModal />} />
-              <Route path="new" element={<ScheduleCreateModal />} />
-              <Route path="statistics" element={<StatisticsTabPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Navigate to="/app/schedules" replace />} />
+              <Route path="/app" element={<AppShell />}>
+                <Route index element={<Navigate to="/app/schedules" replace />} />
+                <Route path="schedules" element={<SchedulesTabPage />} />
+                <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
+                <Route path="schedules/:scheduleId/edit" element={<ScheduleEditModal />} />
+                <Route path="new" element={<ScheduleCreateModal />} />
+                <Route path="statistics" element={<StatisticsTabPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </ToastProvider>
       </ScheduleViewStateProvider>
     </ScheduleCacheProvider>
   )

@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useScheduleViewState from '../../../hooks/useScheduleViewState.ts'
 import WeeklyDateStrip from '../../../components/schedules/WeeklyDateStrip.tsx'
 import OverdueBanner from '../../../components/schedules/OverdueBanner.tsx'
@@ -15,6 +15,7 @@ import useWeeklyStatistics from '../../../hooks/useWeeklyStatistics.ts'
 import { formatMinutesToTime } from '../../../utils/statisticsTransform.ts'
 import './SchedulesTabPage.css'
 import '../../../utils/datetime.ts'
+import { useToast } from '../../../context/ToastContext'
 
 const SchedulesTabPage = () => {
   const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null)
@@ -26,6 +27,7 @@ const SchedulesTabPage = () => {
     goToWeek,
     selectDate,
   } = useScheduleViewState()
+  const { addToast } = useToast()
   const {
     presenceMap,
     isLoading: isPresenceLoading,
@@ -63,6 +65,12 @@ const SchedulesTabPage = () => {
       [selectedDateKey]: { hasSchedule, hasOverdue },
     }
   }, [presenceMap, schedules, selectedDateKey])
+
+  useEffect(() => {
+    if (scheduleError) {
+      addToast(scheduleError, 'error')
+    }
+  }, [addToast, scheduleError])
 
   const handleRefresh = () => {
     console.log('🔄 Manual refresh triggered')
