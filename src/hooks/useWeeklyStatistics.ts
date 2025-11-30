@@ -3,7 +3,7 @@ import type dayjs from 'dayjs'
 
 import { fetchWeeklyStatistics } from '../api/statistics'
 import { toWeeklyStatisticsView } from '../utils/statisticsTransform'
-import { getTodayKST } from '../utils/datetime'
+import { getTodayKST, toApiDateTimeKST } from '../utils/datetime'
 import type { WeeklyStatisticsView } from '../types/statistics'
 import { MEMBER_ID } from '../constants/member'
 
@@ -13,19 +13,26 @@ type Options = {
 }
 
 type UseWeeklyStatisticsReturn = {
-  stats: WeeklyStatisticsView | null
+  current: WeeklyStatisticsView | null
+  previous: WeeklyStatisticsView | null
   isLoading: boolean
   error: string | null
   refetch: () => void
 }
 
 const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn => {
-  const [stats, setStats] = useState<WeeklyStatisticsView | null>(null)
+  const [current, setCurrent] = useState<WeeklyStatisticsView | null>(null)
+  const [previous, setPrevious] = useState<WeeklyStatisticsView | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [timestamp, setTimestamp] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
   const { weekStart, memberId = MEMBER_ID } = options
-  const timeParam = useMemo(() => (weekStart ?? getTodayKST()).toISOString(), [weekStart])
+  const timeBase = useMemo(() => weekStart ?? getTodayKST(), [weekStart])
+  const timeParam = useMemo(() => toApiDateTimeKST(timeBase), [timeBase])
+  const previousTimeParam = useMemo(
+    () => toApiDateTimeKST(timeBase.subtract(7, 'day')),
+    [timeBase],
+  )
 
   useEffect(() => {
     let isMounted = true
@@ -46,7 +53,22 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
 
         console.log('📊 Transformed view:', view)
 
-        if (isMounted) setStats(view)
+        let previousView: WeeklyStatisticsView | null = null
+        try {
+          const previousResponse = await fetchWeeklyStatistics({
+            memberId,
+            time: previousTimeParam,
+          })
+          previousView = toWeeklyStatisticsView(previousResponse)
+          console.log('📊 Previous week view:', previousView)
+        } catch (prevError) {
+          console.warn('⚠️ Failed to fetch previous week statistics:', prevError)
+        }
+
+        if (isMounted) {
+          setCurrent(view)
+          setPrevious(previousView)
+        }
       } catch (err) {
         console.error('❌ statistics fetch error:', err)
         if (isMounted) setError(err instanceof Error ? err.message : '통계를 불러오는데 실패했습니다.')
@@ -58,10 +80,11 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
     return () => {
       isMounted = false
     }
-  }, [timestamp, memberId, timeParam])
+  }, [timestamp, memberId, timeParam, previousTimeParam])
 
   return {
-    stats,
+    current,
+    previous,
     isLoading,
     error,
     refetch: () => setTimestamp(Date.now()),

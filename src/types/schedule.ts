@@ -59,7 +59,13 @@ export type ScheduleSummary = {
   state: ScheduleState
 }
 
-export type DateSchedulePresence = Record<string, boolean>
+export type DateSchedulePresence = Record<
+  string,
+  {
+    hasSchedule: boolean
+    hasOverdue?: boolean
+  }
+>
 
 export type OverdueSummary = {
   hasOverdue: boolean

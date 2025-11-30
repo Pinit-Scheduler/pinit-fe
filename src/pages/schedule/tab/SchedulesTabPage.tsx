@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import useScheduleViewState from '../../../hooks/useScheduleViewState.ts'
 import WeeklyDateStrip from '../../../components/schedules/WeeklyDateStrip.tsx'
 import OverdueBanner from '../../../components/schedules/OverdueBanner.tsx'
@@ -14,38 +14,55 @@ import { deleteSchedule, startSchedule, cancelSchedule } from '../../../api/sche
 import useWeeklyStatistics from '../../../hooks/useWeeklyStatistics.ts'
 import { formatMinutesToTime } from '../../../utils/statisticsTransform.ts'
 import './SchedulesTabPage.css'
+import '../../../utils/datetime.ts'
 
 const SchedulesTabPage = () => {
   const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null)
-  const { currentWeekStart, selectedDate, selectedDateLabel, goToWeek, selectDate } =
-    useScheduleViewState()
-  const { presenceMap, isLoading: isPresenceLoading, refetch: refetchPresence } =
-    useWeeklySchedulePresence({ weekStart: currentWeekStart })
+  const {
+    currentWeekStart,
+    selectedDate,
+    selectedDateLabel,
+    selectedDateKey,
+    goToWeek,
+    selectDate,
+  } = useScheduleViewState()
+  const {
+    presenceMap,
+    isLoading: isPresenceLoading,
+    error: presenceError,
+    refetch: refetchPresence,
+  } = useWeeklySchedulePresence({ weekStart: currentWeekStart, anchorDate: selectedDate })
+  const {
+    schedules: schedulesByDate,
+    isLoading: isScheduleLoadingRaw,
+    error: scheduleErrorRaw,
+    refetch: refetchSchedulesRaw,
+  } = useScheduleList(selectedDate)
   const { summary: overdueSummary, isLoading: isOverdueLoading, refetch: refetchOverdue } =
     useOverdueSchedulesSummary()
   const {
-    stats: weeklyStats,
+    current: weeklyStats,
     isLoading: isWeeklyStatsLoading,
     error: weeklyStatsError,
     refetch: refetchWeeklyStats,
   } = useWeeklyStatistics({ weekStart: currentWeekStart.add(1, 'day') })
 
-  const { schedules, isLoading: isScheduleLoading, error: scheduleError, refetch: refetchSchedules } =
-    useScheduleList(selectedDate)
+  const schedules = schedulesByDate
+  const isScheduleLoading = isPresenceLoading || isScheduleLoadingRaw
+  const scheduleError = scheduleErrorRaw ?? presenceError
+  const refetchSchedules = () => {
+    refetchPresence()
+    refetchSchedulesRaw()
+  }
 
-  // 디버깅: 현재 상태 로깅
-  console.log('📄 SchedulesTabPage render:', {
-    selectedDate: selectedDate.format('YYYY-MM-DD'),
-    selectedDateLabel,
-    isPresenceLoading,
-    isScheduleLoading,
-    schedulesCount: schedules.length,
-    scheduleError,
-    schedules: schedules.map(s => ({ id: s.id, title: s.title, state: s.state })),
-    isWeeklyStatsLoading,
-    weeklyStatsError,
-    weeklyTotalMinutes: weeklyStats?.totalMinutes,
-  })
+  const presenceMapWithSelected = useMemo(() => {
+    const hasSchedule = schedules.length > 0
+    const hasOverdue = schedules.some((item) => item.state !== 'COMPLETED')
+    return {
+      ...presenceMap,
+      [selectedDateKey]: { hasSchedule, hasOverdue },
+    }
+  }, [presenceMap, schedules, selectedDateKey])
 
   const handleRefresh = () => {
     console.log('🔄 Manual refresh triggered')
@@ -121,7 +138,7 @@ const SchedulesTabPage = () => {
       <WeeklyDateStrip
         weekStart={currentWeekStart}
         selectedDate={selectedDate}
-        presenceMap={presenceMap}
+        presenceMap={presenceMapWithSelected}
         onSelectDate={selectDate}
         onChangeWeek={goToWeek}
       />

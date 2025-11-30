@@ -32,6 +32,8 @@ export const deleteSchedule = (scheduleId: number) =>
     method: 'DELETE',
   })
 
+export const fetchActiveScheduleId = () =>
+  httpClient<number>(`/now?memberId=${MEMBER_ID}`)
 
 export const startSchedule = (scheduleId: number) => {
   const time = new Date().toISOString()

@@ -1,6 +1,6 @@
 import { fetchScheduleDetail } from '../api/schedules'
-import { useScheduleCache } from '../context/ScheduleCacheContext'
 import { useEffect, useState } from 'react'
+import { useScheduleCache } from '../context/ScheduleCacheContext'
 import type { ScheduleResponse } from '../types/schedule'
 
 type UseScheduleDetailReturn = {
@@ -14,7 +14,7 @@ const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [timestamp, setTimestamp] = useState(() => Date.now())
-  const { upsertSchedule } = useScheduleCache()
+  const { setSchedule: cacheSchedule } = useScheduleCache()
 
   useEffect(() => {
     if (!numericId) return
@@ -26,7 +26,7 @@ const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
         const response = await fetchScheduleDetail(numericId)
         if (isMounted) {
           setSchedule(response)
-          upsertSchedule(response)
+          cacheSchedule(response)
         }
       } finally {
         if (isMounted) {
@@ -40,7 +40,7 @@ const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
     return () => {
       isMounted = false
     }
-  }, [numericId, timestamp, upsertSchedule])
+  }, [cacheSchedule, numericId, timestamp])
 
   return {
     schedule,

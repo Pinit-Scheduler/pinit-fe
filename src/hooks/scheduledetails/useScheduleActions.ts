@@ -1,7 +1,14 @@
-import { startSchedule, suspendSchedule, completeSchedule, cancelSchedule } from '../../api/schedules.ts'
-import { useScheduleCache } from '../../context/ScheduleCacheContext.tsx'
+import {
+  startSchedule,
+  suspendSchedule,
+  completeSchedule,
+  cancelSchedule,
+  fetchActiveScheduleId,
+  fetchScheduleDetail,
+} from '../../api/schedules.ts'
 import { useEffect, useMemo, useState } from 'react'
 import type { ScheduleState } from '../../types/schedule.ts'
+import { useScheduleCache } from '../../context/ScheduleCacheContext'
 
 // 실제 백엔드 상태에 맞게 수정
 // NOT_STARTED: 시작, 완료 가능
@@ -42,12 +49,20 @@ const useScheduleActions = (scheduleId: number | null, initialState: ScheduleSta
   const [currentState, setCurrentState] = useState<ScheduleState>(initialState)
   const [isMutating, setIsMutating] = useState(false)
   const [lastMessage, setLastMessage] = useState<string | null>(null)
-  const { updateScheduleState } = useScheduleCache()
+  const { updateScheduleState, setActiveSchedule, setSchedule, activeScheduleId, schedulesById } =
+    useScheduleCache()
+  const cachedState = scheduleId ? schedulesById[scheduleId]?.state : undefined
 
   useEffect(() => {
     setCurrentState(initialState)
-    console.log(`🔄 State changed for schedule ${scheduleId}:`, { from: currentState, to: initialState })
-  }, [initialState, scheduleId, currentState])
+    console.log(`🔄 State changed for schedule ${scheduleId}:`, { to: initialState })
+  }, [initialState, scheduleId])
+
+  useEffect(() => {
+    if (cachedState && cachedState !== currentState) {
+      setCurrentState(cachedState)
+    }
+  }, [cachedState, currentState])
 
   const canStart = useMemo(() => {
     const result = allowedStartStates.includes(currentState)
@@ -99,21 +114,41 @@ const useScheduleActions = (scheduleId: number | null, initialState: ScheduleSta
   const start = async () => {
     if (!canStart || isMutating) return
     await mutate(startSchedule, 'IN_PROGRESS', '일정을 시작했습니다.')
+    // 시작 후 활성 일정 갱신
+    try {
+      const activeId = await fetchActiveScheduleId()
+      if (activeId) {
+        const detail = await fetchScheduleDetail(activeId)
+        setSchedule(detail)
+        setActiveSchedule(activeId)
+      }
+    } catch (error) {
+      console.error('Failed to refresh active schedule after start:', error)
+    }
   }
 
   const pause = async () => {
     if (!canPause || isMutating) return
     await mutate(suspendSchedule, 'SUSPENDED', '일정을 일시 중지했습니다.')
+    if (scheduleId === activeScheduleId) {
+      setActiveSchedule(scheduleId)
+    }
   }
 
   const complete = async () => {
     if (!canComplete || isMutating) return
     await mutate(completeSchedule, 'COMPLETED', '일정을 완료했습니다.')
+    if (scheduleId === activeScheduleId) {
+      setActiveSchedule(null)
+    }
   }
 
   const cancel = async () => {
     if (!canCancel || isMutating) return
     await mutate(cancelSchedule, 'NOT_STARTED', '일정을 취소하고 미시작 상태로 되돌렸습니다.')
+    if (scheduleId === activeScheduleId) {
+      setActiveSchedule(null)
+    }
   }
 
   return {

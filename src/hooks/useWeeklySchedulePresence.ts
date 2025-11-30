@@ -1,25 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import type dayjs from 'dayjs'
-import { getWeekDays, toDateKey } from '../utils/datetime'
+import { getWeekDays, toApiDateTimeKST, toDateKey } from '../utils/datetime'
 import type { DateSchedulePresence } from '../types/schedule'
 import type { ScheduleResponse } from '../types/schedule'
 import { fetchWeeklySchedules } from '../api/schedules'
-import { useScheduleCache } from '../context/ScheduleCacheContext'
 
 type Options = {
   weekStart: dayjs.Dayjs
+  anchorDate?: dayjs.Dayjs
 }
 
 type UseWeeklySchedulePresenceReturn = {
+  weeklySchedules: ScheduleResponse[]
   presenceMap: DateSchedulePresence
   isLoading: boolean
+  error: string | null
   refetch: () => void
 }
 
-const useWeeklySchedulePresence = ({ weekStart }: Options): UseWeeklySchedulePresenceReturn => {
-  const { setDateSchedules } = useScheduleCache()
+const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeeklySchedulePresenceReturn => {
   const [presenceMap, setPresenceMap] = useState<DateSchedulePresence>({})
+  const [weeklySchedules, setWeeklySchedules] = useState<ScheduleResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState(() => Date.now())
 
   const dateKeys = useMemo(() => getWeekDays(weekStart).map(toDateKey), [weekStart])
@@ -29,53 +32,54 @@ const useWeeklySchedulePresence = ({ weekStart }: Options): UseWeeklySchedulePre
 
     const fetchPresence = async () => {
       setIsLoading(true)
+      setError(null)
       try {
         // 주간 일정을 한 번에 조회
-        const time = weekStart.toISOString()
+        const requestBase = anchorDate ?? weekStart
+        const time = toApiDateTimeKST(requestBase.hour(12))
         const schedules = await fetchWeeklySchedules(time)
+        if (!isMounted) return
+        setWeeklySchedules(schedules)
 
         // 날짜별로 일정 그룹화
-        const schedulesByDate = schedules.reduce<Record<string, ScheduleResponse[]>>((acc, schedule) => {
-          const dateKey = toDateKey(schedule.date)
-          if (!acc[dateKey]) {
-            acc[dateKey] = []
-          }
-          acc[dateKey].push(schedule)
-          return acc
-        }, {})
+        const schedulesByDate = schedules.reduce<Record<string, ScheduleResponse[]>>(
+          (acc, schedule) => {
+            const dateKey = toDateKey(schedule.date)
+            if (!acc[dateKey]) {
+              acc[dateKey] = []
+            }
+            acc[dateKey].push(schedule)
+            return acc
+          },
+          {},
+        )
 
         // 각 날짜의 존재 여부 맵 생성 및 캐시 업데이트
         const map: DateSchedulePresence = {}
         dateKeys.forEach((dateKey) => {
           const schedulesForDate = schedulesByDate[dateKey] || []
-          map[dateKey] = schedulesForDate.length > 0
-
-          // 캐시에 저장 (ScheduleSummary 형식으로 변환)
-          const summaries = schedulesForDate.map((s: ScheduleResponse) => ({
-            id: s.id,
-            title: s.title,
-            description: s.description,
-            date: s.date,
-            deadline: s.deadline,
-            importance: s.importance,
-            urgency: s.urgency,
-            state: s.state,
-            // taskType은 백엔드에서 제공하지 않으므로 생략
-          }))
-          setDateSchedules(dateKey, summaries)
+          const hasSchedule = schedulesForDate.length > 0
+          const hasOverdue = schedulesForDate.some(
+            (item) => item.state !== 'COMPLETED',
+          )
+          map[dateKey] = { hasSchedule, hasOverdue }
         })
 
         if (isMounted) {
           setPresenceMap(map)
         }
-      } catch {
+      } catch (err) {
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : '주간 일정을 불러오지 못했습니다.')
+        }
         // 에러 시 모든 날짜를 false로 설정
         if (isMounted) {
-          const map: DateSchedulePresence = {}
+          const emptyMap: DateSchedulePresence = {}
           dateKeys.forEach((dateKey) => {
-            map[dateKey] = false
+            emptyMap[dateKey] = { hasSchedule: false, hasOverdue: false }
           })
-          setPresenceMap(map)
+          setPresenceMap(emptyMap)
+          setWeeklySchedules([])
         }
       } finally {
         if (isMounted) {
@@ -89,15 +93,15 @@ const useWeeklySchedulePresence = ({ weekStart }: Options): UseWeeklySchedulePre
     return () => {
       isMounted = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateKeys, requestId, weekStart])
+  }, [anchorDate, dateKeys, requestId, weekStart])
 
   return {
+    weeklySchedules,
     presenceMap,
     isLoading,
+    error,
     refetch: () => setRequestId(Date.now()),
   }
 }
 
 export default useWeeklySchedulePresence
-

@@ -1,17 +1,55 @@
-import { useMemo } from 'react'
-import { useScheduleCache } from '../../context/ScheduleCacheContext.tsx'
+import { useEffect, useState } from 'react'
+import { fetchActiveScheduleId, fetchScheduleDetail } from '../../api/schedules'
 import type { ScheduleSummary } from '../../types/schedule.ts'
+import { useScheduleCache } from '../../context/ScheduleCacheContext'
 
-/**
- * 활성 일정(현재 진행중인 일정) 정보를 반환하는 커스텀 훅
- * useMemo를 사용하여 활성 일정이 변경될 때만 새로운 객체를 반환
- * @returns 현재 진행중인 일정 요약 정보 또는 null
- */
 const useActiveSchedule = (): ScheduleSummary | null => {
-  const { activeSchedule } = useScheduleCache()
+  const [active, setActive] = useState<ScheduleSummary | null>(null)
+  const { activeSchedule, setActiveSchedule, schedulesById, setSchedule } = useScheduleCache()
 
-  return useMemo(() => (activeSchedule ? { ...activeSchedule } : null), [activeSchedule])
+  useEffect(() => {
+    let isMounted = true
+
+    const loadActive = async () => {
+      try {
+        const activeId = await fetchActiveScheduleId()
+        if (!activeId) {
+          if (isMounted) {
+            setActive(null)
+            setActiveSchedule(null)
+          }
+          return
+        }
+        const cached = schedulesById[activeId]
+        const detail = cached ?? (await fetchScheduleDetail(activeId))
+        if (isMounted) {
+          setActive({
+            id: detail.id,
+            title: detail.title,
+            description: detail.description,
+            date: detail.date,
+            deadline: detail.deadline,
+            importance: detail.importance,
+            urgency: detail.urgency,
+            state: detail.state,
+          })
+          setSchedule(detail)
+          setActiveSchedule(activeId)
+        }
+      } catch (error) {
+        console.error('Failed to load active schedule:', error)
+        if (isMounted) setActive(null)
+      }
+    }
+
+    loadActive()
+
+    return () => {
+      isMounted = false
+    }
+  }, [schedulesById, setActiveSchedule, setSchedule])
+
+  return activeSchedule ?? active
 }
 
 export default useActiveSchedule
-

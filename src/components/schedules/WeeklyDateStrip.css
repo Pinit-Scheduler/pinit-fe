@@ -34,6 +34,9 @@
 }
 
 .weekly-date-strip__day.has-schedule .weekly-date-strip__dot {
-  color: #2563eb;
+  color: #2563eb; /* 파란색 */
 }
 
+.weekly-date-strip__day.has-overdue .weekly-date-strip__dot {
+  color: #ef4444; /* 빨간색 */
+}

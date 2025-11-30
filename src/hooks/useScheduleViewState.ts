@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useContext, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { formatDisplayDate, getTodayKST, getWeekStart, toDateKey } from '../utils/datetime'
+import { ScheduleViewStateContext } from '../context/ScheduleViewStateContext'
 
 const useScheduleViewState = () => {
+  const sharedState = useContext(ScheduleViewStateContext)
+
   const today = useMemo(() => getTodayKST(), [])
   const initialWeekStart = useMemo(() => getWeekStart(today), [today])
 
@@ -24,14 +27,22 @@ const useScheduleViewState = () => {
     setCurrentWeekStart(newWeekStart)
   }
 
-  return {
+  const resetToToday = () => {
+    setSelectedDate(today)
+    setCurrentWeekStart(initialWeekStart)
+  }
+
+  const fallbackState = {
     currentWeekStart,
     selectedDate,
     selectedDateLabel: formatDisplayDate(selectedDate),
     selectedDateKey: toDateKey(selectedDate),
     goToWeek,
     selectDate,
+    resetToToday,
   }
+
+  return sharedState ?? fallbackState
 }
 
 type UseScheduleViewStateReturn = ReturnType<typeof useScheduleViewState>

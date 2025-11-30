@@ -70,7 +70,8 @@ const WeeklyDateStrip = ({
       {weekDays.map((day) => {
         const dateKey = toDateKey(day)
         const isSelected = toDateKey(selectedDate) === dateKey
-        const hasSchedule = presenceMap[dateKey]
+        const hasSchedule = presenceMap[dateKey]?.hasSchedule
+        const hasOverdue = presenceMap[dateKey]?.hasOverdue
         return (
           <button
             key={dateKey}
@@ -79,6 +80,7 @@ const WeeklyDateStrip = ({
               'weekly-date-strip__day',
               isSelected && 'is-selected',
               hasSchedule && 'has-schedule',
+              hasOverdue && 'has-overdue',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -99,4 +101,3 @@ const WeeklyDateStrip = ({
 }
 
 export default WeeklyDateStrip
-

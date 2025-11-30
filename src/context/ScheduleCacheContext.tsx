@@ -1,127 +1,57 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { ScheduleResponse, ScheduleState, ScheduleSummary } from '../types/schedule'
-import { toDateKey } from '../utils/datetime'
-import { areScheduleListsEqual } from '../utils/scheduleList'
+import type { ScheduleResponse, ScheduleState } from '../types/schedule'
 
 export type ScheduleCacheValue = {
-  schedulesByDate: Record<string, ScheduleSummary[]>
-  getDateSchedules: (dateKey: string) => ScheduleSummary[] | undefined
-  setDateSchedules: (dateKey: string, schedules: ScheduleSummary[]) => void
+  schedulesById: Record<number, ScheduleResponse>
+  activeScheduleId: number | null
+  activeSchedule: ScheduleResponse | null
+  setSchedule: (schedule: ScheduleResponse) => void
+  setActiveSchedule: (scheduleId: number | null) => void
   updateScheduleState: (scheduleId: number, nextState: ScheduleState) => void
-  upsertSchedule: (schedule: ScheduleSummary | ScheduleResponse) => void
-  getScheduleSummary: (scheduleId: number) => ScheduleSummary | undefined
-  activeSchedule?: ScheduleSummary
 }
 
-/**
- * 일정 캐시 컨텍스트
- */
 const ScheduleCacheContext = createContext<ScheduleCacheValue | null>(null)
 
-/**
- * 활성 일정을 도출하는 헬퍼 함수
- * @param schedulesByDate
- */
-const deriveActiveSchedule = (schedulesByDate: Record<string, ScheduleSummary[]>) => {
-  for (const schedules of Object.values(schedulesByDate)) {
-    const active = schedules.find((schedule) =>
-      schedule.state === 'IN_PROGRESS' || schedule.state === 'SUSPENDED',
-    )
-    if (active) return active
-  }
-  return undefined
-}
-
-/**
- * 일정 캐시 프로바이더 컴포넌트
- * @param children - 하위 컴포넌트
- * @constructor
- */
 export const ScheduleCacheProvider = ({ children }: { children: ReactNode }) => {
-  const [schedulesByDate, setSchedulesByDate] = useState<Record<string, ScheduleSummary[]>>({})
+  const [schedulesById, setSchedulesById] = useState<Record<number, ScheduleResponse>>({})
+  const [activeScheduleId, setActiveScheduleId] = useState<number | null>(null)
 
-    // useCallback의 참조 불변 보장은 애초에 “같은 컴포넌트 인스턴스가 살아 있는 동안”을 전제로 한 보장
-  const getDateSchedules = useCallback((dateKey: string) => schedulesByDate[dateKey], [
-    schedulesByDate,
-  ])
+  const setSchedule = useCallback((schedule: ScheduleResponse) => {
+    setSchedulesById((prev) => ({
+      ...prev,
+      [schedule.id]: schedule,
+    }))
+  }, [])
 
-  const setDateSchedules = useCallback((dateKey: string, schedules: ScheduleSummary[]) => {
-    setSchedulesByDate((prev) => {
-      const current = prev[dateKey]
-      if (areScheduleListsEqual(current, schedules)) {
-        return prev
-      }
-      return { ...prev, [dateKey]: schedules }
-    })
+  const setActiveSchedule = useCallback((scheduleId: number | null) => {
+    setActiveScheduleId(scheduleId)
   }, [])
 
   const updateScheduleState = useCallback((scheduleId: number, nextState: ScheduleState) => {
-    setSchedulesByDate((prev) => {
-      const next: typeof prev = {}
-      let changed = false
-      Object.entries(prev).forEach(([key, list]) => {
-        const updatedList = list.map((schedule) =>
-          schedule.id === scheduleId ? { ...schedule, state: nextState } : schedule,
-        )
-        next[key] = updatedList
-        if (!changed && JSON.stringify(updatedList) !== JSON.stringify(list)) {
-          changed = true
-        }
-      })
-      return changed ? next : prev
+    setSchedulesById((prev) => {
+      const current = prev[scheduleId]
+      if (!current) return prev
+      return {
+        ...prev,
+        [scheduleId]: { ...current, state: nextState },
+      }
     })
-  }, [])
+    if (scheduleId === activeScheduleId && nextState === 'COMPLETED') {
+      setActiveScheduleId(null)
+    }
+  }, [activeScheduleId])
 
-  const upsertSchedule = useCallback((schedule: ScheduleSummary | ScheduleResponse) => {
-    const dateKey = typeof schedule.date === 'string' ? schedule.date.slice(0, 10) : toDateKey(schedule.date)
-    setSchedulesByDate((prev) => {
-      const current = prev[dateKey] ?? []
-      const existingIndex = current.findIndex((item) => item.id === schedule.id)
-      const summary: ScheduleSummary = {
-        id: schedule.id,
-        title: schedule.title,
-        description: schedule.description,
-        date: schedule.date,
-        deadline: schedule.deadline,
-        importance: schedule.importance,
-        urgency: schedule.urgency,
-        state: schedule.state,
-        // taskType은 ScheduleResponse에 없으므로 ScheduleSummary에만 있을 수 있음
-        ...(('taskType' in schedule && schedule.taskType) ? { taskType: schedule.taskType } : {}),
-      }
-      const nextList = [...current]
-      if (existingIndex >= 0) {
-        nextList[existingIndex] = summary
-      } else {
-        nextList.push(summary)
-      }
-      return areScheduleListsEqual(current, nextList) ? prev : { ...prev, [dateKey]: nextList }
-    })
-  }, [])
-
-  const getScheduleSummary = useCallback(
-    (scheduleId: number) => {
-      for (const schedules of Object.values(schedulesByDate)) {
-        const found = schedules.find((item) => item.id === scheduleId)
-        if (found) return found
-      }
-      return undefined
-    },
-    [schedulesByDate],
-  )
-
-  const value = useMemo<ScheduleCacheValue>(
+  const value = useMemo(
     () => ({
-      schedulesByDate,
-      getDateSchedules,
-      setDateSchedules,
+      schedulesById,
+      activeScheduleId,
+      activeSchedule: activeScheduleId ? schedulesById[activeScheduleId] ?? null : null,
+      setSchedule,
+      setActiveSchedule,
       updateScheduleState,
-      upsertSchedule,
-      getScheduleSummary,
-      activeSchedule: deriveActiveSchedule(schedulesByDate),
     }),
-    [getDateSchedules, schedulesByDate, setDateSchedules, updateScheduleState, upsertSchedule, getScheduleSummary],
+    [activeScheduleId, schedulesById, setActiveSchedule, setSchedule, updateScheduleState],
   )
 
   return <ScheduleCacheContext.Provider value={value}>{children}</ScheduleCacheContext.Provider>

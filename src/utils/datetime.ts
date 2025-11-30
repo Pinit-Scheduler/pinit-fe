@@ -22,16 +22,16 @@ export const getWeekDays = (weekStart: dayjs.Dayjs) =>
   Array.from({ length: 7 }, (_, index) => weekStart.add(index, 'day'))
 
 export const toDateKey = (date: dayjs.Dayjs | Date | string) =>
-  dayjs(date).tz(SEOUL_TZ).format('YYYY-MM-DD')
+  dayjs.tz(date, SEOUL_TZ).format('YYYY-MM-DD')
 
 export const formatDisplayDate = (date: dayjs.Dayjs | Date | string) =>
-  dayjs(date).tz(SEOUL_TZ).format('M월 D일 (dd)')
+  dayjs.tz(date, SEOUL_TZ).format('M월 D일 (dd)')
 
 export const fromApiDateTimeKST = (value: string) => dayjs(value).tz(SEOUL_TZ)
 
 export const toApiDateTimeKST = (value: dayjs.Dayjs | Date | string) => {
   const normalized = dayjs(value).tz(SEOUL_TZ)
-  return `${normalized.format('YYYY-MM-DDTHH:mm:ss')}+09:00[Asia/Seoul]`
+  return normalized.toISOString()
 }
 
 export const addDays = (date: dayjs.Dayjs | Date | string, offset: number) =>
