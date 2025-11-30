@@ -21,16 +21,15 @@ export const ScheduleViewStateProvider = ({ children }: { children: ReactNode })
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(today))
   const [selectedDate, setSelectedDate] = useState(today)
 
-  const goToWeek = useCallback((offset: number) => {
-    setCurrentWeekStart((prevWeekStart) => {
-      const nextWeekStart = prevWeekStart.add(offset, 'week')
-      setSelectedDate((prevSelected) => {
-        const currentWeekdayIndex = prevSelected.diff(prevWeekStart, 'day')
-        return nextWeekStart.add(currentWeekdayIndex, 'day')
-      })
-      return nextWeekStart
-    })
-  }, [])
+  const goToWeek = useCallback(
+    (offset: number) => {
+      const targetWeekStart = getWeekStart(selectedDate.add(offset, 'week'))
+      const candidate = targetWeekStart.add(selectedDate.diff(getWeekStart(selectedDate), 'day'), 'day')
+      setCurrentWeekStart(targetWeekStart)
+      setSelectedDate(candidate)
+    },
+    [selectedDate],
+  )
 
   const selectDate = useCallback((date: dayjs.Dayjs) => {
     setSelectedDate(date)

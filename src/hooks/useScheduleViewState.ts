@@ -13,13 +13,14 @@ const useScheduleViewState = () => {
   const [selectedDate, setSelectedDate] = useState(today)
 
   const goToWeek = (offset: number) => {
-    const nextWeekStart = currentWeekStart.add(offset, 'week')
-    setCurrentWeekStart(nextWeekStart)
-
-    const currentWeekdayIndex = selectedDate.diff(currentWeekStart, 'day')
-    const nextSelectedDate = nextWeekStart.add(currentWeekdayIndex, 'day')
-    setSelectedDate(nextSelectedDate)
-  }
+  const nextWeekStart = currentWeekStart.add(offset, 'week')
+  const currentWeekdayIndex = selectedDate.diff(currentWeekStart, 'day')
+  const candidate = nextWeekStart.add(currentWeekdayIndex, 'day')
+  const todayKST = getTodayKST()
+  const nextSelectedDate = candidate.isAfter(todayKST, 'day') ? todayKST : candidate
+  setCurrentWeekStart(nextWeekStart)
+  setSelectedDate(nextSelectedDate)
+}
 
   const selectDate = (date: dayjs.Dayjs) => {
     setSelectedDate(date)

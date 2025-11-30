@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import type dayjs from 'dayjs'
 import type { ScheduleSummary } from '../types/schedule'
 import { toDateKey } from '../utils/datetime'
@@ -12,6 +12,7 @@ type UseScheduleListReturn = {
 }
 
 const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
+  const cacheRef = useRef<Record<string, ScheduleSummary[]>>({})
   const [schedules, setSchedules] = useState<ScheduleSummary[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -21,13 +22,22 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
 
   const applySchedules = useCallback((next: ScheduleSummary[]) => {
     setSchedules(next)
-  }, [])
+    cacheRef.current[dateKey] = next
+  }, [dateKey])
 
   useEffect(() => {
     let isCancelled = false
 
-    const fetchList = async () => {
+    const cached = cacheRef.current[dateKey]
+    if (cached) {
+      setSchedules(cached)
+      setIsLoading(false)
+    } else {
+      setSchedules([]) // 새 날짜에서는 기존 목록을 비워 일관성 유지
       setIsLoading(true)
+    }
+
+    const fetchList = async () => {
       setError(null)
 
       try {

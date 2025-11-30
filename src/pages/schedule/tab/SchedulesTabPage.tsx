@@ -28,12 +28,8 @@ const SchedulesTabPage = () => {
     selectDate,
   } = useScheduleViewState()
   const { addToast } = useToast()
-  const {
-    presenceMap,
-    isLoading: isPresenceLoading,
-    error: presenceError,
-    refetch: refetchPresence,
-  } = useWeeklySchedulePresence({ weekStart: currentWeekStart, anchorDate: selectedDate })
+  const { presenceMap, isLoading: isPresenceLoading, error: presenceError, refetch: refetchPresence } =
+    useWeeklySchedulePresence({ weekStart: currentWeekStart, anchorDate: selectedDate })
   const {
     schedules: schedulesByDate,
     isLoading: isScheduleLoadingRaw,
@@ -143,14 +139,16 @@ const SchedulesTabPage = () => {
           }}
         />
       ) : null}
-      <WeeklyDateStrip
-        weekStart={currentWeekStart}
-        selectedDate={selectedDate}
-        presenceMap={presenceMapWithSelected}
-        onSelectDate={selectDate}
-        onChangeWeek={goToWeek}
-      />
-      <div className="schedules-tab__weekly-stats">
+      <div className="week-transition" key={currentWeekStart.toISOString()}>
+        <WeeklyDateStrip
+          weekStart={currentWeekStart}
+          selectedDate={selectedDate}
+          presenceMap={presenceMapWithSelected}
+          onSelectDate={selectDate}
+          onChangeWeek={goToWeek}
+        />
+      </div>
+      <div className="schedules-tab__weekly-stats week-transition" key={`${currentWeekStart.toISOString()}-stats`}>
         {isWeeklyStatsLoading ? (
           <span>이번 주 총 작업 시간을 불러오는 중...</span>
         ) : weeklyStatsError ? (
@@ -167,7 +165,7 @@ const SchedulesTabPage = () => {
           새로고침
         </button>
       </header>
-      <div className="schedules-tab__list">
+      <div className="schedules-tab__list fade-slide">
         {isPresenceLoading || isScheduleLoading ? (
           <StatusPanel variant="loading" title="일정을 불러오는 중" />
         ) : scheduleError ? (
