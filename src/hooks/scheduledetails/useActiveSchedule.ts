@@ -47,7 +47,9 @@ const useActiveSchedule = (): ScheduleSummary | null => {
     return () => {
       isMounted = false
     }
-  }, [schedulesById, setActiveSchedule, setSchedule])
+    // schedulesById를 의존성에 넣으면 캐시 변경 시마다 재호출하므로 제외
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setActiveSchedule, setSchedule])
 
   return activeSchedule ?? active
 }
