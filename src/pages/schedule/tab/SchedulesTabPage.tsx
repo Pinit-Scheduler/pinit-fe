@@ -102,7 +102,7 @@ const SchedulesTabPage = () => {
       refetchPresence()
     } catch (error) {
       console.error(`❌ Delete failed for schedule ${scheduleId}:`, error)
-      alert('일정 삭제에 실패했습니다.')
+      addToast('일정 삭제에 실패했습니다.', 'error')
     }
   }
 
@@ -115,7 +115,7 @@ const SchedulesTabPage = () => {
       refetchPresence()
     } catch (error) {
       console.error(`❌ Start failed for schedule ${scheduleId}:`, error)
-      alert('일정 시작에 실패했습니다.')
+      addToast('일정 시작에 실패했습니다.', 'error')
     }
   }
 
@@ -128,7 +128,7 @@ const SchedulesTabPage = () => {
       refetchPresence()
     } catch (error) {
       console.error(`❌ Cancel failed for schedule ${scheduleId}:`, error)
-      alert('일정 취소에 실패했습니다.')
+      addToast('일정 취소에 실패했습니다.', 'error')
     }
   }
 

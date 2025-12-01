@@ -3,6 +3,7 @@ import ScheduleForm from '../schedules/ScheduleForm'
 import { createSchedule, updateSchedule } from '../../api/schedules'
 import { toApiDateTimeKST } from '../../utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../types/schedule'
+import { useToast } from '../../context/ToastContext'
 import './ScheduleModal.css'
 
 type ScheduleModalProps = {
@@ -19,6 +20,8 @@ type ScheduleModalProps = {
  * @constructor
  */
 const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
+  const { addToast } = useToast()
+
   useEffect(() => {
     return () => {
       // ensure cleanup closes modal state via onClose if unmounted externally
@@ -51,7 +54,7 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
       onClose()
     } catch (error) {
       console.error('일정 저장 실패:', error)
-      alert('일정 저장에 실패했습니다.')
+      addToast('일정 저장에 실패했습니다.', 'error')
       // 에러 발생 시에도 모달을 닫으려면 onClose() 호출
       // onClose()
     }

@@ -9,6 +9,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import type { ScheduleState } from '../../types/schedule.ts'
 import { useScheduleCache } from '../../context/ScheduleCacheContext'
+import { useToast } from '../../context/ToastContext'
 
 // 실제 백엔드 상태에 맞게 수정
 // NOT_STARTED: 시작, 완료 가능
@@ -51,6 +52,7 @@ const useScheduleActions = (scheduleId: number | null, initialState: ScheduleSta
   const [lastMessage, setLastMessage] = useState<string | null>(null)
   const { updateScheduleState, setActiveSchedule, setSchedule, activeScheduleId, schedulesById } =
     useScheduleCache()
+  const { addToast } = useToast()
   const cachedState = scheduleId ? schedulesById[scheduleId]?.state : undefined
 
   useEffect(() => {
@@ -106,6 +108,7 @@ const useScheduleActions = (scheduleId: number | null, initialState: ScheduleSta
     } catch (error) {
       console.error(`❌ Mutation failed for schedule ${scheduleId}:`, error)
       setLastMessage(error instanceof Error ? error.message : '작업 실패')
+      addToast('일정 상태 변경에 실패했습니다.', 'error')
     } finally {
       setIsMutating(false)
     }

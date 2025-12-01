@@ -7,11 +7,13 @@ import StatusPanel from '../../components/common/StatusPanel.tsx'
 import './StatisticsTabPage.css'
 import { formatMinutesToTime } from '../../utils/statisticsTransform.ts'
 import { getTodayKST } from '../../utils/datetime.ts'
+import { useToast } from '../../context/ToastContext.tsx'
 
 const StatisticsTabPage = () => {
   const today = useMemo(() => getTodayKST(), [])
   const [anchorDay, setAnchorDay] = useState(today)
   const { current: stats, previous, isLoading, error, refetch } = useWeeklyStatistics({ weekStart: anchorDay })
+  const { addToast } = useToast()
 
   const goPrevWeek = () => setAnchorDay((prev) => prev.subtract(7, 'day'))
   const goNextWeek = () => {
@@ -42,6 +44,9 @@ const StatisticsTabPage = () => {
   }
 
   if (error || !stats) {
+    if (error) {
+      addToast(error, 'error')
+    }
     return (
       <StatusPanel
         variant="error"

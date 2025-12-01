@@ -2,6 +2,7 @@ import dayjs from 'dayjs'
 import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { deleteSchedule } from '../../api/schedules'
 import { useNavigate } from 'react-router-dom'
+import { useToast } from '../../context/ToastContext'
 import './ScheduleDetailModal.css'
 
 type ScheduleDetailModalProps = {
@@ -20,6 +21,7 @@ type ScheduleDetailModalProps = {
 const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailModalProps) => {
   const { schedule, isLoading } = useScheduleDetail(scheduleId.toString())
   const navigate = useNavigate()
+  const { addToast } = useToast()
 
   const handleDelete = async () => {
     if (!schedule) return
@@ -29,12 +31,13 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
         await deleteSchedule(schedule.id)
         console.log(`✅ Schedule deleted: ${schedule.id}`)
         onClose()
+        addToast('일정이 삭제되었습니다.', 'success')
         if (onRefresh) {
           onRefresh()
         }
       } catch (error) {
         console.error(`❌ Delete failed:`, error)
-        alert('일정 삭제에 실패했습니다.')
+        addToast('일정 삭제에 실패했습니다.', 'error')
       }
     }
   }
