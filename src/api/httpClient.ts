@@ -1,4 +1,9 @@
-const API_BASE_URL = "http://localhost:8080"
+const API_BASE_URL =
+  import.meta.env.PROD && import.meta.env.VITE_API_BASE_URL
+    ? import.meta.env.VITE_API_BASE_URL
+    : import.meta.env.PROD
+      ? 'https://api.pinit.go-gradually.me'
+      : 'http://localhost:8080'
 
 // 앱 시작 시 설정 확인
 console.log('🔌 API Configuration:', {
@@ -93,4 +98,3 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
     )
   }
 }
-
