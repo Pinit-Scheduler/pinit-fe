@@ -1,4 +1,5 @@
 import type { ScheduleSummary } from '../../types/schedule'
+import { getImportanceStyle, getUrgencyStyle } from '../../utils/priorityStyles.ts'
 import './ScheduleCard.css'
 
 type ScheduleCardProps = {
@@ -48,6 +49,8 @@ const ScheduleCard = ({
   onCancel,
 }: ScheduleCardProps) => {
   const { id, title, description, importance, urgency, taskType, state } = schedule
+  const importanceStyle = getImportanceStyle(importance)
+  const urgencyStyle = getUrgencyStyle(urgency)
 
   const handleClick = () => {
     onOpenDetail(id)
@@ -131,8 +134,12 @@ const ScheduleCard = ({
       <p className="schedule-card__description">{description}</p>
       <footer className="schedule-card__footer">
         <div className="schedule-card__meta">
-          <span className="schedule-card__pill">중요도 {importance}</span>
-          <span className="schedule-card__pill">긴급도 {urgency}</span>
+          <span className="schedule-card__pill" style={importanceStyle}>
+            중요도 {importance}
+          </span>
+          <span className="schedule-card__pill" style={urgencyStyle}>
+            긴급도 {urgency}
+          </span>
         </div>
         {state === 'NOT_STARTED' && (
           <button

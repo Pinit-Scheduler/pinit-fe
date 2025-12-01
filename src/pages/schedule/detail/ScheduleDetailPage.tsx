@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import useScheduleDetail from '../../../hooks/useScheduleDetail.ts'
 import useScheduleActions from '../../../hooks/scheduledetails/useScheduleActions.ts'
 import { formatDateTimeWithZone } from '../../../utils/datetime.ts'
+import { getImportanceStyle, getUrgencyStyle } from '../../../utils/priorityStyles.ts'
 import './ScheduleDetailPage.css'
 
 const ScheduleDetailPage = () => {
@@ -16,6 +17,8 @@ const ScheduleDetailPage = () => {
 
   const startTime = formatDateTimeWithZone(schedule.date)
   const deadline = formatDateTimeWithZone(schedule.deadline)
+  const importanceStyle = getImportanceStyle(schedule.importance)
+  const urgencyStyle = getUrgencyStyle(schedule.urgency)
 
   return (
     <section className="schedule-detail">
@@ -26,9 +29,13 @@ const ScheduleDetailPage = () => {
         <h1>{schedule.title}</h1>
         <p>{schedule.description}</p>
         <div className="schedule-detail__meta">
-          <span>상태: {schedule.state}</span>
-          <span>중요도 {schedule.importance}</span>
-          <span>긴급도 {schedule.urgency}</span>
+          <span className="schedule-detail__state">상태: {schedule.state}</span>
+          <span className="schedule-detail__badge" style={importanceStyle}>
+            중요도 {schedule.importance}
+          </span>
+          <span className="schedule-detail__badge" style={urgencyStyle}>
+            긴급도 {schedule.urgency}
+          </span>
         </div>
       </header>
       <section className="schedule-detail__section">

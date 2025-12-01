@@ -37,6 +37,26 @@
   margin-top: 12px;
   font-size: 13px;
   color: #475569;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.schedule-detail__state {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background-color: #e2e8f0;
+  font-weight: 600;
+}
+
+.schedule-detail__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background-color: #f1f5f9;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px #e2e8f0;
 }
 
 .schedule-detail__section {
@@ -69,4 +89,3 @@
   background-color: #2563eb;
   color: #fff;
 }
-

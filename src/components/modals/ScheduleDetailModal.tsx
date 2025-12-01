@@ -3,6 +3,7 @@ import { deleteSchedule } from '../../api/schedules'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import { formatDateTimeWithZone } from '../../utils/datetime'
+import { getImportanceStyle, getUrgencyStyle } from '../../utils/priorityStyles.ts'
 import './ScheduleDetailModal.css'
 
 type ScheduleDetailModalProps = {
@@ -54,6 +55,8 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
 
   const startTime = formatDateTimeWithZone(schedule.date)
   const deadline = formatDateTimeWithZone(schedule.deadline)
+  const importanceStyle = getImportanceStyle(schedule.importance)
+  const urgencyStyle = getUrgencyStyle(schedule.urgency)
 
   return (
     <div className="schedule-detail-modal__backdrop" onClick={onClose}>
@@ -80,8 +83,12 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
               <span className="schedule-detail-modal__badge schedule-detail-modal__badge--state">
                 {schedule.state}
               </span>
-              <span className="schedule-detail-modal__badge">중요도 {schedule.importance}</span>
-              <span className="schedule-detail-modal__badge">긴급도 {schedule.urgency}</span>
+              <span className="schedule-detail-modal__badge" style={importanceStyle}>
+                중요도 {schedule.importance}
+              </span>
+              <span className="schedule-detail-modal__badge" style={urgencyStyle}>
+                긴급도 {schedule.urgency}
+              </span>
             </div>
           </section>
 
