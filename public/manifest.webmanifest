@@ -1,0 +1,17 @@
+{
+  "name": "Pinit",
+  "short_name": "Pinit",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1b42",
+  "theme_color": "#0b1b42",
+  "description": "일정을 빠르게 추가하고 진행 상태를 확인하는 Pinit",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
