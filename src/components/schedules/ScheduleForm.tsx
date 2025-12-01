@@ -1,4 +1,6 @@
+import dayjs from 'dayjs'
 import useScheduleForm from '../../hooks/useScheduleForm'
+import { SEOUL_TZ } from '../../utils/datetime'
 import type { ScheduleTaskType, ScheduleFormValues } from '../../types/schedule'
 import './ScheduleForm.css'
 
@@ -19,6 +21,11 @@ const dependencyMockOptions = [
   { id: 102, title: '자료 조사' },
   { id: 103, title: '리뷰 일정' },
 ]
+
+const formatDateTimeLocalValue = (value: Date) =>
+  dayjs(value).tz(SEOUL_TZ).format('YYYY-MM-DDTHH:mm')
+
+const parseDateTimeLocalValue = (value: string) => dayjs.tz(value, SEOUL_TZ).toDate()
 
 /**
  * 일정 생성/수정 폼 컴포넌트
@@ -129,8 +136,8 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
         <span>시작 시간</span>
         <input
           type="datetime-local"
-          value={form.values.date.toISOString().slice(0, 16)}
-          onChange={(event) => form.onChange('date', new Date(event.target.value))}
+          value={formatDateTimeLocalValue(form.values.date)}
+          onChange={(event) => form.onChange('date', parseDateTimeLocalValue(event.target.value))}
         />
       </label>
 
@@ -138,8 +145,10 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
         <span>마감 시간</span>
         <input
           type="datetime-local"
-          value={form.values.deadline.toISOString().slice(0, 16)}
-          onChange={(event) => form.onChange('deadline', new Date(event.target.value))}
+          value={formatDateTimeLocalValue(form.values.deadline)}
+          onChange={(event) =>
+            form.onChange('deadline', parseDateTimeLocalValue(event.target.value))
+          }
         />
         {form.errors.deadline && <small>{form.errors.deadline}</small>}
       </label>
