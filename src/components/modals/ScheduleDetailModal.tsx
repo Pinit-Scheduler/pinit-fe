@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import { formatDateTimeWithZone } from '../../utils/datetime'
 import { getImportanceStyle, getUrgencyStyle } from '../../utils/priorityStyles.ts'
-import { formatDurationToTime } from '../../utils/duration.ts'
 import type { ScheduleSummary } from '../../types/schedule'
 import './ScheduleDetailModal.css'
 import '../schedules/ScheduleForm.css'
@@ -60,7 +59,6 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const deadline = formatDateTimeWithZone(schedule.deadline)
   const importanceStyle = getImportanceStyle(schedule.importance)
   const urgencyStyle = getUrgencyStyle(schedule.urgency)
-  const elapsedTime = formatDurationToTime(schedule.duration)
   const previousTasks: ScheduleSummary[] = schedule.previousTasks ?? []
   const nextTasks: ScheduleSummary[] = schedule.nextTasks ?? []
 
@@ -105,10 +103,6 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
               <br />
               마감: {deadline}
             </p>
-            <div className="schedule-detail-modal__duration">
-              <span className="schedule-detail-modal__duration-label">현재까지의 작업 시간</span>
-              <span className="schedule-detail-modal__duration-value">{elapsedTime}</span>
-            </div>
           </section>
 
           <section className="schedule-detail-modal__section">
@@ -152,12 +146,12 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
           <footer className="schedule-detail-modal__actions">
             <button
               type="button"
-              onClick={() => {
-                onClose()
-                if (schedule) {
-                  navigate(`/app/schedules/${schedule.id}/edit`)
-                }
-              }}
+            onClick={() => {
+              onClose()
+              if (schedule) {
+                navigate(`/app/schedules/${schedule.id}/edit`)
+              }
+            }}
               className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--edit"
             >
               ✏️ 수정

@@ -91,27 +91,6 @@
   flex-wrap: wrap;
 }
 
-.schedule-detail-modal__duration {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-top: 8px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background-color: #f8fafc;
-  color: #0f172a;
-  font-weight: 600;
-}
-
-.schedule-detail-modal__duration-label {
-  color: #475569;
-  font-weight: 500;
-}
-
-.schedule-detail-modal__duration-value {
-  font-size: 15px;
-}
-
 .schedule-detail-modal__badge {
   font-size: 12px;
   padding: 6px 12px;

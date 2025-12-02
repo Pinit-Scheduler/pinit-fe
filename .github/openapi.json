@@ -1178,9 +1178,6 @@
             "format": "int32",
             "description": "긴급도"
           },
-          "duration": {
-            "type": "string"
-          },
           "state": {
             "type": "string",
             "description": "현재 상태"

@@ -2,7 +2,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import useScheduleDetail from '../../../hooks/useScheduleDetail.ts'
 import useScheduleActions from '../../../hooks/scheduledetails/useScheduleActions.ts'
 import { formatDateTimeWithZone } from '../../../utils/datetime.ts'
-import { formatDurationToTime } from '../../../utils/duration.ts'
 import { getImportanceStyle, getUrgencyStyle } from '../../../utils/priorityStyles.ts'
 import type { ScheduleSummary } from '../../../types/schedule'
 import './ScheduleDetailPage.css'
@@ -22,7 +21,6 @@ const ScheduleDetailPage = () => {
   const deadline = formatDateTimeWithZone(schedule.deadline)
   const importanceStyle = getImportanceStyle(schedule.importance)
   const urgencyStyle = getUrgencyStyle(schedule.urgency)
-  const elapsedTime = formatDurationToTime(schedule.duration)
   const previousTasks: ScheduleSummary[] = schedule.previousTasks ?? []
   const nextTasks: ScheduleSummary[] = schedule.nextTasks ?? []
 
@@ -50,10 +48,6 @@ const ScheduleDetailPage = () => {
           시작: {startTime}
           <br />마감: {deadline}
         </p>
-        <div className="schedule-detail__duration">
-          <span className="schedule-detail__duration-label">현재까지의 작업 시간</span>
-          <span className="schedule-detail__duration-value">{elapsedTime}</span>
-        </div>
       </section>
       <section className="schedule-detail__section">
         <h2>이전/이후 일정</h2>

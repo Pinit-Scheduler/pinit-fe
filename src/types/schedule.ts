@@ -18,7 +18,6 @@ export type ScheduleResponse = {
   importance: number
   urgency: number
   state: ScheduleState
-  duration?: string
   previousTasks?: ScheduleSummary[]
   nextTasks?: ScheduleSummary[]
 }
@@ -63,7 +62,6 @@ export type ScheduleSummary = {
   urgency: number
   taskType?: ScheduleTaskType // 백엔드에서 제공하지 않을 수 있음
   state: ScheduleState
-  duration?: string
   previousTasks?: ScheduleSummary[]
   nextTasks?: ScheduleSummary[]
 }
