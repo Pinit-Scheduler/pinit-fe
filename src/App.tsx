@@ -6,12 +6,12 @@ import StatisticsTabPage from './pages/statistics/StatisticsTabPage.tsx'
 import SettingsPage from './pages/setting/SettingsPage.tsx'
 import ScheduleDetailPage from './pages/schedule/detail/ScheduleDetailPage.tsx'
 import { ScheduleCacheProvider } from './context/ScheduleCacheContext'
-import ScheduleCreateModal from './components/modals/ScheduleCreateModal.tsx'
-import ScheduleEditModal from './components/modals/ScheduleEditModal.tsx'
 import { ScheduleViewStateProvider } from './context/ScheduleViewStateContext'
 import { ToastProvider } from './context/ToastContext'
 import LandingPage from './pages/landing/LandingPage.tsx'
 import LoginPage from './pages/auth/LoginPage.tsx'
+import ScheduleCreatePage from './pages/schedule/form/ScheduleCreatePage.tsx'
+import ScheduleEditPage from './pages/schedule/form/ScheduleEditPage.tsx'
 
 function App() {
   return (
@@ -26,8 +26,8 @@ function App() {
                 <Route index element={<Navigate to="/app/schedules" replace />} />
                 <Route path="schedules" element={<SchedulesTabPage />} />
                 <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
-                <Route path="schedules/:scheduleId/edit" element={<ScheduleEditModal />} />
-                <Route path="new" element={<ScheduleCreateModal />} />
+                <Route path="schedules/:scheduleId/edit" element={<ScheduleEditPage />} />
+                <Route path="new" element={<ScheduleCreatePage />} />
                 <Route path="statistics" element={<StatisticsTabPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>

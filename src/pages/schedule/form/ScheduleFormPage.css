@@ -1,0 +1,50 @@
+.schedule-form-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 24px;
+  animation: pageSlideUp 240ms ease;
+}
+
+.schedule-form-page__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.schedule-form-page__eyebrow {
+  font-size: 13px;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.schedule-form-page__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.schedule-form-page__description {
+  font-size: 14px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.schedule-form-page__status {
+  padding: 16px;
+  border-radius: 12px;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 600;
+}
+
+@keyframes pageSlideUp {
+  from {
+    transform: translateY(28px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

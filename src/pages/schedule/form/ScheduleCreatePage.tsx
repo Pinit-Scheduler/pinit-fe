@@ -1,0 +1,62 @@
+import { useNavigate } from 'react-router-dom'
+import ScheduleForm from '../../../components/schedules/ScheduleForm'
+import { createSchedule } from '../../../api/schedules'
+import { toApiDateTimeWithZone } from '../../../utils/datetime'
+import type { ScheduleFormValues, ScheduleResponse } from '../../../types/schedule'
+import { useToast } from '../../../context/ToastContext'
+import './ScheduleFormPage.css'
+
+const ScheduleCreatePage = () => {
+  const navigate = useNavigate()
+  const { addToast } = useToast()
+
+  const handleClose = () => {
+    if (window.history.state && window.history.length > 1) {
+      navigate(-1)
+    } else {
+      navigate('/app/schedules')
+    }
+  }
+
+  const handleSubmit = async (values: ScheduleFormValues) => {
+    try {
+      const payload = {
+        title: values.title,
+        description: values.description,
+        importance: values.importance,
+        urgency: values.urgency,
+        taskType: values.taskType,
+        date: toApiDateTimeWithZone(values.date),
+        deadline: toApiDateTimeWithZone(values.deadline),
+      }
+      const result: ScheduleResponse | null = await createSchedule(payload)
+      if (result) {
+        window.dispatchEvent(
+          new CustomEvent('schedule:changed', {
+            detail: { schedule: result, type: 'create' },
+          }),
+        )
+      }
+      handleClose()
+    } catch (error) {
+      console.error('일정 저장 실패:', error)
+      addToast('일정 저장에 실패했습니다.', 'error')
+    }
+  }
+
+  return (
+    <section className="schedule-form-page">
+      <header className="schedule-form-page__header">
+        <p className="schedule-form-page__eyebrow">새 일정</p>
+        <h1 className="schedule-form-page__title">일정 추가</h1>
+        <p className="schedule-form-page__description">
+          제목, 설명, 시간 정보를 입력하면 일정 탭에 바로 반영돼요. 필요한 경우 중요도와 긴급도를 함께
+          설정해 보세요.
+        </p>
+      </header>
+      <ScheduleForm onSubmit={handleSubmit} submitLabel="일정 추가" />
+    </section>
+  )
+}
+
+export default ScheduleCreatePage

@@ -39,7 +39,8 @@ const AppShell = () => {
   const title = getPageTitle(pathname)
   const showSettingsButton = pathname !== '/app/settings'
   const isDetailPage = pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3
-  const showBackButton = isDetailPage || pathname === '/app/settings'
+  const isNewPage = pathname === '/app/new'
+  const showBackButton = isDetailPage || pathname === '/app/settings' || isNewPage
 
   return (
     <div className="app-shell">
