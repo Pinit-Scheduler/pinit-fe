@@ -1,7 +1,8 @@
 .mini-player-wrapper {
-  position: sticky;
-  bottom: 80px;
-  margin: 0 16px 12px;
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   z-index: 90;
 }
 

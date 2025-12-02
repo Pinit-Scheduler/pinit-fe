@@ -23,8 +23,12 @@ import './SchedulesTabPage.css'
 import '../../../utils/datetime.ts'
 import { useToast } from '../../../context/ToastContext'
 import { useScheduleCache } from '../../../context/ScheduleCacheContext'
+import { useRef } from 'react'
 
 const SchedulesTabPage = () => {
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const pullStartY = useRef<number | null>(null)
+  const pullActivated = useRef(false)
   const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null)
   const [weekDirection, setWeekDirection] = useState<'forward' | 'backward'>('forward')
   const {
@@ -236,7 +240,38 @@ const SchedulesTabPage = () => {
           새로고침
         </button>
       </header>
-      <div className={['schedules-tab__list', 'fade-slide', `week-transition--${weekDirection}`].join(' ')}>
+      <div
+        ref={listRef}
+        className={['schedules-tab__list', 'fade-slide', `week-transition--${weekDirection}`].join(' ')}
+        onTouchStart={(e) => {
+          if (!schedules.length) return
+          pullStartY.current = e.touches[0].clientY
+          pullActivated.current = false
+        }}
+        onTouchMove={(e) => {
+          if (!schedules.length) return
+          const container = listRef.current
+          if (!container) return
+          if (container.scrollTop > 0) {
+            pullStartY.current = null
+            pullActivated.current = false
+            return
+          }
+          const startY = pullStartY.current ?? e.touches[0].clientY
+          pullStartY.current = startY
+          const deltaY = e.touches[0].clientY - startY
+          if (deltaY > 60) {
+            pullActivated.current = true
+          }
+        }}
+        onTouchEnd={() => {
+          if (pullActivated.current) {
+            handleRefresh()
+          }
+          pullStartY.current = null
+          pullActivated.current = false
+        }}
+      >
         {isPresenceLoading || isScheduleLoading ? (
           <StatusPanel variant="loading" title="일정을 불러오는 중" />
         ) : scheduleError ? (
