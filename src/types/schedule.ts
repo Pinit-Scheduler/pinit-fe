@@ -18,6 +18,7 @@ export type ScheduleResponse = {
   importance: number
   urgency: number
   state: ScheduleState
+  duration?: string
   previousTasks?: ScheduleSummary[]
   nextTasks?: ScheduleSummary[]
 }

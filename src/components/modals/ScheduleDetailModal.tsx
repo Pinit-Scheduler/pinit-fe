@@ -3,6 +3,7 @@ import { deleteSchedule } from '../../api/schedules'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '../../context/ToastContext'
 import { formatDateTimeWithZone } from '../../utils/datetime'
+import { formatDurationLabel } from '../../utils/duration'
 import { getImportanceStyle, getUrgencyStyle } from '../../utils/priorityStyles.ts'
 import type { ScheduleSummary } from '../../types/schedule'
 import './ScheduleDetailModal.css'
@@ -61,6 +62,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const urgencyStyle = getUrgencyStyle(schedule.urgency)
   const previousTasks: ScheduleSummary[] = schedule.previousTasks ?? []
   const nextTasks: ScheduleSummary[] = schedule.nextTasks ?? []
+  const spentTimeLabel = formatDurationLabel(schedule.duration)
 
   return (
     <div className="schedule-detail-modal__backdrop" onClick={onClose}>
@@ -102,6 +104,8 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
               시작: {startTime}
               <br />
               마감: {deadline}
+              <br />
+              진행 시간: {spentTimeLabel}
             </p>
           </section>
 
