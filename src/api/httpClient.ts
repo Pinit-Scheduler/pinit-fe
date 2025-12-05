@@ -1,3 +1,5 @@
+import { getAccessToken } from './authTokens'
+
 const API_BASE_URL =
   import.meta.env.PROD && import.meta.env.VITE_API_BASE_URL
     ? import.meta.env.VITE_API_BASE_URL
@@ -30,8 +32,10 @@ export type HttpClientOptions = RequestInit & {
 }
 
 export const httpClient = async <T>(path: string, options: HttpClientOptions = {}): Promise<T> => {
-  const { json, headers, ...rest } = options
-  const url = `${API_BASE_URL}${path}`
+  const { json, headers, credentials, ...rest } = options
+  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`
+  const accessToken = getAccessToken()
+  const authHeader = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined
 
   // 요청 로깅
   console.log(`📡 [${new Date().toISOString()}] API Request:`, {
@@ -44,9 +48,11 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
     const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        ...authHeader,
         ...headers,
       },
       body: json ? JSON.stringify(json) : undefined,
+      credentials: credentials || 'include',
       ...rest,
     })
 
