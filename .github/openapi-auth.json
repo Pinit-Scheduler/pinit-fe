@@ -1,0 +1,345 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Pinit Auth API",
+    "description": "Pinit 인증 서버의 로컬/소셜 로그인, 토큰 재발급 API 문서",
+    "version": "0.1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "로컬 개발"
+    },
+    {
+      "url": "https://auth.pinit.go-gradually.me",
+      "description": "배포 서버"
+    }
+  ],
+  "tags": [
+    {
+      "name": "소셜 로그인",
+      "description": "외부 OAuth2 공급자(네이버) 로그인 흐름"
+    },
+    {
+      "name": "회원/인증",
+      "description": "아이디/비밀번호 로그인 및 토큰 관리"
+    }
+  ],
+  "paths": {
+    "/signup": {
+      "post": {
+        "tags": [
+          "회원/인증"
+        ],
+        "summary": "회원가입",
+        "description": "로컬 계정 회원가입을 수행합니다.",
+        "operationId": "signup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "가입 완료"
+          },
+          "500": {
+            "description": "서버 오류"
+          }
+        }
+      }
+    },
+    "/refresh": {
+      "post": {
+        "tags": [
+          "회원/인증"
+        ],
+        "summary": "액세스 토큰 재발급",
+        "description": "refresh_token 쿠키를 검증해 새로운 access/refresh token을 발급합니다.",
+        "operationId": "refresh",
+        "parameters": [
+          {
+            "name": "refresh_token",
+            "in": "cookie",
+            "description": "리프레시 토큰",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "재발급 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "쿠키 없음 또는 토큰 검증 실패",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login": {
+      "post": {
+        "tags": [
+          "회원/인증"
+        ],
+        "summary": "아이디/비밀번호 로그인",
+        "description": "username, password를 받아 access token을 반환하고 refresh token은 httpOnly 쿠키로 설정합니다.",
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "로그인 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "자격 증명 오류 등 서버 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "tags": [
+          "회원/인증"
+        ],
+        "summary": "로그인 확인",
+        "description": "Bearer 토큰이 유효한지 확인합니다.",
+        "operationId": "checkLogin",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/login/oauth2/code/{provider}": {
+      "get": {
+        "tags": [
+          "소셜 로그인"
+        ],
+        "summary": "소셜 로그인 콜백",
+        "description": "provider 콜백에서 code/state를 받아 로그인 처리 후 토큰을 반환합니다.",
+        "operationId": "socialLogin",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "소셜 로그인 공급자",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "naver"
+          },
+          {
+            "name": "code",
+            "in": "query",
+            "description": "OAuth2 인가 코드"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "CSRF 방지용 state"
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "description": "provider 오류 코드"
+          },
+          {
+            "name": "error_description",
+            "in": "query",
+            "description": "provider 오류 상세"
+          },
+          {
+            "name": "socialLoginResult",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/SocialLoginResult"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "소셜 로그인 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "provider 오류 응답",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "state 검증 실패, 토큰 교환 실패 등 서버 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/login/oauth2/authorize/{provider}": {
+      "get": {
+        "tags": [
+          "소셜 로그인"
+        ],
+        "summary": "소셜 로그인 인가 요청",
+        "description": "provider에 맞는 인가 URL로 302 리다이렉트합니다.",
+        "operationId": "authorize",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "description": "소셜 로그인 공급자",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "naver"
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "외부 인가 페이지로 리다이렉트"
+          },
+          "500": {
+            "description": "미지원 provider 등 서버 오류"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SignupRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "아이디",
+            "example": "newuser"
+          },
+          "password": {
+            "type": "string",
+            "description": "비밀번호",
+            "example": "password1234!"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "발급된 액세스 토큰(JWT)",
+            "example": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "아이디",
+            "example": "user1"
+          },
+          "password": {
+            "type": "string",
+            "description": "비밀번호",
+            "example": "password1234!"
+          }
+        }
+      },
+      "SocialLoginResult": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "OAuth2 인가 코드"
+          },
+          "state": {
+            "type": "string",
+            "description": "CSRF 방지용 state 값"
+          },
+          "error": {
+            "type": "string",
+            "description": "provider가 전달하는 오류 코드"
+          },
+          "error_description": {
+            "type": "string",
+            "description": "provider가 전달하는 오류 상세 메시지"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "in": "header",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  }
+}
