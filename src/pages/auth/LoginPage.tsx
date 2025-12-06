@@ -1,16 +1,46 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { buildAuthorizeUrl, getAuthBaseUrl, type AuthProvider } from '../../api/auth'
+import { buildAuthorizeUrl, login, type AuthProvider } from '../../api/auth'
+import { useToast } from '../../context/ToastContext'
 import './LoginPage.css'
 
 const LoginPage = () => {
   const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null)
+  const [credentials, setCredentials] = useState({ username: '', password: '' })
+  const [errors, setErrors] = useState<Partial<Record<'username' | 'password' | 'form', string>>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
+  const { addToast } = useToast()
 
-  const authorizeBase = useMemo(
-    () => `${getAuthBaseUrl()}/login/oauth2/authorize`,
-    []
-  )
+  const validate = () => {
+    const nextErrors: Partial<Record<'username' | 'password', string>> = {}
+    if (!credentials.username.trim()) nextErrors.username = '아이디를 입력해 주세요.'
+    if (!credentials.password) nextErrors.password = '비밀번호를 입력해 주세요.'
+    setErrors(nextErrors)
+    return Object.keys(nextErrors).length === 0
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!validate()) return
+    setIsSubmitting(true)
+    setErrors({})
+    try {
+      await login({
+        username: credentials.username.trim(),
+        password: credentials.password,
+      })
+      addToast('로그인에 성공했어요.', 'success')
+      navigate('/app', { replace: true })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '로그인에 실패했습니다.'
+      setErrors({ form: message })
+      addToast(message, 'error')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const handleProviderLogin = useCallback(
     (provider: AuthProvider) => {
@@ -36,30 +66,63 @@ const LoginPage = () => {
           </div>
         </div>
 
-        <p className="login__eyebrow">모바일에 맞춘 소셜 로그인</p>
-        <h1>한 번의 터치로 네이버 · Google에 연결</h1>
+        <p className="login__eyebrow">계정 로그인</p>
+        <h1>아이디와 비밀번호로 바로 시작</h1>
         <p className="login__description">
-          .github/openapi-auth.json을 기반으로 네이버와 Google OAuth2 플로우를 준비해두었어요.
-          인증이 끝나면 /refresh, /me 엔드포인트로 세션을 안전하게 이어갑니다.
+          Pinit 계정으로 로그인하거나, 아래에서 소셜 로그인으로 연결할 수 있어요.
         </p>
 
-        <div className="login__status">
-          <div className="login__status-item">
-            <span className="login__status-dot" />
-            <div>
-              <p className="login__status-label">소셜 로그인</p>
-              <p className="login__status-value">
-                {authorizeBase}/naver → 302 redirect
-              </p>
-            </div>
+        <form className="login__form" onSubmit={handleSubmit}>
+          <label className="login__field">
+            <span>아이디</span>
+            <input
+              value={credentials.username}
+              onChange={(event) => setCredentials((prev) => ({ ...prev, username: event.target.value }))}
+              placeholder="아이디를 입력하세요"
+              autoComplete="username"
+              disabled={isSubmitting || !!activeProvider}
+            />
+            {errors.username && <small>{errors.username}</small>}
+          </label>
+
+          <label className="login__field">
+            <span>비밀번호</span>
+            <input
+              type="password"
+              value={credentials.password}
+              onChange={(event) => setCredentials((prev) => ({ ...prev, password: event.target.value }))}
+              placeholder="비밀번호를 입력하세요"
+              autoComplete="current-password"
+              disabled={isSubmitting || !!activeProvider}
+            />
+            {errors.password && <small>{errors.password}</small>}
+          </label>
+
+          {errors.form && <p className="login__form-error">{errors.form}</p>}
+
+          <div className="login__actions">
+            <button
+              type="submit"
+              className="login__btn login__btn--primary"
+              disabled={isSubmitting || !!activeProvider}
+            >
+              {isSubmitting ? '로그인 중...' : '로그인'}
+            </button>
+            <button
+              type="button"
+              className="login__btn login__btn--secondary"
+              onClick={() => navigate('/signup')}
+              disabled={isSubmitting || !!activeProvider}
+            >
+              계정이 없으신가요? 회원가입
+            </button>
           </div>
-          <div className="login__status-item">
-            <span className="login__status-dot login__status-dot--amber" />
-            <div>
-              <p className="login__status-label">토큰 케어</p>
-              <p className="login__status-value">/refresh 로 재발급 · /me 로 토큰 검증</p>
-            </div>
-          </div>
+        </form>
+
+        <div className="login__divider">
+          <span />
+          <p>또는 소셜 로그인</p>
+          <span />
         </div>
 
         <div className="login__actions">
@@ -80,14 +143,6 @@ const LoginPage = () => {
           >
             <span className="login__icon">G</span>
             {activeProvider === 'google' ? 'Google로 이동 중...' : 'Google로 계속하기'}
-          </button>
-          <button
-            type="button"
-            className="login__btn login__btn--secondary"
-            onClick={() => navigate('/signup')}
-            disabled={!!activeProvider}
-          >
-            아이디로 회원가입
           </button>
         </div>
 

@@ -49,6 +49,12 @@
   padding: 0;
 }
 
+.settings__row--between {
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
 .settings__label {
   font-weight: 600;
   color: #0f172a;
@@ -100,3 +106,27 @@
   transform: translateX(18px);
 }
 
+.settings__card--danger {
+  border: 1px solid #fee2e2;
+  background-color: #fff7f7;
+}
+
+.settings__logout-btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #ef4444;
+  background: #ef4444;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+}
+
+.settings__logout-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(239, 68, 68, 0.22);
+}
+
+.settings__logout-btn:active {
+  transform: translateY(0);
+}

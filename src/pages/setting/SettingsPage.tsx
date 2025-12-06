@@ -1,10 +1,21 @@
+import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { clearAuthTokens } from '../../api/authTokens'
+import { useToast } from '../../context/ToastContext'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
   const [isNotificationEnabled, setIsNotificationEnabled] = useState(true)
   const [isDeadlineReminderEnabled, setIsDeadlineReminderEnabled] = useState(false)
   const [isAutoStatsEnabled, setIsAutoStatsEnabled] = useState(true)
+  const navigate = useNavigate()
+  const { addToast } = useToast()
+
+  const handleLogout = () => {
+    clearAuthTokens()
+    addToast('로그아웃되었습니다.', 'info')
+    navigate('/login', { replace: true })
+  }
 
   return (
     <section className="settings">
@@ -75,6 +86,19 @@ const SettingsPage = () => {
         <p className="settings__description">
           작업 타입 라벨, 알림 방식 지정, GPT 추천 설정 등은 추후 이 영역에 확장됩니다.
         </p>
+      </section>
+
+      <section className="settings__card settings__card--danger" aria-label="계정">
+        <h2>계정</h2>
+        <div className="settings__row settings__row--between">
+          <div>
+            <p className="settings__label">로그아웃</p>
+            <p className="settings__description">로그아웃하면 액세스/리프레시 토큰이 삭제됩니다.</p>
+          </div>
+          <button type="button" className="settings__logout-btn" onClick={handleLogout}>
+            로그아웃
+          </button>
+        </div>
       </section>
     </section>
   )
