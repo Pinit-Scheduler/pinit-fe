@@ -18,7 +18,9 @@ const LoginPage = () => {
     window.matchMedia?.('(display-mode: standalone)').matches ||
     (window.navigator as unknown as { standalone?: boolean })?.standalone === true
 
-  const handleTouchFocus = (event: React.TouchEvent<HTMLInputElement> | React.MouseEvent<HTMLInputElement>) => {
+  const handleTouchFocus = (
+    event: React.TouchEvent<HTMLInputElement> | React.MouseEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>,
+  ) => {
     const target = event.currentTarget
     if (!isStandalone()) return
     // PWA standalone 모드에서 포커스가 씹히는 문제를 방지
@@ -117,7 +119,9 @@ const LoginPage = () => {
               placeholder="아이디를 입력하세요"
               autoComplete="username"
               onTouchEnd={handleTouchFocus}
+              onTouchStart={handleTouchFocus}
               onMouseDown={handleTouchFocus}
+              onFocus={handleTouchFocus}
               disabled={isSubmitting || !!activeProvider}
             />
             {errors.username && <small>{errors.username}</small>}
@@ -132,7 +136,9 @@ const LoginPage = () => {
               placeholder="비밀번호를 입력하세요"
               autoComplete="current-password"
               onTouchEnd={handleTouchFocus}
+              onTouchStart={handleTouchFocus}
               onMouseDown={handleTouchFocus}
+              onFocus={handleTouchFocus}
               disabled={isSubmitting || !!activeProvider}
             />
             {errors.password && <small>{errors.password}</small>}

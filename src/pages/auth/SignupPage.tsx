@@ -28,7 +28,9 @@ const SignupPage = () => {
   const isStandalone = () =>
     window.matchMedia?.('(display-mode: standalone)').matches ||
     (window.navigator as unknown as { standalone?: boolean })?.standalone === true
-  const handleTouchFocus = (event: React.TouchEvent<HTMLInputElement> | React.MouseEvent<HTMLInputElement>) => {
+  const handleTouchFocus = (
+    event: React.TouchEvent<HTMLInputElement> | React.MouseEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>,
+  ) => {
     const target = event.currentTarget
     if (!isStandalone()) return
     requestAnimationFrame(() => {
@@ -127,7 +129,9 @@ const SignupPage = () => {
               placeholder="아이디를 입력하세요"
               autoComplete="username"
               onTouchEnd={handleTouchFocus}
+              onTouchStart={handleTouchFocus}
               onMouseDown={handleTouchFocus}
+              onFocus={handleTouchFocus}
               required
             />
             {errors.username && <small>{errors.username}</small>}
@@ -142,7 +146,9 @@ const SignupPage = () => {
               placeholder="8자 이상 입력하세요"
               autoComplete="new-password"
               onTouchEnd={handleTouchFocus}
+              onTouchStart={handleTouchFocus}
               onMouseDown={handleTouchFocus}
+              onFocus={handleTouchFocus}
               required
             />
             {errors.password && <small>{errors.password}</small>}
@@ -157,7 +163,9 @@ const SignupPage = () => {
               placeholder="비밀번호를 다시 입력하세요"
               autoComplete="new-password"
               onTouchEnd={handleTouchFocus}
+              onTouchStart={handleTouchFocus}
               onMouseDown={handleTouchFocus}
+              onFocus={handleTouchFocus}
               required
             />
             {errors.confirmPassword && <small>{errors.confirmPassword}</small>}
@@ -171,7 +179,9 @@ const SignupPage = () => {
               placeholder="프로필에 표시될 별명"
               autoComplete="nickname"
               onTouchEnd={handleTouchFocus}
+              onTouchStart={handleTouchFocus}
               onMouseDown={handleTouchFocus}
+              onFocus={handleTouchFocus}
               required
             />
             {errors.nickname && <small>{errors.nickname}</small>}
