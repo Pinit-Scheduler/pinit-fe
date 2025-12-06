@@ -22,6 +22,12 @@ export type SocialLoginPayload = {
   errorDescription?: string
 }
 
+export type SignupPayload = {
+  username: string
+  password: string
+  nickname: string
+}
+
 export const buildAuthorizeUrl = (provider: AuthProvider) =>
   `${AUTH_BASE_URL}/login/oauth2/authorize/${provider}`
 
@@ -45,6 +51,15 @@ export const exchangeSocialLogin = async (provider: AuthProvider, payload: Socia
   })
 
   return response
+}
+
+export const signup = async (payload: SignupPayload) => {
+  const url = `${AUTH_BASE_URL}/signup`
+  return httpClient<void>(url, {
+    method: 'POST',
+    json: payload,
+    credentials: 'include',
+  })
 }
 
 export const refreshAccessToken = async () => {

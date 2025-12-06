@@ -198,6 +198,20 @@
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
 }
 
+.login__btn--primary {
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  color: #f8fafc;
+  box-shadow: 0 12px 28px rgba(37, 99, 235, 0.18);
+  border: 1px solid rgba(37, 99, 235, 0.15);
+}
+
+.login__btn--secondary {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
+}
+
 .login__icon {
   display: inline-flex;
   align-items: center;
@@ -215,6 +229,52 @@
   color: #475569;
   font-size: 14px;
   text-align: center;
+}
+
+.signup__form {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.signup__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.signup__field input {
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: rgba(248, 250, 252, 0.8);
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.signup__field input:focus {
+  outline: 2px solid #bae6fd;
+  border-color: #0ea5e9;
+  background: #fff;
+}
+
+.signup__field small {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.signup__form-error {
+  margin: 4px 0 0;
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.signup__actions {
+  margin-top: 4px;
 }
 
 @media (max-width: 520px) {

@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { buildAuthorizeUrl, getAuthBaseUrl, type AuthProvider } from '../../api/auth'
 import './LoginPage.css'
 
 const LoginPage = () => {
   const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null)
+  const navigate = useNavigate()
 
   const authorizeBase = useMemo(
     () => `${getAuthBaseUrl()}/login/oauth2/authorize`,
@@ -78,6 +80,14 @@ const LoginPage = () => {
           >
             <span className="login__icon">G</span>
             {activeProvider === 'google' ? 'Google로 이동 중...' : 'Google로 계속하기'}
+          </button>
+          <button
+            type="button"
+            className="login__btn login__btn--secondary"
+            onClick={() => navigate('/signup')}
+            disabled={!!activeProvider}
+          >
+            아이디로 회원가입
           </button>
         </div>
 

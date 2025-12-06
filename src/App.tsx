@@ -12,6 +12,7 @@ import LoginPage from './pages/auth/LoginPage.tsx'
 import ScheduleCreatePage from './pages/schedule/form/ScheduleCreatePage.tsx'
 import ScheduleEditPage from './pages/schedule/form/ScheduleEditPage.tsx'
 import SocialCallbackPage from './pages/auth/SocialCallbackPage.tsx'
+import SignupPage from './pages/auth/SignupPage.tsx'
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
               <Route path="/login/callback/:provider" element={<SocialCallbackPage />} />
               <Route path="/app" element={<AppShell />}>
                 <Route index element={<Navigate to="/app/schedules" replace />} />
