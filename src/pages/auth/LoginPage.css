@@ -1,6 +1,8 @@
 .login {
   position: relative;
   min-height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8,7 +10,6 @@
     radial-gradient(circle at 80% 10%, rgba(245, 158, 11, 0.12), transparent 38%),
     #f8fbff;
   padding: 24px 16px 32px;
-  overflow: hidden;
 }
 
 .login__glow {
