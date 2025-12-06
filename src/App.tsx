@@ -13,6 +13,7 @@ import ScheduleCreatePage from './pages/schedule/form/ScheduleCreatePage.tsx'
 import ScheduleEditPage from './pages/schedule/form/ScheduleEditPage.tsx'
 import SocialCallbackPage from './pages/auth/SocialCallbackPage.tsx'
 import SignupPage from './pages/auth/SignupPage.tsx'
+import AuthGuard from './components/auth/AuthGuard.tsx'
 
 function App() {
   return (
@@ -25,13 +26,15 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/login/callback/:provider" element={<SocialCallbackPage />} />
-              <Route path="/app" element={<AppShell />}>
-                <Route index element={<Navigate to="/app/schedules" replace />} />
-                <Route path="schedules" element={<SchedulesTabPage />} />
-                <Route path="schedules/:scheduleId/edit" element={<ScheduleEditPage />} />
-                <Route path="new" element={<ScheduleCreatePage />} />
-                <Route path="statistics" element={<StatisticsTabPage />} />
-                <Route path="settings" element={<SettingsPage />} />
+              <Route element={<AuthGuard />}>
+                <Route path="/app" element={<AppShell />}>
+                  <Route index element={<Navigate to="/app/schedules" replace />} />
+                  <Route path="schedules" element={<SchedulesTabPage />} />
+                  <Route path="schedules/:scheduleId/edit" element={<ScheduleEditPage />} />
+                  <Route path="new" element={<ScheduleCreatePage />} />
+                  <Route path="statistics" element={<StatisticsTabPage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                </Route>
               </Route>
             </Routes>
           </BrowserRouter>

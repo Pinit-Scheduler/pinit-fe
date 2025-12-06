@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { buildAuthorizeUrl, login, type AuthProvider } from '../../api/auth'
+import { clearLogoutMarker } from '../../api/authTokens'
 import { useToast } from '../../context/ToastContext'
 import './LoginPage.css'
 
@@ -31,6 +32,7 @@ const LoginPage = () => {
         username: credentials.username.trim(),
         password: credentials.password,
       })
+      clearLogoutMarker()
       addToast('로그인에 성공했어요.', 'success')
       navigate('/app', { replace: true })
     } catch (error) {

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
-import { clearAuthTokens } from '../../api/authTokens'
+import { clearAuthTokens, markLoggedOut } from '../../api/authTokens'
 import { useToast } from '../../context/ToastContext'
 import './SettingsPage.css'
 
@@ -13,6 +13,7 @@ const SettingsPage = () => {
 
   const handleLogout = () => {
     clearAuthTokens()
+    markLoggedOut()
     addToast('로그아웃되었습니다.', 'info')
     navigate('/login', { replace: true })
   }
