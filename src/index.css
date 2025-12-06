@@ -24,11 +24,7 @@ body,
 
 body {
   background-color: #f1f5f9;
-  overflow: hidden; /* Prevent iOS bounce on body */
-}
-
-#root {
-  overflow: hidden; /* contain scrolling within app shell */
+  overflow-y: auto;
 }
 
 a,
