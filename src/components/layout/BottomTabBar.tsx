@@ -1,4 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useScheduleViewStateContext } from '../../context/ScheduleViewStateContext'
+import { toDateKey } from '../../utils/datetime'
 import './BottomTabBar.css'
 
 type BottomTabBarProps = {
@@ -17,6 +19,7 @@ const tabs = [
  */
 const BottomTabBar = ({ activePath }: BottomTabBarProps) => {
   const navigate = useNavigate()
+  const { selectedDate } = useScheduleViewStateContext()
 
   const getActiveTab = (path: string) => {
     if (path.startsWith('/app/schedules')) return '/app/schedules'
@@ -27,7 +30,9 @@ const BottomTabBar = ({ activePath }: BottomTabBarProps) => {
   const activeTab = getActiveTab(activePath)
 
   const handleAddClick = () => {
-    navigate('/app/new')
+    const isOnSchedulePage = activePath.startsWith('/app/schedules')
+    const state = isOnSchedulePage ? { initialDateKey: toDateKey(selectedDate) } : undefined
+    navigate('/app/new', state ? { state } : undefined)
   }
 
   return (

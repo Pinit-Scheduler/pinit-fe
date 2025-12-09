@@ -1,14 +1,34 @@
-import { useNavigate } from 'react-router-dom'
+import dayjs from 'dayjs'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useMemo } from 'react'
 import ScheduleForm from '../../../components/schedules/ScheduleForm'
 import { createSchedule } from '../../../api/schedules'
-import { toApiDateTimeWithZone } from '../../../utils/datetime'
+import { SEOUL_TZ, toApiDateTimeWithZone } from '../../../utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../../types/schedule'
 import { useToast } from '../../../context/ToastContext'
 import './ScheduleFormPage.css'
 
+type LocationState = {
+  initialDateKey?: string
+}
+
 const ScheduleCreatePage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { addToast } = useToast()
+  const { initialDateKey } = (location.state as LocationState | null) ?? {}
+
+  const initialValues = useMemo(() => {
+    if (!initialDateKey) return undefined
+    const now = dayjs().tz(SEOUL_TZ)
+    const targetDate = dayjs.tz(initialDateKey, SEOUL_TZ)
+    if (!targetDate.isValid()) return undefined
+    const start = targetDate.hour(now.hour()).minute(0).second(0)
+    return {
+      date: start.toDate(),
+      deadline: start.add(2, 'hour').toDate(),
+    }
+  }, [initialDateKey])
 
   const handleClose = () => {
     if (window.history.state && window.history.length > 1) {
@@ -54,7 +74,7 @@ const ScheduleCreatePage = () => {
           설정해 보세요.
         </p>
       </header>
-      <ScheduleForm onSubmit={handleSubmit} submitLabel="일정 추가" />
+      <ScheduleForm initialValues={initialValues} onSubmit={handleSubmit} submitLabel="일정 추가" />
     </section>
   )
 }
