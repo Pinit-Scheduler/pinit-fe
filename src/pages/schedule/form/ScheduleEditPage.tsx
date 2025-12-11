@@ -20,7 +20,7 @@ const ScheduleEditPage = () => {
     } else {
       navigate('/app/schedules')
     }
-  }, [navigate, scheduleId])
+  }, [navigate])
 
   useEffect(() => {
     if (!schedule && !isLoading) {
