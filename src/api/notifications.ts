@@ -10,10 +10,34 @@ export type VapidPublicKeyResponse = {
   publicKey: string
 }
 
-export const fetchVapidPublicKey = () => httpClient<VapidPublicKeyResponse>(`${NOTIFICATION_BASE_URL}/push/vapid`)
+export type PushTokenRequest = {
+  token: string
+}
+
+const extractTokenFromSubscription = (subscription: PushSubscriptionJSON) => {
+  const token = subscription.endpoint?.split('/')?.pop()
+  if (!token) {
+    throw new Error('푸시 토큰 정보를 찾지 못했어요.')
+  }
+  return token
+}
+
+export const fetchVapidPublicKey = async (): Promise<VapidPublicKeyResponse> => {
+  const publicKey = await httpClient<string>(`${NOTIFICATION_BASE_URL}/push/vapid`)
+  return { publicKey }
+}
+
+export const subscribePushToken = (token: string) =>
+  httpClient<void>(`${NOTIFICATION_BASE_URL}/push/subscribe`, {
+    method: 'POST',
+    json: { token } satisfies PushTokenRequest,
+  })
+
+export const unsubscribePushToken = (token: string) =>
+  httpClient<void>(`${NOTIFICATION_BASE_URL}/push/unsubscribe`, {
+    method: 'POST',
+    json: { token } satisfies PushTokenRequest,
+  })
 
 export const registerPushSubscription = (subscription: PushSubscriptionJSON) =>
-  httpClient<void>(`${NOTIFICATION_BASE_URL}/push/subscriptions`, {
-    method: 'POST',
-    json: subscription,
-  })
+  subscribePushToken(extractTokenFromSubscription(subscription))

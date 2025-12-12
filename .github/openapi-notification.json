@@ -1,0 +1,114 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "servers": [
+    {
+      "url": "https://notification.pinit.go-gradually.me",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    {
+      "name": "푸시 알림",
+      "description": "푸시 구독 및 VAPID 키 관련 API"
+    }
+  ],
+  "paths": {
+    "/push/unsubscribe": {
+      "post": {
+        "tags": [
+          "푸시 알림"
+        ],
+        "summary": "푸시 토큰 구독 해지",
+        "description": "인증된 회원의 등록된 푸시 토큰을 삭제합니다.",
+        "operationId": "unsubscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "구독 해지 완료"
+          },
+          "400": {
+            "description": "토큰이 유효하지 않음"
+          }
+        }
+      }
+    },
+    "/push/subscribe": {
+      "post": {
+        "tags": [
+          "푸시 알림"
+        ],
+        "summary": "푸시 토큰 구독 등록",
+        "description": "인증된 회원의 푸시 토큰을 등록합니다.",
+        "operationId": "subscribe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "구독 등록 완료"
+          },
+          "400": {
+            "description": "토큰이 유효하지 않음"
+          }
+        }
+      }
+    },
+    "/push/vapid": {
+      "get": {
+        "tags": [
+          "푸시 알림"
+        ],
+        "summary": "VAPID 공개키 조회",
+        "description": "웹 푸시 구독에 사용되는 VAPID 공개키를 반환합니다.",
+        "operationId": "getVapidPublicKey",
+        "responses": {
+          "200": {
+            "description": "VAPID 공개키",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "PushTokenRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "클라이언트에서 발급받은 FCM 푸시 토큰",
+            "example": "fcm-token-example"
+          }
+        },
+        "description": "푸시 토큰 요청 바디"
+      }
+    }
+  }
+}
