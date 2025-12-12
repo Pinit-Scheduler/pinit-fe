@@ -7,8 +7,14 @@ const SocialCallbackPage = () => {
   const { provider } = useParams<{ provider: AuthProvider }>()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [error, setError] = useState<string | null>(null)
-  const [status, setStatus] = useState('OP에서 받은 토큰을 전달하는 중이에요...')
+  const providerError = useMemo(
+    () => (!provider ? '지원하지 않는 소셜 로그인 경로예요.' : null),
+    [provider],
+  )
+  const [error, setError] = useState<string | null>(providerError)
+  const [status, setStatus] = useState(
+    provider ? 'OP에서 받은 토큰을 전달하는 중이에요...' : '오류가 발생했어요.',
+  )
 
   const payload = useMemo(
     () => ({
@@ -22,18 +28,19 @@ const SocialCallbackPage = () => {
   )
 
   useEffect(() => {
-    if (!provider) {
-      setError('지원하지 않는 소셜 로그인 경로예요.')
-      return
-    }
+    if (providerError || !provider) return
+
+    let isCancelled = false
 
     // code/state/access_token 등을 백엔드로 전달해 토큰 교환
     exchangeSocialLogin(provider, payload)
       .then(() => {
+        if (isCancelled) return
         setStatus('로그인 완료! 대시보드로 이동해요.')
         navigate('/app', { replace: true })
       })
       .catch((err) => {
+        if (isCancelled) return
         const message =
           err instanceof Error
             ? err.message
@@ -41,7 +48,11 @@ const SocialCallbackPage = () => {
         setError(message)
         setStatus('오류가 발생했어요.')
       })
-  }, [provider, payload, navigate])
+
+    return () => {
+      isCancelled = true
+    }
+  }, [providerError, provider, payload, navigate])
 
   return (
     <div className="login login--callback">
