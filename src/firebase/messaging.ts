@@ -1,7 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
 import { getMessaging, getToken, isSupported } from 'firebase/messaging'
 import type { Messaging } from 'firebase/messaging'
-import { fetchVapidPublicKey } from '../api/notifications'
 import { getFirebaseConfig } from './config'
 
 let messagingInstance: Messaging | null = null
@@ -10,7 +9,6 @@ let inflightFetch: Promise<string | null> | null = null
 let hasWarnedUnsupported = false
 let hasWarnedMissingVapidKey = false
 let cachedVapidKey: string | null = null
-let vapidFetchInFlight: Promise<string | null> | null = null
 
 const ensureMessaging = async () => {
   if (messagingInstance) {
@@ -36,7 +34,7 @@ const ensureMessaging = async () => {
   return messagingInstance
 }
 
-const resolveVapidKey = async (provided?: string) => {
+const resolveVapidKey = (provided?: string) => {
   if (provided) {
     cachedVapidKey = provided
     return provided
@@ -46,21 +44,13 @@ const resolveVapidKey = async (provided?: string) => {
     return cachedVapidKey
   }
 
-  if (!vapidFetchInFlight) {
-    vapidFetchInFlight = fetchVapidPublicKey()
-      .then(({ publicKey }) => {
-        cachedVapidKey = publicKey || null
-        return cachedVapidKey
-      })
-      .catch((error) => {
-        console.warn('[FCM] Failed to fetch VAPID key from server:', error)
-        return null
-      })
+  const envKey = "BF8QQIULasLr94n0l0xbv43yZeNICudM5lpQN08VYn2g5VjBPU0wM98HypyRmEb-y0ARRsiZ_wcgSMIC-nq-x20"
+  if (envKey) {
+    cachedVapidKey = envKey
+    return envKey
   }
 
-  const key = await vapidFetchInFlight
-  vapidFetchInFlight = null
-  return key
+  return null
 }
 
 const retrieveFcmToken = async (registration?: ServiceWorkerRegistration, vapidKeyOverride?: string) => {
@@ -73,10 +63,10 @@ const retrieveFcmToken = async (registration?: ServiceWorkerRegistration, vapidK
     return null
   }
 
-  const vapidKey = await resolveVapidKey(vapidKeyOverride)
+  const vapidKey = resolveVapidKey(vapidKeyOverride)
   if (!vapidKey) {
     if (!hasWarnedMissingVapidKey) {
-      console.warn('[FCM] Missing VAPID key. Ensure /push/vapid serves the Web Push public key.')
+      console.warn('[FCM] Missing VAPID key. Set VITE_FIREBASE_VAPID_KEY to enable token issuance.')
       hasWarnedMissingVapidKey = true
     }
     return null

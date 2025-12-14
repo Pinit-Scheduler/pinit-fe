@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { fetchVapidPublicKey, registerPushSubscription } from '../api/notifications'
+import { registerPushSubscription } from '../api/notifications'
 import { logFcmTokenOnce } from '../firebase/messaging'
 
 type PushStateStatus = 'idle' | 'subscribed' | 'blocked' | 'unsupported' | 'error'
@@ -41,6 +41,7 @@ const resolveRegistration = async () => {
 const usePushSubscription = () => {
   const [state, setState] = useState<PushSubscriptionState>({ status: 'idle' })
   const [isProcessing, setIsProcessing] = useState(false)
+  const vapidPublicKey = "BF8QQIULasLr94n0l0xbv43yZeNICudM5lpQN08VYn2g5VjBPU0wM98HypyRmEb-y0ARRsiZ_wcgSMIC-nq-x20"
 
   const describeStatus = useMemo(() => {
     switch (state.status) {
@@ -81,7 +82,7 @@ const usePushSubscription = () => {
       const subscription = await registration.pushManager.getSubscription()
       if (subscription) {
         setState({ status: 'subscribed' })
-        void logFcmTokenOnce(registration)
+        void logFcmTokenOnce(registration, vapidPublicKey)
         return
       }
 
@@ -90,13 +91,19 @@ const usePushSubscription = () => {
       const message = error instanceof Error ? error.message : '구독 상태를 확인하지 못했어요.'
       setState({ status: 'error', message })
     }
-  }, [])
+  }, [vapidPublicKey])
 
   useEffect(() => {
     refreshStatus()
   }, [refreshStatus])
 
   const subscribe = useCallback(async () => {
+    if (!vapidPublicKey) {
+      const message = 'VAPID 키가 설정되지 않았어요. 환경 변수를 확인해주세요.'
+      setState({ status: 'error', message })
+      throw new Error(message)
+    }
+
     if (!isPushEnvironmentSupported()) {
       const reason = '푸시 알림을 지원하지 않는 환경이에요. HTTPS에서 지원되는 브라우저로 접속해주세요.'
       setState({ status: 'unsupported', message: reason })
@@ -123,28 +130,23 @@ const usePushSubscription = () => {
 
       const existing = await registration.pushManager.getSubscription()
       let subscription = existing
-      let vapidKey: string | null = null
 
       if (!subscription) {
-        const { publicKey } = await fetchVapidPublicKey()
-        if (!publicKey) {
-          throw new Error('VAPID 키를 불러오지 못했어요.')
-        }
-        vapidKey = publicKey
-        const applicationServerKey = urlBase64ToUint8Array(publicKey)
+        const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey)
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey,
         })
       }
 
-      const fcmToken = await logFcmTokenOnce(registration, vapidKey || undefined)
+      const fcmToken = await logFcmTokenOnce(registration, vapidPublicKey)
       if (!fcmToken) {
         throw new Error('FCM 토큰을 발급하지 못했어요. 다시 시도해주세요.')
       }
 
       await registerPushSubscription(fcmToken)
       setState({ status: 'subscribed' })
+      void logFcmTokenOnce(registration, vapidPublicKey)
       return subscription
     } catch (error) {
       const message = error instanceof Error ? error.message : '푸시 알림을 설정하지 못했어요.'
@@ -156,7 +158,7 @@ const usePushSubscription = () => {
     } finally {
       setIsProcessing(false)
     }
-  }, [])
+  }, [vapidPublicKey])
 
   return {
     state,
