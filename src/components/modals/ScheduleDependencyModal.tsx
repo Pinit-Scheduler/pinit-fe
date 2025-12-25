@@ -1,7 +1,6 @@
-import dayjs from 'dayjs'
 import { useMemo, useState } from 'react'
 import useScheduleList from '../../hooks/useScheduleList'
-import { SEOUL_TZ, toDateKey } from '../../utils/datetime'
+import { getTodayWithOffset, toDateKey, toDisplayDayjs } from '../../utils/datetime'
 import type { ScheduleSummary } from '../../types/schedule'
 import './ScheduleModal.css'
 import './ScheduleDependencyModal.css'
@@ -26,7 +25,8 @@ const ScheduleDependencyModal = ({
   selectedIds,
   onApply,
 }: ScheduleDependencyModalProps) => {
-  const [selectedDate, setSelectedDate] = useState(() => dayjs().tz(SEOUL_TZ))
+  const [selectedDateKey, setSelectedDateKey] = useState(() => toDateKey(getTodayWithOffset()))
+  const selectedDate = useMemo(() => toDisplayDayjs(selectedDateKey), [selectedDateKey])
   const [localSelection, setLocalSelection] = useState<number[]>(selectedIds)
   const { schedules, isLoading, error, refetch } = useScheduleList(selectedDate)
 
@@ -58,15 +58,25 @@ const ScheduleDependencyModal = ({
         </header>
         <div className="schedule-modal__body dependency-modal__body">
           <div className="dependency-modal__date-row">
-            <button type="button" onClick={() => setSelectedDate(selectedDate.subtract(1, 'day'))}>
+            <button
+              type="button"
+              onClick={() =>
+                setSelectedDateKey(selectedDate.subtract(1, 'day').format('YYYY-MM-DD'))
+              }
+            >
               이전 날
             </button>
             <input
               type="date"
               value={selectedDate.format('YYYY-MM-DD')}
-              onChange={(event) => setSelectedDate(dayjs.tz(event.target.value, SEOUL_TZ))}
+              onChange={(event) =>
+                setSelectedDateKey(event.target.value)
+              }
             />
-            <button type="button" onClick={() => setSelectedDate(selectedDate.add(1, 'day'))}>
+            <button
+              type="button"
+              onClick={() => setSelectedDateKey(selectedDate.add(1, 'day').format('YYYY-MM-DD'))}
+            >
               다음 날
             </button>
           </div>

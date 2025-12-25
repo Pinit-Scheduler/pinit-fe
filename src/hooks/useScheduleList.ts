@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import type dayjs from 'dayjs'
 import type { ScheduleSummary } from '../types/schedule'
-import { toDateKey } from '../utils/datetime'
+import { toDateKey, toUtcDateKey } from '../utils/datetime'
 import { fetchScheduleSummaries } from '../api/schedules'
 
 type UseScheduleListReturn = {
@@ -18,17 +18,18 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
   const [error, setError] = useState<string | null>(null)
   const [timestamp, setTimestamp] = useState(() => Date.now())
 
-  const dateKey = useMemo(() => toDateKey(selectedDate), [selectedDate])
+  const displayDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate])
+  const apiDateKey = useMemo(() => toUtcDateKey(selectedDate), [selectedDate])
 
   const applySchedules = useCallback((next: ScheduleSummary[]) => {
     setSchedules(next)
-    cacheRef.current[dateKey] = next
-  }, [dateKey])
+    cacheRef.current[displayDateKey] = next
+  }, [displayDateKey])
 
   useEffect(() => {
     let isCancelled = false
 
-    const cached = cacheRef.current[dateKey]
+    const cached = cacheRef.current[displayDateKey]
     if (cached) {
       setSchedules(cached)
       setIsLoading(false)
@@ -41,7 +42,7 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
       setError(null)
 
       try {
-        const response = await fetchScheduleSummaries(dateKey)
+        const response = await fetchScheduleSummaries(apiDateKey)
         if (isCancelled) return
         applySchedules(response)
       } catch (error) {
@@ -60,7 +61,7 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
     return () => {
       isCancelled = true
     }
-  }, [applySchedules, dateKey, timestamp])
+  }, [apiDateKey, applySchedules, displayDateKey, timestamp])
 
   useEffect(() => {
     const handleScheduleChanged = (event: Event) => {
@@ -68,14 +69,14 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
       if (!detail) return
       const nextKey = detail.schedule ? toDateKey(detail.schedule.date) : null
       const affectedKeys = [detail.previousDateKey, nextKey].filter(Boolean)
-      if (affectedKeys.includes(dateKey)) {
+      if (affectedKeys.includes(displayDateKey)) {
         setTimestamp(Date.now())
       }
     }
 
     window.addEventListener('schedule:changed', handleScheduleChanged)
     return () => window.removeEventListener('schedule:changed', handleScheduleChanged)
-  }, [dateKey])
+  }, [displayDateKey])
 
   return {
     schedules,

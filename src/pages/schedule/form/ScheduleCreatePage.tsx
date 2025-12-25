@@ -1,11 +1,11 @@
-import dayjs from 'dayjs'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMemo } from 'react'
 import ScheduleForm from '../../../components/schedules/ScheduleForm'
 import { createSchedule } from '../../../api/schedules'
-import { SEOUL_TZ, toApiDateTimeWithZone } from '../../../utils/datetime'
+import { getTodayWithOffset, toApiDateTimeWithZone, toDisplayDayjs } from '../../../utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../../types/schedule'
 import { useToast } from '../../../context/ToastContext'
+import { useTimePreferences } from '../../../context/TimePreferencesContext'
 import './ScheduleFormPage.css'
 
 type LocationState = {
@@ -16,19 +16,21 @@ const ScheduleCreatePage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
+  const { offsetMinutes } = useTimePreferences()
   const { initialDateKey } = (location.state as LocationState | null) ?? {}
 
   const initialValues = useMemo(() => {
+    void offsetMinutes
     if (!initialDateKey) return undefined
-    const now = dayjs().tz(SEOUL_TZ)
-    const targetDate = dayjs.tz(initialDateKey, SEOUL_TZ)
+    const now = getTodayWithOffset()
+    const targetDate = toDisplayDayjs(initialDateKey)
     if (!targetDate.isValid()) return undefined
     const start = targetDate.hour(now.hour()).minute(0).second(0)
     return {
       date: start.toDate(),
       deadline: start.add(2, 'hour').toDate(),
     }
-  }, [initialDateKey])
+  }, [initialDateKey, offsetMinutes])
 
   const handleClose = () => {
     if (window.history.state && window.history.length > 1) {

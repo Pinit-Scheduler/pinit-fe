@@ -7,6 +7,7 @@ import SettingsPage from './pages/setting/SettingsPage.tsx'
 import { ScheduleCacheProvider } from './context/ScheduleCacheContext'
 import { ScheduleViewStateProvider } from './context/ScheduleViewStateContext'
 import { ToastProvider } from './context/ToastContext'
+import { TimePreferencesProvider, useTimePreferences } from './context/TimePreferencesContext'
 import LandingPage from './pages/landing/LandingPage.tsx'
 import LoginPage from './pages/auth/LoginPage.tsx'
 import ScheduleCreatePage from './pages/schedule/form/ScheduleCreatePage.tsx'
@@ -15,10 +16,12 @@ import SocialCallbackPage from './pages/auth/SocialCallbackPage.tsx'
 import SignupPage from './pages/auth/SignupPage.tsx'
 import AuthGuard from './components/auth/AuthGuard.tsx'
 
-function App() {
+const AppContent = () => {
+  const { offsetMinutes } = useTimePreferences()
+
   return (
     <ScheduleCacheProvider>
-      <ScheduleViewStateProvider>
+      <ScheduleViewStateProvider key={offsetMinutes}>
         <ToastProvider>
           <BrowserRouter>
             <Routes>
@@ -41,6 +44,14 @@ function App() {
         </ToastProvider>
       </ScheduleViewStateProvider>
     </ScheduleCacheProvider>
+  )
+}
+
+function App() {
+  return (
+    <TimePreferencesProvider>
+      <AppContent />
+    </TimePreferencesProvider>
   )
 }
 

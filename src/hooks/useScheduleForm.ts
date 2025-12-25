@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import dayjs from 'dayjs'
+import { getTodayWithOffset } from '../utils/datetime'
 import type { ScheduleFormValues } from '../types/schedule'
 
-const buildDefaultDate = () => dayjs().tz('Asia/Seoul').minute(0).second(0)
+const buildDefaultDate = () => getTodayWithOffset().minute(0).second(0)
 
 const createInitialValues = (overrides?: Partial<ScheduleFormValues>): ScheduleFormValues => {
   const base = buildDefaultDate()

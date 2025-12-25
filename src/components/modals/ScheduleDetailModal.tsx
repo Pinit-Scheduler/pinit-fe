@@ -7,6 +7,7 @@ import { formatDurationLabel } from '../../utils/duration'
 import { getImportanceStyle, getUrgencyStyle } from '../../utils/priorityStyles.ts'
 import type { ScheduleSummary } from '../../types/schedule'
 import { useScheduleCache } from '../../context/ScheduleCacheContext'
+import { useTimePreferences } from '../../context/TimePreferencesContext'
 import './ScheduleDetailModal.css'
 import '../schedules/ScheduleForm.css'
 
@@ -28,6 +29,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { activeScheduleId, setActiveSchedule } = useScheduleCache()
+  const { offsetLabel } = useTimePreferences()
 
   const handleDelete = async () => {
     if (!schedule) return
@@ -125,7 +127,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
           </section>
 
           <section className="schedule-detail-modal__section">
-            <h3>시간</h3>
+            <h3>시간 ({offsetLabel})</h3>
             <p>
               시작: {startTime}
               <br />

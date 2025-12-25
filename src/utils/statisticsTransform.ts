@@ -1,5 +1,5 @@
 import type { StatisticsResponse, WeeklyStatisticsView } from '../types/statistics'
-import { formatDateTimeWithZone, SEOUL_TZ } from './datetime'
+import { formatDateTimeWithZone, toDisplayDayjs } from './datetime'
 import dayjs from 'dayjs'
 import duration from 'dayjs/plugin/duration'
 
@@ -60,10 +60,7 @@ export const toWeeklyStatisticsView = (payload: StatisticsResponse): WeeklyStati
   const deepWorkMinutes = parseElapsedTime(payload.deepWorkElapsedTime)
   const adminWorkMinutes = parseElapsedTime(payload.adminWorkElapsedTime)
   const totalMinutes = parseElapsedTime(payload.totalWorkElapsedTime)
-  const startOfWeek =
-    typeof payload.startOfWeek === 'string'
-      ? dayjs.tz(payload.startOfWeek, SEOUL_TZ)
-      : dayjs.tz(payload.startOfWeek.dateTime, payload.startOfWeek.zoneId || SEOUL_TZ)
+  const startOfWeek = toDisplayDayjs(payload.startOfWeek)
 
   const result = {
     weekStartLabel: `${formatDateTimeWithZone(payload.startOfWeek, 'M월 D일')} ~ ${startOfWeek

@@ -2,10 +2,10 @@ import dayjs from 'dayjs'
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import useScheduleForm from '../../hooks/useScheduleForm'
-import { SEOUL_TZ } from '../../utils/datetime'
 import type { ScheduleTaskType, ScheduleFormValues, ScheduleSummary } from '../../types/schedule'
 import './ScheduleForm.css'
 import ScheduleDependencyModal from '../modals/ScheduleDependencyModal'
+import { useTimePreferences } from '../../context/TimePreferencesContext'
 
 type ScheduleFormProps = {
   initialValues?: Partial<ScheduleFormValues>
@@ -19,10 +19,11 @@ const taskTypeOptions: { value: ScheduleTaskType; label: string }[] = [
   { value: 'ADMIN_TASK', label: '행정 작업' },
 ]
 
-const formatDateTimeLocalValue = (value: Date) =>
-  dayjs(value).tz(SEOUL_TZ).format('YYYY-MM-DDTHH:mm')
+const formatDateTimeLocalValue = (value: Date, offsetMinutes: number) =>
+  dayjs(value).utc().utcOffset(offsetMinutes).format('YYYY-MM-DDTHH:mm')
 
-const parseDateTimeLocalValue = (value: string) => dayjs.tz(value, SEOUL_TZ).toDate()
+const parseDateTimeLocalValue = (value: string, offsetMinutes: number) =>
+  dayjs(value).utcOffset(offsetMinutes, true).toDate()
 
 type RangeStyle = CSSProperties & {
   '--range-progress'?: string
@@ -45,6 +46,7 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
   const form = useScheduleForm({ initialValues })
   const [dependencyMeta, setDependencyMeta] = useState<Record<number, { title: string }>>({})
   const [modalMode, setModalMode] = useState<null | 'previous' | 'next'>(null)
+  const { offsetMinutes } = useTimePreferences()
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -197,8 +199,10 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
         <span>시작 시간</span>
         <input
           type="datetime-local"
-          value={formatDateTimeLocalValue(form.values.date)}
-          onChange={(event) => form.onChange('date', parseDateTimeLocalValue(event.target.value))}
+          value={formatDateTimeLocalValue(form.values.date, offsetMinutes)}
+          onChange={(event) =>
+            form.onChange('date', parseDateTimeLocalValue(event.target.value, offsetMinutes))
+          }
         />
       </label>
 
@@ -206,9 +210,12 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
         <span>마감 시간</span>
         <input
           type="datetime-local"
-          value={formatDateTimeLocalValue(form.values.deadline)}
+          value={formatDateTimeLocalValue(form.values.deadline, offsetMinutes)}
           onChange={(event) =>
-            form.onChange('deadline', parseDateTimeLocalValue(event.target.value))
+            form.onChange(
+              'deadline',
+              parseDateTimeLocalValue(event.target.value, offsetMinutes),
+            )
           }
         />
         {form.errors.deadline && <small>{form.errors.deadline}</small>}

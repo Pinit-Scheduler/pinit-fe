@@ -1,26 +1,26 @@
-import { useContext, useMemo, useState } from 'react'
+import { useContext, useState } from 'react'
 import dayjs from 'dayjs'
-import { formatDisplayDate, getTodayKST, getWeekStart, toDateKey } from '../utils/datetime'
+import { formatDisplayDate, getTodayWithOffset, getWeekStart, toDateKey } from '../utils/datetime'
 import { ScheduleViewStateContext } from '../context/ScheduleViewStateContext'
 
 const useScheduleViewState = () => {
   const sharedState = useContext(ScheduleViewStateContext)
 
-  const today = useMemo(() => getTodayKST(), [])
-  const initialWeekStart = useMemo(() => getWeekStart(today), [today])
+  const today = getTodayWithOffset()
+  const initialWeekStart = getWeekStart(today)
 
   const [currentWeekStart, setCurrentWeekStart] = useState(initialWeekStart)
   const [selectedDate, setSelectedDate] = useState(today)
 
   const goToWeek = (offset: number) => {
-  const nextWeekStart = currentWeekStart.add(offset, 'week')
-  const currentWeekdayIndex = selectedDate.diff(currentWeekStart, 'day')
-  const candidate = nextWeekStart.add(currentWeekdayIndex, 'day')
-  const todayKST = getTodayKST()
-  const nextSelectedDate = candidate.isAfter(todayKST, 'day') ? todayKST : candidate
-  setCurrentWeekStart(nextWeekStart)
-  setSelectedDate(nextSelectedDate)
-}
+    const nextWeekStart = currentWeekStart.add(offset, 'week')
+    const currentWeekdayIndex = selectedDate.diff(currentWeekStart, 'day')
+    const candidate = nextWeekStart.add(currentWeekdayIndex, 'day')
+    const todayKST = getTodayWithOffset()
+    const nextSelectedDate = candidate.isAfter(todayKST, 'day') ? todayKST : candidate
+    setCurrentWeekStart(nextWeekStart)
+    setSelectedDate(nextSelectedDate)
+  }
 
   const selectDate = (date: dayjs.Dayjs) => {
     setSelectedDate(date)
@@ -29,8 +29,9 @@ const useScheduleViewState = () => {
   }
 
   const resetToToday = () => {
-    setSelectedDate(today)
-    setCurrentWeekStart(initialWeekStart)
+    const nextToday = getTodayWithOffset()
+    setSelectedDate(nextToday)
+    setCurrentWeekStart(getWeekStart(nextToday))
   }
 
   const fallbackState = {

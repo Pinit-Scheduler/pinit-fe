@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { clearAuthTokens, markLoggedOut } from '../../api/authTokens'
 import { useToast } from '../../context/ToastContext'
 import usePushSubscription from '../../hooks/usePushSubscription'
+import { useTimePreferences } from '../../context/TimePreferencesContext'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
@@ -11,6 +12,7 @@ const SettingsPage = () => {
   const [isAutoStatsEnabled, setIsAutoStatsEnabled] = useState(true)
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const { offsetLabel, isLoading: isTimeLoading } = useTimePreferences()
   const {
     state: pushState,
     isProcessing: isPushProcessing,
@@ -124,7 +126,7 @@ const SettingsPage = () => {
         <ul className="settings__list">
           <li>
             <p className="settings__label">표시 타임존</p>
-            <p className="settings__value">Asia/Seoul (UTC+9)</p>
+            <p className="settings__value">{isTimeLoading ? '시간대를 불러오는 중...' : offsetLabel}</p>
           </li>
           <li>
             <p className="settings__label">주간 기준</p>

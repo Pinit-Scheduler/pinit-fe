@@ -1,4 +1,3 @@
-import dayjs from 'dayjs'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent } from 'react'
 import useScheduleViewState from '../../../hooks/useScheduleViewState.ts'
@@ -22,22 +21,12 @@ import type { ScheduleResponse, ScheduleSummary } from '../../../types/schedule'
 import useWeeklyStatistics from '../../../hooks/useWeeklyStatistics.ts'
 import { formatMinutesToTime } from '../../../utils/statisticsTransform.ts'
 import './SchedulesTabPage.css'
-import { SEOUL_TZ, toApiDateTimeWithZone, toDateKey } from '../../../utils/datetime.ts'
+import { addDays, toApiDateTimeWithZone, toDateKey, toDisplayDayjs } from '../../../utils/datetime.ts'
 import { useToast } from '../../../context/ToastContext'
 import { useScheduleCache } from '../../../context/ScheduleCacheContext'
-import type { DateTimeWithZone } from '../../../types/datetime'
 
 const EDGE_GUTTER = 72
 const DRAG_ACTIVATE_DISTANCE = 6
-
-const shiftDateByDay = (value: DateTimeWithZone, offset: 1 | -1) => {
-  const zoneId = value.zoneId || SEOUL_TZ
-  const next = dayjs.tz(value.dateTime, zoneId).add(offset, 'day')
-  return {
-    dateTime: next.format('YYYY-MM-DDTHH:mm:ss'),
-    zoneId,
-  }
-}
 
 const SchedulesTabPage = () => {
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -212,8 +201,8 @@ const SchedulesTabPage = () => {
     const previousDateKey = toDateKey(schedule.date)
     setMovingScheduleId(schedule.id)
     try {
-      const nextDate = shiftDateByDay(schedule.date, offset)
-      const nextDeadline = shiftDateByDay(schedule.deadline, offset)
+      const nextDate = addDays(schedule.date, offset)
+      const nextDeadline = addDays(schedule.deadline, offset)
       const updated = await updateSchedule(schedule.id, {
         date: toApiDateTimeWithZone(nextDate),
         deadline: toApiDateTimeWithZone(nextDeadline),
@@ -303,7 +292,7 @@ const SchedulesTabPage = () => {
         <OverdueBanner
           summary={overdueSummary}
           onNavigateToDate={(dateKey) => {
-            const targetDate = dayjs.tz(dateKey, 'Asia/Seoul')
+            const targetDate = toDisplayDayjs(dateKey)
             selectDate(targetDate)
           }}
         />

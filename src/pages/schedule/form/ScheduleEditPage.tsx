@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ScheduleForm from '../../../components/schedules/ScheduleForm'
 import { updateSchedule } from '../../../api/schedules'
@@ -6,6 +6,7 @@ import { toApiDateTimeWithZone, toDateFromApi } from '../../../utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../../types/schedule'
 import useScheduleDetail from '../../../hooks/useScheduleDetail'
 import { useToast } from '../../../context/ToastContext'
+import { useTimePreferences } from '../../../context/TimePreferencesContext'
 import './ScheduleFormPage.css'
 
 const ScheduleEditPage = () => {
@@ -13,6 +14,7 @@ const ScheduleEditPage = () => {
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { schedule, isLoading, error } = useScheduleDetail(scheduleId)
+  const { offsetMinutes } = useTimePreferences()
 
   const handleClose = useCallback(() => {
     if (window.history.state && window.history.length > 1) {
@@ -28,11 +30,6 @@ const ScheduleEditPage = () => {
       handleClose()
     }
   }, [schedule, isLoading, addToast, handleClose, error])
-
-  if (!scheduleId) {
-    handleClose()
-    return null
-  }
 
   const handleSubmit = async (values: ScheduleFormValues) => {
     try {
@@ -60,17 +57,34 @@ const ScheduleEditPage = () => {
     }
   }
 
-  const initialValues: Partial<ScheduleFormValues> | undefined = schedule
-    ? {
-        title: schedule.title,
-        description: schedule.description,
-        date: toDateFromApi(schedule.date),
-        deadline: toDateFromApi(schedule.deadline),
-        importance: schedule.importance,
-        urgency: schedule.urgency,
-        // taskType은 백엔드에서 제공하지 않으므로 기본값 사용
-      }
-    : undefined
+  const initialValues: Partial<ScheduleFormValues> | undefined = useMemo(
+    () => {
+      void offsetMinutes
+      return schedule
+        ? {
+            title: schedule.title,
+            description: schedule.description,
+            date: toDateFromApi(schedule.date),
+            deadline: toDateFromApi(schedule.deadline),
+            importance: schedule.importance,
+            urgency: schedule.urgency,
+            // taskType은 백엔드에서 제공하지 않으므로 기본값 사용
+          }
+          : undefined
+    },
+    [offsetMinutes, schedule],
+  )
+
+  if (!scheduleId) {
+    return (
+      <section className="schedule-form-page">
+        <p className="schedule-form-page__status">유효하지 않은 일정 ID입니다.</p>
+        <button type="button" onClick={handleClose}>
+          목록으로 돌아가기
+        </button>
+      </section>
+    )
+  }
 
   return (
     <section className="schedule-form-page">

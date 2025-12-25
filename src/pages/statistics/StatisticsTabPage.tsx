@@ -6,12 +6,18 @@ import WeeklyBarChart from '../../components/statistics/WeeklyBarChart.tsx'
 import StatusPanel from '../../components/common/StatusPanel.tsx'
 import './StatisticsTabPage.css'
 import { formatMinutesToTime } from '../../utils/statisticsTransform.ts'
-import { getTodayKST } from '../../utils/datetime.ts'
+import { getTodayWithOffset } from '../../utils/datetime.ts'
 import { useToast } from '../../context/ToastContext.tsx'
+import { useTimePreferences } from '../../context/TimePreferencesContext.tsx'
 
 const StatisticsTabPage = () => {
-  const today = useMemo(() => getTodayKST(), [])
-  const [anchorDay, setAnchorDay] = useState(today)
+  const { offsetMinutes } = useTimePreferences()
+  const today = useMemo(() => {
+    void offsetMinutes
+    return getTodayWithOffset()
+  }, [offsetMinutes])
+  const [anchorOffsetDays, setAnchorOffsetDays] = useState(0)
+  const anchorDay = useMemo(() => today.add(anchorOffsetDays, 'day'), [anchorOffsetDays, today])
   const { current: stats, previous, isLoading, error, refetch } = useWeeklyStatistics({ weekStart: anchorDay })
   const { addToast } = useToast()
 
@@ -21,14 +27,9 @@ const StatisticsTabPage = () => {
     }
   }, [error, addToast])
 
-  const goPrevWeek = () => setAnchorDay((prev) => prev.subtract(7, 'day'))
-  const goNextWeek = () => {
-    setAnchorDay((prev) => {
-      const next = prev.add(7, 'day')
-      return next.isAfter(today, 'day') ? prev : next
-    })
-  }
-  const isNextDisabled = anchorDay.isSame(today, 'day') || anchorDay.isAfter(today, 'day')
+  const goPrevWeek = () => setAnchorOffsetDays((prev) => prev - 7)
+  const goNextWeek = () => setAnchorOffsetDays((prev) => Math.min(prev + 7, 0))
+  const isNextDisabled = anchorOffsetDays === 0
 
   const describeChange = (currentValue: number, previousValue?: number | null) => {
     if (previousValue === undefined || previousValue === null) return { text: '지난 주 데이터 없음', tone: 'neutral' as const }

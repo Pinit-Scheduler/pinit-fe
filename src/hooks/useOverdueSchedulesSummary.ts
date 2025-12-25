@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import type { OverdueSummary, ScheduleResponse } from '../types/schedule'
 import { fetchWeeklySchedules } from '../api/schedules'
-import { getTodayKST, toApiDateTimeWithZone, toDateFromApi, toDateKey } from '../utils/datetime'
+import { getTodayWithOffset, toApiDateTimeWithZone, toDateFromApi, toDateKey } from '../utils/datetime'
+import { useTimePreferences } from '../context/TimePreferencesContext'
 
 /**
  * 미완료된 일정 요약 정보를 반환하는 커스텀 훅
@@ -12,6 +13,7 @@ const useOverdueSchedulesSummary = () => {
   const [summary, setSummary] = useState<OverdueSummary>({ hasOverdue: false })
   const [isLoading, setIsLoading] = useState(true)
   const [timestamp, setTimestamp] = useState(() => Date.now())
+  const { offsetMinutes } = useTimePreferences()
 
   useEffect(() => {
     let isMounted = true
@@ -19,7 +21,7 @@ const useOverdueSchedulesSummary = () => {
     const fetchSummary = async () => {
       setIsLoading(true)
       try {
-        const today = getTodayKST()
+        const today = getTodayWithOffset()
         const todayKey = toDateKey(today)
 
         // 현재 주의 일정을 조회
@@ -67,7 +69,7 @@ const useOverdueSchedulesSummary = () => {
     return () => {
       isMounted = false
     }
-  }, [timestamp])
+  }, [offsetMinutes, timestamp])
 
   useEffect(() => {
     const handleScheduleChanged = () => setTimestamp(Date.now())

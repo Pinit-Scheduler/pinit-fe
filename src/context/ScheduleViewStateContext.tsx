@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import dayjs from 'dayjs'
-import { formatDisplayDate, getTodayKST, getWeekStart, toDateKey } from '../utils/datetime'
+import { formatDisplayDate, getTodayWithOffset, getWeekStart, toDateKey } from '../utils/datetime'
 
 export type ScheduleViewStateValue = {
   currentWeekStart: dayjs.Dayjs
@@ -17,7 +17,7 @@ export type ScheduleViewStateValue = {
 export const ScheduleViewStateContext = createContext<ScheduleViewStateValue | null>(null)
 
 export const ScheduleViewStateProvider = ({ children }: { children: ReactNode }) => {
-  const today = useMemo(() => getTodayKST(), [])
+  const today = useMemo(() => getTodayWithOffset(), [])
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(today))
   const [selectedDate, setSelectedDate] = useState(today)
 
@@ -37,9 +37,10 @@ export const ScheduleViewStateProvider = ({ children }: { children: ReactNode })
   }, [])
 
   const resetToToday = useCallback(() => {
-    setSelectedDate(today)
-    setCurrentWeekStart(getWeekStart(today))
-  }, [today])
+    const nextToday = getTodayWithOffset()
+    setSelectedDate(nextToday)
+    setCurrentWeekStart(getWeekStart(nextToday))
+  }, [])
 
   const value = useMemo(
     () => ({
