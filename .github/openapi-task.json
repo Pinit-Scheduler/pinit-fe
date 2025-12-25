@@ -813,11 +813,12 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "사용자 시간대 조회 성공",
             "content": {
               "*/*": {
                 "schema": {
-                  "type": "string"
+                  "type": "string",
+                  "example": "+09:00"
                 }
               }
             }
