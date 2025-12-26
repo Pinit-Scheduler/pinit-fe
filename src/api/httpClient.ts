@@ -115,7 +115,10 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
     return refreshed
   }
 
-  await ensureValidAccessToken()
+  const ensuredToken = await ensureValidAccessToken()
+  if (ensuredToken) {
+    accessToken = ensuredToken
+  }
 
   // 요청 로깅
   console.log(`📡 [${new Date().toISOString()}] API Request:`, {
@@ -135,6 +138,7 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
       accessToken = null
       const refreshed = await tryRefreshToken()
       if (refreshed) {
+        accessToken = refreshed
         response = await performFetch(refreshed)
       }
     }
