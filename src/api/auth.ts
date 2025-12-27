@@ -83,6 +83,15 @@ export const signup = async (payload: SignupPayload) => {
   })
 }
 
+export const logout = async () => {
+  const url = `${AUTH_BASE_URL}/logout`
+  await httpClient<void>(url, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  setAuthTokens({ accessToken: null })
+}
+
 export const refreshAccessToken = async () => {
   const url = `${AUTH_BASE_URL}/refresh`
   const response = await fetch(url, {

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { clearAuthTokens, markLoggedOut } from '../../api/authTokens'
+import { logout as requestLogout } from '../../api/auth'
 import { useToast } from '../../context/ToastContext'
 import usePushSubscription from '../../hooks/usePushSubscription'
 import { useTimePreferences } from '../../context/TimePreferencesContext'
@@ -10,6 +11,7 @@ const SettingsPage = () => {
   const [isNotificationEnabled, setIsNotificationEnabled] = useState(true)
   const [isDeadlineReminderEnabled, setIsDeadlineReminderEnabled] = useState(false)
   const [isAutoStatsEnabled, setIsAutoStatsEnabled] = useState(true)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { offsetLabel, isLoading: isTimeLoading } = useTimePreferences()
@@ -21,11 +23,25 @@ const SettingsPage = () => {
     unsubscribe: unsubscribePush,
   } = usePushSubscription()
 
-  const handleLogout = () => {
-    clearAuthTokens()
-    markLoggedOut()
-    addToast('로그아웃되었습니다.', 'info')
-    navigate('/login', { replace: true })
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      try {
+        await unsubscribePush()
+      } catch (error) {
+        console.warn('[Push] Failed to unsubscribe during logout:', error)
+      }
+      await requestLogout()
+      clearAuthTokens()
+      markLoggedOut()
+      addToast('로그아웃되었습니다.', 'info')
+      navigate('/login', { replace: true })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '로그아웃에 실패했어요.'
+      addToast(message, 'error')
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   const pushStatusLabel = (() => {
@@ -120,7 +136,7 @@ const SettingsPage = () => {
             <button
               type="button"
               className={['settings__toggle', isPushEnabled && 'is-active'].filter(Boolean).join(' ')}
-              disabled={isPushProcessing || pushState.status === 'unsupported'}
+              disabled={isPushProcessing || pushState.status === 'unsupported' || isLoggingOut}
               onClick={handlePushToggle}
               aria-pressed={isPushEnabled}
               aria-label="브라우저 푸시 알림 설정"
@@ -173,7 +189,7 @@ const SettingsPage = () => {
             <p className="settings__description">로그아웃하면 액세스/리프레시 토큰이 삭제됩니다.</p>
           </div>
           <button type="button" className="settings__logout-btn" onClick={handleLogout}>
-            로그아웃
+            {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
           </button>
         </div>
       </section>

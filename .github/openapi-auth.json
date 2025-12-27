@@ -94,6 +94,21 @@
         }
       }
     },
+    "/logout": {
+      "post": {
+        "tags": [
+          "회원/인증"
+        ],
+        "summary": "로그아웃",
+        "description": "refresh_token 쿠키를 만료시켜 로그아웃 처리합니다.",
+        "operationId": "logout",
+        "responses": {
+          "200": {
+            "description": "로그아웃 성공"
+          }
+        }
+      }
+    },
     "/login": {
       "post": {
         "tags": [
