@@ -1,8 +1,29 @@
 const ACCESS_TOKEN_KEY = 'pinit.accessToken'
 const REFRESH_TOKEN_KEY = 'pinit.refreshToken'
 const LOGOUT_MARKER_KEY = 'pinit.logoutMarker'
+const DEVICE_ID_KEY = 'pinit.deviceId'
 
 const hasWindow = () => typeof window !== 'undefined'
+
+const createDeviceId = () => {
+  const cryptoObj = hasWindow() ? window.crypto : undefined
+  if (cryptoObj?.randomUUID) return cryptoObj.randomUUID()
+  return `device-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
+}
+
+export const ensureDeviceId = () => {
+  if (!hasWindow()) return null
+  const existing = window.localStorage.getItem(DEVICE_ID_KEY)
+  if (existing) return existing
+  const next = createDeviceId()
+  window.localStorage.setItem(DEVICE_ID_KEY, next)
+  return next
+}
+
+export const getDeviceId = () => {
+  if (!hasWindow()) return null
+  return window.localStorage.getItem(DEVICE_ID_KEY)
+}
 
 export const setAuthTokens = (tokens: { accessToken?: string | null; refreshToken?: string | null }) => {
   if (!hasWindow()) return

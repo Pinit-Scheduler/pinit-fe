@@ -1,5 +1,5 @@
 import { httpClient } from './httpClient'
-import { setAuthTokens } from './authTokens'
+import { ensureDeviceId, setAuthTokens } from './authTokens'
 
 export type AuthProvider = 'naver' | 'google'
 
@@ -53,6 +53,7 @@ export const exchangeSocialLogin = async (provider: AuthProvider, payload: Socia
   setAuthTokens({
     accessToken: response?.token ?? null,
   })
+  ensureDeviceId()
 
   return response
 }
@@ -68,6 +69,7 @@ export const login = async (payload: LoginPayload) => {
   setAuthTokens({
     accessToken: response?.token ?? null,
   })
+  ensureDeviceId()
 
   return response
 }
