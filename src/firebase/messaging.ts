@@ -44,7 +44,7 @@ const resolveVapidKey = (provided?: string) => {
     return cachedVapidKey
   }
 
-  const envKey = "BF8QQIULasLr94n0l0xbv43yZeNICudM5lpQN08VYn2g5VjBPU0wM98HypyRmEb-y0ARRsiZ_wcgSMIC-nq-x20"
+  const envKey = import.meta.env.VITE_FIREBASE_VAPID_KEY
   if (envKey) {
     cachedVapidKey = envKey
     return envKey

@@ -11,24 +11,27 @@ export type VapidPublicKeyResponse = {
 }
 
 export type PushTokenRequest = {
+  deviceId: string
   token: string
 }
 
-export const fetchVapidPublicKey = async (): Promise<VapidPublicKeyResponse> => {
-  const publicKey = await httpClient<string>(`${NOTIFICATION_BASE_URL}/push/vapid`)
-  return { publicKey }
-}
+export const fetchVapidPublicKey = async (): Promise<string> =>
+  httpClient<string>(`${NOTIFICATION_BASE_URL}/push/vapid`)
 
-export const subscribePushToken = (token: string) =>
+export const subscribePushToken = (deviceId: string, token: string) =>
   httpClient<void>(`${NOTIFICATION_BASE_URL}/push/subscribe`, {
     method: 'POST',
-    json: { token } satisfies PushTokenRequest,
+    json: { deviceId, token } satisfies PushTokenRequest,
   })
 
-export const unsubscribePushToken = (token: string) =>
+export const unsubscribePushToken = (deviceId: string, token: string) =>
   httpClient<void>(`${NOTIFICATION_BASE_URL}/push/unsubscribe`, {
     method: 'POST',
-    json: { token } satisfies PushTokenRequest,
+    json: { deviceId, token } satisfies PushTokenRequest,
   })
 
-export const registerPushSubscription = (token: string) => subscribePushToken(token)
+export const registerPushSubscription = (deviceId: string, token: string) =>
+  subscribePushToken(deviceId, token)
+
+export const fetchPushSubscriptionStatus = (memberId: number, deviceId: string) =>
+  httpClient<boolean>(`${NOTIFICATION_BASE_URL}/push/subscribed?memberId=${memberId}&deviceId=${deviceId}`)

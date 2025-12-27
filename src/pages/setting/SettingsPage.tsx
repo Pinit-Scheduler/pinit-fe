@@ -18,6 +18,7 @@ const SettingsPage = () => {
     isProcessing: isPushProcessing,
     describeStatus: pushDescription,
     subscribe: subscribePush,
+    unsubscribe: unsubscribePush,
   } = usePushSubscription()
 
   const handleLogout = () => {
@@ -57,10 +58,17 @@ const SettingsPage = () => {
     }
   })()
 
-  const handlePushSubscribe = async () => {
+  const isPushEnabled = pushState.status === 'subscribed'
+
+  const handlePushToggle = async () => {
     try {
-      await subscribePush()
-      addToast('푸시 알림 구독이 완료되었어요.', 'success')
+      if (isPushEnabled) {
+        await unsubscribePush()
+        addToast('푸시 알림 구독이 해제되었어요.', 'info')
+      } else {
+        await subscribePush()
+        addToast('푸시 알림 구독이 완료되었어요.', 'success')
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : '푸시 알림 설정에 실패했어요.'
       addToast(message, 'error')
@@ -106,16 +114,18 @@ const SettingsPage = () => {
           <div>
             <p className="settings__label">브라우저 푸시 알림</p>
             <p className="settings__description">{pushDescription}</p>
+            <span className={pushBadgeClass}>{pushStatusLabel}</span>
           </div>
           <div className="settings__actions">
-            <span className={pushBadgeClass}>{pushStatusLabel}</span>
             <button
               type="button"
-              className="settings__action-btn"
+              className={['settings__toggle', isPushEnabled && 'is-active'].filter(Boolean).join(' ')}
               disabled={isPushProcessing || pushState.status === 'unsupported'}
-              onClick={handlePushSubscribe}
+              onClick={handlePushToggle}
+              aria-pressed={isPushEnabled}
+              aria-label="브라우저 푸시 알림 설정"
             >
-              {pushState.status === 'subscribed' ? '다시 등록' : '알림 허용'}
+              <span />
             </button>
           </div>
         </div>
