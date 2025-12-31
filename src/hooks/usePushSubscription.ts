@@ -6,7 +6,6 @@ import {
   subscribePushToken,
   unsubscribePushToken,
 } from '../api/notifications'
-import { MEMBER_ID } from '../constants/member'
 import { logFcmTokenOnce } from '../firebase/messaging'
 
 type PushStateStatus = 'idle' | 'subscribed' | 'blocked' | 'unsupported' | 'error'
@@ -110,7 +109,7 @@ const usePushSubscription = () => {
       const subscription = await registration.pushManager.getSubscription()
       let remoteSubscribed: boolean | null = null
       try {
-        remoteSubscribed = await fetchPushSubscriptionStatus(MEMBER_ID, deviceId)
+        remoteSubscribed = await fetchPushSubscriptionStatus(deviceId)
       } catch (error) {
         console.warn('[Push] Failed to fetch subscription status:', error)
       }

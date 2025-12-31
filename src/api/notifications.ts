@@ -30,7 +30,5 @@ export const unsubscribePushToken = (deviceId: string, token: string) =>
 export const registerPushSubscription = (deviceId: string, token: string) =>
   subscribePushToken(deviceId, token)
 
-export const fetchPushSubscriptionStatus = (memberId: number, deviceId: string) =>
-  httpClient<boolean>(buildNotificationUrl(
-    `/push/subscribed?memberId=${memberId}&deviceId=${deviceId}`
-  ))
+export const fetchPushSubscriptionStatus = (deviceId: string) =>
+  httpClient<boolean>(buildNotificationUrl(`/push/subscribed?deviceId=${deviceId}`))

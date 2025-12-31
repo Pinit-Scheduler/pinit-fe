@@ -5,12 +5,10 @@ import { fetchWeeklyStatistics } from '../api/statistics'
 import { toWeeklyStatisticsView } from '../utils/statisticsTransform'
 import { getTodayWithOffset, toApiDateTimeWithZone } from '../utils/datetime'
 import type { WeeklyStatisticsView } from '../types/statistics'
-import { MEMBER_ID } from '../constants/member'
 import { useTimePreferences } from '../context/TimePreferencesContext'
 
 type Options = {
   weekStart?: dayjs.Dayjs
-  memberId?: number
 }
 
 type UseWeeklyStatisticsReturn = {
@@ -27,7 +25,7 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
   const [isLoading, setIsLoading] = useState(true)
   const [timestamp, setTimestamp] = useState(() => Date.now())
   const [error, setError] = useState<string | null>(null)
-  const { weekStart, memberId = MEMBER_ID } = options
+  const { weekStart } = options
   const { offsetMinutes } = useTimePreferences()
   const timeBase = useMemo(() => {
     return weekStart ?? getTodayWithOffset(offsetMinutes)
@@ -47,9 +45,9 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
       console.log('📊 Fetching weekly statistics...')
 
       try {
-        console.log('📊 Request params:', { memberId, time: timeParam })
+        console.log('📊 Request params:', { time: timeParam })
 
-        const response = await fetchWeeklyStatistics({ memberId, time: timeParam })
+        const response = await fetchWeeklyStatistics({ time: timeParam })
 
         console.log('📊 API Response:', response)
 
@@ -60,7 +58,6 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
         let previousView: WeeklyStatisticsView | null = null
         try {
           const previousResponse = await fetchWeeklyStatistics({
-            memberId,
             time: previousTimeParam,
           })
           previousView = toWeeklyStatisticsView(previousResponse)
@@ -84,7 +81,7 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
     return () => {
       isMounted = false
     }
-  }, [timestamp, memberId, timeParam, previousTimeParam])
+  }, [timestamp, timeParam, previousTimeParam])
 
   return {
     current,

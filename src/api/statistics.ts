@@ -5,14 +5,12 @@ import { buildApiUrl } from './config'
 import { httpClient } from './httpClient'
 
 type WeeklyStatisticsParams = {
-  memberId: number
   time: DateTimeWithZone | string | Date
 }
 
-export const fetchWeeklyStatistics = ({ memberId, time }: WeeklyStatisticsParams) => {
+export const fetchWeeklyStatistics = ({ time }: WeeklyStatisticsParams) => {
   const timeParam = toApiDateTimeWithZone(time)
   const query = new URLSearchParams({
-    memberId: String(memberId),
     time: timeParam.dateTime,
     zoneId: timeParam.zoneId,
   })
