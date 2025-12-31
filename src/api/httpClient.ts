@@ -1,15 +1,5 @@
+import { API_BASE_URL, AUTH_BASE_URL, buildAuthUrl, buildUrl } from './config'
 import { getAccessToken, isAccessTokenExpired, setAuthTokens } from './authTokens'
-
-const API_BASE_URL =
-  import.meta.env.PROD && import.meta.env.VITE_API_BASE_URL
-    ? import.meta.env.VITE_API_BASE_URL
-    : import.meta.env.PROD
-      ? 'https://api.pinit.go-gradually.me'
-      : 'http://localhost:8080'
-
-const AUTH_BASE_URL =
-  import.meta.env.VITE_AUTH_BASE_URL ||
-  (import.meta.env.PROD ? 'https://auth.pinit.go-gradually.me' : 'http://localhost:8081')
 
 let refreshInFlight: Promise<string | null> | null = null
 let lastRefreshAttempt = 0
@@ -18,7 +8,8 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // 앱 시작 시 설정 확인
 console.log('🔌 API Configuration:', {
-  baseUrl: API_BASE_URL,
+  apiBaseUrl: API_BASE_URL,
+  authBaseUrl: AUTH_BASE_URL,
   timestamp: new Date().toISOString()
 })
 
@@ -42,7 +33,7 @@ export type HttpClientOptions = RequestInit & {
 
 export const httpClient = async <T>(path: string, options: HttpClientOptions = {}): Promise<T> => {
   const { json, headers, credentials, ...rest } = options
-  const url = path.startsWith('http') ? path : `${API_BASE_URL}${path}`
+  const url = path.startsWith('http') ? path : buildUrl(API_BASE_URL, path)
   let accessToken = getAccessToken()
   const body = json ? JSON.stringify(json) : undefined
 
@@ -74,7 +65,7 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
       }
       lastRefreshAttempt = Date.now()
       try {
-        const refreshUrl = `${AUTH_BASE_URL}/refresh`
+        const refreshUrl = buildAuthUrl('/refresh')
         console.log('🔄 Attempting token refresh...')
         const response = await fetch(refreshUrl, {
           method: 'POST',
