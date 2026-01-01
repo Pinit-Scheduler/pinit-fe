@@ -5,13 +5,17 @@ import type {
   ScheduleSummary,
 } from '../types/schedule'
 import type { DateTimeWithZone } from '../types/datetime'
-import { toApiDateTimeWithZone, toLocalDateTimeString } from '../utils/datetime'
+import { toApiDateTimeWithZone } from '../utils/datetime'
 import { buildApiUrl } from './config'
 import { httpClient } from './httpClient'
 
 export const fetchScheduleSummaries = (dateTime: dayjs.Dayjs | DateTimeWithZone | string | Date) => {
-  const dateParam = toLocalDateTimeString(dateTime)
-  return httpClient<ScheduleSummary[]>(buildApiUrl(`/schedules?date=${dateParam}`))
+  const timeParam = toApiDateTimeWithZone(dateTime)
+  const query = new URLSearchParams({
+    time: timeParam.dateTime,
+    zoneId: timeParam.zoneId,
+  })
+  return httpClient<ScheduleSummary[]>(buildApiUrl(`/schedules?${query.toString()}`))
 }
 
 export const fetchWeeklySchedules = (time: DateTimeWithZone | string | Date) => {
