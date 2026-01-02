@@ -54,6 +54,7 @@ const ScheduleEditPage = () => {
     } catch (error) {
       console.error('일정 수정 실패:', error)
       addToast('일정 수정에 실패했습니다.', 'error')
+      throw error
     }
   }
 

@@ -56,7 +56,9 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
     form.setSubmitting(true)
     try {
       await onSubmit(form.values)
-      form.reset()
+      form.reset(initialValues)
+    } catch (error) {
+      console.error('일정 저장 중 오류가 발생했습니다.', error)
     } finally {
       form.setSubmitting(false)
     }

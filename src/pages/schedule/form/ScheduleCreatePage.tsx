@@ -63,6 +63,7 @@ const ScheduleCreatePage = () => {
     } catch (error) {
       console.error('일정 저장 실패:', error)
       addToast('일정 저장에 실패했습니다.', 'error')
+      throw error
     }
   }
 

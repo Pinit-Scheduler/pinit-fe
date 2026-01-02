@@ -44,6 +44,8 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
         result = await createSchedule(payload)
       } else if (schedule) {
         result = await updateSchedule(schedule.id, payload)
+      } else {
+        throw new Error('수정할 일정이 없습니다.')
       }
       if (result) {
         window.dispatchEvent(
@@ -56,6 +58,7 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
     } catch (error) {
       console.error('일정 저장 실패:', error)
       addToast('일정 저장에 실패했습니다.', 'error')
+      throw error
       // 에러 발생 시에도 모달을 닫으려면 onClose() 호출
       // onClose()
     }
