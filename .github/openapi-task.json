@@ -987,11 +987,11 @@
             "maximum": 9,
             "minimum": 1
           },
-          "urgency": {
+          "difficulty": {
             "type": "integer",
             "format": "int32",
-            "description": "긴급도 (1~9)",
-            "example": 7,
+            "description": "난이도 (21 이하의 피보나치 수)",
+            "example": 3,
             "maximum": 9,
             "minimum": 1
           },
@@ -1032,10 +1032,10 @@
           "date",
           "deadline",
           "description",
+          "difficulty",
           "importance",
           "taskType",
-          "title",
-          "urgency"
+          "title"
         ]
       },
       "ErrorResponse": {
@@ -1096,10 +1096,10 @@
             "format": "int32",
             "description": "중요도"
           },
-          "urgency": {
+          "difficulty": {
             "type": "integer",
             "format": "int32",
-            "description": "긴급도"
+            "description": "난이도"
           },
           "duration": {
             "type": "string",
