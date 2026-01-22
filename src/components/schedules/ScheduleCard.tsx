@@ -10,7 +10,7 @@ type ScheduleCardProps = {
   onCancel: (scheduleId: number) => void
 }
 
-const taskTypeLabel: Record<NonNullable<ScheduleSummary['scheduleType']>, string> = {
+const scheduleTypeLabel: Record<NonNullable<ScheduleSummary['scheduleType']>, string> = {
   DEEP_WORK: '집중 작업',
   QUICK_TASK: '빠른 일정',
   ADMIN_TASK: '행정 작업',
@@ -114,7 +114,7 @@ const ScheduleCard = ({
           </button>
           <div>
             <p className="schedule-card__title">{title}</p>
-            {scheduleType && <p className="schedule-card__subtitle">{taskTypeLabel[scheduleType]}</p>}
+            {scheduleType && <p className="schedule-card__subtitle">{scheduleTypeLabel[scheduleType]}</p>}
           </div>
         </div>
         <div className="schedule-card__header-actions">

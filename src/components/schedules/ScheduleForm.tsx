@@ -10,7 +10,7 @@ type ScheduleFormProps = {
   submitLabel?: string
 }
 
-const taskTypeOptions: { value: ScheduleTaskType; label: string }[] = [
+const scheduleTypeOptions: { value: ScheduleTaskType; label: string }[] = [
   { value: 'DEEP_WORK', label: '집중 작업' },
   { value: 'QUICK_TASK', label: '빠른 일정' },
   { value: 'ADMIN_TASK', label: '행정 작업' },
@@ -76,10 +76,10 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
       <label className="schedule-form__field">
         <span>일정 타입</span>
         <select
-          value={form.values.scheduleType}
-          onChange={(event) => form.onChange('scheduleType', event.target.value as ScheduleTaskType)}
-        >
-          {taskTypeOptions.map((option) => (
+        value={form.values.scheduleType}
+        onChange={(event) => form.onChange('scheduleType', event.target.value as ScheduleTaskType)}
+      >
+          {scheduleTypeOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
