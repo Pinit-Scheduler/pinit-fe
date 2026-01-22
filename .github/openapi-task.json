@@ -21,12 +21,20 @@
   ],
   "tags": [
     {
+      "name": "MemberV1",
+      "description": "회원 관련 정보 API (v1)"
+    },
+    {
       "name": "Member",
       "description": "회원 관련 정보 API"
     },
     {
       "name": "ScheduleV1",
       "description": "작업과 분리된 일정 관리 API"
+    },
+    {
+      "name": "StatisticsV1",
+      "description": "통계 조회 API (v1)"
     },
     {
       "name": "Task",
@@ -1987,33 +1995,10 @@
         }
       }
     },
-    "/v0/zone-offset": {
+    "/v1/statistics": {
       "get": {
         "tags": [
-          "Member"
-        ],
-        "summary": "사용자 시간대 조회",
-        "description": "사용자의 시간대를 조회합니다.",
-        "operationId": "getMemberZoneOffset",
-        "responses": {
-          "200": {
-            "description": "사용자 시간대 조회 성공",
-            "content": {
-              "*/*": {
-                "schema": {
-                  "type": "string",
-                  "example": "+09:00"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v0/statistics": {
-      "get": {
-        "tags": [
-          "Statistics"
+          "StatisticsV1"
         ],
         "summary": "사용자 통계 조회",
         "description": "주어진 시점 기준 주간 통계를 조회합니다.",
@@ -2071,6 +2056,258 @@
         }
       }
     },
+    "/v1/schedules/week": {
+      "get": {
+        "tags": [
+          "ScheduleV1"
+        ],
+        "summary": "주간 일정 조회 (작업 없이)",
+        "description": "주어진 날짜가 포함된 주간의 일정을 조회합니다.",
+        "operationId": "getWeeklySchedules",
+        "parameters": [
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/zone-offset": {
+      "get": {
+        "tags": [
+          "MemberV1"
+        ],
+        "summary": "사용자 시간대 조회",
+        "description": "사용자의 시간대를 조회합니다.",
+        "operationId": "getMemberZoneOffset",
+        "responses": {
+          "200": {
+            "description": "사용자 시간대 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "example": "+09:00"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/now": {
+      "get": {
+        "tags": [
+          "MemberV1"
+        ],
+        "summary": "현재 진행 중인 일정 ID 조회",
+        "description": "사용자의 현재 진행 중인 일정 ID를 조회합니다.",
+        "operationId": "getNowInProgressScheduleId",
+        "responses": {
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/zone-offset": {
+      "get": {
+        "tags": [
+          "Member"
+        ],
+        "summary": "사용자 시간대 조회",
+        "description": "사용자의 시간대를 조회합니다.",
+        "operationId": "getMemberZoneOffset_1",
+        "responses": {
+          "200": {
+            "description": "사용자 시간대 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "example": "+09:00"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/v0/statistics": {
+      "get": {
+        "tags": [
+          "Statistics"
+        ],
+        "summary": "사용자 통계 조회",
+        "description": "주어진 시점 기준 주간 통계를 조회합니다.",
+        "operationId": "getStatistics_1",
+        "parameters": [
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "통계 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatisticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "통계를 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
     "/v0/schedules/week": {
       "get": {
         "tags": [
@@ -2078,7 +2315,7 @@
         ],
         "summary": "주간 일정 조회",
         "description": "해당 주의 일정을 조회합니다.",
-        "operationId": "getWeeklySchedules",
+        "operationId": "getWeeklySchedules_1",
         "parameters": [
           {
             "name": "time",
@@ -2163,7 +2400,7 @@
         ],
         "summary": "현재 진행 중인 일정 ID 조회",
         "description": "사용자의 현재 진행 중인 일정 ID를 조회합니다.",
-        "operationId": "getNowInProgressScheduleId",
+        "operationId": "getNowInProgressScheduleId_1",
         "responses": {
           "200": {
             "description": "OK",
@@ -2176,7 +2413,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     }
   },
