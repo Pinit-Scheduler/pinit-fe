@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px;
+  animation: fadeIn 220ms ease;
 }
 
 .today-page__header {
@@ -44,6 +45,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+  animation: fadeSlideIn 220ms ease;
 }
 
 .today-page__list {
@@ -60,6 +62,7 @@
   gap: 8px;
   align-items: center;
   justify-content: space-between;
+  animation: fadeSlideIn 220ms ease;
 }
 
 .today-page__pill {
@@ -78,4 +81,24 @@
   color: #fff;
   border: none;
   cursor: pointer;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

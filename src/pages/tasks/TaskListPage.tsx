@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { completeTask, fetchTasks, reopenTask } from '../../api/tasks'
 import type { Task } from '../../types/task'
@@ -12,7 +11,6 @@ import TaskDetailModal from '../../components/tasks/TaskDetailModal'
 import './TaskPages.css'
 
 const TaskListPage = () => {
-  const navigate = useNavigate()
   const { tasksById, setTask } = useTaskCache()
   const { addToast } = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
@@ -79,11 +77,6 @@ const TaskListPage = () => {
         <p className="task-page__eyebrow">작업</p>
         <h1 className="task-page__title">작업 목록</h1>
         <p className="task-page__description">v1 Task API 연동 후 작업/의존성/마감일을 표시합니다.</p>
-        <div className="task-page__actions">
-          <button type="button" onClick={() => navigate('/app/tasks/new')} className="task-page__primary">
-            새 작업 추가
-          </button>
-        </div>
       </header>
       {isLoading ? (
         <div className="task-page__placeholder">

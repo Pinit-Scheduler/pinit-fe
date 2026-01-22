@@ -3,6 +3,7 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px;
+  animation: fadeIn 220ms ease;
 }
 
 .task-page__header {
@@ -59,6 +60,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  animation: fadeSlideIn 220ms ease;
 }
 
 .task-page__item {
@@ -71,6 +73,7 @@
   border-radius: 12px;
   background: #fff;
   cursor: pointer;
+  animation: fadeSlideIn 220ms ease;
 }
 
 .task-page__item-head {
@@ -107,6 +110,26 @@
 .task-page__checkbox input:checked + .task-page__checkbox-mark {
   background: #22c55e;
   transform: scale(1.05);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .task-page__item-desc {
