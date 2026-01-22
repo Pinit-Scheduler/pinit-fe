@@ -74,7 +74,7 @@ const TodayPage = () => {
         <p className="today-page__eyebrow">오늘 할당된 일</p>
         <h1 className="today-page__title">오늘 추천 작업 & 일정</h1>
         <p className="today-page__description">
-          오늘 날짜의 일정과 선행 작업이 없는 작업을 모아 보여줍니다. 작업을 일정으로 배정하는 플로우는 이후 연결됩니다.
+          오늘 날짜의 일정과 선행 작업이 없는 작업을 모아 보여줍니다.
         </p>
       </header>
 

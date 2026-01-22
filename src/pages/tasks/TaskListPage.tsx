@@ -76,7 +76,6 @@ const TaskListPage = () => {
       <header className="task-page__header">
         <p className="task-page__eyebrow">작업</p>
         <h1 className="task-page__title">작업 목록</h1>
-        <p className="task-page__description">v1 Task API 연동 후 작업/의존성/마감일을 표시합니다.</p>
       </header>
       {isLoading ? (
         <div className="task-page__placeholder">
