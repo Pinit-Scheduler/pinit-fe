@@ -8,6 +8,7 @@ import { getDifficultyStyle, getImportanceStyle } from '../../utils/priorityStyl
 import { useTaskCache } from '../../context/TaskCacheContext'
 import { useToast } from '../../context/ToastContext'
 import { dispatchTaskChanged } from '../../utils/events'
+import TaskDetailModal from '../../components/tasks/TaskDetailModal'
 import './TaskPages.css'
 
 const TaskListPage = () => {
@@ -18,6 +19,7 @@ const TaskListPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<number | null>(null)
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setIsLoading(true)
@@ -102,7 +104,7 @@ const TaskListPage = () => {
             const cached = tasksById[task.id]
             const item = cached ?? task
             return (
-              <li key={task.id} className="task-page__item" onClick={() => navigate(`/app/tasks/${task.id}`)}>
+              <li key={task.id} className="task-page__item" onClick={() => setSelectedTaskId(task.id)}>
                 <div className="task-page__item-head">
                   <label className="task-page__checkbox" onClick={(e) => e.stopPropagation()}>
                     <input
@@ -136,6 +138,9 @@ const TaskListPage = () => {
             )
           })}
         </ul>
+      )}
+      {selectedTaskId && (
+        <TaskDetailModal taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
       )}
     </section>
   )
