@@ -52,16 +52,16 @@ const TaskListPage = () => {
     event.stopPropagation()
     if (togglingId === task.id) return
     setTogglingId(task.id)
-    const isCompleted = task.isCompleted
+    const isCompleted = task.completed ?? task.isCompleted ?? false
     try {
       if (isCompleted) {
         await reopenTask(task.id)
       } else {
         await completeTask(task.id)
       }
-      const updated = { ...task, isCompleted: !isCompleted }
+      const updated = { ...task, completed: !isCompleted, isCompleted: !isCompleted }
       setTask(updated)
-      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, isCompleted: !isCompleted } : t)))
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, completed: !isCompleted, isCompleted: !isCompleted } : t)))
       dispatchTaskChanged(task.id, isCompleted ? 'reopen' : 'complete')
       addToast(isCompleted ? '작업을 미완료로 전환했어요.' : '작업을 완료했어요.', 'success')
     } catch (err) {
@@ -102,7 +102,7 @@ const TaskListPage = () => {
                   <label className="task-page__checkbox" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
-                      checked={item.isCompleted}
+                      checked={item.completed ?? item.isCompleted ?? false}
                       onChange={(e) => toggleCompletion(item, e)}
                       disabled={togglingId === task.id}
                     />
@@ -119,7 +119,7 @@ const TaskListPage = () => {
                       마감 {dayjs(item.dueDate.dateTime).format('M/D')}
                     </span>
                   )}
-                  <span className="task-page__pill" style={getImportanceStyle(item.importance)}>
+                    <span className="task-page__pill" style={getImportanceStyle(item.importance)}>
                     중요도 {item.importance}
                   </span>
                   <span className="task-page__pill" style={getDifficultyStyle(item.difficulty)}>

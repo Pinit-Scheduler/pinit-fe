@@ -30,9 +30,10 @@ export const useScheduleTaskSync = () => {
     try {
       const current = await fetchTaskDetail(taskId)
 
-      if (scheduleState === 'COMPLETED' && !current.isCompleted) {
+      const currentCompleted = current.completed ?? current.isCompleted ?? false
+      if (scheduleState === 'COMPLETED' && !currentCompleted) {
         await completeTask(taskId)
-      } else if (scheduleState === 'NOT_STARTED' && current.isCompleted) {
+      } else if (scheduleState === 'NOT_STARTED' && currentCompleted) {
         await reopenTask(taskId)
       }
 

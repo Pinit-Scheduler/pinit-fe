@@ -32,8 +32,8 @@ const TaskEditPage = () => {
         const data = await fetchTaskDetail(numericId)
         if (!mounted) return
         setTask(data)
-        setInitialPrevIds((data.previousTasks ?? []).map((t) => t.id))
-        setInitialNextIds((data.nextTasks ?? []).map((t) => t.id))
+        setInitialPrevIds(data.previousTaskIds ?? [])
+        setInitialNextIds(data.nextTaskIds ?? [])
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : '작업을 불러오지 못했습니다.')

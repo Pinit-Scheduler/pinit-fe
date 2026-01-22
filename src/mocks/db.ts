@@ -33,7 +33,8 @@ export const mockTasks: Task[] = [
     importance: 7,
     difficulty: 3,
     isCompleted: false,
-    inboundTaskCount: 0,
+    completed: false,
+    inboundDependencyCount: 0,
   },
   {
     id: 2,
@@ -43,7 +44,8 @@ export const mockTasks: Task[] = [
     importance: 6,
     difficulty: 2,
     isCompleted: false,
-    inboundTaskCount: 1,
+    completed: false,
+    inboundDependencyCount: 1,
   },
   {
     id: 3,
@@ -53,7 +55,8 @@ export const mockTasks: Task[] = [
     importance: 5,
     difficulty: 1,
     isCompleted: true,
-    inboundTaskCount: 0,
+    completed: true,
+    inboundDependencyCount: 0,
   },
 ]
 

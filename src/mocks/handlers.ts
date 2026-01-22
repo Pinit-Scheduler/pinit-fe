@@ -3,7 +3,7 @@ import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import duration from 'dayjs/plugin/duration'
 import type { DateTimeWithZone } from '../types/datetime'
-import type { Task, TaskRequest, TaskCursorResponse, TaskListResponse } from '../types/task'
+import type { Task, TaskRequest } from '../types/task'
 import type { ScheduleRequest, ScheduleResponse } from '../types/schedule'
 import type { StatisticsResponse } from '../types/statistics'
 import type { PushTokenRequest } from '../api/notifications'
@@ -85,6 +85,22 @@ const getTargetDateFromQuery = (searchParams: URLSearchParams): DateTimeWithZone
 }
 
 const findTask = (id: number) => mockTasks.find((task) => task.id === id)
+
+const toTaskResponse = (task: Task) => ({
+  id: task.id,
+  title: task.title,
+  description: task.description,
+  dueDate: task.dueDate,
+  importance: task.importance,
+  difficulty: task.difficulty,
+  completed: task.completed ?? task.isCompleted ?? false,
+  inboundDependencyCount: task.inboundDependencyCount ?? 0,
+  previousTaskIds: task.previousTaskIds ?? [],
+  nextTaskIds: task.nextTaskIds ?? [],
+  ownerId: task.ownerId ?? 1,
+  createdAt: task.createdAt ?? new Date().toISOString(),
+  updatedAt: task.updatedAt ?? new Date().toISOString(),
+})
 const findSchedule = (id: number) => mockSchedules.find((schedule) => schedule.id === id)
 
 const handleAuth = async (path: string, method: string, request: Request) => {
@@ -191,16 +207,21 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const readyOnly = searchParams.get('readyOnly') === 'true'
     let items = [...mockTasks]
     if (readyOnly) {
-      items = items.filter((task) => task.isCompleted === false && (task.inboundTaskCount ?? 0) === 0)
+      items = items.filter((task) => (task.completed ?? task.isCompleted) === false && (task.inboundDependencyCount ?? 0) === 0)
     }
     const start = page * size
     const paged = items.slice(start, start + size)
-    const response: TaskListResponse = {
-      content: paged,
-      page,
+    const totalPages = Math.max(1, Math.ceil(items.length / size))
+    const response = {
+      content: paged.map(toTaskResponse),
+      number: page,
       size,
       totalElements: items.length,
-      totalPages: Math.ceil(items.length / size),
+      totalPages,
+      numberOfElements: paged.length,
+      first: page === 0,
+      last: page >= totalPages - 1,
+      empty: paged.length === 0,
     }
     return json(response)
   }
@@ -212,12 +233,13 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const readyOnly = searchParams.get('readyOnly') === 'true'
     let items = [...mockTasks]
     if (readyOnly) {
-      items = items.filter((task) => task.isCompleted === false && (task.inboundTaskCount ?? 0) === 0)
+      items = items.filter((task) => (task.completed ?? task.isCompleted) === false && (task.inboundDependencyCount ?? 0) === 0)
     }
     const slice = items.slice(start, start + size)
     const nextCursor = start + size < items.length ? String(start + size) : null
-    const response: TaskCursorResponse = {
-      items: slice,
+    const response = {
+      data: slice.map(toTaskResponse),
+      hasNext: nextCursor !== null,
       nextCursor,
     }
     return json(response)
@@ -229,6 +251,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const task = findTask(id)
     if (!task) return notFound('Task not found')
     task.isCompleted = true
+    task.completed = true
     return noContent(204)
   }
 
@@ -238,6 +261,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const task = findTask(id)
     if (!task) return notFound('Task not found')
     task.isCompleted = false
+    task.completed = false
     return noContent(204)
   }
 
@@ -267,7 +291,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const id = Number(detailMatch[1])
     const task = findTask(id)
     if (!task) return notFound('Task not found')
-    return json(task)
+    return json(toTaskResponse(task))
   }
 
   if (detailMatch && method === 'PATCH') {
@@ -276,7 +300,8 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     if (!task) return notFound('Task not found')
     const body = await readJson<Partial<TaskRequest>>(request)
     Object.assign(task, body ?? {})
-    return json(task)
+    task.updatedAt = new Date().toISOString()
+    return json(toTaskResponse(task))
   }
 
   if (detailMatch && method === 'DELETE') {
@@ -300,12 +325,13 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
       importance: body.importance ?? 5,
       difficulty: body.difficulty ?? 1,
       isCompleted: false,
-      inboundTaskCount: body.addDependencies?.length ?? 0,
+      completed: false,
+      inboundDependencyCount: body.addDependencies?.length ?? 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
     mockTasks.push(newTask)
-    return json(newTask, 201)
+    return json(toTaskResponse(newTask), 201)
   }
 
   return null

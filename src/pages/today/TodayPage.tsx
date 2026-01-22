@@ -127,7 +127,9 @@ const TodayPage = () => {
                           >
                             {dayjs(cached.dueDate.dateTime).format('M/D')}
                           </span>
-                          <span className="today-page__pill">{cached.isCompleted ? '완료' : '미완료'}</span>
+                          <span className="today-page__pill">
+                            {(cached.completed ?? cached.isCompleted) ? '완료' : '미완료'}
+                          </span>
                             </>
                           )
                         })()}

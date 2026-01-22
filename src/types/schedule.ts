@@ -23,8 +23,6 @@ export type ScheduleResponse = {
   importance?: number
   difficulty?: DifficultyValue
   duration?: string
-  previousTasks?: ScheduleSummary[]
-  nextTasks?: ScheduleSummary[]
 }
 
 export type DependencyRequest = {
@@ -58,8 +56,6 @@ export type ScheduleSummary = {
   state: ScheduleState
   duration?: string
   taskId?: number
-  previousTasks?: ScheduleSummary[]
-  nextTasks?: ScheduleSummary[]
   // optional legacy fields
   deadline?: DateTimeWithZone
   importance?: number

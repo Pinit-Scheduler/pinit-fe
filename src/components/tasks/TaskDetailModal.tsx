@@ -63,16 +63,17 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     if (!task) return
     setIsToggling(true)
     try {
-      if (task.isCompleted) {
+      if (task.completed ?? task.isCompleted) {
         await reopenTask(task.id)
       } else {
         await completeTask(task.id)
       }
-      const next = { ...task, isCompleted: !task.isCompleted }
+      const nextCompleted = !(task.completed ?? task.isCompleted ?? false)
+      const next = { ...task, completed: nextCompleted, isCompleted: nextCompleted }
       setTaskState(next)
       setTask(next)
-      dispatchTaskChanged(task.id, task.isCompleted ? 'reopen' : 'complete')
-      addToast(task.isCompleted ? '작업을 미완료로 전환했어요.' : '작업을 완료했어요.', 'success')
+      dispatchTaskChanged(task.id, nextCompleted ? 'complete' : 'reopen')
+      addToast(nextCompleted ? '작업을 완료했어요.' : '작업을 미완료로 전환했어요.', 'success')
     } catch (err) {
       console.error('작업 상태 변경 실패', err)
       addToast('완료 상태를 변경하지 못했습니다.', 'error')
@@ -147,7 +148,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 <p className="task-detail-modal__description">{task.description}</p>
                 <div className="task-detail-modal__meta">
                   <span className="task-detail-modal__badge task-detail-modal__badge--state">
-                    {task.isCompleted ? '완료' : '미완료'}
+                    {(task.completed ?? task.isCompleted) ? '완료' : '미완료'}
                   </span>
                   <span className="task-detail-modal__badge" style={getImportanceStyle(task.importance)}>
                     중요도 {task.importance}
@@ -166,7 +167,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
               <section className="task-detail-modal__section">
                 <h3>의존성</h3>
                 <p className="task-detail-modal__description">
-                  이전 작업: {task.previousTasks?.length ?? 0}개 / 이후 작업: {task.nextTasks?.length ?? 0}개
+                  이전 작업: {task.previousTaskIds?.length ?? 0}개 / 이후 작업: {task.nextTaskIds?.length ?? 0}개
                 </p>
               </section>
 

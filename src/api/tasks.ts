@@ -24,48 +24,61 @@ type CursorParams = {
 
 type TaskApiResponse = Omit<Task, 'isCompleted'> & {
   isCompleted?: boolean | null
-  state?: string | null
-  status?: string | null
-  completedAt?: string | null
-  completionDate?: string | null
+  completed?: boolean | null
+  inboundDependencyCount?: number | null
 }
 
-type TaskListApiResponse = Omit<TaskListResponse, 'content'> & { content?: TaskApiResponse[] | null }
-type TaskCursorApiResponse = Omit<TaskCursorResponse, 'items'> & { items?: TaskApiResponse[] | null }
-
-const isCompletedFlag = (value?: string | null) => {
-  if (!value) return false
-  const normalized = value.toLowerCase()
-  return ['completed', 'complete', 'done', 'finished'].includes(normalized)
+type PageTaskApiResponse = {
+  content?: TaskApiResponse[] | null
+  number?: number
+  size?: number
+  totalElements?: number
+  totalPages?: number
+  numberOfElements?: number
+  first?: boolean
+  last?: boolean
+  empty?: boolean
+}
+type TaskCursorApiResponse = {
+  data?: TaskApiResponse[] | null
+  hasNext?: boolean
+  nextCursor?: string | null
 }
 
 const normalizeTask = (task: TaskApiResponse): Task => ({
   ...task,
-  isCompleted:
-    typeof task.isCompleted === 'boolean'
-      ? task.isCompleted
-      : isCompletedFlag(task.state) ||
-        isCompletedFlag(task.status) ||
-        !!task.completedAt ||
-        !!task.completionDate,
+  inboundDependencyCount: task.inboundDependencyCount ?? 0,
+  completed: task.completed ?? task.isCompleted ?? false,
+  isCompleted: task.completed ?? task.isCompleted ?? false,
+  previousTaskIds: task.previousTaskIds ?? [],
+  nextTaskIds: task.nextTaskIds ?? [],
 })
 
 const normalizeTaskList = (tasks?: TaskApiResponse[] | null) => (tasks ?? []).map(normalizeTask)
 
-export const fetchTasks = async ({ page = 0, size = 20, readyOnly = false }: ListParams) => {
+export const fetchTasks = async ({ page = 0, size = 20, readyOnly = false }: ListParams): Promise<TaskListResponse> => {
   const query = new URLSearchParams({
     page: String(page),
     size: String(size),
     readyOnly: String(readyOnly),
   })
-  const response = await httpClient<TaskListApiResponse>(buildApiUrl(`/tasks?${query.toString()}`, 'v1'))
+  const response = await httpClient<PageTaskApiResponse>(buildApiUrl(`/tasks?${query.toString()}`, 'v1'))
   return {
-    ...response,
     content: normalizeTaskList(response.content),
+    number: response.number,
+    size: response.size,
+    totalElements: response.totalElements,
+    totalPages: response.totalPages,
+    numberOfElements: response.numberOfElements,
+    first: response.first,
+    last: response.last,
+    empty: response.empty,
   }
 }
 
-export const fetchTasksByCursor = async ({ size = 20, cursor, readyOnly = false }: CursorParams) => {
+export const fetchTasksByCursor = async (
+  { size = 20, cursor, readyOnly = false }: CursorParams,
+): Promise<TaskCursorResponse> => {
   const query = new URLSearchParams({
     size: String(size),
     readyOnly: String(readyOnly),
@@ -75,8 +88,9 @@ export const fetchTasksByCursor = async ({ size = 20, cursor, readyOnly = false 
     buildApiUrl(`/tasks/cursor?${query.toString()}`, 'v1'),
   )
   return {
-    ...response,
-    items: normalizeTaskList(response.items),
+    items: normalizeTaskList(response.data),
+    nextCursor: response.nextCursor ?? null,
+    hasNext: response.hasNext,
   }
 }
 

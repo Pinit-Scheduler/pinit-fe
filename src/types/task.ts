@@ -22,25 +22,32 @@ export type Task = {
   dueDate: DateTimeWithZone
   importance: number
   difficulty: number
-  isCompleted: boolean
-  inboundTaskCount?: number
-  previousTasks?: Task[]
-  nextTasks?: Task[]
+  completed: boolean
+  isCompleted?: boolean
+  inboundDependencyCount?: number
+  previousTaskIds?: number[]
+  nextTaskIds?: number[]
+  ownerId?: number
   createdAt?: string
   updatedAt?: string
 }
 
 export type TaskListResponse = {
   content: Task[]
-  page?: number
+  number?: number
   size?: number
   totalElements?: number
   totalPages?: number
+  numberOfElements?: number
+  first?: boolean
+  last?: boolean
+  empty?: boolean
 }
 
 export type TaskCursorResponse = {
   items: Task[]
   nextCursor: string | null
+  hasNext?: boolean
 }
 
 export type TaskScheduleRequest = {
