@@ -211,6 +211,9 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}
         onSubmit={handleAssignSchedule}
+        defaultTitle={task?.title}
+        defaultDescription={task?.description}
+        taskLabel={task ? `작업 #${task.id}` : undefined}
       />
     </div>
   )

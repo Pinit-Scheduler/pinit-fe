@@ -6,22 +6,56 @@
   align-items: center;
   justify-content: center;
   z-index: 260;
+  padding: 16px;
+  animation: modalFadeIn 180ms ease;
 }
 
 .task-sched-modal__content {
-  width: min(520px, 92vw);
-  background: #fff;
-  border-radius: 12px;
-  padding: 16px;
+  width: min(560px, 96vw);
+  background: linear-gradient(145deg, #ffffff, #f8fbff);
+  border-radius: 20px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
+  border: 1px solid #e2e8f0;
+  animation: modalSlideUp 220ms ease;
 }
 
 .task-sched-modal__header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+}
+
+.task-sched-modal__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 11px;
+  color: #475569;
+  margin: 0;
+}
+
+.task-sched-modal__header h1 {
+  margin: 4px 0 2px;
+  font-size: 20px;
+}
+
+.task-sched-modal__hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.task-sched-modal__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: none;
+  background: #e2e8f0;
+  color: #475569;
+  cursor: pointer;
 }
 
 .task-sched-modal__body {
@@ -30,22 +64,98 @@
   gap: 10px;
 }
 
-.task-sched-modal__body label {
+.task-sched-modal__field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+
+.task-sched-modal__field-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-sched-modal__field-head button {
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .task-sched-modal__body input,
-.task-sched-modal__body textarea,
-.task-sched-modal__body select {
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 8px 10px;
+.task-sched-modal__body textarea {
+  border: 1px solid #d8e0ec;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.task-sched-modal__chips {
+  display: flex;
+  gap: 8px;
+}
+
+.task-sched-modal__chip {
+  border: 1px solid #d8e0ec;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+}
+
+.task-sched-modal__chip.is-active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
 }
 
 .task-sched-modal__footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.task-sched-modal__ghost {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+}
+
+.task-sched-modal__primary {
+  background: linear-gradient(120deg, #2563eb, #4f46e5);
+  color: #fff;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+  box-shadow: 0 10px 24px rgba(79, 70, 229, 0.25);
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

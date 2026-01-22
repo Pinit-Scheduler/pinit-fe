@@ -90,7 +90,7 @@ const TodayPage = () => {
       ) : (
         <>
           <section className="today-page__section">
-            <h2>오늘 일정 ({schedules.length}건)</h2>
+            <h2>📅 오늘 일정 ({schedules.length}건)</h2>
             {schedules.length === 0 ? (
               <p className="today-page__placeholder">오늘 일정이 없습니다.</p>
             ) : (
@@ -107,7 +107,7 @@ const TodayPage = () => {
           </section>
 
           <section className="today-page__section">
-            <h2>Ready 작업 ({tasks.length}건)</h2>
+            <h2>✅ 시작 가능한 작업 ({tasks.length}건)</h2>
             {tasks.length === 0 ? (
               <p className="today-page__placeholder">선행 작업 없는 작업이 없습니다.</p>
             ) : (
@@ -143,6 +143,17 @@ const TodayPage = () => {
         isOpen={selectedTaskId !== null}
         onClose={() => setSelectedTaskId(null)}
         onSubmit={handleAssign}
+        defaultTitle={(() => {
+          if (selectedTaskId == null) return undefined
+          const t = tasksById[selectedTaskId] ?? tasks.find((task) => task.id === selectedTaskId)
+          return t?.title
+        })()}
+        defaultDescription={(() => {
+          if (selectedTaskId == null) return undefined
+          const t = tasksById[selectedTaskId] ?? tasks.find((task) => task.id === selectedTaskId)
+          return t?.description
+        })()}
+        taskLabel={selectedTaskId ? `작업 #${selectedTaskId}` : undefined}
       />
     </section>
   )
