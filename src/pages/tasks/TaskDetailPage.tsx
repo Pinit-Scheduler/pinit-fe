@@ -7,6 +7,7 @@ import { getDifficultyStyle, getImportanceStyle } from '../../utils/priorityStyl
 import { createScheduleFromTask } from '../../api/tasks'
 import TaskScheduleModal from '../../components/tasks/TaskScheduleModal'
 import { useTaskCache } from '../../context/TaskCacheContext'
+import { useToast } from '../../context/ToastContext'
 import './TaskPages.css'
 
 const TaskDetailPage = () => {
@@ -17,6 +18,7 @@ const TaskDetailPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const { tasksById, setTask: cacheSetTask, removeTask } = useTaskCache()
+  const { addToast } = useToast()
   const numericId = taskId ? Number(taskId) : null
 
   const cached = numericId ? tasksById[numericId] : null
@@ -81,8 +83,15 @@ const TaskDetailPage = () => {
 
   const handleAssignSchedule = async (payload: Parameters<typeof createScheduleFromTask>[1]) => {
     if (!numericId) return
-    await createScheduleFromTask(numericId, payload)
-    window.dispatchEvent(new CustomEvent('schedule:changed', { detail: { reason: 'task-assigned' } }))
+    try {
+      await createScheduleFromTask(numericId, payload)
+      window.dispatchEvent(new CustomEvent('schedule:changed', { detail: { reason: 'task-assigned' } }))
+      addToast('일정으로 배정했어요.', 'success')
+      navigate('/app/tasks')
+    } catch (err) {
+      console.error('작업 일정 배정 실패', err)
+      addToast('일정으로 배정하지 못했습니다.', 'error')
+    }
   }
 
   if (!numericId) {

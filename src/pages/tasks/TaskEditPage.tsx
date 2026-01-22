@@ -5,6 +5,9 @@ import type { TaskFormValues } from '../../components/tasks/TaskForm'
 import { fetchTaskDetail, updateTask } from '../../api/tasks'
 import { toApiDateTimeWithZone } from '../../utils/datetime'
 import type { Task } from '../../types/task'
+import { useTaskCache } from '../../context/TaskCacheContext'
+import { useToast } from '../../context/ToastContext'
+import { dispatchTaskChanged } from '../../utils/events'
 import './TaskPages.css'
 
 const TaskEditPage = () => {
@@ -16,6 +19,8 @@ const TaskEditPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [initialPrevIds, setInitialPrevIds] = useState<number[]>([])
   const [initialNextIds, setInitialNextIds] = useState<number[]>([])
+  const { setTask: cacheSetTask } = useTaskCache()
+  const { addToast } = useToast()
 
   useEffect(() => {
     if (!numericId) return
@@ -44,31 +49,39 @@ const TaskEditPage = () => {
 
   const handleSubmit = async (values: TaskFormValues) => {
     if (!numericId) return
-    const payload = {
-      title: values.title,
-      description: values.description,
-      dueDate: toApiDateTimeWithZone(values.dueDate),
-      importance: values.importance,
-      difficulty: values.difficulty,
-      addDependencies: [
-        ...values.previousTaskIds
-          .filter((id) => !initialPrevIds.includes(id))
-          .map((fromId) => ({ fromId, toId: numericId })),
-        ...values.nextTaskIds
-          .filter((id) => !initialNextIds.includes(id))
-          .map((toId) => ({ fromId: numericId, toId })),
-      ],
-      removeDependencies: [
-        ...initialPrevIds
-          .filter((id) => !values.previousTaskIds.includes(id))
-          .map((fromId) => ({ fromId, toId: numericId })),
-        ...initialNextIds
-          .filter((id) => !values.nextTaskIds.includes(id))
-          .map((toId) => ({ fromId: numericId, toId })),
-      ],
+    try {
+      const payload = {
+        title: values.title,
+        description: values.description,
+        dueDate: toApiDateTimeWithZone(values.dueDate),
+        importance: values.importance,
+        difficulty: values.difficulty,
+        addDependencies: [
+          ...values.previousTaskIds
+            .filter((id) => !initialPrevIds.includes(id))
+            .map((fromId) => ({ fromId, toId: numericId })),
+          ...values.nextTaskIds
+            .filter((id) => !initialNextIds.includes(id))
+            .map((toId) => ({ fromId: numericId, toId })),
+        ],
+        removeDependencies: [
+          ...initialPrevIds
+            .filter((id) => !values.previousTaskIds.includes(id))
+            .map((fromId) => ({ fromId, toId: numericId })),
+          ...initialNextIds
+            .filter((id) => !values.nextTaskIds.includes(id))
+            .map((toId) => ({ fromId: numericId, toId })),
+        ],
+      }
+      const updated = await updateTask(numericId, payload)
+      cacheSetTask(updated)
+      dispatchTaskChanged(numericId, 'update')
+      addToast('작업을 수정했어요.', 'success')
+      navigate('/app/tasks')
+    } catch (err) {
+      console.error('작업 수정 실패', err)
+      addToast('작업을 수정하지 못했습니다.', 'error')
     }
-    await updateTask(numericId, payload)
-    navigate(`/app/tasks/${numericId}`)
   }
 
   if (!numericId) {
