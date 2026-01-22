@@ -124,7 +124,6 @@ const TaskListPage = () => {
                   <span className="task-page__pill" style={getDifficultyStyle(item.difficulty)}>
                     난이도 {item.difficulty}
                   </span>
-                  <span className="task-page__pill">{item.isCompleted ? '완료' : '미완료'}</span>
                 </div>
               </li>
             )
