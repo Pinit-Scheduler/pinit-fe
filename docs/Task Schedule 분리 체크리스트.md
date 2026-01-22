@@ -26,7 +26,7 @@
 ## 4. Today 탭(신규)
 - [x] `/app/today` 페이지: 오늘 일정(v1) + readyOnly 작업 리스트/추천
 - [x] Task → “오늘 일정 배정” 플로우(`/v1/tasks/{id}/schedules` + 시작시간·scheduleType 입력 모달)
-- [ ] 일정 완료/취소 시 task 상태 동기화
+- [x] 일정 완료/취소 시 task 상태 동기화
 
 ## 5. 일정 탭 v1 전환
 - [x] 훅 수정: `useScheduleList`, `useWeeklySchedulePresence`, `useOverdueSchedulesSummary` → v1 API/필드
@@ -41,18 +41,18 @@
 - [x] 의존성 API 규칙 적용: 생성 시 from/to 한쪽 0, 수정 시 0 금지, removeDependencies 처리
 
 ## 7. 상태/이벤트
-- [ ] `ScheduleCacheContext` 스키마 갱신(state, scheduleType, taskId, duration)
+- [x] `ScheduleCacheContext` 스키마 갱신(state, scheduleType, taskId, duration)
 - [x] `TaskCacheContext` 신설(리스트·상세 캐시)
 - [x] 이벤트: `schedule:changed` / `task:changed` 분리, 관련 훅 리스너 등록
 
 ## 8. 유틸·공통
 - [x] `priorityStyles`, 난이도/중요도 UI를 Task 전용으로 이동
-- [ ] `toApiDateTimeWithZone` 기반 `withTimeZoneParams` 헬퍼 추가
-- [ ] `MiniPlayerBar` v1 상태·taskId 호환 확인/보완
+- [x] `toApiDateTimeWithZone` 기반 `withTimeZoneParams` 헬퍼 추가
+- [x] `MiniPlayerBar` v1 상태는 Schedule 기준, Task 일정 복사 후 재생 흐름 점검
 
 ## 9. 통계
 - [x] v0 `/statistics` 유지 가드(추후 v1 확인) → v1 `/statistics` 사용
-- [ ] scheduleType 분리 후 차트 정상 여부 검증, 필요 시 Task/ Schedule 필터 옵션(후순위)
+- [x] scheduleType 분리 후 차트 정상 여부 검증, 필요 시 Task/ Schedule 필터 옵션(후순위)
 
 ## 10. 테스트 체크
 - [ ] Task CRUD + 의존성 추가/삭제 + readyOnly 필터 + cursor 페이지네이션
