@@ -1,6 +1,12 @@
 import { buildApiUrl } from './config'
 import { httpClient } from './httpClient'
-import type { Task, TaskCursorResponse, TaskListResponse, TaskRequest, TaskScheduleRequest } from '../types/task'
+import type {
+  Task,
+  TaskCursorResponse,
+  TaskListResponse,
+  TaskRequest,
+  TaskScheduleRequest,
+} from '../types/task'
 import type { DateTimeWithZone } from '../types/datetime'
 import { toApiDateTimeWithZone } from '../utils/datetime'
 
@@ -16,38 +22,78 @@ type CursorParams = {
   readyOnly?: boolean
 }
 
-export const fetchTasks = ({ page = 0, size = 20, readyOnly = false }: ListParams) => {
+type TaskApiResponse = Omit<Task, 'isCompleted'> & {
+  isCompleted?: boolean | null
+  state?: string | null
+  status?: string | null
+  completedAt?: string | null
+  completionDate?: string | null
+}
+
+type TaskListApiResponse = Omit<TaskListResponse, 'content'> & { content?: TaskApiResponse[] | null }
+type TaskCursorApiResponse = Omit<TaskCursorResponse, 'items'> & { items?: TaskApiResponse[] | null }
+
+const isCompletedFlag = (value?: string | null) => {
+  if (!value) return false
+  const normalized = value.toLowerCase()
+  return ['completed', 'complete', 'done', 'finished'].includes(normalized)
+}
+
+const normalizeTask = (task: TaskApiResponse): Task => ({
+  ...task,
+  isCompleted:
+    typeof task.isCompleted === 'boolean'
+      ? task.isCompleted
+      : isCompletedFlag(task.state) ||
+        isCompletedFlag(task.status) ||
+        !!task.completedAt ||
+        !!task.completionDate,
+})
+
+const normalizeTaskList = (tasks?: TaskApiResponse[] | null) => (tasks ?? []).map(normalizeTask)
+
+export const fetchTasks = async ({ page = 0, size = 20, readyOnly = false }: ListParams) => {
   const query = new URLSearchParams({
     page: String(page),
     size: String(size),
     readyOnly: String(readyOnly),
   })
-  return httpClient<TaskListResponse>(buildApiUrl(`/tasks?${query.toString()}`, 'v1'))
+  const response = await httpClient<TaskListApiResponse>(buildApiUrl(`/tasks?${query.toString()}`, 'v1'))
+  return {
+    ...response,
+    content: normalizeTaskList(response.content),
+  }
 }
 
-export const fetchTasksByCursor = ({ size = 20, cursor, readyOnly = false }: CursorParams) => {
+export const fetchTasksByCursor = async ({ size = 20, cursor, readyOnly = false }: CursorParams) => {
   const query = new URLSearchParams({
     size: String(size),
     readyOnly: String(readyOnly),
   })
   if (cursor) query.set('cursor', cursor)
-  return httpClient<TaskCursorResponse>(buildApiUrl(`/tasks/cursor?${query.toString()}`, 'v1'))
+  const response = await httpClient<TaskCursorApiResponse>(
+    buildApiUrl(`/tasks/cursor?${query.toString()}`, 'v1'),
+  )
+  return {
+    ...response,
+    items: normalizeTaskList(response.items),
+  }
 }
 
-export const fetchTaskDetail = (taskId: number) =>
-  httpClient<Task>(buildApiUrl(`/tasks/${taskId}`, 'v1'))
+export const fetchTaskDetail = async (taskId: number) =>
+  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, 'v1')))
 
-export const createTask = (payload: TaskRequest) =>
-  httpClient<Task>(buildApiUrl('/tasks', 'v1'), {
+export const createTask = async (payload: TaskRequest) =>
+  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl('/tasks', 'v1'), {
     method: 'POST',
     json: payload,
-  })
+  }))
 
-export const updateTask = (taskId: number, payload: TaskRequest) =>
-  httpClient<Task>(buildApiUrl(`/tasks/${taskId}`, 'v1'), {
+export const updateTask = async (taskId: number, payload: TaskRequest) =>
+  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, 'v1'), {
     method: 'PATCH',
     json: payload,
-  })
+  }))
 
 export const deleteTask = (taskId: number, deleteSchedules = false) => {
   const query = new URLSearchParams({
