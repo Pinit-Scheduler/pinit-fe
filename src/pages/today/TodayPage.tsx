@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
-import './TodayPage.css'
 import { fetchSchedules } from '../../api/schedulesV1'
 import { fetchTasks } from '../../api/tasks'
 import { getTodayWithOffset, toApiDateTimeWithZone } from '../../utils/datetime'
@@ -10,6 +9,8 @@ import type { Task } from '../../types/task'
 import TaskScheduleModal from '../../components/tasks/TaskScheduleModal'
 import { createScheduleFromTask } from '../../api/tasks'
 import { useTaskCache } from '../../context/TaskCacheContext'
+import { getDeadlineStyle } from '../../utils/deadlineStyles'
+import './TodayPage.css'
 import {scheduleTypeLabelCompressed} from "../../constants/schedules.ts";
 
 const TodayPage = () => {
@@ -116,15 +117,20 @@ const TodayPage = () => {
                 {tasks.map((task) => (
                   <li key={task.id}>
                     {(() => {
-                      const cached = tasksById[task.id] ?? task
-                      return (
-                        <>
-                          <strong>{cached.title}</strong>
-                          <span>{dayjs(cached.dueDate.dateTime).format('M/D HH:mm')}</span>
+                          const cached = tasksById[task.id] ?? task
+                          return (
+                            <>
+                              <strong>{cached.title}</strong>
+                          <span
+                            className="today-page__pill"
+                            style={getDeadlineStyle(cached.dueDate)}
+                          >
+                            {dayjs(cached.dueDate.dateTime).format('M/D HH:mm')}
+                          </span>
                           <span className="today-page__pill">{cached.isCompleted ? '완료' : '미완료'}</span>
-                        </>
-                      )
-                    })()}
+                            </>
+                          )
+                        })()}
                     <button
                       type="button"
                       className="today-page__pill today-page__pill--action"

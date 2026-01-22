@@ -7,6 +7,7 @@ import { getDifficultyStyle, getImportanceStyle } from '../../utils/priorityStyl
 import { useTaskCache } from '../../context/TaskCacheContext'
 import { useToast } from '../../context/ToastContext'
 import { dispatchTaskChanged } from '../../utils/events'
+import { getDeadlineStyle } from '../../utils/deadlineStyles'
 import TaskDetailModal from '../../components/tasks/TaskDetailModal'
 import './TaskPages.css'
 
@@ -114,7 +115,10 @@ const TaskListPage = () => {
                 </div>
                 <div className="task-page__item-meta">
                   {item.dueDate && (
-                    <span className="task-page__pill">
+                    <span
+                      className="task-page__pill"
+                      style={getDeadlineStyle(item.dueDate)}
+                    >
                       마감 {dayjs(item.dueDate.dateTime).format('M/D HH:mm')}
                     </span>
                   )}

@@ -8,6 +8,7 @@ import TaskScheduleModal from './TaskScheduleModal'
 import { useTaskCache } from '../../context/TaskCacheContext'
 import { useToast } from '../../context/ToastContext'
 import { dispatchTaskChanged } from '../../utils/events'
+import { getDeadlineStyle } from '../../utils/deadlineStyles'
 import './TaskDetailModal.css'
 
 type TaskDetailModalProps = {
@@ -155,7 +156,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                     난이도 {task.difficulty}
                   </span>
                   {task.dueDate && (
-                    <span className="task-detail-modal__badge">
+                    <span className="task-detail-modal__badge" style={getDeadlineStyle(task.dueDate)}>
                       마감 {dayjs(task.dueDate.dateTime).format('M/D HH:mm')}
                     </span>
                   )}
