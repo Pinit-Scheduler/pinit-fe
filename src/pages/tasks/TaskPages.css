@@ -73,6 +73,42 @@
   cursor: pointer;
 }
 
+.task-page__item-head {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.task-page__checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.task-page__checkbox input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.task-page__checkbox-mark {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: transparent;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.task-page__checkbox input:checked + .task-page__checkbox-mark {
+  background: #22c55e;
+  transform: scale(1.05);
+}
+
 .task-page__item-desc {
   margin: 4px 0 0;
   color: #475569;
