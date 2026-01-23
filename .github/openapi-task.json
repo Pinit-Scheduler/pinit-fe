@@ -7,7 +7,7 @@
       "name": "Pinit Team",
       "email": "support@pinit.local"
     },
-    "version": "v1"
+    "version": "v2"
   },
   "servers": [
     {
@@ -58,11 +58,11 @@
     },
     {
       "name": "MemberV2",
-      "description": "회원 관련 정보 API (v1)"
+      "description": "회원 관련 정보 API (v2)"
     },
     {
       "name": "TaskV2",
-      "description": "작업 관리 API (마감 날짜 + 오프셋 기반)"
+      "description": "작업 관리 API (마감 날짜만 사용)"
     }
   ],
   "paths": {
@@ -163,7 +163,7 @@
           "TaskV2"
         ],
         "summary": "작업 생성",
-        "description": "새 작업과 의존 관계를 등록합니다. 마감은 날짜 + UTC 오프셋(시간 00:00 고정)으로 입력합니다.",
+        "description": "새 작업과 의존 관계를 등록합니다. 마감은 날짜와 UTC 오프셋만 입력하며 시간 정보는 받지 않습니다.",
         "operationId": "createTask",
         "requestBody": {
           "content": {
@@ -2388,7 +2388,7 @@
           "TaskV2"
         ],
         "summary": "작업 수정",
-        "description": "작업 본문과 의존 관계를 함께 수정합니다. 마감 날짜는 00:00:00 기준으로 저장됩니다.",
+        "description": "작업 본문과 의존 관계를 함께 수정합니다. 마감은 날짜와 UTC 오프셋만 저장하며 시간 정보는 받지 않습니다.",
         "operationId": "updateTask",
         "parameters": [
           {
@@ -3355,7 +3355,7 @@
           "TaskV2"
         ],
         "summary": "작업 목록 커서 조회",
-        "description": "마감 날짜(00:00:00) asc, id asc 커서 기반 페이지네이션. cursor는 'YYYY-MM-DDTHH:MM:SS|taskId' 형식(시간은 항상 00:00:00)입니다.",
+        "description": "마감 날짜 asc, id asc 커서 기반 페이지네이션. cursor는 'YYYY-MM-DD|taskId' 형식입니다.",
         "operationId": "getTasksByCursor",
         "parameters": [
           {
@@ -4355,7 +4355,7 @@
           },
           "dueDate": {
             "$ref": "#/components/schemas/DateWithOffset",
-            "description": "마감 날짜(+오프셋, 00:00 시각)"
+            "description": "마감 날짜(+오프셋, 시간 정보 없음)"
           },
           "importance": {
             "type": "integer",
