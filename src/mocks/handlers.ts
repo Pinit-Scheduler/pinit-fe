@@ -201,7 +201,9 @@ const handleMember = (path: string, method: string) => {
 }
 
 const handleTasks = async (path: string, method: string, searchParams: URLSearchParams, request: Request) => {
-  if (method === 'GET' && path === '/v1/tasks') {
+  const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
+
+  if (method === 'GET' && normalizedPath === '/tasks') {
     const page = Number(searchParams.get('page') ?? 0)
     const size = Number(searchParams.get('size') ?? 20)
     const readyOnly = searchParams.get('readyOnly') === 'true'
@@ -226,7 +228,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     return json(response)
   }
 
-  if (method === 'GET' && path === '/v1/tasks/cursor') {
+  if (method === 'GET' && normalizedPath === '/tasks/cursor') {
     const size = Number(searchParams.get('size') ?? 20)
     const cursorValue = searchParams.get('cursor')
     const start = cursorValue ? Number(cursorValue) || 0 : 0
@@ -245,7 +247,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     return json(response)
   }
 
-  const completeMatch = path.match(/^\/v1\/tasks\/(\d+)\/complete$/)
+  const completeMatch = normalizedPath.match(/^\/tasks\/(\d+)\/complete$/)
   if (method === 'POST' && completeMatch) {
     const id = Number(completeMatch[1])
     const task = findTask(id)
@@ -255,7 +257,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     return noContent(204)
   }
 
-  const reopenMatch = path.match(/^\/v1\/tasks\/(\d+)\/reopen$/)
+  const reopenMatch = normalizedPath.match(/^\/tasks\/(\d+)\/reopen$/)
   if (method === 'POST' && reopenMatch) {
     const id = Number(reopenMatch[1])
     const task = findTask(id)
@@ -265,7 +267,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     return noContent(204)
   }
 
-  const assignMatch = path.match(/^\/v1\/tasks\/(\d+)\/schedules$/)
+  const assignMatch = normalizedPath.match(/^\/tasks\/(\d+)\/schedules$/)
   if (method === 'POST' && assignMatch) {
     const id = Number(assignMatch[1])
     const body = await readJson<{ date: DateTimeWithZone; scheduleType: ScheduleResponse['scheduleType']; title?: string; description?: string }>(request)
@@ -286,7 +288,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     return noContent(201)
   }
 
-  const detailMatch = path.match(/^\/v1\/tasks\/(\d+)$/)
+  const detailMatch = normalizedPath.match(/^\/tasks\/(\d+)$/)
   if (detailMatch && method === 'GET') {
     const id = Number(detailMatch[1])
     const task = findTask(id)
@@ -312,7 +314,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     return noContent(204)
   }
 
-  if (method === 'POST' && path === '/v1/tasks') {
+  if (method === 'POST' && normalizedPath === '/tasks') {
     const body = await readJson<TaskRequest>(request)
     if (!body?.title || !body.description || !body.dueDate) {
       return json({ message: 'title, description, dueDate가 필요합니다.' }, 400)
@@ -481,7 +483,7 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
   const method = request.method.toUpperCase()
   const path = url.pathname.replace(/\/+$/, '') || '/'
 
-  if (!path.startsWith('/v0/') && !path.startsWith('/v1/')) {
+  if (!path.startsWith('/v0/') && !path.startsWith('/v1/') && !path.startsWith('/v2/')) {
     return null
   }
 

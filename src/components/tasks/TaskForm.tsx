@@ -9,7 +9,7 @@ import TaskDependencyModal from './modals/TaskDependencyModal'
 export type TaskFormValues = {
   title: string
   description: string
-  dueDate: Date
+  dueDate: string // YYYY-MM-DD
   importance: number
   difficulty: DifficultyValue
   previousTaskIds: number[]
@@ -23,11 +23,11 @@ type TaskFormProps = {
 }
 
 const buildDefaultValues = (initial?: Partial<TaskFormValues>): TaskFormValues => {
-  const now = dayjs().minute(0).second(0)
+  const now = dayjs().startOf('day')
   return {
     title: '',
     description: '',
-    dueDate: initial?.dueDate ?? now.add(1, 'day').toDate(),
+    dueDate: initial?.dueDate ?? now.add(1, 'day').format('YYYY-MM-DD'),
     importance: initial?.importance ?? 5,
     difficulty: initial?.difficulty ?? 2,
     previousTaskIds: initial?.previousTaskIds ?? [],
@@ -35,9 +35,6 @@ const buildDefaultValues = (initial?: Partial<TaskFormValues>): TaskFormValues =
     ...initial,
   }
 }
-
-const formatDateTimeLocal = (value: Date) => dayjs(value).format('YYYY-MM-DDTHH:mm')
-const parseDateTimeLocal = (value: string) => dayjs(value).toDate()
 
 const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장' }: TaskFormProps) => {
   const [values, setValues] = useState<TaskFormValues>(() => buildDefaultValues(initialValues))
@@ -51,6 +48,7 @@ const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장' }: TaskFormP
     const next: Record<string, string> = {}
     if (!values.title.trim()) next.title = '제목을 입력하세요.'
     if (!values.description.trim()) next.description = '설명을 입력하세요.'
+    if (!values.dueDate) next.dueDate = '마감 날짜를 선택하세요.'
     if (values.importance < 1 || values.importance > 9) next.importance = '중요도는 1~9'
     setErrors(next)
     return Object.keys(next).length === 0
@@ -86,12 +84,13 @@ const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장' }: TaskFormP
       </label>
 
       <label className="task-form__field">
-        <span>마감 시각</span>
+        <span>마감 날짜</span>
         <input
-          type="datetime-local"
-          value={formatDateTimeLocal(values.dueDate)}
-          onChange={(e) => setValues((prev) => ({ ...prev, dueDate: parseDateTimeLocal(e.target.value) }))}
+          type="date"
+          value={values.dueDate}
+          onChange={(e) => setValues((prev) => ({ ...prev, dueDate: e.target.value }))}
         />
+        {errors.dueDate && <small>{errors.dueDate}</small>}
       </label>
 
       <label className="task-form__field">

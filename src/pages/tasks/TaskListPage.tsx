@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ChangeEvent } from 'react'
-import dayjs from 'dayjs'
 import { completeTask, fetchTasks, reopenTask } from '../../api/tasks'
 import type { Task } from '../../types/task'
 import { getDifficultyStyle, getImportanceStyle } from '../../utils/priorityStyles'
@@ -8,6 +7,7 @@ import { useTaskCache } from '../../context/TaskCacheContext'
 import { useToast } from '../../context/ToastContext'
 import { dispatchTaskChanged } from '../../utils/events'
 import { getDeadlineStyle } from '../../utils/deadlineStyles'
+import { formatDateWithOffset } from '../../utils/datetime'
 import TaskDetailModal from '../../components/tasks/TaskDetailModal'
 import './TaskPages.css'
 
@@ -116,7 +116,7 @@ const TaskListPage = () => {
                 <div className="task-page__item-meta">
                   {item.dueDate && (
                     <span className="task-page__pill" style={getDeadlineStyle(item.dueDate)}>
-                      마감 {dayjs(item.dueDate.dateTime).format('M/D')}
+                      마감 {formatDateWithOffset(item.dueDate, 'M/D')}
                     </span>
                   )}
                     <span className="task-page__pill" style={getImportanceStyle(item.importance)}>

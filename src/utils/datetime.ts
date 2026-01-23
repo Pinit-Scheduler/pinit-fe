@@ -1,4 +1,4 @@
-import type { DateTimeWithZone } from '../types/datetime'
+import type { DateTimeWithZone, DateWithOffset } from '../types/datetime'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
@@ -57,6 +57,14 @@ export const formatOffsetLabel = (offsetMinutes: number) => {
   const hours = String(Math.floor(absolute / 60)).padStart(2, '0')
   const minutes = String(absolute % 60).padStart(2, '0')
   return `UTC${sign}${hours}:${minutes}`
+}
+
+export const formatOffset = (offsetMinutes: number) => {
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const absolute = Math.abs(offsetMinutes)
+  const hours = String(Math.floor(absolute / 60)).padStart(2, '0')
+  const minutes = String(absolute % 60).padStart(2, '0')
+  return `${sign}${hours}:${minutes}`
 }
 
 export const parseOffsetString = (value?: string | null) => {
@@ -161,3 +169,27 @@ export const toDateFromApi = (value: dayjs.Dayjs | Date | string | DateTimeWithZ
 
 export const addDays = (date: dayjs.Dayjs | Date | string | DateTimeWithZone, offset: number) =>
   toDisplayDayjs(date).add(offset, 'day')
+
+export const toApiDateWithOffset = (
+  value: dayjs.Dayjs | Date | string,
+  offsetMinutesOverride?: number,
+): DateWithOffset => {
+  const offsetMinutes = Number.isFinite(offsetMinutesOverride)
+    ? Number(offsetMinutesOverride)
+    : getDisplayOffsetMinutes()
+  const normalized = dayjs(value)
+  const safeOffset = Number.isFinite(offsetMinutes) ? offsetMinutes : 0
+  return {
+    date: normalized.format('YYYY-MM-DD'),
+    offset: formatOffset(safeOffset),
+  }
+}
+
+export const toDayjsFromDateWithOffset = (value: DateWithOffset) =>
+  dayjs(`${value.date}T00:00:00${value.offset}`)
+
+export const formatDateWithOffset = (value: DateWithOffset, format = 'M/D') =>
+  toDayjsFromDateWithOffset(value).format(format)
+
+export const toDateFromDateWithOffset = (value: DateWithOffset) =>
+  toDayjsFromDateWithOffset(value).toDate()

@@ -1,4 +1,4 @@
-import type { DateTimeWithZone } from './datetime'
+import type { DateWithOffset, DateTimeWithZone } from './datetime'
 
 export type TaskDependency = {
   fromId: number
@@ -8,7 +8,7 @@ export type TaskDependency = {
 export type TaskRequest = {
   title: string
   description: string
-  dueDate: DateTimeWithZone
+  dueDate: DateWithOffset
   importance: number // 1~9
   difficulty: number // fibonacci values
   addDependencies?: TaskDependency[]
@@ -19,7 +19,7 @@ export type Task = {
   id: number
   title: string
   description: string
-  dueDate: DateTimeWithZone
+  dueDate: DateWithOffset
   importance: number
   difficulty: number
   completed: boolean

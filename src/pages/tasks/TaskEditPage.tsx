@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import TaskForm from '../../components/tasks/TaskForm'
 import type { TaskFormValues } from '../../components/tasks/TaskForm'
 import { fetchTaskDetail, updateTask } from '../../api/tasks'
-import { toApiDateTimeWithZone } from '../../utils/datetime'
+import { toApiDateWithOffset, toDayjsFromDateWithOffset } from '../../utils/datetime'
 import type { Task } from '../../types/task'
 import { useTaskCache } from '../../context/TaskCacheContext'
 import { useToast } from '../../context/ToastContext'
@@ -53,7 +53,7 @@ const TaskEditPage = () => {
       const payload = {
         title: values.title,
         description: values.description,
-        dueDate: toApiDateTimeWithZone(values.dueDate),
+        dueDate: toApiDateWithOffset(values.dueDate),
         importance: values.importance,
         difficulty: values.difficulty,
         addDependencies: [
@@ -115,7 +115,7 @@ const TaskEditPage = () => {
           initialValues={{
             title: task.title,
             description: task.description,
-            dueDate: new Date(task.dueDate.dateTime),
+            dueDate: toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD'),
             importance: task.importance,
             difficulty: task.difficulty as TaskFormValues['difficulty'],
             previousTaskIds: initialPrevIds,

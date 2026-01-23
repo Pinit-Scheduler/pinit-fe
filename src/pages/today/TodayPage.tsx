@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { fetchSchedules } from '../../api/schedulesV1'
 import { fetchTasks } from '../../api/tasks'
-import { getTodayWithOffset, toApiDateTimeWithZone } from '../../utils/datetime'
+import { formatDateWithOffset, getTodayWithOffset, toApiDateTimeWithZone } from '../../utils/datetime'
 import { useTimePreferences } from '../../context/TimePreferencesContext'
 import type { ScheduleResponse } from '../../types/schedule'
 import type { Task } from '../../types/task'
@@ -125,7 +125,7 @@ const TodayPage = () => {
                             className="today-page__pill"
                             style={getDeadlineStyle(cached.dueDate)}
                           >
-                            {dayjs(cached.dueDate.dateTime).format('M/D')}
+                            {formatDateWithOffset(cached.dueDate, 'M/D')}
                           </span>
                           <span className="today-page__pill">
                             {(cached.completed ?? cached.isCompleted) ? '완료' : '미완료'}

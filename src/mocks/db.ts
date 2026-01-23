@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import type { DateTimeWithZone } from '../types/datetime'
+import type { DateTimeWithZone, DateWithOffset } from '../types/datetime'
 import type { Task } from '../types/task'
 import type { ScheduleResponse, ScheduleState } from '../types/schedule'
 
@@ -16,6 +16,11 @@ const makeDateTime = (offsetDays: number, hour: number, minute = 0, zoneId = 'UT
   zoneId,
 })
 
+const makeDateWithOffset = (offsetDays: number, offset = '+00:00'): DateWithOffset => ({
+  date: dayjs().add(offsetDays, 'day').format('YYYY-MM-DD'),
+  offset,
+})
+
 let taskSeq = 3
 let scheduleSeq = 3
 
@@ -29,7 +34,7 @@ export const mockTasks: Task[] = [
     id: 1,
     title: 'UI 리서치 정리',
     description: '다음 스프린트 준비용',
-    dueDate: makeDateTime(0, 18, 0),
+    dueDate: makeDateWithOffset(0, '+09:00'),
     importance: 7,
     difficulty: 3,
     isCompleted: false,
@@ -40,7 +45,7 @@ export const mockTasks: Task[] = [
     id: 2,
     title: '푸시 알림 세팅',
     description: '웹 푸시 키/토큰 확인',
-    dueDate: makeDateTime(1, 10, 0),
+    dueDate: makeDateWithOffset(1, '+09:00'),
     importance: 6,
     difficulty: 2,
     isCompleted: false,
@@ -51,7 +56,7 @@ export const mockTasks: Task[] = [
     id: 3,
     title: '통계 뷰 QA',
     description: '주간 통계 지표 검증',
-    dueDate: makeDateTime(-1, 15, 30),
+    dueDate: makeDateWithOffset(-1, '+09:00'),
     importance: 5,
     difficulty: 1,
     isCompleted: true,

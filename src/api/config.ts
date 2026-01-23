@@ -1,7 +1,7 @@
 const DEFAULT_VERSION = 'v0'
 
 const SERVICE_VERSIONS = {
-  api: DEFAULT_VERSION,
+  api: 'v2',
   auth: DEFAULT_VERSION,
   notification: DEFAULT_VERSION,
 } as const
@@ -41,6 +41,7 @@ const NOTIFICATION_API_VERSION = normalizeVersion(SERVICE_VERSIONS.notification)
 export const API_BASE_URLS = {
   v0: withVersion(rawApiBaseUrl, 'v0'),
   v1: withVersion(rawApiBaseUrl, 'v1'),
+  v2: withVersion(rawApiBaseUrl, 'v2'),
 }
 
 export const API_BASE_URL = withVersion(rawApiBaseUrl, API_VERSION)

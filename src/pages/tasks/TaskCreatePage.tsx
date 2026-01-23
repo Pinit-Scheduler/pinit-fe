@@ -4,7 +4,7 @@ import type { TaskFormValues } from '../../components/tasks/TaskForm'
 import { createTask } from '../../api/tasks'
 import { useTaskCache } from '../../context/TaskCacheContext'
 import { useToast } from '../../context/ToastContext'
-import { toApiDateTimeWithZone } from '../../utils/datetime'
+import { toApiDateWithOffset } from '../../utils/datetime'
 import { dispatchTaskChanged } from '../../utils/events'
 import './TaskPages.css'
 
@@ -18,7 +18,7 @@ const TaskCreatePage = () => {
       const payload = {
         title: values.title,
         description: values.description,
-        dueDate: toApiDateTimeWithZone(values.dueDate),
+        dueDate: toApiDateWithOffset(values.dueDate),
         importance: values.importance,
         difficulty: values.difficulty,
         addDependencies: [

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
 import { completeTask, createScheduleFromTask, deleteTask, fetchTaskDetail, reopenTask } from '../../api/tasks'
 import type { Task } from '../../types/task'
@@ -9,6 +8,7 @@ import { useTaskCache } from '../../context/TaskCacheContext'
 import { useToast } from '../../context/ToastContext'
 import { dispatchTaskChanged } from '../../utils/events'
 import { getDeadlineStyle } from '../../utils/deadlineStyles'
+import { formatDateWithOffset } from '../../utils/datetime'
 import './TaskDetailModal.css'
 
 type TaskDetailModalProps = {
@@ -158,7 +158,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                   </span>
                   {task.dueDate && (
                     <span className="task-detail-modal__badge" style={getDeadlineStyle(task.dueDate)}>
-                      마감 {dayjs(task.dueDate.dateTime).format('M/D')}
+                      마감 {formatDateWithOffset(task.dueDate, 'M/D')}
                     </span>
                   )}
                 </div>
