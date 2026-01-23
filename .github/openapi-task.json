@@ -21,8 +21,16 @@
   ],
   "tags": [
     {
+      "name": "StatisticsV2",
+      "description": "통계 조회 API"
+    },
+    {
       "name": "MemberV1",
       "description": "회원 관련 정보 API (v1)"
+    },
+    {
+      "name": "ScheduleV2",
+      "description": "일정 관리 API"
     },
     {
       "name": "Member",
@@ -47,9 +55,860 @@
     {
       "name": "Statistics",
       "description": "통계 조회 API"
+    },
+    {
+      "name": "MemberV2",
+      "description": "회원 관련 정보 API (v1)"
+    },
+    {
+      "name": "TaskV2",
+      "description": "작업 관리 API (마감 날짜 + 오프셋 기반)"
     }
   ],
   "paths": {
+    "/v2/tasks": {
+      "get": {
+        "tags": [
+          "TaskV2"
+        ],
+        "summary": "작업 목록 조회",
+        "description": "회원의 작업 목록을 조회합니다. page/size로 마감 날짜 오름차순 페이지네이션, readyOnly로 선행 작업 없는 항목만 필터링합니다.",
+        "operationId": "getTasks",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 0
+            }
+          },
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "readyOnly",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "작업 목록 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageTaskResponseV2"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "TaskV2"
+        ],
+        "summary": "작업 생성",
+        "description": "새 작업과 의존 관계를 등록합니다. 마감은 날짜 + UTC 오프셋(시간 00:00 고정)으로 입력합니다.",
+        "operationId": "createTask",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskCreateRequestV2"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "작업이 생성되었습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponseV2"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/tasks/{taskId}/schedules": {
+      "post": {
+        "tags": [
+          "TaskV2"
+        ],
+        "summary": "작업을 일정으로 등록",
+        "description": "기존 작업을 지정한 시간의 일정으로 복사합니다.",
+        "operationId": "createScheduleFromTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "작업이 일정으로 등록되었습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSimpleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/tasks/{taskId}/reopen": {
+      "post": {
+        "tags": [
+          "TaskV2"
+        ],
+        "summary": "작업 되돌리기",
+        "description": "작업을 미완료 상태로 되돌립니다.",
+        "operationId": "reopenTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "작업이 되돌려졌습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/tasks/{taskId}/complete": {
+      "post": {
+        "tags": [
+          "TaskV2"
+        ],
+        "summary": "작업 완료",
+        "description": "작업을 완료 상태로 변경합니다.",
+        "operationId": "completeTask",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "작업이 완료되었습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/schedules": {
+      "get": {
+        "tags": [
+          "ScheduleV2"
+        ],
+        "summary": "일정 목록 조회 (작업 없이)",
+        "description": "지정한 날짜의 일정을 조회합니다.",
+        "operationId": "getSchedules",
+        "parameters": [
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "일정 목록 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleSimpleResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ScheduleV2"
+        ],
+        "summary": "일정 생성 (작업 없이)",
+        "description": "작업과 연결하지 않는 단순 일정을 등록합니다.",
+        "operationId": "createSchedule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleSimpleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "일정이 생성되었습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSimpleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/schedules/{scheduleId}/suspend": {
+      "post": {
+        "tags": [
+          "ScheduleV2"
+        ],
+        "summary": "일정 일시중지 (작업 없이)",
+        "operationId": "suspendSchedule",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "일정이 일시중지되었습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/schedules/{scheduleId}/start": {
+      "post": {
+        "tags": [
+          "ScheduleV2"
+        ],
+        "summary": "일정 시작 (작업 없이)",
+        "operationId": "startSchedule",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "일정이 시작되었습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/schedules/{scheduleId}/complete": {
+      "post": {
+        "tags": [
+          "ScheduleV2"
+        ],
+        "summary": "일정 완료 (작업 없이)",
+        "operationId": "completeSchedule",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "일정이 완료되었습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/schedules/{scheduleId}/cancel": {
+      "post": {
+        "tags": [
+          "ScheduleV2"
+        ],
+        "summary": "일정 취소 (작업 없이)",
+        "operationId": "cancelSchedule",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "일정이 취소되었습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/tasks": {
       "get": {
         "tags": [
@@ -57,7 +916,7 @@
         ],
         "summary": "작업 목록 조회",
         "description": "회원의 작업 목록을 조회합니다. page/size로 데드라인 순 페이지네이션, readyOnly로 선행 작업 없는 항목만 필터링합니다.",
-        "operationId": "getTasks",
+        "operationId": "getTasks_1",
         "parameters": [
           {
             "name": "page",
@@ -140,7 +999,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       },
       "post": {
         "tags": [
@@ -148,7 +1008,7 @@
         ],
         "summary": "작업 생성",
         "description": "새 작업과 의존 관계를 등록합니다.",
-        "operationId": "createTask",
+        "operationId": "createTask_1",
         "requestBody": {
           "content": {
             "application/json": {
@@ -210,7 +1070,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/tasks/{taskId}/schedules": {
@@ -220,7 +1081,7 @@
         ],
         "summary": "작업을 일정으로 등록",
         "description": "기존 작업을 지정한 시간의 일정으로 복사합니다.",
-        "operationId": "createScheduleFromTask",
+        "operationId": "createScheduleFromTask_1",
         "parameters": [
           {
             "name": "taskId",
@@ -293,7 +1154,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/tasks/{taskId}/reopen": {
@@ -303,7 +1165,7 @@
         ],
         "summary": "작업 되돌리기",
         "description": "작업을 미완료 상태로 되돌립니다.",
-        "operationId": "reopenTask",
+        "operationId": "reopenTask_1",
         "parameters": [
           {
             "name": "taskId",
@@ -359,7 +1221,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/tasks/{taskId}/complete": {
@@ -369,7 +1232,7 @@
         ],
         "summary": "작업 완료",
         "description": "작업을 완료 상태로 변경합니다.",
-        "operationId": "completeTask",
+        "operationId": "completeTask_1",
         "parameters": [
           {
             "name": "taskId",
@@ -425,7 +1288,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/schedules": {
@@ -435,7 +1299,7 @@
         ],
         "summary": "일정 목록 조회 (작업 없이)",
         "description": "지정한 날짜의 일정을 조회합니다.",
-        "operationId": "getSchedules",
+        "operationId": "getSchedules_1",
         "parameters": [
           {
             "name": "time",
@@ -509,7 +1373,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       },
       "post": {
         "tags": [
@@ -517,7 +1382,7 @@
         ],
         "summary": "일정 생성 (작업 없이)",
         "description": "작업과 연결하지 않는 단순 일정을 등록합니다.",
-        "operationId": "createSchedule",
+        "operationId": "createSchedule_1",
         "requestBody": {
           "content": {
             "application/json": {
@@ -579,7 +1444,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/schedules/{scheduleId}/suspend": {
@@ -588,7 +1454,7 @@
           "ScheduleV1"
         ],
         "summary": "일정 일시중지 (작업 없이)",
-        "operationId": "suspendSchedule",
+        "operationId": "suspendSchedule_1",
         "parameters": [
           {
             "name": "scheduleId",
@@ -661,7 +1527,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/schedules/{scheduleId}/start": {
@@ -670,7 +1537,7 @@
           "ScheduleV1"
         ],
         "summary": "일정 시작 (작업 없이)",
-        "operationId": "startSchedule",
+        "operationId": "startSchedule_1",
         "parameters": [
           {
             "name": "scheduleId",
@@ -743,7 +1610,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/schedules/{scheduleId}/complete": {
@@ -752,7 +1620,7 @@
           "ScheduleV1"
         ],
         "summary": "일정 완료 (작업 없이)",
-        "operationId": "completeSchedule",
+        "operationId": "completeSchedule_1",
         "parameters": [
           {
             "name": "scheduleId",
@@ -825,7 +1693,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v1/schedules/{scheduleId}/cancel": {
@@ -834,7 +1703,7 @@
           "ScheduleV1"
         ],
         "summary": "일정 취소 (작업 없이)",
-        "operationId": "cancelSchedule",
+        "operationId": "cancelSchedule_1",
         "parameters": [
           {
             "name": "scheduleId",
@@ -890,7 +1759,8 @@
               }
             }
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/v0/schedules": {
@@ -900,7 +1770,7 @@
         ],
         "summary": "일정 목록 조회",
         "description": "지정한 날짜의 일정을 조회합니다.",
-        "operationId": "getSchedules_1",
+        "operationId": "getSchedules_2",
         "parameters": [
           {
             "name": "time",
@@ -983,7 +1853,7 @@
         ],
         "summary": "일정 생성",
         "description": "새 일정과 의존 관계를 등록합니다.",
-        "operationId": "createSchedule_1",
+        "operationId": "createSchedule_2",
         "requestBody": {
           "content": {
             "application/json": {
@@ -1056,7 +1926,7 @@
         ],
         "summary": "일정 일시중지",
         "description": "진행 중인 일정을 일시중지합니다.",
-        "operationId": "suspendSchedule_1",
+        "operationId": "suspendSchedule_2",
         "parameters": [
           {
             "name": "scheduleId",
@@ -1140,7 +2010,7 @@
         ],
         "summary": "일정 시작",
         "description": "일정을 진행 중 상태로 변경합니다.",
-        "operationId": "startSchedule_1",
+        "operationId": "startSchedule_2",
         "parameters": [
           {
             "name": "scheduleId",
@@ -1224,7 +2094,7 @@
         ],
         "summary": "일정 완료",
         "description": "진행 중인 일정을 완료 처리합니다.",
-        "operationId": "completeSchedule_1",
+        "operationId": "completeSchedule_2",
         "parameters": [
           {
             "name": "scheduleId",
@@ -1308,7 +2178,7 @@
         ],
         "summary": "일정 취소",
         "description": "예정되었거나 진행 중인 일정을 취소합니다.",
-        "operationId": "cancelSchedule_1",
+        "operationId": "cancelSchedule_2",
         "parameters": [
           {
             "name": "scheduleId",
@@ -1368,10 +2238,10 @@
         "deprecated": true
       }
     },
-    "/v1/tasks/{taskId}": {
+    "/v2/tasks/{taskId}": {
       "get": {
         "tags": [
-          "Task"
+          "TaskV2"
         ],
         "summary": "작업 단건 조회",
         "description": "특정 작업의 상세 정보를 조회합니다.",
@@ -1393,7 +2263,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskResponse"
+                  "$ref": "#/components/schemas/TaskResponseV2"
                 }
               }
             }
@@ -1442,7 +2312,7 @@
       },
       "delete": {
         "tags": [
-          "Task"
+          "TaskV2"
         ],
         "summary": "작업 삭제",
         "description": "작업과 그 작업에 관련된 의존 관계를 삭제합니다.",
@@ -1515,10 +2385,10 @@
       },
       "patch": {
         "tags": [
-          "Task"
+          "TaskV2"
         ],
         "summary": "작업 수정",
-        "description": "작업 본문과 의존 관계를 함께 수정합니다.",
+        "description": "작업 본문과 의존 관계를 함께 수정합니다. 마감 날짜는 00:00:00 기준으로 저장됩니다.",
         "operationId": "updateTask",
         "parameters": [
           {
@@ -1535,7 +2405,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TaskUpdateRequest"
+                "$ref": "#/components/schemas/TaskUpdateRequestV2"
               }
             }
           },
@@ -1547,7 +2417,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskResponse"
+                  "$ref": "#/components/schemas/TaskResponseV2"
                 }
               }
             }
@@ -1595,10 +2465,10 @@
         }
       }
     },
-    "/v1/schedules/{scheduleId}": {
+    "/v2/schedules/{scheduleId}": {
       "get": {
         "tags": [
-          "ScheduleV1"
+          "ScheduleV2"
         ],
         "summary": "일정 단건 조회 (작업 없이)",
         "operationId": "getSchedule",
@@ -1668,7 +2538,7 @@
       },
       "delete": {
         "tags": [
-          "ScheduleV1"
+          "ScheduleV2"
         ],
         "summary": "일정 삭제 (작업 없이)",
         "operationId": "deleteSchedule",
@@ -1731,7 +2601,7 @@
       },
       "patch": {
         "tags": [
-          "ScheduleV1"
+          "ScheduleV2"
         ],
         "summary": "일정 수정 (작업 없이)",
         "operationId": "updateSchedule",
@@ -1810,6 +2680,454 @@
         }
       }
     },
+    "/v1/tasks/{taskId}": {
+      "get": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "작업 단건 조회",
+        "description": "특정 작업의 상세 정보를 조회합니다.",
+        "operationId": "getTask_1",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "작업 단건 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "delete": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "작업 삭제",
+        "description": "작업과 그 작업에 관련된 의존 관계를 삭제합니다.",
+        "operationId": "deleteTask_1",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "deleteSchedules",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "작업이 삭제되었습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "patch": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "작업 수정",
+        "description": "작업 본문과 의존 관계를 함께 수정합니다.",
+        "operationId": "updateTask_1",
+        "parameters": [
+          {
+            "name": "taskId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "작업이 수정되었습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/v1/schedules/{scheduleId}": {
+      "get": {
+        "tags": [
+          "ScheduleV1"
+        ],
+        "summary": "일정 단건 조회 (작업 없이)",
+        "operationId": "getSchedule_1",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "일정 단건 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSimpleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "delete": {
+        "tags": [
+          "ScheduleV1"
+        ],
+        "summary": "일정 삭제 (작업 없이)",
+        "operationId": "deleteSchedule_1",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "일정이 삭제되었습니다."
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "patch": {
+        "tags": [
+          "ScheduleV1"
+        ],
+        "summary": "일정 수정 (작업 없이)",
+        "operationId": "updateSchedule_1",
+        "parameters": [
+          {
+            "name": "scheduleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleSimplePatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "일정이 수정되었습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleSimpleResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
     "/v0/schedules/{scheduleId}": {
       "get": {
         "tags": [
@@ -1817,7 +3135,7 @@
         ],
         "summary": "일정 단건 조회",
         "description": "특정 일정의 상세 정보를 조회합니다.",
-        "operationId": "getSchedule_1",
+        "operationId": "getSchedule_2",
         "parameters": [
           {
             "name": "scheduleId",
@@ -1889,7 +3207,7 @@
         ],
         "summary": "일정 삭제",
         "description": "지정한 일정을 삭제합니다.",
-        "operationId": "deleteSchedule_1",
+        "operationId": "deleteSchedule_2",
         "parameters": [
           {
             "name": "scheduleId",
@@ -1954,7 +3272,7 @@
         ],
         "summary": "일정 수정",
         "description": "일정 본문과 의존 관계를 함께 수정합니다.",
-        "operationId": "updateSchedule_1",
+        "operationId": "updateSchedule_2",
         "parameters": [
           {
             "name": "scheduleId",
@@ -2031,13 +3349,13 @@
         "deprecated": true
       }
     },
-    "/v1/tasks/cursor": {
+    "/v2/tasks/cursor": {
       "get": {
         "tags": [
-          "Task"
+          "TaskV2"
         ],
         "summary": "작업 목록 커서 조회",
-        "description": "deadline asc, id asc 커서 기반 페이지네이션. cursor는 'YYYY-MM-DDTHH:MM:SS|taskId' 형식, 더 이상 데이터가 없으면 nextCursor=null.",
+        "description": "마감 날짜(00:00:00) asc, id asc 커서 기반 페이지네이션. cursor는 'YYYY-MM-DDTHH:MM:SS|taskId' 형식(시간은 항상 00:00:00)입니다.",
         "operationId": "getTasksByCursor",
         "parameters": [
           {
@@ -2074,7 +3392,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskCursorPageResponse"
+                  "$ref": "#/components/schemas/TaskCursorPageResponseV2"
                 }
               }
             }
@@ -2122,10 +3440,10 @@
         }
       }
     },
-    "/v1/statistics": {
+    "/v2/statistics": {
       "get": {
         "tags": [
-          "StatisticsV1"
+          "StatisticsV2"
         ],
         "summary": "사용자 통계 조회",
         "description": "주어진 시점 기준 주간 통계를 조회합니다.",
@@ -2183,10 +3501,10 @@
         }
       }
     },
-    "/v1/schedules/week": {
+    "/v2/schedules/week": {
       "get": {
         "tags": [
-          "ScheduleV1"
+          "ScheduleV2"
         ],
         "summary": "주간 일정 조회 (작업 없이)",
         "description": "주어진 날짜가 포함된 주간의 일정을 조회합니다.",
@@ -2267,10 +3585,10 @@
         }
       }
     },
-    "/v1/members/zone-offset": {
+    "/v2/members/zone-offset": {
       "get": {
         "tags": [
-          "MemberV1"
+          "MemberV2"
         ],
         "summary": "사용자 시간대 조회",
         "description": "사용자의 시간대를 조회합니다.",
@@ -2320,10 +3638,10 @@
         }
       }
     },
-    "/v1/members/now": {
+    "/v2/members/now": {
       "get": {
         "tags": [
-          "MemberV1"
+          "MemberV2"
         ],
         "summary": "현재 진행 중인 일정 ID 조회",
         "description": "사용자의 현재 진행 중인 일정 ID를 조회합니다.",
@@ -2373,6 +3691,353 @@
         }
       }
     },
+    "/v1/tasks/cursor": {
+      "get": {
+        "tags": [
+          "Task"
+        ],
+        "summary": "작업 목록 커서 조회",
+        "description": "마감 날짜(자정 00:00:00) asc, id asc 커서 기반 페이지네이션. cursor는 'YYYY-MM-DDTHH:MM:SS|taskId' 형식이며 시간 부분은 00:00:00으로 고정됩니다. 더 이상 데이터가 없으면 nextCursor=null.",
+        "operationId": "getTasksByCursor_1",
+        "parameters": [
+          {
+            "name": "size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "readyOnly",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "커서 기반 작업 목록 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskCursorPageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/v1/statistics": {
+      "get": {
+        "tags": [
+          "StatisticsV1"
+        ],
+        "summary": "사용자 통계 조회",
+        "description": "주어진 시점 기준 주간 통계를 조회합니다.",
+        "operationId": "getStatistics_1",
+        "parameters": [
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "통계 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatisticsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "통계를 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/v1/schedules/week": {
+      "get": {
+        "tags": [
+          "ScheduleV1"
+        ],
+        "summary": "주간 일정 조회 (작업 없이)",
+        "description": "주어진 날짜가 포함된 주간의 일정을 조회합니다.",
+        "operationId": "getWeeklySchedules_1",
+        "parameters": [
+          {
+            "name": "time",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "zoneId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "주간 일정 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScheduleSimpleResponse"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "현재 상태와 충돌했습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/v1/members/zone-offset": {
+      "get": {
+        "tags": [
+          "MemberV1"
+        ],
+        "summary": "사용자 시간대 조회",
+        "description": "사용자의 시간대를 조회합니다.",
+        "operationId": "getMemberZoneOffset_1",
+        "responses": {
+          "200": {
+            "description": "사용자 시간대 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "example": "+09:00"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/v1/members/now": {
+      "get": {
+        "tags": [
+          "MemberV1"
+        ],
+        "summary": "현재 진행 중인 일정 ID 조회",
+        "description": "사용자의 현재 진행 중인 일정 ID를 조회합니다.",
+        "operationId": "getNowInProgressScheduleId_1",
+        "responses": {
+          "200": {
+            "description": "현재 진행 중인 일정 ID 조회 성공",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 요청",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "대상을 찾을 수 없습니다.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "서버 내부 오류",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
     "/v0/zone-offset": {
       "get": {
         "tags": [
@@ -2380,7 +4045,7 @@
         ],
         "summary": "사용자 시간대 조회",
         "description": "사용자의 시간대를 조회합니다.",
-        "operationId": "getMemberZoneOffset_1",
+        "operationId": "getMemberZoneOffset_2",
         "responses": {
           "200": {
             "description": "사용자 시간대 조회 성공",
@@ -2404,7 +4069,7 @@
         ],
         "summary": "사용자 통계 조회",
         "description": "주어진 시점 기준 주간 통계를 조회합니다.",
-        "operationId": "getStatistics_1",
+        "operationId": "getStatistics_2",
         "parameters": [
           {
             "name": "time",
@@ -2466,7 +4131,7 @@
         ],
         "summary": "주간 일정 조회",
         "description": "해당 주의 일정을 조회합니다.",
-        "operationId": "getWeeklySchedules_1",
+        "operationId": "getWeeklySchedules_2",
         "parameters": [
           {
             "name": "time",
@@ -2551,7 +4216,7 @@
         ],
         "summary": "현재 진행 중인 일정 ID 조회",
         "description": "사용자의 현재 진행 중인 일정 ID를 조회합니다.",
-        "operationId": "getNowInProgressScheduleId_1",
+        "operationId": "getNowInProgressScheduleId_2",
         "responses": {
           "200": {
             "description": "OK",
@@ -2571,24 +4236,24 @@
   },
   "components": {
     "schemas": {
-      "DateTimeWithZone": {
+      "DateWithOffset": {
         "type": "object",
         "properties": {
-          "dateTime": {
+          "date": {
             "type": "string",
-            "format": "date-time",
-            "description": "지역 시각",
-            "example": "2024-03-01T18:00:00"
+            "format": "date",
+            "description": "날짜",
+            "example": "2024-03-01"
           },
-          "zoneId": {
+          "offset": {
             "type": "string",
-            "description": "시간대 ID",
-            "example": "Asia/Seoul"
+            "description": "UTC 기준 오프셋(+HH:mm)",
+            "example": "+09:00"
           }
         },
         "required": [
-          "dateTime",
-          "zoneId"
+          "date",
+          "offset"
         ]
       },
       "DependencyRequest": {
@@ -2612,7 +4277,7 @@
           "toId"
         ]
       },
-      "TaskCreateRequest": {
+      "TaskCreateRequestV2": {
         "type": "object",
         "properties": {
           "title": {
@@ -2628,11 +4293,11 @@
             "minLength": 1
           },
           "dueDate": {
-            "$ref": "#/components/schemas/DateTimeWithZone",
-            "description": "마감 기한",
+            "$ref": "#/components/schemas/DateWithOffset",
+            "description": "마감 날짜(+오프셋)",
             "example": {
-              "dateTime": "2024-03-01T18:00:00",
-              "zoneId": "Asia/Seoul"
+              "date": "2024-03-01",
+              "offset": "+09:00"
             }
           },
           "importance": {
@@ -2665,7 +4330,7 @@
           "title"
         ]
       },
-      "TaskResponse": {
+      "TaskResponseV2": {
         "type": "object",
         "properties": {
           "id": {
@@ -2689,8 +4354,8 @@
             "description": "작업 설명"
           },
           "dueDate": {
-            "$ref": "#/components/schemas/DateTimeWithZone",
-            "description": "마감 기한"
+            "$ref": "#/components/schemas/DateWithOffset",
+            "description": "마감 날짜(+오프셋, 00:00 시각)"
           },
           "importance": {
             "type": "integer",
@@ -2778,6 +4443,26 @@
             "type": "string"
           }
         }
+      },
+      "DateTimeWithZone": {
+        "type": "object",
+        "properties": {
+          "dateTime": {
+            "type": "string",
+            "format": "date-time",
+            "description": "지역 시각",
+            "example": "2024-03-01T18:00:00"
+          },
+          "zoneId": {
+            "type": "string",
+            "description": "시간대 ID",
+            "example": "Asia/Seoul"
+          }
+        },
+        "required": [
+          "dateTime",
+          "zoneId"
+        ]
       },
       "TaskScheduleRequest": {
         "type": "object",
@@ -2918,6 +4603,133 @@
           "scheduleType",
           "title"
         ]
+      },
+      "TaskCreateRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "작업 제목",
+            "example": "스터디 준비",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "작업 설명",
+            "example": "다음 주 발표 자료 정리",
+            "minLength": 1
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/DateTimeWithZone",
+            "description": "마감 기한",
+            "example": {
+              "dateTime": "2024-03-01T18:00:00",
+              "zoneId": "Asia/Seoul"
+            }
+          },
+          "importance": {
+            "type": "integer",
+            "format": "int32",
+            "description": "중요도 (1~9)",
+            "example": 5,
+            "maximum": 9,
+            "minimum": 1
+          },
+          "difficulty": {
+            "type": "integer",
+            "format": "int32",
+            "description": "난이도 (피보나치 수: 1,2,3,5,8,13,21)",
+            "example": 5
+          },
+          "addDependencies": {
+            "type": "array",
+            "description": "추가할 의존 관계 목록 (생성 시 각 항목에 fromId 또는 toId 중 하나는 0)",
+            "items": {
+              "$ref": "#/components/schemas/DependencyRequest"
+            }
+          }
+        },
+        "required": [
+          "description",
+          "difficulty",
+          "dueDate",
+          "importance",
+          "title"
+        ]
+      },
+      "TaskResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "작업 ID",
+            "example": 10
+          },
+          "ownerId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "회원 ID",
+            "example": 3
+          },
+          "title": {
+            "type": "string",
+            "description": "작업 제목"
+          },
+          "description": {
+            "type": "string",
+            "description": "작업 설명"
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/DateTimeWithZone",
+            "description": "마감 기한 (00:00:00 고정, ZoneOffset 기반)"
+          },
+          "importance": {
+            "type": "integer",
+            "format": "int32",
+            "description": "중요도"
+          },
+          "difficulty": {
+            "type": "integer",
+            "format": "int32",
+            "description": "난이도"
+          },
+          "completed": {
+            "type": "boolean",
+            "description": "완료 여부"
+          },
+          "inboundDependencyCount": {
+            "type": "integer",
+            "format": "int32",
+            "description": "들어오는 의존 관계 수"
+          },
+          "previousTaskIds": {
+            "type": "array",
+            "description": "선행 작업 ID 목록",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "nextTaskIds": {
+            "type": "array",
+            "description": "후행 작업 ID 목록",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "생성 시각"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "수정 시각"
+          }
+        }
       },
       "ScheduleRequest": {
         "type": "object",
@@ -3072,7 +4884,7 @@
           }
         }
       },
-      "TaskUpdateRequest": {
+      "TaskUpdateRequestV2": {
         "type": "object",
         "properties": {
           "title": {
@@ -3088,11 +4900,11 @@
             "minLength": 1
           },
           "dueDate": {
-            "$ref": "#/components/schemas/DateTimeWithZone",
-            "description": "마감 기한",
+            "$ref": "#/components/schemas/DateWithOffset",
+            "description": "마감 날짜(+오프셋)",
             "example": {
-              "dateTime": "2024-03-01T18:00:00",
-              "zoneId": "Asia/Seoul"
+              "date": "2024-03-01",
+              "offset": "+09:00"
             }
           },
           "importance": {
@@ -3165,7 +4977,67 @@
           }
         }
       },
-      "PageTaskResponse": {
+      "TaskUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "작업 제목",
+            "example": "스터디 준비",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "description": "작업 설명",
+            "example": "다음 주 발표 자료 정리",
+            "minLength": 1
+          },
+          "dueDate": {
+            "$ref": "#/components/schemas/DateTimeWithZone",
+            "description": "마감 기한",
+            "example": {
+              "dateTime": "2024-03-01T18:00:00",
+              "zoneId": "Asia/Seoul"
+            }
+          },
+          "importance": {
+            "type": "integer",
+            "format": "int32",
+            "description": "중요도 (1~9)",
+            "example": 5,
+            "maximum": 9,
+            "minimum": 1
+          },
+          "difficulty": {
+            "type": "integer",
+            "format": "int32",
+            "description": "난이도 (피보나치 수: 1,2,3,5,8,13,21)",
+            "example": 5
+          },
+          "removeDependencies": {
+            "type": "array",
+            "description": "제거할 의존 관계 목록 (수정 시 0 사용 금지)",
+            "items": {
+              "$ref": "#/components/schemas/DependencyRequest"
+            }
+          },
+          "addDependencies": {
+            "type": "array",
+            "description": "추가할 의존 관계 목록 (수정 시 0 사용 금지)",
+            "items": {
+              "$ref": "#/components/schemas/DependencyRequest"
+            }
+          }
+        },
+        "required": [
+          "description",
+          "difficulty",
+          "dueDate",
+          "importance",
+          "title"
+        ]
+      },
+      "PageTaskResponseV2": {
         "type": "object",
         "properties": {
           "totalElements": {
@@ -3189,7 +5061,7 @@
           "content": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/TaskResponse"
+              "$ref": "#/components/schemas/TaskResponseV2"
             }
           },
           "number": {
@@ -3251,14 +5123,14 @@
           }
         }
       },
-      "TaskCursorPageResponse": {
+      "TaskCursorPageResponseV2": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "description": "작업 목록",
             "items": {
-              "$ref": "#/components/schemas/TaskResponse"
+              "$ref": "#/components/schemas/TaskResponseV2"
             }
           },
           "nextCursor": {
@@ -3295,6 +5167,72 @@
           "totalWorkElapsedTime": {
             "type": "string",
             "description": "총 작업 누적 시간"
+          }
+        }
+      },
+      "PageTaskResponse": {
+        "type": "object",
+        "properties": {
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sort": {
+            "$ref": "#/components/schemas/SortObject"
+          },
+          "numberOfElements": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageable": {
+            "$ref": "#/components/schemas/PageableObject"
+          },
+          "empty": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TaskCursorPageResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "description": "작업 목록",
+            "items": {
+              "$ref": "#/components/schemas/TaskResponse"
+            }
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "다음 페이지 요청 시 사용할 커서. 더 이상 데이터가 없으면 null"
+          },
+          "hasNext": {
+            "type": "boolean",
+            "description": "다음 페이지 존재 여부"
           }
         }
       }
