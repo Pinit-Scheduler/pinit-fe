@@ -65,7 +65,7 @@ const LandingPage = () => {
           <Link to="/login" className="landing__action landing__action--primary">
             로그인하고 시작하기
           </Link>
-          <p className="landing__hint">SSO로 1분 안에 로그인하면 바로 일정 보드로 이동해요.</p>
+          <p className="landing__hint">사용 중 불편한 점이 있다면, 언제든 chkun3109@gmail.com으로 문의해주세요.</p>
         </div>
         <div className="landing__glow landing__glow--one" />
         <div className="landing__glow landing__glow--two" />
