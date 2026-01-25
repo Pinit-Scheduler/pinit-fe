@@ -11,7 +11,7 @@ import { createScheduleFromTask } from '../../api/tasks'
 import { useTaskCache } from '../../context/TaskCacheContext'
 import { getDeadlineStyle } from '../../utils/deadlineStyles'
 import './TodayPage.css'
-import {scheduleTypeLabelCompressed} from "../../constants/schedules.ts";
+import { scheduleTypeLabelCompressed } from '../../constants/schedules'
 
 const TodayPage = () => {
   const { offsetMinutes } = useTimePreferences()
@@ -80,73 +80,74 @@ const TodayPage = () => {
         </p>
       </header>
 
-      {loading ? (
-        <div className="today-page__placeholder">
-          <p>불러오는 중...</p>
-        </div>
-      ) : error ? (
-        <div className="today-page__placeholder">
-          <p>데이터를 불러오지 못했습니다.</p>
-          <p>{error}</p>
-        </div>
-      ) : (
-        <>
-          <section className="today-page__section">
-            <h2>📅 오늘 일정 ({schedules.length}건)</h2>
-            {schedules.length === 0 ? (
-              <p className="today-page__placeholder">오늘 일정이 없습니다.</p>
-            ) : (
-              <ul className="today-page__list">
-                {schedules.map((item) => (
-                  <li key={item.id}>
-                    <strong>{item.title}</strong>
-                    <span>{dayjs(item.date.dateTime).format('HH:mm')}</span>
-                    {item.scheduleType && <span className="today-page__pill">{scheduleTypeLabelCompressed[item.scheduleType]}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+      <div className="today-page__content">
+        {loading ? (
+          <div className="today-page__placeholder">
+            <p>불러오는 중...</p>
+          </div>
+        ) : error ? (
+          <div className="today-page__placeholder">
+            <p>데이터를 불러오지 못했습니다.</p>
+            <p>{error}</p>
+          </div>
+        ) : (
+          <>
+            <section className="today-page__section">
+              <h2>📅 오늘 일정 ({schedules.length}건)</h2>
+              {schedules.length === 0 ? (
+                <p className="today-page__placeholder">오늘 일정이 없습니다.</p>
+              ) : (
+                <ul className="today-page__list">
+                  {schedules.map((item) => (
+                    <li key={item.id}>
+                      <strong>{item.title}</strong>
+                      <span>{dayjs(item.date.dateTime).format('HH:mm')}</span>
+                      {item.scheduleType && (
+                        <span className="today-page__pill">{scheduleTypeLabelCompressed[item.scheduleType]}</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-          <section className="today-page__section">
-            <h2>✅ 준비된 작업 ({tasks.length}건)</h2>
-            {tasks.length === 0 ? (
-              <p className="today-page__placeholder">선행 작업 없는 작업이 없습니다.</p>
-            ) : (
-              <ul className="today-page__list">
-                {tasks.map((task) => (
-                  <li key={task.id}>
-                    {(() => {
-                          const cached = tasksById[task.id] ?? task
-                          return (
-                            <>
-                              <strong>{cached.title}</strong>
-                          <span
-                            className="today-page__pill"
-                            style={getDeadlineStyle(cached.dueDate)}
-                          >
-                            {formatDateWithOffset(cached.dueDate, 'M/D')}
-                          </span>
-                          <span className="today-page__pill">
-                            {(cached.completed ?? cached.isCompleted) ? '완료' : '미완료'}
-                          </span>
-                            </>
-                          )
-                        })()}
-                    <button
-                      type="button"
-                      className="today-page__pill today-page__pill--action"
-                      onClick={() => setSelectedTaskId(task.id)}
-                    >
-                      일정 배정
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </>
-      )}
+            <section className="today-page__section">
+              <h2>✅ 준비된 작업 ({tasks.length}건)</h2>
+              {tasks.length === 0 ? (
+                <p className="today-page__placeholder">선행 작업 없는 작업이 없습니다.</p>
+              ) : (
+                <ul className="today-page__list">
+                  {tasks.map((task) => (
+                    <li key={task.id}>
+                      {(() => {
+                        const cached = tasksById[task.id] ?? task
+                        return (
+                          <>
+                            <strong>{cached.title}</strong>
+                            <span className="today-page__pill" style={getDeadlineStyle(cached.dueDate)}>
+                              {formatDateWithOffset(cached.dueDate, 'M/D')}
+                            </span>
+                            <span className="today-page__pill">
+                              {(cached.completed ?? cached.isCompleted) ? '완료' : '미완료'}
+                            </span>
+                          </>
+                        )
+                      })()}
+                      <button
+                        type="button"
+                        className="today-page__pill today-page__pill--action"
+                        onClick={() => setSelectedTaskId(task.id)}
+                      >
+                        일정 배정
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+      </div>
 
       <TaskScheduleModal
         isOpen={selectedTaskId !== null}

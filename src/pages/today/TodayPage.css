@@ -4,6 +4,9 @@
   gap: 16px;
   padding: 16px;
   animation: fadeIn 220ms ease;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .today-page__header {
@@ -35,6 +38,17 @@
   border-radius: 12px;
   background: #f8fafc;
   color: #64748b;
+}
+
+.today-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .today-page__section {

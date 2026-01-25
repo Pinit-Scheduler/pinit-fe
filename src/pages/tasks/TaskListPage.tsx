@@ -78,59 +78,61 @@ const TaskListPage = () => {
         <p className="task-page__eyebrow">작업</p>
         <h1 className="task-page__title">작업 목록</h1>
       </header>
-      {isLoading ? (
-        <div className="task-page__placeholder">
-          <p>작업을 불러오는 중...</p>
-        </div>
-      ) : error ? (
-        <div className="task-page__placeholder">
-          <p>작업을 불러오지 못했습니다.</p>
-          <p>{error}</p>
-        </div>
-      ) : tasks.length === 0 ? (
-        <div className="task-page__placeholder">
-          <p>등록된 작업이 없습니다.</p>
-        </div>
-      ) : (
-        <ul className="task-page__list">
-          {tasks.map((task) => {
-            const cached = tasksById[task.id]
-            const item = cached ?? task
-            return (
-              <li key={task.id} className="task-page__item" onClick={() => setSelectedTaskId(task.id)}>
-                <div className="task-page__item-head">
-                  <label className="task-page__checkbox" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={item.completed ?? item.isCompleted ?? false}
-                      onChange={(e) => toggleCompletion(item, e)}
-                      disabled={togglingId === task.id}
-                    />
-                    <span className="task-page__checkbox-mark" aria-hidden />
-                  </label>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p className="task-page__item-desc">{item.description}</p>
+      <div className="task-page__content">
+        {isLoading ? (
+          <div className="task-page__placeholder">
+            <p>작업을 불러오는 중...</p>
+          </div>
+        ) : error ? (
+          <div className="task-page__placeholder">
+            <p>작업을 불러오지 못했습니다.</p>
+            <p>{error}</p>
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className="task-page__placeholder">
+            <p>등록된 작업이 없습니다.</p>
+          </div>
+        ) : (
+          <ul className="task-page__list">
+            {tasks.map((task) => {
+              const cached = tasksById[task.id]
+              const item = cached ?? task
+              return (
+                <li key={task.id} className="task-page__item" onClick={() => setSelectedTaskId(task.id)}>
+                  <div className="task-page__item-head">
+                    <label className="task-page__checkbox" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={item.completed ?? item.isCompleted ?? false}
+                        onChange={(e) => toggleCompletion(item, e)}
+                        disabled={togglingId === task.id}
+                      />
+                      <span className="task-page__checkbox-mark" aria-hidden />
+                    </label>
+                    <div>
+                      <strong>{item.title}</strong>
+                      <p className="task-page__item-desc">{item.description}</p>
+                    </div>
                   </div>
-                </div>
-                <div className="task-page__item-meta">
-                  {item.dueDate && (
-                    <span className="task-page__pill" style={getDeadlineStyle(item.dueDate)}>
-                      마감 {formatDateWithOffset(item.dueDate, 'M/D')}
-                    </span>
-                  )}
+                  <div className="task-page__item-meta">
+                    {item.dueDate && (
+                      <span className="task-page__pill" style={getDeadlineStyle(item.dueDate)}>
+                        마감 {formatDateWithOffset(item.dueDate, 'M/D')}
+                      </span>
+                    )}
                     <span className="task-page__pill" style={getImportanceStyle(item.importance)}>
-                    중요도 {item.importance}
-                  </span>
-                  <span className="task-page__pill" style={getDifficultyStyle(item.difficulty)}>
-                    난이도 {item.difficulty}
-                  </span>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                      중요도 {item.importance}
+                    </span>
+                    <span className="task-page__pill" style={getDifficultyStyle(item.difficulty)}>
+                      난이도 {item.difficulty}
+                    </span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
       {selectedTaskId && (
         <TaskDetailModal taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
       )}
