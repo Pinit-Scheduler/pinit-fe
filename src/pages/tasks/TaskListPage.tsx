@@ -9,6 +9,7 @@ import { dispatchTaskChanged } from '../../utils/events'
 import { getDeadlineStyle } from '../../utils/deadlineStyles'
 import { formatDateWithOffset } from '../../utils/datetime'
 import TaskDetailModal from '../../components/tasks/TaskDetailModal'
+import TaskArchiveModal from '../../components/tasks/modals/TaskArchiveModal'
 import './TaskPages.css'
 
 const PAGE_SIZE = 20
@@ -24,6 +25,7 @@ const TaskListPage = () => {
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null)
   const [togglingId, setTogglingId] = useState<number | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -172,9 +174,16 @@ const TaskListPage = () => {
 
   return (
     <section className="task-page">
-      <header className="task-page__header">
-        <p className="task-page__eyebrow">작업</p>
-        <h1 className="task-page__title">작업 목록</h1>
+      <header className="task-page__header task-page__header--split">
+        <div className="task-page__title-block">
+          <p className="task-page__eyebrow">작업</p>
+          <h1 className="task-page__title">작업 목록</h1>
+        </div>
+        <div className="task-page__actions">
+          <button type="button" className="task-page__primary" onClick={() => setIsArchiveOpen(true)}>
+            작업 아카이브
+          </button>
+        </div>
       </header>
       <div className="task-page__content" ref={contentRef} onScroll={handleScroll}>
         {isLoading ? (
@@ -254,6 +263,9 @@ const TaskListPage = () => {
       </div>
       {selectedTaskId && (
         <TaskDetailModal taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
+      )}
+      {isArchiveOpen && (
+        <TaskArchiveModal onClose={() => setIsArchiveOpen(false)} />
       )}
     </section>
   )

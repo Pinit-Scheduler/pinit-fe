@@ -50,6 +50,12 @@ export type TaskCursorResponse = {
   hasNext?: boolean
 }
 
+export type TaskArchiveCursorResponse = {
+  items: Task[]
+  nextCursor: string | null
+  hasNext?: boolean
+}
+
 export type TaskScheduleRequest = {
   title?: string
   description?: string

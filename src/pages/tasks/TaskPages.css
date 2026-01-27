@@ -15,6 +15,20 @@
   gap: 6px;
 }
 
+.task-page__header--split {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.task-page__title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .task-page__eyebrow {
   color: #64748b;
   font-size: 12px;
@@ -36,6 +50,11 @@
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.task-page__header--split .task-page__actions {
+  margin-top: 0;
+  align-self: flex-start;
 }
 
 .task-page__primary {

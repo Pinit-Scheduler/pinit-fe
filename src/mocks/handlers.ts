@@ -202,15 +202,44 @@ const handleMember = (path: string, method: string) => {
 
 const handleTasks = async (path: string, method: string, searchParams: URLSearchParams, request: Request) => {
   const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
+  const today = dayjs().format('YYYY-MM-DD')
+
+  const isCompletedTask = (task: Task) => task.completed ?? task.isCompleted ?? false
+  const isOverdue = (task: Task) => {
+    const due = task.dueDate?.date
+    if (!due) return false
+    return due < today
+  }
+
+  const visibleTaskFilter = (task: Task, readyOnly: boolean) => {
+    if (readyOnly && ((task.completed ?? task.isCompleted) === true || (task.inboundDependencyCount ?? 0) > 0)) return false
+    const completed = isCompletedTask(task)
+    const overdue = isOverdue(task)
+    // Show: not overdue OR not completed; i.e., hide completed+overdue
+    if (completed && overdue) return false
+    return true
+  }
+
+  const sortAscByDeadline = (a: Task, b: Task) => {
+    const aDate = a.dueDate?.date ?? '9999-12-31'
+    const bDate = b.dueDate?.date ?? '9999-12-31'
+    if (aDate !== bDate) return aDate.localeCompare(bDate)
+    return a.id - b.id
+  }
+
+  const sortArchiveDesc = (a: Task, b: Task) => {
+    const aDate = a.dueDate?.date ?? '0000-01-01'
+    const bDate = b.dueDate?.date ?? '0000-01-01'
+    if (aDate !== bDate) return bDate.localeCompare(aDate)
+    return b.id - a.id
+  }
 
   if (method === 'GET' && normalizedPath === '/tasks') {
     const page = Number(searchParams.get('page') ?? 0)
     const size = Number(searchParams.get('size') ?? 20)
     const readyOnly = searchParams.get('readyOnly') === 'true'
-    let items = [...mockTasks]
-    if (readyOnly) {
-      items = items.filter((task) => (task.completed ?? task.isCompleted) === false && (task.inboundDependencyCount ?? 0) === 0)
-    }
+    let items = mockTasks.filter((task) => visibleTaskFilter(task, readyOnly))
+    items = items.sort(sortAscByDeadline)
     const start = page * size
     const paged = items.slice(start, start + size)
     const totalPages = Math.max(1, Math.ceil(items.length / size))
@@ -231,17 +260,36 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
   if (method === 'GET' && normalizedPath === '/tasks/cursor') {
     const size = Number(searchParams.get('size') ?? 20)
     const cursorValue = searchParams.get('cursor')
-    const start = cursorValue ? Number(cursorValue) || 0 : 0
     const readyOnly = searchParams.get('readyOnly') === 'true'
-    let items = [...mockTasks]
-    if (readyOnly) {
-      items = items.filter((task) => (task.completed ?? task.isCompleted) === false && (task.inboundDependencyCount ?? 0) === 0)
-    }
+    let items = mockTasks.filter((task) => visibleTaskFilter(task, readyOnly)).sort(sortAscByDeadline)
+    const start = cursorValue ? Number(cursorValue) || 0 : 0
     const slice = items.slice(start, start + size)
     const nextCursor = start + size < items.length ? String(start + size) : null
     const response = {
       data: slice.map(toTaskResponse),
       hasNext: nextCursor !== null,
+      nextCursor,
+    }
+    return json(response)
+  }
+
+  if (method === 'GET' && normalizedPath === '/tasks/completed') {
+    const size = Math.max(1, Math.min(100, Number(searchParams.get('size') ?? 20)))
+    const cursorValue = searchParams.get('cursor')
+    const archived = mockTasks.filter((task) => isCompletedTask(task) && isOverdue(task)).sort(sortArchiveDesc)
+    let startIndex = 0
+    if (cursorValue) {
+      const [datePart, idPart] = cursorValue.split('|')
+      const cursorId = Number(idPart)
+      const idx = archived.findIndex((task) => task.dueDate?.date === datePart && task.id === cursorId)
+      startIndex = idx >= 0 ? idx + 1 : 0
+    }
+    const slice = archived.slice(startIndex, startIndex + size)
+    const next = archived[startIndex + size]
+    const nextCursor = next ? `${next.dueDate?.date ?? ''}|${next.id}` : null
+    const response = {
+      data: slice.map(toTaskResponse),
+      hasNext: Boolean(nextCursor),
       nextCursor,
     }
     return json(response)
