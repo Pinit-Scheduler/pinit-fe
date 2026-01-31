@@ -22,7 +22,7 @@ const makeDateWithOffset = (offsetDays: number, offset = '+00:00'): DateWithOffs
 })
 
 let taskSeq = 3
-let scheduleSeq = 3
+let scheduleSeq = 4
 
 export const mockUsers: MockUser[] = [
   { id: 1, username: 'demo', password: 'demo1234', nickname: '데모 유저', zoneOffset: '+09:00' },
@@ -97,6 +97,17 @@ export const mockSchedules: ScheduleResponse[] = [
     scheduleType: 'QUICK_TASK',
     state: 'COMPLETED',
     duration: '00:30:00',
+  },
+  {
+    id: 4,
+    ownerId: 1,
+    title: '릴리즈 노트 정리',
+    description:
+      '1) 완료 항목 정리\n2) 담당자 피드백 반영\n3) 배포 공지 초안 작성\n4) FAQ 링크 추가',
+    date: makeDateTime(0, 16, 30),
+    scheduleType: 'ADMIN_TASK',
+    state: 'NOT_STARTED',
+    duration: '00:20:00',
   },
 ]
 

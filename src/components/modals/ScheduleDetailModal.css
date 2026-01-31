@@ -86,6 +86,7 @@
   color: #64748b;
   line-height: 1.6;
   margin-bottom: 16px;
+  white-space: pre-line;
 }
 
 .schedule-detail-modal__meta {
