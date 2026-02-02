@@ -5,5 +5,6 @@ export type DateTimeWithZone = {
 
 export type DateWithOffset = {
   date: string
-  offset: string // e.g. "+09:00" or "-05:00"
+  zoneId: string
+  offset?: string // e.g. "+09:00" or "-05:00" (optional, derived from zoneId)
 }
