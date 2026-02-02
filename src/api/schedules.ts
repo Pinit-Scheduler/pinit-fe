@@ -1,79 +1,73 @@
 import type dayjs from 'dayjs'
-import type {
-  ScheduleResponse,
-  ScheduleRequest,
-  ScheduleSummary,
-} from '../types/schedule'
+import type { ScheduleResponse } from '../types/schedule'
 import type { DateTimeWithZone } from '../types/datetime'
 import { toApiDateTimeWithZone } from '../utils/datetime'
+import { withTimeZoneParams } from '../utils/timeParams'
 import { buildApiUrl } from './config'
 import { httpClient } from './httpClient'
 
-export const fetchScheduleSummaries = (dateTime: dayjs.Dayjs | DateTimeWithZone | string | Date) => {
-  const timeParam = toApiDateTimeWithZone(dateTime)
-  const query = new URLSearchParams({
-    time: timeParam.dateTime,
-    zoneId: timeParam.zoneId,
-  })
-  return httpClient<ScheduleSummary[]>(buildApiUrl(`/schedules?${query.toString()}`))
+export const SCHEDULE_API_VERSION = 'v2'
+
+const buildTimeQuery = (time: dayjs.Dayjs | DateTimeWithZone | string | Date) => withTimeZoneParams(time)
+
+export const fetchSchedules = (time: dayjs.Dayjs | DateTimeWithZone | string | Date) => {
+  const query = buildTimeQuery(time)
+  return httpClient<ScheduleResponse[]>(buildApiUrl(`/schedules?${query}`, SCHEDULE_API_VERSION))
 }
 
-export const fetchWeeklySchedules = (time: DateTimeWithZone | string | Date) => {
-  const timeParam = toApiDateTimeWithZone(time)
-  const query = new URLSearchParams({
-    time: timeParam.dateTime,
-    zoneId: timeParam.zoneId,
-  })
-  return httpClient<ScheduleResponse[]>(buildApiUrl(`/schedules/week?${query.toString()}`))
+export const fetchWeeklySchedules = (time: dayjs.Dayjs | DateTimeWithZone | string | Date) => {
+  const query = buildTimeQuery(time)
+  return httpClient<ScheduleResponse[]>(buildApiUrl(`/schedules/week?${query}`, SCHEDULE_API_VERSION))
 }
 
-export const fetchScheduleDetail = (scheduleId: number) =>
-  httpClient<ScheduleResponse>(buildApiUrl(`/schedules/${scheduleId}`))
+export type ScheduleSimpleRequest = {
+  title: string
+  description: string
+  date: DateTimeWithZone
+  scheduleType: 'DEEP_WORK' | 'QUICK_TASK' | 'ADMIN_TASK'
+}
 
-export const createSchedule = (payload: ScheduleRequest) =>
-  httpClient<ScheduleResponse>(buildApiUrl('/schedules'), {
+export type ScheduleSimplePatchRequest = Partial<ScheduleSimpleRequest>
+
+export const createSchedule = (payload: ScheduleSimpleRequest) =>
+  httpClient<ScheduleResponse>(buildApiUrl('/schedules', SCHEDULE_API_VERSION), {
     method: 'POST',
-    json: payload,
+    json: {
+      ...payload,
+      date: toApiDateTimeWithZone(payload.date),
+    },
   })
 
-export const updateSchedule = (scheduleId: number, payload: Partial<ScheduleRequest>) =>
-  httpClient<ScheduleResponse>(buildApiUrl(`/schedules/${scheduleId}`), {
+export const updateSchedule = (scheduleId: number, payload: ScheduleSimplePatchRequest) =>
+  httpClient<ScheduleResponse>(buildApiUrl(`/schedules/${scheduleId}`, SCHEDULE_API_VERSION), {
     method: 'PATCH',
-    json: payload,
+    json: payload.date ? { ...payload, date: toApiDateTimeWithZone(payload.date) } : payload,
   })
 
 export const deleteSchedule = (scheduleId: number) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}`), {
+  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}`, SCHEDULE_API_VERSION), {
     method: 'DELETE',
   })
 
-export const fetchActiveScheduleId = () =>
-  httpClient<number>(buildApiUrl('/now'))
-
-const buildTimeQuery = (time: DateTimeWithZone | string | Date) => {
-  const timeParam = toApiDateTimeWithZone(time)
-  return new URLSearchParams({
-    time: timeParam.dateTime,
-    zoneId: timeParam.zoneId,
-  }).toString()
-}
+export const fetchScheduleDetail = (scheduleId: number) =>
+  httpClient<ScheduleResponse>(buildApiUrl(`/schedules/${scheduleId}`, SCHEDULE_API_VERSION))
 
 export const startSchedule = (scheduleId: number, at: DateTimeWithZone | string | Date = new Date()) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/start?${buildTimeQuery(at)}`), {
+  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/start?${buildTimeQuery(at)}`, SCHEDULE_API_VERSION), {
     method: 'POST',
   })
 
 export const suspendSchedule = (scheduleId: number, at: DateTimeWithZone | string | Date = new Date()) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/suspend?${buildTimeQuery(at)}`), {
+  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/suspend?${buildTimeQuery(at)}`, SCHEDULE_API_VERSION), {
     method: 'POST',
   })
 
 export const completeSchedule = (scheduleId: number, at: DateTimeWithZone | string | Date = new Date()) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/complete?${buildTimeQuery(at)}`), {
+  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/complete?${buildTimeQuery(at)}`, SCHEDULE_API_VERSION), {
     method: 'POST',
   })
 
 export const cancelSchedule = (scheduleId: number) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/cancel`), {
+  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/cancel`, SCHEDULE_API_VERSION), {
     method: 'POST',
   })
