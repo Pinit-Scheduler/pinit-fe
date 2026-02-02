@@ -2,12 +2,12 @@ import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import duration from 'dayjs/plugin/duration'
-import type { DateTimeWithZone } from '../types/datetime'
-import type { Task, TaskRequest } from '../types/task'
-import type { ScheduleRequest, ScheduleResponse } from '../types/schedule'
-import type { StatisticsResponse } from '../types/statistics'
-import type { PushTokenRequest } from '../api/notifications'
-import type { LoginPayload, SignupPayload, SocialLoginPayload } from '../api/auth'
+import type { DateTimeWithZone } from '../shared/types/datetime'
+import type { Task, TaskRequest } from '../features/tasks/types/task'
+import type { ScheduleRequest, ScheduleResponse } from '../features/schedules/types/schedule'
+import type { StatisticsResponse } from '../features/statistics/types/statistics'
+import type { PushTokenRequest } from '../features/settings/api/notifications'
+import type { LoginPayload, SignupPayload, SocialLoginPayload } from '../features/auth/api/auth'
 import {
   activeScheduleId,
   makeToken,

@@ -1,4 +1,4 @@
-import type {ScheduleSummary} from "../types/schedule.ts";
+import type { ScheduleSummary } from '@features/schedules/types/schedule'
 
 export const scheduleTypeLabel: Record<NonNullable<ScheduleSummary['scheduleType']>, string> = {
     DEEP_WORK: '집중 작업',

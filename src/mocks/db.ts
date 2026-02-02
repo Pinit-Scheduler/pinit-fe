@@ -1,9 +1,9 @@
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
-import type { DateTimeWithZone, DateWithOffset } from '../types/datetime'
-import type { Task } from '../types/task'
-import type { ScheduleResponse, ScheduleState } from '../types/schedule'
+import type { DateTimeWithZone, DateWithOffset } from '../shared/types/datetime'
+import type { Task } from '../features/tasks/types/task'
+import type { ScheduleResponse, ScheduleState } from '../features/schedules/types/schedule'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)

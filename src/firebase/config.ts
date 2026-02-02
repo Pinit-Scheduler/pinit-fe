@@ -1,15 +1,14 @@
 import type { FirebaseOptions } from 'firebase/app'
 
-const firebaseConfig: FirebaseOptions = {
-    apiKey: "AIzaSyAlDyEtE2F2iKmQoTTUk4p3fUfaoMdYPZ8",
-    authDomain: "pinit-466ce.firebaseapp.com",
-    projectId: "pinit-466ce",
-    storageBucket: "pinit-466ce.firebasestorage.app",
-    messagingSenderId: "729299570668",
-    appId: "1:729299570668:web:0faa690e107378556abac9",
-    measurementId: "G-RSHCEW8KL7"
-};
-
+const envConfig: FirebaseOptions = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+}
 
 const requiredConfigKeys: Array<keyof FirebaseOptions> = [
   'apiKey',
@@ -23,8 +22,12 @@ const requiredConfigKeys: Array<keyof FirebaseOptions> = [
 let hasWarnedMissingConfig = false
 
 export const getFirebaseConfig = (): FirebaseOptions | null => {
-  const missingKeys = requiredConfigKeys.filter((key) => !firebaseConfig[key])
+  // FCM은 프로덕션에서만 활성화
+  if (!import.meta.env.PROD) {
+    return null
+  }
 
+  const missingKeys = requiredConfigKeys.filter((key) => !envConfig[key])
   if (missingKeys.length > 0) {
     if (!hasWarnedMissingConfig) {
       console.warn('[FCM] Missing Firebase config values:', missingKeys.join(', '))
@@ -33,5 +36,5 @@ export const getFirebaseConfig = (): FirebaseOptions | null => {
     return null
   }
 
-  return firebaseConfig
+  return envConfig
 }
