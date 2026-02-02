@@ -1,17 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { fetchMemberZoneOffset } from '../api/member'
 import {
   formatOffsetLabel,
   getDisplayOffsetMinutes,
   getDisplayZoneId,
-  parseOffsetString,
   setDisplayOffset,
 } from '../utils/datetime'
 
 type TimePreferencesContextValue = {
   offsetMinutes: number
   offsetLabel: string
+  zoneId: string
   isLoading: boolean
   error: string | null
   refresh: () => void
@@ -21,60 +20,22 @@ const TimePreferencesContext = createContext<TimePreferencesContextValue | null>
 
 export const TimePreferencesProvider = ({ children }: { children: ReactNode }) => {
   const [offsetMinutes, setOffsetMinutes] = useState(() => getDisplayOffsetMinutes())
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [requestId, setRequestId] = useState(() => Date.now())
-  const systemOffsetMinutes = useMemo(() => getDisplayOffsetMinutes(), [])
-  const systemZoneId = useMemo(() => getDisplayZoneId(), [])
+  const zoneId = useMemo(() => getDisplayZoneId() || 'Asia/Seoul', [])
 
   useEffect(() => {
-    setDisplayOffset(offsetMinutes)
-  }, [offsetMinutes])
-
-  useEffect(() => {
-    let isMounted = true
-
-    const load = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const rawOffset = await fetchMemberZoneOffset()
-        const parsed = parseOffsetString(rawOffset)
-        if (parsed === null) {
-          throw new Error('Invalid offset format')
-        }
-        if (!isMounted) return
-        setDisplayOffset(parsed, rawOffset)
-        setOffsetMinutes(parsed)
-      } catch (err) {
-        if (!isMounted) return
-        console.error('Failed to fetch member timezone offset:', err)
-        setOffsetMinutes(systemOffsetMinutes)
-        setDisplayOffset(systemOffsetMinutes, systemZoneId)
-        setError('시간대 정보를 불러오지 못했어요. 시스템 시간대를 사용합니다.')
-      } finally {
-        if (isMounted) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    load()
-
-    return () => {
-      isMounted = false
-    }
-  }, [requestId, systemOffsetMinutes, systemZoneId])
+    setDisplayOffset(offsetMinutes, zoneId)
+  }, [offsetMinutes, zoneId])
 
   const value = useMemo(
     () => ({
       offsetMinutes,
-      offsetLabel: formatOffsetLabel(offsetMinutes),
-      isLoading,
-      error,
-      refresh: () => setRequestId(Date.now()),
+      zoneId,
+      offsetLabel: `${zoneId} (${formatOffsetLabel(offsetMinutes)})`,
+      isLoading: false,
+      error: null,
+      refresh: () => setOffsetMinutes(getDisplayOffsetMinutes()),
     }),
-    [error, isLoading, offsetMinutes],
+    [offsetMinutes, zoneId],
   )
 
   return <TimePreferencesContext.Provider value={value}>{children}</TimePreferencesContext.Provider>
@@ -86,7 +47,8 @@ export const useTimePreferences = () => {
   if (!ctx) {
     return {
       offsetMinutes: getDisplayOffsetMinutes(),
-      offsetLabel: formatOffsetLabel(getDisplayOffsetMinutes()),
+      offsetLabel: `${getDisplayZoneId() || 'Asia/Seoul'} (${formatOffsetLabel(getDisplayOffsetMinutes())})`,
+      zoneId: getDisplayZoneId() || 'Asia/Seoul',
       isLoading: false,
       error: null,
       refresh: () => {},
