@@ -1,5 +1,11 @@
 import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+import timezone from 'dayjs/plugin/timezone'
 import type { DateWithOffset } from '../types/datetime'
+import { getDisplayZoneId, toDayjsFromDateWithOffset } from './datetime'
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
 
 const TEXT_COLOR = '#065f46' // 가장 진한 초록으로 고정
 
@@ -23,8 +29,9 @@ const clampDayIndex = (diffDays: number) => {
 }
 
 export const getDeadlineStyle = (due: DateWithOffset) => {
-  const now = dayjs()
-  const target = dayjs(`${due.date}T00:00:00${due.offset}`)
+  const zoneId = due.zoneId || getDisplayZoneId()
+  const now = zoneId ? dayjs().tz(zoneId) : dayjs()
+  const target = toDayjsFromDateWithOffset(due, zoneId)
   const diffDays = target.diff(now, 'day', true) // 실수 단위 일수
   const idx = clampDayIndex(diffDays)
   return SHADE_STEPS[idx]
