@@ -188,12 +188,14 @@ const handleNotifications = async (path: string, method: string, request: Reques
 }
 
 const handleMember = (path: string, method: string) => {
-  if (method === 'GET' && path === '/v1/members/zone-offset') {
+  const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
+
+  if (method === 'GET' && normalizedPath === '/members/zone-offset') {
     const offset = mockUsers[0]?.zoneOffset ?? 'UTC+00:00'
     return text(offset)
   }
 
-  if (method === 'GET' && path === '/v1/members/now') {
+  if (method === 'GET' && normalizedPath === '/members/now') {
     return json(activeScheduleId ?? null)
   }
 
@@ -261,7 +263,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const size = Number(searchParams.get('size') ?? 20)
     const cursorValue = searchParams.get('cursor')
     const readyOnly = searchParams.get('readyOnly') === 'true'
-    let items = mockTasks.filter((task) => visibleTaskFilter(task, readyOnly)).sort(sortAscByDeadline)
+    const items = mockTasks.filter((task) => visibleTaskFilter(task, readyOnly)).sort(sortAscByDeadline)
     const start = cursorValue ? Number(cursorValue) || 0 : 0
     const slice = items.slice(start, start + size)
     const nextCursor = start + size < items.length ? String(start + size) : null
