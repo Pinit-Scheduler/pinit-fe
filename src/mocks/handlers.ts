@@ -76,11 +76,11 @@ const formatIsoMinutes = (minutes: number) => {
 
 const getTargetDateFromQuery = (searchParams: URLSearchParams): DateTimeWithZone => {
   const dateTime = searchParams.get('time')
-  const zoneId = searchParams.get('zoneId') || 'UTC'
+  const zoneId = searchParams.get('zoneId') || 'Asia/Seoul'
   if (dateTime) {
     return { dateTime, zoneId }
   }
-  const now = dayjs().utc().format('YYYY-MM-DDTHH:mm:ss')
+  const now = dayjs().tz(zoneId).format('YYYY-MM-DDTHH:mm:ss')
   return { dateTime: now, zoneId }
 }
 
@@ -388,7 +388,9 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
 }
 
 const handleSchedules = async (path: string, method: string, searchParams: URLSearchParams, request: Request) => {
-  if (method === 'GET' && path === '/v1/schedules/week') {
+  const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
+
+  if (method === 'GET' && normalizedPath === '/schedules/week') {
     const target = getTargetDateFromQuery(searchParams)
     const base = dayjs.tz(target.dateTime, target.zoneId || 'UTC')
     const start = base.startOf('week')
@@ -400,14 +402,14 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     return json(list)
   }
 
-  if (method === 'GET' && path === '/v1/schedules') {
+  if (method === 'GET' && normalizedPath === '/schedules') {
     const target = getTargetDateFromQuery(searchParams)
     const key = toDayKey(target)
     const list = mockSchedules.filter((schedule) => toDayKey(schedule.date) === key)
     return json(list)
   }
 
-  const startMatch = path.match(/^\/v1\/schedules\/(\d+)\/start$/)
+  const startMatch = normalizedPath.match(/^\/schedules\/(\d+)\/start$/)
   if (method === 'POST' && startMatch) {
     const id = Number(startMatch[1])
     const schedule = findSchedule(id)
@@ -416,7 +418,7 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     return noContent(204)
   }
 
-  const suspendMatch = path.match(/^\/v1\/schedules\/(\d+)\/suspend$/)
+  const suspendMatch = normalizedPath.match(/^\/schedules\/(\d+)\/suspend$/)
   if (method === 'POST' && suspendMatch) {
     const id = Number(suspendMatch[1])
     const schedule = findSchedule(id)
@@ -426,7 +428,7 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     return noContent(204)
   }
 
-  const completeMatch = path.match(/^\/v1\/schedules\/(\d+)\/complete$/)
+  const completeMatch = normalizedPath.match(/^\/schedules\/(\d+)\/complete$/)
   if (method === 'POST' && completeMatch) {
     const id = Number(completeMatch[1])
     const schedule = findSchedule(id)
@@ -436,7 +438,7 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     return noContent(204)
   }
 
-  const cancelMatch = path.match(/^\/v1\/schedules\/(\d+)\/cancel$/)
+  const cancelMatch = normalizedPath.match(/^\/schedules\/(\d+)\/cancel$/)
   if (method === 'POST' && cancelMatch) {
     const id = Number(cancelMatch[1])
     const schedule = findSchedule(id)
@@ -446,7 +448,7 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     return noContent(204)
   }
 
-  const detailMatch = path.match(/^\/v1\/schedules\/(\d+)$/)
+  const detailMatch = normalizedPath.match(/^\/schedules\/(\d+)$/)
   if (detailMatch && method === 'GET') {
     const id = Number(detailMatch[1])
     const schedule = findSchedule(id)
@@ -472,7 +474,7 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     return noContent(204)
   }
 
-  if (method === 'POST' && path === '/v1/schedules') {
+  if (method === 'POST' && normalizedPath === '/schedules') {
     const body = await readJson<ScheduleRequest>(request)
     if (!body?.title || !body.description || !body.date || !body.scheduleType) {
       return json({ message: 'title, description, date, scheduleType가 필요합니다.' }, 400)
@@ -496,7 +498,8 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
 }
 
 const handleStatistics = (path: string, method: string, searchParams: URLSearchParams) => {
-  if (method !== 'GET' || path !== '/v1/statistics') return null
+  const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
+  if (method !== 'GET' || normalizedPath !== '/statistics') return null
   const target = getTargetDateFromQuery(searchParams)
   const zoneId = target.zoneId || 'UTC'
   const startOfWeek = dayjs.tz(target.dateTime, zoneId).startOf('week')
