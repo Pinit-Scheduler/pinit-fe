@@ -11,6 +11,8 @@ import type {
 import type { DateTimeWithZone } from '../types/datetime'
 import { toApiDateTimeWithZone } from '../utils/datetime'
 
+const TASK_API_VERSION = 'v2'
+
 type ListParams = {
   page?: number
   size?: number
@@ -63,7 +65,7 @@ export const fetchTasks = async ({ page = 0, size = 20, readyOnly = false }: Lis
     size: String(size),
     readyOnly: String(readyOnly),
   })
-  const response = await httpClient<PageTaskApiResponse>(buildApiUrl(`/tasks?${query.toString()}`, 'v2'))
+  const response = await httpClient<PageTaskApiResponse>(buildApiUrl(`/tasks?${query.toString()}`, TASK_API_VERSION))
   return {
     content: normalizeTaskList(response.content),
     number: response.number,
@@ -86,7 +88,7 @@ export const fetchTasksByCursor = async (
   })
   if (cursor) query.set('cursor', cursor)
   const response = await httpClient<TaskCursorApiResponse>(
-    buildApiUrl(`/tasks/cursor?${query.toString()}`, 'v2'),
+    buildApiUrl(`/tasks/cursor?${query.toString()}`, TASK_API_VERSION),
   )
   return {
     items: normalizeTaskList(response.data),
@@ -103,7 +105,7 @@ export const fetchTaskArchiveByCursor = async (
   })
   if (cursor) query.set('cursor', cursor)
   const response = await httpClient<TaskCursorApiResponse>(
-    buildApiUrl(`/tasks/completed?${query.toString()}`, 'v2'),
+    buildApiUrl(`/tasks/completed?${query.toString()}`, TASK_API_VERSION),
   )
   return {
     items: normalizeTaskList(response.data),
@@ -113,16 +115,16 @@ export const fetchTaskArchiveByCursor = async (
 }
 
 export const fetchTaskDetail = async (taskId: number) =>
-  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, 'v2')))
+  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION)))
 
 export const createTask = async (payload: TaskRequest) =>
-  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl('/tasks', 'v2'), {
+  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl('/tasks', TASK_API_VERSION), {
     method: 'POST',
     json: payload,
   }))
 
 export const updateTask = async (taskId: number, payload: TaskRequest) =>
-  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, 'v2'), {
+  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION), {
     method: 'PATCH',
     json: payload,
   }))
@@ -131,23 +133,23 @@ export const deleteTask = (taskId: number, deleteSchedules = false) => {
   const query = new URLSearchParams({
     deleteSchedules: String(deleteSchedules),
   })
-  return httpClient<void>(buildApiUrl(`/tasks/${taskId}?${query.toString()}`, 'v2'), {
+  return httpClient<void>(buildApiUrl(`/tasks/${taskId}?${query.toString()}`, TASK_API_VERSION), {
     method: 'DELETE',
   })
 }
 
 export const completeTask = (taskId: number) =>
-  httpClient<void>(buildApiUrl(`/tasks/${taskId}/complete`, 'v2'), {
+  httpClient<void>(buildApiUrl(`/tasks/${taskId}/complete`, TASK_API_VERSION), {
     method: 'POST',
   })
 
 export const reopenTask = (taskId: number) =>
-  httpClient<void>(buildApiUrl(`/tasks/${taskId}/reopen`, 'v2'), {
+  httpClient<void>(buildApiUrl(`/tasks/${taskId}/reopen`, TASK_API_VERSION), {
     method: 'POST',
   })
 
 export const createScheduleFromTask = (taskId: number, payload: TaskScheduleRequest | { date: DateTimeWithZone; scheduleType: TaskScheduleRequest['scheduleType']; title?: string; description?: string }) =>
-  httpClient<void>(buildApiUrl(`/tasks/${taskId}/schedules`, 'v2'), {
+  httpClient<void>(buildApiUrl(`/tasks/${taskId}/schedules`, TASK_API_VERSION), {
     method: 'POST',
     json: {
       ...payload,
