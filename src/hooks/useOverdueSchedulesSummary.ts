@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import type { OverdueSummary, ScheduleResponse } from '../types/schedule'
-import { fetchWeeklySchedules } from '../api/schedulesV1'
+import { fetchWeeklySchedules } from '../api/schedules'
 import { getTodayWithOffset, toApiDateTimeWithZone, toDateFromApi, toDateKey } from '../utils/datetime'
 import { useTimePreferences } from '../context/TimePreferencesContext'
 
