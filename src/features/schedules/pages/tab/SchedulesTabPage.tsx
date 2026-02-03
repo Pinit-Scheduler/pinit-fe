@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PointerEvent } from 'react'
 import useScheduleViewState from '../../hooks/useScheduleViewState.ts'
 import WeeklyDateStrip from '../../components/WeeklyDateStrip.tsx'
 import OverdueBanner from '../../components/OverdueBanner.tsx'
@@ -26,18 +25,10 @@ import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 import { dispatchScheduleChanged } from '@shared/utils/events'
-
-const EDGE_GUTTER = 72
-const DRAG_ACTIVATE_DISTANCE = 6
+import useScheduleDrag from '../../hooks/useScheduleDrag'
 
 const SchedulesTabPage = () => {
   const listRef = useRef<HTMLDivElement | null>(null)
-  const pullStartY = useRef<number | null>(null)
-  const pullActivated = useRef(false)
-  const dragStateRef = useRef<{ id: number; startX: number; startY: number; moved: boolean } | null>(null)
-  const suppressClickRef = useRef(false)
-  const [draggingScheduleId, setDraggingScheduleId] = useState<number | null>(null)
-  const [edgeTarget, setEdgeTarget] = useState<'prev' | 'next' | null>(null)
   const [movingScheduleId, setMovingScheduleId] = useState<number | null>(null)
   const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null)
   const [weekDirection, setWeekDirection] = useState<'forward' | 'backward'>('forward')
@@ -226,61 +217,17 @@ const SchedulesTabPage = () => {
     }
   }
 
-  const resetDragState = () => {
-    dragStateRef.current = null
-    setDraggingScheduleId(null)
-    setEdgeTarget(null)
-  }
-
-  const handleDragStart = (event: PointerEvent<HTMLDivElement>, scheduleId: number) => {
-    dragStateRef.current = {
-      id: scheduleId,
-      startX: event.clientX,
-      startY: event.clientY,
-      moved: false,
-    }
-    suppressClickRef.current = false
-    setDraggingScheduleId(scheduleId)
-    setEdgeTarget(null)
-  }
-
-  const handleDragMove = (event: PointerEvent<HTMLDivElement>) => {
-    const state = dragStateRef.current
-    if (!state) return
-    const deltaX = event.clientX - state.startX
-    const deltaY = event.clientY - state.startY
-    if (!state.moved && Math.abs(deltaX) + Math.abs(deltaY) > DRAG_ACTIVATE_DISTANCE) {
-      state.moved = true
-    }
-    const viewportWidth = window.innerWidth
-    const nextTarget =
-      event.clientX < EDGE_GUTTER
-        ? 'prev'
-        : event.clientX > viewportWidth - EDGE_GUTTER
-          ? 'next'
-          : null
-    setEdgeTarget(nextTarget)
-  }
-
-  const handleDragEnd = (event: PointerEvent<HTMLDivElement>, schedule: ScheduleSummary) => {
-    const state = dragStateRef.current
-    if (!state || state.id !== schedule.id) {
-      resetDragState()
-      return
-    }
-    const target = edgeTarget
-    if (state.moved) {
-      event.preventDefault()
-      suppressClickRef.current = true
-      window.setTimeout(() => {
-        suppressClickRef.current = false
-      }, 300)
-    }
-    resetDragState()
-    if (target) {
-      handleMoveSchedule(schedule, target === 'prev' ? -1 : 1)
-    }
-  }
+  const {
+    edgeTarget,
+    draggingScheduleId,
+    getItemHandlers,
+    containerTouchHandlers,
+  } = useScheduleDrag({
+    containerRef: listRef,
+    hasItems: schedules.length > 0,
+    onMove: handleMoveSchedule,
+    onRefresh: handleRefresh,
+  })
 
   return (
     <section className="schedules-tab">
@@ -334,34 +281,9 @@ const SchedulesTabPage = () => {
       <div
         ref={listRef}
         className={['schedules-tab__list', 'fade-slide', `week-transition--${weekDirection}`].join(' ')}
-        onTouchStart={(e) => {
-          if (!schedules.length) return
-          pullStartY.current = e.touches[0].clientY
-          pullActivated.current = false
-        }}
-        onTouchMove={(e) => {
-          if (!schedules.length) return
-          const container = listRef.current
-          if (!container) return
-          if (container.scrollTop > 0) {
-            pullStartY.current = null
-            pullActivated.current = false
-            return
-          }
-          const startY = pullStartY.current ?? e.touches[0].clientY
-          pullStartY.current = startY
-          const deltaY = e.touches[0].clientY - startY
-          if (deltaY > 60) {
-            pullActivated.current = true
-          }
-        }}
-        onTouchEnd={() => {
-          if (pullActivated.current) {
-            handleRefresh()
-          }
-          pullStartY.current = null
-          pullActivated.current = false
-        }}
+        onTouchStart={containerTouchHandlers.onTouchStart}
+        onTouchMove={containerTouchHandlers.onTouchMove}
+        onTouchEnd={containerTouchHandlers.onTouchEnd}
       >
         <div
           className={[
@@ -409,18 +331,7 @@ const SchedulesTabPage = () => {
               ]
                 .filter(Boolean)
                 .join(' ')}
-              onPointerDown={(event) => handleDragStart(event, schedule.id)}
-              onPointerMove={handleDragMove}
-              onPointerUp={(event) => handleDragEnd(event, schedule)}
-              onPointerCancel={() => resetDragState()}
-              onPointerLeave={() => resetDragState()}
-              onClickCapture={(event) => {
-                if (suppressClickRef.current) {
-                  event.stopPropagation()
-                  event.preventDefault()
-                  suppressClickRef.current = false
-                }
-              }}
+              {...getItemHandlers(schedule)}
             >
               <ScheduleCard
                 schedule={schedule}

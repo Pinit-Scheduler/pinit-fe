@@ -4,15 +4,12 @@ import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import type { ScheduleState } from '../types/schedule'
 import './MiniPlayerBar.css'
 
-// 진행 중인 일정에 대한 미니 플레이어 바 컴포넌트
-// 대체할 이름 없음
 const MiniPlayerBar = () => {
   const activeSchedule = useActiveSchedule()
   const { activeScheduleId } = useScheduleCache()
   const scheduleActions = useScheduleActions(
     activeSchedule?.id ?? null,
     (activeSchedule?.state ?? 'NOT_STARTED') as ScheduleState,
-    { syncTask: false }, // Mini player는 Task 상태와 독립적으로 schedule만 제어
   )
 
   const stateLabel: Record<ScheduleState, string> = {
