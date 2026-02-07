@@ -4,6 +4,12 @@
   font-weight: 400;
   color: #0f172a;
   background-color: #f8fafc;
+  --z-topbar: 10;
+  --z-mini-player: 90;
+  --z-bottom-tab: 100;
+  --z-bottom-tab-fab: 110;
+  --z-modal-backdrop: 200;
+  --z-toast: 999;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

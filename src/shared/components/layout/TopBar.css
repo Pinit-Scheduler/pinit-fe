@@ -7,7 +7,7 @@
   background-color: #fff;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: var(--z-topbar);
 }
 
 .top-bar__section {
@@ -49,4 +49,3 @@
 .top-bar__icon-button:active {
   background-color: #cbd5f5;
 }
-

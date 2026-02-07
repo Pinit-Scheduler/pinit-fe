@@ -4,7 +4,7 @@
   transform: translateX(-50%);
   width: min(520px, calc(100% - 32px));
   bottom: calc(96px + env(safe-area-inset-bottom, 0px));
-  z-index: 90;
+  z-index: var(--z-mini-player);
 }
 
 .mini-player {
