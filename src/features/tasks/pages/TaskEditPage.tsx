@@ -101,30 +101,32 @@ const TaskEditPage = () => {
         <h1 className="task-page__title">작업 업데이트</h1>
         <p className="task-page__description">Task 상세를 불러와 폼에 채워 수정합니다.</p>
       </header>
-      {isLoading ? (
-        <div className="task-page__placeholder">
-          <p>작업 정보를 불러오는 중...</p>
-        </div>
-      ) : error || !task ? (
-        <div className="task-page__placeholder">
-          <p>작업 정보를 불러오지 못했습니다.</p>
-          <p>{error}</p>
-        </div>
-      ) : (
-        <TaskForm
-          initialValues={{
-            title: task.title,
-            description: task.description,
-            dueDate: toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD'),
-            importance: task.importance,
-            difficulty: task.difficulty as TaskFormValues['difficulty'],
-            previousTaskIds: initialPrevIds,
-            nextTaskIds: initialNextIds,
-          }}
-          onSubmit={handleSubmit}
-          submitLabel="작업 수정"
-        />
-      )}
+      <div className="task-page__content">
+        {isLoading ? (
+          <div className="task-page__placeholder">
+            <p>작업 정보를 불러오는 중...</p>
+          </div>
+        ) : error || !task ? (
+          <div className="task-page__placeholder">
+            <p>작업 정보를 불러오지 못했습니다.</p>
+            <p>{error}</p>
+          </div>
+        ) : (
+          <TaskForm
+            initialValues={{
+              title: task.title,
+              description: task.description,
+              dueDate: toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD'),
+              importance: task.importance,
+              difficulty: task.difficulty as TaskFormValues['difficulty'],
+              previousTaskIds: initialPrevIds,
+              nextTaskIds: initialNextIds,
+            }}
+            onSubmit={handleSubmit}
+            submitLabel="작업 수정"
+          />
+        )}
+      </div>
     </section>
   )
 }

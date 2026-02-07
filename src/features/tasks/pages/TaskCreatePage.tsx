@@ -45,7 +45,9 @@ const TaskCreatePage = () => {
         <h1 className="task-page__title">작업 추가</h1>
         <p className="task-page__description">Task 폼과 의존성 선택 모달을 연결할 예정입니다.</p>
       </header>
-      <TaskForm onSubmit={handleSubmit} submitLabel="작업 생성" />
+      <div className="task-page__content">
+        <TaskForm onSubmit={handleSubmit} submitLabel="작업 생성" />
+      </div>
     </section>
   )
 }
