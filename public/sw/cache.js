@@ -1,6 +1,6 @@
 self.pinitSw = self.pinitSw || {}
 
-const { CACHE_NAME } = self.pinitSw.constants
+const { CACHE_NAME: SW_CACHE_NAME } = self.pinitSw.constants
 
 const isSameOriginGet = (request) =>
   request.method === 'GET' && new URL(request.url).origin === self.location.origin
@@ -11,7 +11,7 @@ const cacheFirst = async (request) => {
   try {
     const response = await fetch(request)
     const copy = response.clone()
-    caches.open(CACHE_NAME).then((cache) => cache.put(request, copy))
+    caches.open(SW_CACHE_NAME).then((cache) => cache.put(request, copy))
     return response
   } catch {
     return cached

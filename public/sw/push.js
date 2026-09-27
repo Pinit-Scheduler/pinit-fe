@@ -1,6 +1,6 @@
 self.pinitSw = self.pinitSw || {}
 
-const { hasRecentIdempotentKey, saveIdempotentKey } = self.pinitSw.idempotency
+const pushIdempotency = self.pinitSw.idempotency
 
 const readPushPayload = (event) => {
   if (!event.data) return null
@@ -28,9 +28,9 @@ const buildNotificationOptions = (notificationPayload, dataPayload, scheduleId, 
 
 const showNotificationOnce = async (title, options, idempotencyKey) => {
   if (idempotencyKey) {
-    const isDuplicate = await hasRecentIdempotentKey(idempotencyKey)
+    const isDuplicate = await pushIdempotency.hasRecentIdempotentKey(idempotencyKey)
     if (isDuplicate) return
-    await saveIdempotentKey(idempotencyKey)
+    await pushIdempotency.saveIdempotentKey(idempotencyKey)
   }
   return self.registration.showNotification(title, options)
 }
