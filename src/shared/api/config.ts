@@ -23,16 +23,16 @@ const rawApiBaseUrl =
   import.meta.env.PROD && import.meta.env.VITE_API_BASE_URL
     ? import.meta.env.VITE_API_BASE_URL
     : import.meta.env.PROD
-      ? 'https://api.pinit.go-gradually.me'
+      ? 'https://mono.pinit.go-gradually.me'
       : 'http://localhost:8080'
 
 const rawAuthBaseUrl =
   import.meta.env.VITE_AUTH_BASE_URL ||
-  (import.meta.env.PROD ? 'https://auth.pinit.go-gradually.me' : 'http://localhost:8081')
+  (import.meta.env.PROD ? 'https://mono.pinit.go-gradually.me' : 'http://localhost:8081')
 
 const rawNotificationBaseUrl =
   import.meta.env.VITE_NOTIFICATION_API_BASE_URL ||
-  (import.meta.env.PROD ? 'https://notification.pinit.go-gradually.me' : 'http://localhost:8082')
+  (import.meta.env.PROD ? 'https://mono.pinit.go-gradually.me' : 'http://localhost:8082')
 
 const API_VERSION = normalizeVersion(SERVICE_VERSIONS.api)
 const AUTH_API_VERSION = normalizeVersion(SERVICE_VERSIONS.auth)

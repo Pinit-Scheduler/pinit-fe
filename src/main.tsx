@@ -22,7 +22,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     let hasRefreshedForUpdate = false
 
     navigator.serviceWorker
-      .register('/sw.js')
+      .register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => {
         // Trigger an update check when the user revisits.
         registration.update()
