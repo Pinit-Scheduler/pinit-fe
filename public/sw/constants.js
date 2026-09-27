@@ -1,7 +1,7 @@
 self.pinitSw = self.pinitSw || {}
 
 self.pinitSw.constants = {
-  CACHE_NAME: 'pinit-cache-v1', //TODO CACHE_NAME 자동으로 올릴 기법
+  CACHE_NAME: 'pinit-cache-v2', //TODO CACHE_NAME 자동으로 올릴 기법
   PRECACHE_URLS: [
     '/',
     '/index.html',
