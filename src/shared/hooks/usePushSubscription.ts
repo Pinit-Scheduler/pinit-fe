@@ -35,13 +35,22 @@ const isPushEnvironmentSupported = () =>
 
 const resolveRegistration = async () => {
   const existing = await navigator.serviceWorker.getRegistration()
-  if (existing) {
-    return existing
+  const registration = existing ?? (import.meta.env.PROD
+    ? await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+    : null)
+  if (!registration || registration.active) return registration
+
+  let timeoutId: number | undefined
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(() => reject(new Error('서비스 워커가 준비되지 않았어요. 페이지를 새로고침해주세요.')), 10000)
+      }),
+    ])
+  } finally {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId)
   }
-  if (import.meta.env.PROD) {
-    return navigator.serviceWorker.ready
-  }
-  return null
 }
 
 const usePushSubscription = () => {
