@@ -1,6 +1,7 @@
 import { API_BASE_URL, AUTH_BASE_URL, buildAuthUrl, buildUrl } from './config'
 import { getAccessToken, isAccessTokenExpired, setAuthTokens } from './authTokens'
 import { createCookieTokenRefresher, debugLog } from './httpClientHelpers'
+import { getApiErrorMessage } from './errorMessage'
 
 // 앱 시작 시 설정 확인
 debugLog('🔌 API Configuration:', {
@@ -99,20 +100,18 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
     })
 
     if (!response.ok) {
-      let payload: unknown
-      const cloned = response.clone()
+      let payload: unknown = null
       try {
-        payload = await cloned.json()
-      } catch {
+        const rawPayload = await response.text()
         try {
-          payload = await cloned.text()
+          payload = JSON.parse(rawPayload)
         } catch {
-          payload = null
+          payload = rawPayload
         }
-      }
+      } catch { /* 응답 본문을 읽지 못하면 기본 오류 메시지를 사용 */ }
       console.error(`❌ API Error:`, { status: response.status, url, payload })
       throw new ApiError(
-        `API 요청 실패: ${response.status} ${response.statusText}`,
+        getApiErrorMessage(payload),
         response.status,
         payload,
         url
