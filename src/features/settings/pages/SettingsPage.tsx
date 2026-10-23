@@ -7,6 +7,7 @@ import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import PersonalAccessTokenSection from '../components/PersonalAccessTokenSection'
 import McpConnectionGuide from '../components/McpConnectionGuide'
+import ConnectedAppsSection from '../components/ConnectedAppsSection'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
@@ -176,9 +177,11 @@ const SettingsPage = () => {
         </ul>
       </section>
 
-      <PersonalAccessTokenSection />
-
       <McpConnectionGuide />
+
+      <ConnectedAppsSection />
+
+      <PersonalAccessTokenSection />
 
       <section className="settings__card" aria-label="향후 추가 예정">
         <h2>향후 추가 예정</h2>

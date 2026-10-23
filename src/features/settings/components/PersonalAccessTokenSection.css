@@ -1,7 +1,8 @@
-.pat {
+.pat__body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 12px;
 }
 
 .pat__header {
@@ -9,6 +10,32 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pat__header::-webkit-details-marker {
+  display: none;
+}
+
+.pat__header h2::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  color: #64748b;
+  transition: transform 0.15s ease;
+}
+
+.pat__advanced[open] .pat__header h2::before {
+  transform: rotate(90deg);
+}
+
+.pat code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 6px;
+  background-color: #f1f5f9;
 }
 
 .settings__card .pat__header h2 {

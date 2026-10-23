@@ -23,6 +23,8 @@ import {
   validateCreateForm,
 } from '../utils/personalAccessTokens'
 import type { CreatePersonalAccessTokenFormErrors } from '../utils/personalAccessTokens'
+import { buildClaudeCodeCommandWithToken, buildMcpJsonConfigWithToken } from '../utils/mcpConnection'
+import { MCP_SERVER_URL } from '../utils/mcpServerUrl'
 import CopyableCode from './CopyableCode'
 import './PersonalAccessTokenSection.css'
 
@@ -66,6 +68,7 @@ const PersonalAccessTokenSection = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [revokingId, setRevokingId] = useState<number | null>(null)
   const [revealed, setRevealed] = useState<RevealedToken | null>(null)
+  const [isOpen, setIsOpen] = useState(false)
 
   const isLimitReached = activeCount >= MAX_ACTIVE_PERSONAL_ACCESS_TOKENS
 
@@ -183,105 +186,123 @@ const PersonalAccessTokenSection = () => {
   }
 
   return (
-    <section className="settings__card pat" aria-label="개인 액세스 토큰">
-      <div className="pat__header">
-        <h2>개인 액세스 토큰</h2>
-        <span
-          className={isLimitReached ? 'settings__badge settings__badge--warning' : 'settings__badge'}
-          aria-label={`활성 토큰 ${activeCount}개, 최대 ${MAX_ACTIVE_PERSONAL_ACCESS_TOKENS}개`}
-        >
-          활성 {activeCount} / {MAX_ACTIVE_PERSONAL_ACCESS_TOKENS}
-        </span>
-      </div>
-      <p className="settings__description">
-        Claude Code 같은 AI 클라이언트가 Pinit MCP 서버에 접속할 때 쓰는 토큰이에요. 토큰은 비밀번호처럼 다뤄주세요.
-      </p>
-
-      {revealed && (
-        <div className="pat__reveal" role="alert">
-          <p className="pat__reveal-title">"{revealed.name}" 토큰이 발급됐어요</p>
-          <p className="pat__reveal-warning">
-            이 토큰은 지금 한 번만 보여드려요. 창을 닫거나 이동하면 다시 확인할 수 없으니 바로 복사해 안전한 곳에 보관하세요.
-          </p>
-          <CopyableCode label="개인 액세스 토큰" value={revealed.token} />
-          <button type="button" className="pat__reveal-dismiss" onClick={() => setRevealed(null)}>
-            복사했어요, 닫기
-          </button>
-        </div>
-      )}
-
-      <form className="pat__form" onSubmit={handleSubmit} noValidate>
-        <label className="pat__field">
-          <span className="settings__label">토큰 이름</span>
-          <input
-            className="pat__input"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="예: Claude Code (회사 노트북)"
-            maxLength={MAX_TOKEN_NAME_LENGTH}
-            autoComplete="off"
-            aria-invalid={Boolean(formErrors.name)}
-          />
-          {formErrors.name && <span className="pat__error">{formErrors.name}</span>}
-        </label>
-
-        <fieldset className="pat__field pat__fieldset">
-          <legend className="settings__label">권한</legend>
-          {ACCESS_OPTIONS.map((option) => (
-            <label
-              key={option.value}
-              className={['pat__option', access === option.value && 'is-selected'].filter(Boolean).join(' ')}
-            >
-              <input
-                type="radio"
-                name="pat-access"
-                value={option.value}
-                checked={access === option.value}
-                onChange={() => setAccess(option.value)}
-              />
-              <span>
-                <span className="pat__option-label">{option.label}</span>
-                <span className="settings__description">{option.description}</span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-
-        <label className="pat__field">
-          <span className="settings__label">만료 기간</span>
-          <select
-            className="pat__input"
-            value={expiresInDays}
-            onChange={(event) => setExpiresInDays(Number(event.target.value))}
-            aria-invalid={Boolean(formErrors.expiresInDays)}
+    <section className="settings__card pat" aria-label="고급: 개인 액세스 토큰">
+      {/* 기본 연결은 OAuth 로그인·동의라서 PAT는 접어 둔다. 발급 폼과 평문 토큰은 펼친 상태에서만 보인다. */}
+      <details className="pat__advanced" open={isOpen} onToggle={(event) => setIsOpen(event.currentTarget.open)}>
+        <summary className="pat__header">
+          <h2>고급: 개인 액세스 토큰</h2>
+          <span
+            className={isLimitReached ? 'settings__badge settings__badge--warning' : 'settings__badge'}
+            aria-label={`활성 토큰 ${activeCount}개, 최대 ${MAX_ACTIVE_PERSONAL_ACCESS_TOKENS}개`}
           >
-            {EXPIRY_DAY_OPTIONS.map((days) => (
-              <option key={days} value={days}>
-                {days}일{days === DEFAULT_EXPIRY_DAYS ? ' (기본)' : ''}
-              </option>
-            ))}
-          </select>
-          {formErrors.expiresInDays && <span className="pat__error">{formErrors.expiresInDays}</span>}
-        </label>
-
-        {isLimitReached && (
-          <p className="pat__notice">
-            활성 토큰은 최대 {MAX_ACTIVE_PERSONAL_ACCESS_TOKENS}개까지 가질 수 있어요. 쓰지 않는 토큰을 폐기한 뒤 다시 발급해주세요.
+            활성 {activeCount} / {MAX_ACTIVE_PERSONAL_ACCESS_TOKENS}
+          </span>
+        </summary>
+        <div className="pat__body">
+          <p className="settings__description">
+            로그인·동의 연결을 지원하지 않는 클라이언트나 자동화 스크립트용이에요. 토큰을 Authorization 헤더로 보내 연결해요. 토큰은
+            비밀번호처럼 다뤄주세요.
           </p>
-        )}
-        {submitError && (
-          <p className="pat__error" role="alert">
-            {submitError}
+
+          {revealed && (
+            <div className="pat__reveal" role="alert">
+              <p className="pat__reveal-title">"{revealed.name}" 토큰이 발급됐어요</p>
+              <p className="pat__reveal-warning">
+                이 토큰은 지금 한 번만 보여드려요. 창을 닫거나 이동하면 다시 확인할 수 없으니 바로 복사해 안전한 곳에 보관하세요.
+              </p>
+              <CopyableCode label="개인 액세스 토큰" value={revealed.token} />
+              <button type="button" className="pat__reveal-dismiss" onClick={() => setRevealed(null)}>
+                복사했어요, 닫기
+              </button>
+            </div>
+          )}
+
+          <form className="pat__form" onSubmit={handleSubmit} noValidate>
+            <label className="pat__field">
+              <span className="settings__label">토큰 이름</span>
+              <input
+                className="pat__input"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="예: Claude Code (회사 노트북)"
+                maxLength={MAX_TOKEN_NAME_LENGTH}
+                autoComplete="off"
+                aria-invalid={Boolean(formErrors.name)}
+              />
+              {formErrors.name && <span className="pat__error">{formErrors.name}</span>}
+            </label>
+
+            <fieldset className="pat__field pat__fieldset">
+              <legend className="settings__label">권한</legend>
+              {ACCESS_OPTIONS.map((option) => (
+                <label
+                  key={option.value}
+                  className={['pat__option', access === option.value && 'is-selected'].filter(Boolean).join(' ')}
+                >
+                  <input
+                    type="radio"
+                    name="pat-access"
+                    value={option.value}
+                    checked={access === option.value}
+                    onChange={() => setAccess(option.value)}
+                  />
+                  <span>
+                    <span className="pat__option-label">{option.label}</span>
+                    <span className="settings__description">{option.description}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+
+            <label className="pat__field">
+              <span className="settings__label">만료 기간</span>
+              <select
+                className="pat__input"
+                value={expiresInDays}
+                onChange={(event) => setExpiresInDays(Number(event.target.value))}
+                aria-invalid={Boolean(formErrors.expiresInDays)}
+              >
+                {EXPIRY_DAY_OPTIONS.map((days) => (
+                  <option key={days} value={days}>
+                    {days}일{days === DEFAULT_EXPIRY_DAYS ? ' (기본)' : ''}
+                  </option>
+                ))}
+              </select>
+              {formErrors.expiresInDays && <span className="pat__error">{formErrors.expiresInDays}</span>}
+            </label>
+
+            {isLimitReached && (
+              <p className="pat__notice">
+                활성 토큰은 최대 {MAX_ACTIVE_PERSONAL_ACCESS_TOKENS}개까지 가질 수 있어요. 쓰지 않는 토큰을 폐기한 뒤 다시 발급해주세요.
+              </p>
+            )}
+            {submitError && (
+              <p className="pat__error" role="alert">
+                {submitError}
+              </p>
+            )}
+
+            <button type="submit" className="settings__action-btn" disabled={isSubmitting || isLimitReached}>
+              {isSubmitting ? '발급 중...' : '토큰 발급'}
+            </button>
+          </form>
+
+          <h3 className="pat__subheading">발급한 토큰</h3>
+          {renderList()}
+
+          <h3 className="pat__subheading">토큰으로 연결하기</h3>
+          <p className="settings__description">
+            아래 예시의 <code>&lt;PAT&gt;</code> 자리에 발급받은 토큰을 넣어주세요.
           </p>
-        )}
-
-        <button type="submit" className="settings__action-btn" disabled={isSubmitting || isLimitReached}>
-          {isSubmitting ? '발급 중...' : '토큰 발급'}
-        </button>
-      </form>
-
-      <h3 className="pat__subheading">발급한 토큰</h3>
-      {renderList()}
+          <CopyableCode
+            label="토큰을 쓰는 Claude Code 명령"
+            value={buildClaudeCodeCommandWithToken(MCP_SERVER_URL)}
+            multiline
+            rows={4}
+          />
+          <CopyableCode label="토큰을 쓰는 MCP 설정 JSON" value={buildMcpJsonConfigWithToken(MCP_SERVER_URL)} multiline />
+        </div>
+      </details>
     </section>
   )
 }

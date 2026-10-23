@@ -1,17 +1,14 @@
-import { buildApiUrl } from '@shared/api/config'
-import { PAT_PLACEHOLDER, buildClaudeCodeCommand, buildMcpJsonConfig } from '../utils/mcpConnection'
+import { buildClaudeCodeCommand, buildMcpJsonConfig } from '../utils/mcpConnection'
+import { MCP_SERVER_URL } from '../utils/mcpServerUrl'
 import CopyableCode from './CopyableCode'
 import './McpConnectionGuide.css'
-
-// 운영 환경에서는 https://mono.pinit.go-gradually.me/mcp
-const MCP_SERVER_URL = buildApiUrl('/mcp', '')
 
 const McpConnectionGuide = () => (
   <section className="settings__card mcp-guide" aria-label="MCP 연결 가이드">
     <h2>AI 클라이언트 연결 (MCP)</h2>
     <p className="settings__description">
-      위에서 발급한 토큰으로 Claude Code 같은 MCP 클라이언트를 연결하면 AI가 내 작업과 일정을 조회하고 관리할 수 있어요.
-      아래 예시의 <code>{PAT_PLACEHOLDER}</code> 자리에 발급받은 토큰을 넣어주세요.
+      AI 클라이언트에 Pinit 서버 주소만 등록하면 돼요. 처음 연결할 때 브라우저에서 Pinit 로그인과 동의 화면이 열리고, 허용하면
+      연결이 끝나요.
     </p>
 
     <div className="mcp-guide__step">
@@ -21,8 +18,19 @@ const McpConnectionGuide = () => (
 
     <div className="mcp-guide__step">
       <p className="settings__label">Claude Code</p>
-      <p className="settings__description">터미널에서 아래 명령을 실행하세요.</p>
-      <CopyableCode label="Claude Code 명령" value={buildClaudeCodeCommand(MCP_SERVER_URL)} multiline rows={4} />
+      <p className="settings__description">
+        터미널에서 아래 명령을 실행한 뒤, Claude Code에서 <code>/mcp</code>로 pinit을 골라 인증하세요.
+      </p>
+      <CopyableCode label="Claude Code 명령" value={buildClaudeCodeCommand(MCP_SERVER_URL)} multiline rows={3} />
+    </div>
+
+    <div className="mcp-guide__step">
+      <p className="settings__label">Claude.ai</p>
+      <ol className="mcp-guide__steps">
+        <li>설정 &gt; 커넥터에서 커스텀 커넥터를 추가하고 위 서버 URL을 입력해요.</li>
+        <li>연결을 누르면 열리는 Pinit 화면에서 로그인해요.</li>
+        <li>동의 화면에서 권한을 확인하고 허용해요.</li>
+      </ol>
     </div>
 
     <div className="mcp-guide__step">
@@ -35,11 +43,11 @@ const McpConnectionGuide = () => (
 
     <ul className="mcp-guide__notes">
       <li>
-        <strong>읽기 전용</strong> 토큰은 작업·일정 목록과 상세 조회만 할 수 있고, 생성·수정·시작/완료 같은 변경에는{' '}
-        <strong>읽기 + 쓰기</strong> 토큰이 필요해요.
+        동의 화면에서 <strong>일정·작업 보기</strong>는 항상 허용되고, <strong>만들기·수정·상태 변경</strong>은 체크를 해제해 뺄 수
+        있어요.
       </li>
       <li>AI 클라이언트는 Pinit MCP로 작업이나 일정을 삭제할 수 없어요. 삭제는 앱에서 직접 해주세요.</li>
-      <li>토큰이 유출됐다면 바로 위 목록에서 폐기하세요. 폐기한 토큰은 즉시 사용할 수 없어요.</li>
+      <li>연결한 앱은 아래 연결된 앱에서 확인하고 언제든 끊을 수 있어요.</li>
     </ul>
   </section>
 )

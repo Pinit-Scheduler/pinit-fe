@@ -13,6 +13,7 @@ import { TodayPage } from '@features/today'
 import { TaskListPage, TaskCreatePage, TaskEditPage, TaskDetailPage } from '@features/tasks'
 import { StatisticsTabPage } from '@features/statistics'
 import { SettingsPage } from '@features/settings'
+import { OAuthConsentPage } from '@features/oauth'
 
 const InitialLoadingScreen = () => {
   return (
@@ -43,6 +44,7 @@ const AppContent = () => {
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/login/callback/:provider" element={<SocialCallbackPage />} />
                 <Route element={<AuthGuard />}>
+                  <Route path="/oauth/consent" element={<OAuthConsentPage />} />
                   <Route path="/app" element={<AppShell />}>
                     <Route index element={<Navigate to="/app/today" replace />} />
                     <Route path="today" element={<TodayPage />} />
