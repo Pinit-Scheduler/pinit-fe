@@ -7,14 +7,17 @@ import type { Task, TaskRequest } from '../features/tasks/types/task'
 import type { ScheduleRequest, ScheduleResponse } from '../features/schedules/types/schedule'
 import type { StatisticsResponse } from '../features/statistics/types/statistics'
 import type { PushTokenRequest } from '../features/settings/api/notifications'
+import type { CreatePersonalAccessTokenRequest } from '../features/settings/types/personalAccessToken'
 import type { LoginPayload, SignupPayload, SocialLoginPayload } from '../features/auth/api/auth'
 import {
   activeScheduleId,
   makeToken,
+  mockPersonalAccessTokens,
   mockPushSubscriptions,
   mockSchedules,
   mockTasks,
   mockUsers,
+  nextPersonalAccessTokenId,
   nextScheduleId,
   nextTaskId,
   setActiveScheduleId,
@@ -182,6 +185,54 @@ const handleNotifications = async (path: string, method: string, request: Reques
     const deviceId = searchParams.get('deviceId')
     const tokens = deviceId ? mockPushSubscriptions.get(deviceId) : null
     return json(tokens ? tokens.size > 0 : false)
+  }
+
+  return null
+}
+
+const randomAlphanumeric = (length: number) =>
+  Array.from({ length }, () => 'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]).join('')
+
+const handlePersonalAccessTokens = async (path: string, method: string, request: Request) => {
+  if (path === '/v2/personal-access-tokens' && method === 'GET') {
+    return json([...mockPersonalAccessTokens].sort((a, b) => b.id - a.id))
+  }
+
+  if (path === '/v2/personal-access-tokens' && method === 'POST') {
+    const body = await readJson<CreatePersonalAccessTokenRequest>(request)
+    const name = body?.name?.trim()
+    if (!name || !body?.scopes?.length) {
+      return json({ message: '토큰 이름과 scope를 확인해주세요.' }, 400)
+    }
+    const now = Date.now()
+    const activeCount = mockPersonalAccessTokens.filter(
+      (token) => !token.revokedAt && Date.parse(token.expiresAt) > now,
+    ).length
+    if (activeCount >= 10) {
+      return json({ message: '활성 개인 액세스 토큰은 최대 10개까지 보유할 수 있습니다.' }, 409)
+    }
+    const scopes: CreatePersonalAccessTokenRequest['scopes'] = body.scopes.includes('mcp:write')
+      ? ['mcp:read', 'mcp:write']
+      : ['mcp:read']
+    const tokenPrefix = randomAlphanumeric(12)
+    const created = {
+      id: nextPersonalAccessTokenId(),
+      name,
+      tokenPrefix,
+      scopes,
+      createdAt: new Date(now).toISOString(),
+      expiresAt: dayjs(now).add(body.expiresInDays ?? 90, 'day').toISOString(),
+    }
+    mockPersonalAccessTokens.push({ ...created, lastUsedAt: null, revokedAt: null })
+    return json({ ...created, token: `pinit_pat_${tokenPrefix}_${randomAlphanumeric(43)}` }, 201)
+  }
+
+  const revokeMatch = path.match(/^\/v2\/personal-access-tokens\/(\d+)$/)
+  if (revokeMatch && method === 'DELETE') {
+    const token = mockPersonalAccessTokens.find((item) => item.id === Number(revokeMatch[1]))
+    if (!token) return notFound('토큰을 찾을 수 없습니다.')
+    token.revokedAt = token.revokedAt ?? new Date().toISOString()
+    return noContent()
   }
 
   return null
@@ -545,6 +596,9 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const notification = await handleNotifications(path, method, request, searchParams)
   if (notification) return notification
+
+  const personalAccessTokens = await handlePersonalAccessTokens(path, method, request)
+  if (personalAccessTokens) return personalAccessTokens
 
   const member = handleMember(path, method)
   if (member) return member

@@ -4,6 +4,7 @@ import timezone from 'dayjs/plugin/timezone'
 import type { DateTimeWithZone, DateWithOffset } from '../shared/types/datetime'
 import type { Task } from '../features/tasks/types/task'
 import type { ScheduleResponse, ScheduleState } from '../features/schedules/types/schedule'
+import type { PersonalAccessToken } from '../features/settings/types/personalAccessToken'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -35,6 +36,7 @@ const makeDateWithOffset = (offsetDays: number, zoneId = 'Asia/Seoul'): DateWith
 
 let taskSeq = 3
 let scheduleSeq = 4
+let personalAccessTokenSeq = 3
 
 export const mockUsers: MockUser[] = [
   { id: 1, username: 'demo', password: 'demo1234', nickname: '데모 유저', zoneOffset: '+09:00' },
@@ -126,10 +128,46 @@ export const mockSchedules: ScheduleResponse[] = [
 export const mockPushSubscriptions = new Map<string, Set<string>>()
 export const vapidPublicKey = 'MOCK_VAPID_PUBLIC_KEY'
 
+const daysFromNow = (days: number) => dayjs().add(days, 'day').toISOString()
+
+export const mockPersonalAccessTokens: PersonalAccessToken[] = [
+  {
+    id: 3,
+    name: 'Claude Code (노트북)',
+    tokenPrefix: 'k3v9x2m8q1ab',
+    scopes: ['mcp:read', 'mcp:write'],
+    createdAt: daysFromNow(-3),
+    expiresAt: daysFromNow(87),
+    lastUsedAt: daysFromNow(0),
+    revokedAt: null,
+  },
+  {
+    id: 2,
+    name: '읽기 전용 테스트',
+    tokenPrefix: 'p0w7n4c6d2ef',
+    scopes: ['mcp:read'],
+    createdAt: daysFromNow(-40),
+    expiresAt: daysFromNow(-10),
+    lastUsedAt: null,
+    revokedAt: null,
+  },
+  {
+    id: 1,
+    name: '이전 데스크톱',
+    tokenPrefix: 'z8y6t5r4e3gh',
+    scopes: ['mcp:read', 'mcp:write'],
+    createdAt: daysFromNow(-60),
+    expiresAt: daysFromNow(30),
+    lastUsedAt: daysFromNow(-20),
+    revokedAt: daysFromNow(-15),
+  },
+]
+
 export let activeScheduleId: number | null = mockSchedules.find((item) => item.state === 'IN_PROGRESS')?.id ?? null
 
 export const nextTaskId = () => ++taskSeq
 export const nextScheduleId = () => ++scheduleSeq
+export const nextPersonalAccessTokenId = () => ++personalAccessTokenSeq
 
 export const setActiveScheduleId = (id: number | null, nextState?: ScheduleState) => {
   activeScheduleId = id
