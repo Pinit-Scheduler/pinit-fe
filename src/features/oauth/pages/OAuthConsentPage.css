@@ -140,10 +140,25 @@
   color: #0f172a;
 }
 
-.consent__scope-meta,
-.consent__note {
+.consent__scope-meta {
   font-size: 12px;
   color: #64748b;
+}
+
+.consent__scope-label--raw {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.consent__scope--caution {
+  border-color: #fecaca;
+  background-color: #fffafa;
+}
+
+.consent__scope-warning {
+  font-size: 12px;
+  color: #b91c1c;
 }
 
 .consent__notes {

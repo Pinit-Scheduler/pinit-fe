@@ -76,21 +76,37 @@ test('consent return uses a full page load so the anti-framing headers apply', (
   assert.deepEqual({ ...returnTo.resolvePostLoginTarget(null) }, { path: '/app', fullPageLoad: false })
 })
 
-test('read is always granted, write is optional, and unknown scopes are never approved', () => {
-  const options = consent.buildConsentScopeOptions(['mcp:read', 'mcp:write'])
-  assert.deepEqual([...options.map((option) => [option.scope, option.required])], [
-    ['mcp:read', true],
-    ['mcp:write', false],
+test('read is required, write defaults on, delete and unknown scopes default off', () => {
+  const requested = ['mcp:read', 'mcp:write', 'mcp:delete', 'mcp:future']
+  const options = consent.buildConsentScopeOptions(requested)
+  assert.deepEqual([...options.map((o) => [o.scope, o.required, o.defaultChecked, Boolean(o.unknown)])], [
+    ['mcp:read', true, true, false],
+    ['mcp:write', false, true, false],
+    ['mcp:delete', false, false, false],
+    ['mcp:future', false, false, true],
   ])
   assert.equal(options[0].label, '일정·작업 보기')
   assert.equal(options[1].label, '일정·작업 만들기·수정·상태 변경 (삭제는 불가)')
+  assert.equal(options[2].label, '일정·작업 삭제 (AI가 삭제할 때마다 미리보기 후 확인)')
+  assert.ok(options[2].warning, 'delete carries a warning')
+  assert.equal(options[3].label, 'mcp:future', 'unknown scopes show the raw name')
 
-  assert.deepEqual([...consent.toDecisionScopes(['mcp:read', 'mcp:write'], true)], ['mcp:read', 'mcp:write'])
-  assert.deepEqual([...consent.toDecisionScopes(['mcp:read', 'mcp:write'], false)], ['mcp:read'])
-  assert.deepEqual([...consent.toDecisionScopes(['mcp:read'], true)], ['mcp:read'], 'write needs to be requested')
-  assert.deepEqual([...consent.toDecisionScopes(['mcp:write'], true)], ['mcp:read', 'mcp:write'], 'write implies read')
-  assert.deepEqual([...consent.toDecisionScopes(['mcp:read', 'admin'], true)], ['mcp:read'])
-  assert.deepEqual([...consent.getUnsupportedScopes(['mcp:read', 'admin'])], ['admin'])
+  // 기본 선택: 쓰기만. 삭제는 요청돼도 체크되지 않는다.
+  assert.deepEqual([...consent.getDefaultSelectedScopes(requested)], ['mcp:write'])
+  assert.deepEqual([...consent.toDecisionScopes(requested, consent.getDefaultSelectedScopes(requested))], ['mcp:read', 'mcp:write'])
+  assert.deepEqual([...consent.toDecisionScopes(requested, [])], ['mcp:read'])
+  assert.deepEqual([...consent.toDecisionScopes(requested, ['mcp:write', 'mcp:delete'])], ['mcp:read', 'mcp:write', 'mcp:delete'])
+  assert.deepEqual([...consent.toDecisionScopes(requested, ['mcp:future'])], ['mcp:read', 'mcp:future'])
+})
+
+test('only requested scopes can be approved, and read is always included', () => {
+  assert.deepEqual([...consent.toDecisionScopes(['mcp:read'], ['mcp:write', 'mcp:delete'])], ['mcp:read'])
+  assert.deepEqual([...consent.toDecisionScopes(['mcp:write'], ['mcp:write'])], ['mcp:read', 'mcp:write'], 'write implies read')
+  assert.deepEqual([...consent.toDecisionScopes([], [])], ['mcp:read'])
+  assert.deepEqual([...consent.buildConsentScopeOptions(['mcp:read']).map((o) => o.scope)], ['mcp:read'])
+  assert.deepEqual([...consent.getDefaultSelectedScopes(['mcp:read', 'mcp:delete'])], [], 'delete is never pre-checked')
+  assert.equal(consent.hasDeleteScope(['mcp:read', 'mcp:delete']), true)
+  assert.equal(consent.hasDeleteScope(['mcp:read', 'mcp:write']), false)
 })
 
 test('only http(s) redirect URIs are followed, including localhost and other origins', () => {

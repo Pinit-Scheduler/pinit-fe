@@ -210,7 +210,7 @@ const handleOAuth = async (path: string, method: string, request: Request) => {
     const target = new URL(pending.redirectUri)
     if (body.approve) {
       target.searchParams.set('code', `mock-code-${Date.now()}`)
-      const scopes = body.scopes.includes('mcp:write') ? ['mcp:read', 'mcp:write'] : ['mcp:read']
+      const scopes = [...new Set(['mcp:read', ...body.scopes])]
       const grantId = Math.max(0, ...mockOAuthGrants.map((grant) => Number(grant.grantId))) + 1
       // 백엔드처럼 같은 client의 grant는 한 항목으로 묶고 연결(기기) 수만 늘린다.
       const existing = mockOAuthGrants.find((grant) => grant.clientId === pending.clientId)

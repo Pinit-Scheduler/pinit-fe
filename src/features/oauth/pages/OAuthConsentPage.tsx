@@ -6,9 +6,9 @@ import { fetchAuthorizationRequest, submitAuthorizationDecision } from '../api/o
 import type { OAuthAuthorizationRequest } from '../types/oauth'
 import {
   EXPIRED_REQUEST_MESSAGE,
-  WRITE_SCOPE,
+  DELETE_SCOPE,
   buildConsentScopeOptions,
-  getUnsupportedScopes,
+  getDefaultSelectedScopes,
   isNavigableRedirectUri,
   isRequestExpired,
   toConsentError,
@@ -38,7 +38,8 @@ const OAuthConsentPage = () => {
   const [request, setRequest] = useState<OAuthAuthorizationRequest | null>(null)
   const [error, setError] = useState<ConsentError | null>(null)
   const [decisionError, setDecisionError] = useState<string | null>(null)
-  const [includeWrite, setIncludeWrite] = useState(true)
+  // 사용자가 체크한 선택 scope(쓰기·삭제·모르는 권한). 필수 scope는 여기에 넣지 않는다.
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([])
   const [attempt, setAttempt] = useState(0)
 
   const goToLogin = useCallback(() => {
@@ -57,7 +58,7 @@ const OAuthConsentPage = () => {
         const response = await fetchAuthorizationRequest(requestId)
         if (!isMounted) return
         setRequest(response)
-        setIncludeWrite(response.requestedScopes.includes(WRITE_SCOPE))
+        setSelectedScopes(getDefaultSelectedScopes(response.requestedScopes))
         setPhase('ready')
       } catch (err) {
         if (!isMounted) return
@@ -90,7 +91,7 @@ const OAuthConsentPage = () => {
       const { redirectUri } = await submitAuthorizationDecision({
         requestId: request.requestId,
         approve,
-        scopes: approve ? toDecisionScopes(request.requestedScopes, includeWrite) : [],
+        scopes: approve ? toDecisionScopes(request.requestedScopes, selectedScopes) : [],
       })
       if (!isNavigableRedirectUri(redirectUri)) {
         setDecisionError('앱으로 돌아갈 주소가 올바르지 않아요. AI 클라이언트에서 연결을 다시 시작해주세요.')
@@ -178,8 +179,10 @@ const OAuthConsentPage = () => {
     }
 
     const scopeOptions = buildConsentScopeOptions(request.requestedScopes)
-    const unsupportedScopes = getUnsupportedScopes(request.requestedScopes)
     const isBusy = phase === 'submitting'
+    const deleteRequested = scopeOptions.some((option) => option.scope === DELETE_SCOPE)
+    const toggleScope = (scope: string, checked: boolean) =>
+      setSelectedScopes((prev) => (checked ? [...new Set([...prev, scope])] : prev.filter((item) => item !== scope)))
 
     return (
       <>
@@ -211,29 +214,39 @@ const OAuthConsentPage = () => {
 
         <fieldset className="consent__scopes" disabled={isBusy}>
           <legend>허용할 권한</legend>
-          {scopeOptions.map((option) => (
-            <label key={option.scope} className="consent__scope">
-              <input
-                type="checkbox"
-                checked={option.required || includeWrite}
-                disabled={option.required}
-                onChange={(event) => setIncludeWrite(event.target.checked)}
-              />
-              <span>
-                <span className="consent__scope-label">{option.label}</span>
-                <span className="consent__scope-meta">
-                  {option.required ? '필수' : '선택 · 해제하면 보기만 허용돼요'}
+          {scopeOptions.map((option) => {
+            const checked = option.required || selectedScopes.includes(option.scope)
+            return (
+              <label
+                key={option.scope}
+                className={['consent__scope', option.warning && 'consent__scope--caution'].filter(Boolean).join(' ')}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={option.required}
+                  onChange={(event) => toggleScope(option.scope, event.target.checked)}
+                />
+                <span>
+                  <span className={option.unknown ? 'consent__scope-label consent__scope-label--raw' : 'consent__scope-label'}>
+                    {option.label}
+                  </span>
+                  <span className="consent__scope-meta">
+                    {option.required ? '필수' : option.unknown ? '선택 · 이 화면이 모르는 권한이에요' : '선택'}
+                  </span>
+                  {option.warning && <span className="consent__scope-warning">{option.warning}</span>}
                 </span>
-              </span>
-            </label>
-          ))}
-          {unsupportedScopes.length > 0 && (
-            <p className="consent__note">지원하지 않는 권한 요청({unsupportedScopes.join(', ')})은 허용 대상에서 빠져요.</p>
-          )}
+              </label>
+            )
+          })}
         </fieldset>
 
         <ul className="consent__notes">
-          <li>AI 앱은 Pinit을 통해 일정이나 작업을 삭제할 수 없어요.</li>
+          <li>
+            {deleteRequested
+              ? '삭제를 체크하지 않으면 AI 앱은 일정이나 작업을 삭제할 수 없어요.'
+              : 'AI 앱은 Pinit을 통해 일정이나 작업을 삭제할 수 없어요.'}
+          </li>
           <li>연결은 설정 &gt; 연결된 앱에서 언제든 끊을 수 있어요.</li>
           <li>이 요청은 {formatDateTimeWithZone(request.expiresAt, 'HH:mm')}까지 유효해요.</li>
         </ul>

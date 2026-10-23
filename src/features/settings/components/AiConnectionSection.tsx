@@ -3,6 +3,7 @@ import { useToast } from '@contexts/ToastContext'
 import { StatusPanel } from '@shared/components/common'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import type { OAuthGrant } from '@features/oauth/types/oauth'
+import { hasDeleteScope } from '@features/oauth/utils/consent'
 import useOAuthGrants from '../hooks/useOAuthGrants'
 import { buildClaudeCodeCommand, formatConnectionCount } from '../utils/mcpConnection'
 import { MCP_SERVER_URL } from '../utils/mcpServerUrl'
@@ -74,6 +75,9 @@ const AiConnectionSection = () => {
                 <div className="ai-connection__title">
                   <p className="settings__label">{grant.clientName}</p>
                   {connectionLabel && <span className="settings__badge">{connectionLabel}</span>}
+                  {hasDeleteScope(grant.scopes ?? []) && (
+                    <span className="settings__badge settings__badge--warning">삭제 허용</span>
+                  )}
                 </div>
                 <p className="ai-connection__meta">
                   마지막 사용 {grant.lastUsedAt ? formatDateTimeWithZone(grant.lastUsedAt, DATE_FORMAT) : '기록 없음'}
