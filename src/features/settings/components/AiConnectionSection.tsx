@@ -3,9 +3,11 @@ import { useToast } from '@contexts/ToastContext'
 import { StatusPanel } from '@shared/components/common'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import type { OAuthGrant } from '@features/oauth/types/oauth'
-import { hasWriteScope } from '@features/oauth/utils/consent'
 import useOAuthGrants from '../hooks/useOAuthGrants'
-import './ConnectedAppsSection.css'
+import { buildClaudeCodeCommand, formatConnectionCount } from '../utils/mcpConnection'
+import { MCP_SERVER_URL } from '../utils/mcpServerUrl'
+import CopyableCode from './CopyableCode'
+import './AiConnectionSection.css'
 
 const DATE_FORMAT = 'YYYY.MM.DD HH:mm'
 
@@ -15,15 +17,16 @@ const toRevokeErrorMessage = (error: unknown) => {
   return error instanceof Error && error.message ? error.message : '연결을 끊지 못했어요.'
 }
 
-const ConnectedAppsSection = () => {
+const AiConnectionSection = () => {
   const { addToast } = useToast()
   const { grants, isLoading, error, refetch, revoke } = useOAuthGrants()
   const [revokingId, setRevokingId] = useState<OAuthGrant['grantId'] | null>(null)
 
   const handleRevoke = async (grant: OAuthGrant) => {
+    // 백엔드는 같은 앱의 활성 연결(기기)을 모두 끊는다.
     if (
       !window.confirm(
-        `"${grant.clientName}" 앱의 연결을 끊으시겠습니까?\n이 앱은 즉시 Pinit에 접근할 수 없게 되고, 다시 쓰려면 앱에서 로그인·동의를 다시 해야 해요.`,
+        `"${grant.clientName}" 연결을 끊으시겠습니까?\n이 앱을 연결한 모든 기기에서 즉시 Pinit에 접근할 수 없게 되고, 다시 쓰려면 앱에서 로그인·허용을 다시 해야 해요.`,
       )
     ) {
       return
@@ -39,7 +42,7 @@ const ConnectedAppsSection = () => {
     }
   }
 
-  const renderList = () => {
+  const renderGrants = () => {
     if (isLoading && grants.length === 0) {
       return <StatusPanel variant="loading" title="연결된 앱을 불러오는 중..." />
     }
@@ -58,40 +61,27 @@ const ConnectedAppsSection = () => {
       )
     }
     if (grants.length === 0) {
-      return (
-        <StatusPanel
-          variant="empty"
-          title="연결된 앱이 없어요."
-          description="AI 클라이언트에 서버 주소를 등록하고 로그인·동의하면 여기에 표시돼요."
-        />
-      )
+      return <StatusPanel variant="empty" title="연결된 앱이 없어요." />
     }
     return (
-      <ul className="connected-apps__list" aria-label="연결된 앱 목록">
+      <ul className="ai-connection__list" aria-label="연결된 앱 목록">
         {grants.map((grant) => {
           const isRevoking = revokingId === grant.grantId
+          const connectionLabel = formatConnectionCount(grant.connectionCount)
           return (
-            <li key={grant.grantId} className="connected-apps__item">
-              <div className="connected-apps__main">
-                <div className="connected-apps__title">
+            <li key={grant.grantId} className="ai-connection__item">
+              <div className="ai-connection__main">
+                <div className="ai-connection__title">
                   <p className="settings__label">{grant.clientName}</p>
-                  <span className="settings__badge">{hasWriteScope(grant.scopes) ? '보기 + 변경' : '보기만'}</span>
+                  {connectionLabel && <span className="settings__badge">{connectionLabel}</span>}
                 </div>
-                <code className="connected-apps__client-id">{grant.clientId}</code>
-                <dl className="connected-apps__meta">
-                  <div>
-                    <dt>연결</dt>
-                    <dd>{formatDateTimeWithZone(grant.createdAt, DATE_FORMAT)}</dd>
-                  </div>
-                  <div>
-                    <dt>마지막 사용</dt>
-                    <dd>{grant.lastUsedAt ? formatDateTimeWithZone(grant.lastUsedAt, DATE_FORMAT) : '사용 기록 없음'}</dd>
-                  </div>
-                </dl>
+                <p className="ai-connection__meta">
+                  마지막 사용 {grant.lastUsedAt ? formatDateTimeWithZone(grant.lastUsedAt, DATE_FORMAT) : '기록 없음'}
+                </p>
               </div>
               <button
                 type="button"
-                className="connected-apps__revoke-btn"
+                className="ai-connection__revoke-btn"
                 onClick={() => handleRevoke(grant)}
                 disabled={isRevoking}
                 aria-label={`${grant.clientName} 연결 끊기`}
@@ -106,12 +96,23 @@ const ConnectedAppsSection = () => {
   }
 
   return (
-    <section className="settings__card connected-apps" aria-label="연결된 앱">
-      <h2>연결된 앱</h2>
-      <p className="settings__description">로그인·동의로 내 Pinit 계정에 연결한 AI 앱이에요. 연결을 끊으면 그 앱의 토큰이 모두 무효가 돼요.</p>
-      {renderList()}
+    <section className="settings__card ai-connection" aria-label="AI 연결 (MCP)">
+      <h2>AI 연결 (MCP)</h2>
+      <p className="settings__description">AI 앱에 아래 주소를 등록한 뒤 Pinit에 로그인하고 허용하면 연결돼요.</p>
+      <CopyableCode label="MCP 서버 URL" value={MCP_SERVER_URL} />
+      <ul className="ai-connection__clients">
+        <li>
+          <strong>Claude.ai</strong> 설정 → 커넥터 → 커스텀 커넥터 추가에 이 주소 입력 후 로그인·허용
+        </li>
+        <li>
+          <strong>Claude Code</strong> <code>{buildClaudeCodeCommand(MCP_SERVER_URL)}</code>
+        </li>
+      </ul>
+
+      <h3 className="ai-connection__subheading">연결된 앱</h3>
+      {renderGrants()}
     </section>
   )
 }
 
-export default ConnectedAppsSection
+export default AiConnectionSection

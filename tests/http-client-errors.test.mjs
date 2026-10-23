@@ -75,3 +75,41 @@ test('successful JSON and empty responses remain unchanged', async () => {
   const emptyClient = createClient(new Response(null, { status: 204 }))
   assert.equal(await emptyClient.httpClient('/schedules'), undefined)
 })
+
+test('sensitive responses stay out of debug logs and are not sent as fetch options', async () => {
+  const secret = 'http://localhost:6274/callback?code=one-time-authorization-code&state=s'
+  const logs = []
+  const fetchInits = []
+  const { httpClient } = loadModule('../src/shared/api/httpClient.ts', {
+    './config': {
+      API_BASE_URL: 'https://api.example.test/v2',
+      AUTH_BASE_URL: 'https://api.example.test/v0',
+      buildAuthUrl: (path) => `https://api.example.test/v0${path}`,
+      buildUrl: (base, path) => `${base}${path}`,
+    },
+    './authTokens': { getAccessToken: () => 'access-jwt', isAccessTokenExpired: () => false, setAuthTokens: () => {} },
+    './httpClientHelpers': {
+      debugLog: (...args) => logs.push(JSON.stringify(args)),
+      createCookieTokenRefresher: () => async () => null,
+    },
+    './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
+  }, {
+    fetch: async (_url, init) => {
+      fetchInits.push(init)
+      return Response.json({ redirectUri: secret })
+    },
+  })
+
+  const response = await httpClient('/oauth/authorize/decision', {
+    method: 'POST', json: { approve: true }, sensitiveResponse: true,
+  })
+  assert.equal(response.redirectUri, secret)
+  assert.ok(logs.length > 0)
+  assert.ok(logs.every((line) => !line.includes('one-time-authorization-code')))
+  assert.equal('sensitiveResponse' in fetchInits[0], false)
+  assert.equal(fetchInits[0].headers.Authorization, 'Bearer access-jwt')
+
+  logs.length = 0
+  await httpClient('/oauth/authorize/decision', { method: 'POST', json: { approve: true } })
+  assert.ok(logs.some((line) => line.includes('one-time-authorization-code')), 'non-sensitive responses are still logged')
+})

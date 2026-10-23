@@ -26,7 +26,7 @@ export class ApiError extends Error {
 
 export type HttpClientOptions = RequestInit & {
   json?: unknown
-  /** 응답 본문에 비밀값(예: 평문 PAT)이 있어 성공 응답 데이터를 로그에 남기지 않는다. */
+  /** 응답 본문에 비밀값(예: OAuth authorization code가 담긴 redirectUri)이 있어 성공 응답 데이터를 로그에 남기지 않는다. */
   sensitiveResponse?: boolean
 }
 

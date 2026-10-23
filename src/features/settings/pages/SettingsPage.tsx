@@ -5,9 +5,7 @@ import { logout as requestLogout } from '@features/auth/api/auth'
 import { useToast } from '@contexts/ToastContext'
 import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
-import PersonalAccessTokenSection from '../components/PersonalAccessTokenSection'
-import McpConnectionGuide from '../components/McpConnectionGuide'
-import ConnectedAppsSection from '../components/ConnectedAppsSection'
+import AiConnectionSection from '../components/AiConnectionSection'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
@@ -177,11 +175,7 @@ const SettingsPage = () => {
         </ul>
       </section>
 
-      <McpConnectionGuide />
-
-      <ConnectedAppsSection />
-
-      <PersonalAccessTokenSection />
+      <AiConnectionSection />
 
       <section className="settings__card" aria-label="향후 추가 예정">
         <h2>향후 추가 예정</h2>

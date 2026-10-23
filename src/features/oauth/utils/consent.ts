@@ -35,8 +35,6 @@ export const toDecisionScopes = (requestedScopes: readonly string[], includeWrit
     .filter((option) => option.required || (option.scope === WRITE_SCOPE && includeWrite))
     .map((option) => option.scope)
 
-export const hasWriteScope = (scopes: readonly string[]) => scopes.includes(WRITE_SCOPE)
-
 /** 서버가 준 redirectUri로만 이동하되, javascript: 같은 스킴은 막는다. */
 export const isNavigableRedirectUri = (uri: unknown): uri is string => {
   if (typeof uri !== 'string' || !uri) return false
