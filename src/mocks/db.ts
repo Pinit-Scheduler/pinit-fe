@@ -137,7 +137,7 @@ export const nextScheduleId = () => ++scheduleSeq
 
 const minutesFromNow = (minutes: number) => dayjs().add(minutes, 'minute').toISOString()
 
-// /oauth/consent?request=demo-local | demo-web | demo-read 로 동의 화면을 확인할 수 있다. 그 외 id는 404(만료)다.
+// /oauth/consent?request=demo-local | demo-web | demo-delete | demo-read 로 동의 화면을 확인할 수 있다. 그 외 id는 404(만료)다.
 export const mockOAuthAuthorizationRequests: Record<string, OAuthAuthorizationRequest & { redirectUri: string }> = {
   'demo-local': {
     requestId: 'demo-local',
@@ -159,6 +159,16 @@ export const mockOAuthAuthorizationRequests: Record<string, OAuthAuthorizationRe
     expiresAt: minutesFromNow(10),
     redirectUri: 'https://claude.ai/api/mcp/auth_callback',
   },
+  'demo-delete': {
+    requestId: 'demo-delete',
+    clientName: 'Claude',
+    clientId: 'mock-dcr-client-7f3a',
+    redirectHost: 'claude.ai',
+    localhostRedirect: false,
+    requestedScopes: ['mcp:read', 'mcp:write', 'mcp:delete', 'mcp:future-example'],
+    expiresAt: minutesFromNow(10),
+    redirectUri: 'https://claude.ai/api/mcp/auth_callback',
+  },
   'demo-read': {
     requestId: 'demo-read',
     clientName: 'Read Only Agent',
@@ -176,7 +186,7 @@ export const mockOAuthGrants: OAuthGrant[] = [
     grantId: 2,
     clientName: 'Claude',
     clientId: 'mock-dcr-client-7f3a',
-    scopes: ['mcp:read', 'mcp:write'],
+    scopes: ['mcp:read', 'mcp:write', 'mcp:delete'],
     createdAt: daysFromNow(-5),
     lastUsedAt: daysFromNow(0),
     connectionCount: 2,
