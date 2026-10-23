@@ -19,7 +19,10 @@ export type OAuthDecisionResponse = {
   redirectUri: string
 }
 
-/** GET /v2/oauth/grants 항목: 사용자가 동의한 AI 클라이언트 연결 */
+/**
+ * GET /v2/oauth/grants 항목: 사용자가 동의한 AI 클라이언트. 같은 client의 활성 grant는 한 항목으로 묶이고,
+ * grantId를 DELETE하면 그 client의 연결(기기)이 모두 끊긴다.
+ */
 export type OAuthGrant = {
   grantId: number | string
   clientName: string
@@ -27,4 +30,6 @@ export type OAuthGrant = {
   scopes: string[]
   createdAt: string
   lastUsedAt: string | null
+  /** 묶인 활성 grant(기기) 수. 묶기 이전 백엔드는 보내지 않는다. */
+  connectionCount?: number
 }

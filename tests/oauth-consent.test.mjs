@@ -154,3 +154,16 @@ test('production frames are denied for the consent route', () => {
   assert.equal(values['X-Frame-Options'], 'DENY')
   assert.equal(values['Content-Security-Policy'], "frame-ancestors 'none'")
 })
+
+test('settings AI connection shows one Claude Code command and a device count only above one', () => {
+  const settings = loadModule('../src/features/settings/utils/mcpConnection.ts')
+  assert.equal(
+    settings.buildClaudeCodeCommand('https://mono.pinit.go-gradually.me/mcp'),
+    'claude mcp add --transport http pinit https://mono.pinit.go-gradually.me/mcp',
+  )
+  assert.equal(settings.formatConnectionCount(3), '기기 3개')
+  assert.equal(settings.formatConnectionCount(2), '기기 2개')
+  for (const value of [1, 0, undefined, null, 2.5, '3']) {
+    assert.equal(settings.formatConnectionCount(value), null, `hides ${String(value)}`)
+  }
+})

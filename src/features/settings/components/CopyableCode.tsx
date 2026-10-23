@@ -5,15 +5,12 @@ import './CopyableCode.css'
 type CopyableCodeProps = {
   label: string
   value: string
-  multiline?: boolean
-  /** multiline일 때 줄바꿈되는 긴 한 줄 명령을 위해 높이를 직접 지정한다. */
-  rows?: number
   copyLabel?: string
 }
 
-const CopyableCode = ({ label, value, multiline = false, rows, copyLabel = '복사' }: CopyableCodeProps) => {
+const CopyableCode = ({ label, value, copyLabel = '복사' }: CopyableCodeProps) => {
   const { addToast } = useToast()
-  const fieldRef = useRef<HTMLTextAreaElement & HTMLInputElement>(null)
+  const fieldRef = useRef<HTMLInputElement>(null)
 
   const handleCopy = async () => {
     try {
@@ -29,29 +26,16 @@ const CopyableCode = ({ label, value, multiline = false, rows, copyLabel = '복�
 
   return (
     <div className="copyable-code">
-      {multiline ? (
-        <textarea
-          ref={fieldRef}
-          className="copyable-code__field copyable-code__field--multiline"
-          value={value}
-          readOnly
-          rows={rows ?? value.split('\n').length}
-          aria-label={label}
-          spellCheck={false}
-          onFocus={(event) => event.currentTarget.select()}
-        />
-      ) : (
-        <input
-          ref={fieldRef}
-          className="copyable-code__field"
-          value={value}
-          readOnly
-          aria-label={label}
-          spellCheck={false}
-          autoComplete="off"
-          onFocus={(event) => event.currentTarget.select()}
-        />
-      )}
+      <input
+        ref={fieldRef}
+        className="copyable-code__field"
+        value={value}
+        readOnly
+        aria-label={label}
+        spellCheck={false}
+        autoComplete="off"
+        onFocus={(event) => event.currentTarget.select()}
+      />
       <button type="button" className="copyable-code__btn" onClick={handleCopy}>
         {copyLabel}
       </button>
