@@ -58,7 +58,7 @@ const OAuthConsentPage = () => {
         const response = await fetchAuthorizationRequest(requestId)
         if (!isMounted) return
         setRequest(response)
-        setSelectedScopes(getDefaultSelectedScopes(response.requestedScopes))
+        setSelectedScopes(getDefaultSelectedScopes(response.requestedScopes, response.optInScopes ?? []))
         setPhase('ready')
       } catch (err) {
         if (!isMounted) return
@@ -91,7 +91,7 @@ const OAuthConsentPage = () => {
       const { redirectUri } = await submitAuthorizationDecision({
         requestId: request.requestId,
         approve,
-        scopes: approve ? toDecisionScopes(request.requestedScopes, selectedScopes) : [],
+        scopes: approve ? toDecisionScopes(request.requestedScopes, request.optInScopes ?? [], selectedScopes) : [],
       })
       if (!isNavigableRedirectUri(redirectUri)) {
         setDecisionError('앱으로 돌아갈 주소가 올바르지 않아요. AI 클라이언트에서 연결을 다시 시작해주세요.')
@@ -178,7 +178,7 @@ const OAuthConsentPage = () => {
       )
     }
 
-    const scopeOptions = buildConsentScopeOptions(request.requestedScopes)
+    const scopeOptions = buildConsentScopeOptions(request.requestedScopes, request.optInScopes ?? [])
     const isBusy = phase === 'submitting'
     const deleteRequested = scopeOptions.some((option) => option.scope === DELETE_SCOPE)
     const toggleScope = (scope: string, checked: boolean) =>

@@ -24,7 +24,8 @@ const KNOWN_SCOPES: Record<string, KnownScope> = {
     label: '일정·작업 삭제 (AI가 삭제할 때마다 미리보기 후 확인)',
     required: false,
     defaultChecked: false,
-    warning: '허용하면 AI 앱이 일정이나 작업 삭제를 요청할 수 있어요. 삭제마다 미리보기를 확인한 뒤에만 지워져요.',
+    warning:
+      '허용하면 AI 앱이 일정이나 작업 삭제를 요청할 수 있어요. 삭제마다 미리보기를 확인한 뒤에만 지워지고, 지운 뒤에는 되돌릴 수 없어요.',
   },
 }
 
@@ -32,31 +33,52 @@ const KNOWN_SCOPE_ORDER = [READ_SCOPE, WRITE_SCOPE, DELETE_SCOPE]
 
 export const describeScope = (scope: string) => KNOWN_SCOPES[scope]?.label ?? scope
 
+const normalizeScopes = (scopes: readonly string[] | null | undefined) =>
+  new Set((Array.isArray(scopes) ? scopes : []).map((scope) => scope.trim()).filter(Boolean))
+
 /**
  * 동의 화면 체크박스. 읽기는 항상 필요(쓰기·삭제가 읽기를 포함하는 백엔드 규칙과 같음)하고,
- * 쓰기·삭제는 요청됐을 때만 보여 준다. 모르는 scope는 이름 그대로, 체크 해제 상태로 보여 준다.
+ * `requestedScopes`의 쓰기·삭제는 요청됐을 때만 보여 준다. `optInScopes`(ADR-0014, 예: mcp:delete)는
+ * 항상 체크 해제로 시작하고, 모르는 scope는 이름 그대로 체크 해제 상태로 보여 준다.
+ * 백엔드가 `optInScopes`를 보내지 않으면(이전 버전) 빈 목록으로 본다.
  */
-export const buildConsentScopeOptions = (requestedScopes: readonly string[]): ConsentScopeOption[] => {
-  const requested = new Set(requestedScopes.map((scope) => scope.trim()).filter(Boolean))
-  const known = KNOWN_SCOPE_ORDER.filter((scope) => scope === READ_SCOPE || requested.has(scope)).map(
-    (scope) => ({ scope, ...KNOWN_SCOPES[scope] }),
-  )
-  const unknown = [...requested]
-    .filter((scope) => !(scope in KNOWN_SCOPES))
-    .map((scope) => ({ scope, label: scope, required: false, defaultChecked: false, unknown: true }))
+export const buildConsentScopeOptions = (
+  requestedScopes: readonly string[],
+  optInScopes: readonly string[] | null = [],
+): ConsentScopeOption[] => {
+  const optIn = normalizeScopes(optInScopes)
+  const offered = new Set([...normalizeScopes(requestedScopes), ...optIn])
+  const toOption = (scope: string): ConsentScopeOption => {
+    const known = KNOWN_SCOPES[scope]
+    const base = known ? { scope, ...known } : { scope, label: scope, required: false, defaultChecked: false, unknown: true }
+    // opt-in scope는 사용자가 직접 체크해야만 허용한다.
+    return optIn.has(scope) && !base.required ? { ...base, defaultChecked: false } : base
+  }
+  const known = KNOWN_SCOPE_ORDER.filter((scope) => scope === READ_SCOPE || offered.has(scope)).map(toOption)
+  const unknown = [...offered].filter((scope) => !(scope in KNOWN_SCOPES)).map(toOption)
   return [...known, ...unknown]
 }
 
 /** 처음 체크돼 있을 선택 scope 목록 */
-export const getDefaultSelectedScopes = (requestedScopes: readonly string[]) =>
-  buildConsentScopeOptions(requestedScopes)
+export const getDefaultSelectedScopes = (
+  requestedScopes: readonly string[],
+  optInScopes: readonly string[] | null = [],
+) =>
+  buildConsentScopeOptions(requestedScopes, optInScopes)
     .filter((option) => !option.required && option.defaultChecked)
     .map((option) => option.scope)
 
-/** decision API에 보낼 scope. 필수 scope는 항상, 선택 scope는 요청됐고 사용자가 체크했을 때만 넣는다. */
-export const toDecisionScopes = (requestedScopes: readonly string[], selectedScopes: Iterable<string>) => {
+/**
+ * decision API에 보낼 scope. 백엔드는 `scopes`가 없으면 `requestedScopes`만 주므로 항상 명시적으로 보낸다.
+ * 필수 scope는 항상, 선택 scope는 화면에 보였고 사용자가 체크했을 때만 넣는다.
+ */
+export const toDecisionScopes = (
+  requestedScopes: readonly string[],
+  optInScopes: readonly string[] | null,
+  selectedScopes: Iterable<string>,
+) => {
   const selected = new Set(selectedScopes)
-  return buildConsentScopeOptions(requestedScopes)
+  return buildConsentScopeOptions(requestedScopes, optInScopes)
     .filter((option) => option.required || selected.has(option.scope))
     .map((option) => option.scope)
 }

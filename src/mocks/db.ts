@@ -165,7 +165,9 @@ export const mockOAuthAuthorizationRequests: Record<string, OAuthAuthorizationRe
     clientId: 'mock-dcr-client-7f3a',
     redirectHost: 'claude.ai',
     localhostRedirect: false,
-    requestedScopes: ['mcp:read', 'mcp:write', 'mcp:delete', 'mcp:future-example'],
+    // ADR-0014 계약: 삭제는 requestedScopes가 아니라 optInScopes로 온다. demo-local 등은 optInScopes가 없는 이전 응답이다.
+    requestedScopes: ['mcp:read', 'mcp:write'],
+    optInScopes: ['mcp:delete'],
     expiresAt: minutesFromNow(10),
     redirectUri: 'https://claude.ai/api/mcp/auth_callback',
   },
