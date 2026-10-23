@@ -112,13 +112,20 @@ test('limit conflicts get the shared 409 prefix and missing tokens get a 404 mes
   assert.equal(pat.toRevokeErrorMessage({ status: 0, message: 'Failed to fetch' }), 'Failed to fetch')
 })
 
-test('MCP guide renders the documented Claude Code command and a parseable JSON config', () => {
+test('MCP guide leads with server-URL-only setup and keeps PAT headers for the advanced path', () => {
   const url = 'https://mono.pinit.go-gradually.me/mcp'
   assert.equal(
     mcp.buildClaudeCodeCommand(url),
-    'claude mcp add --transport http pinit https://mono.pinit.go-gradually.me/mcp --header "Authorization: Bearer <PAT>"',
+    'claude mcp add --transport http pinit https://mono.pinit.go-gradually.me/mcp',
   )
   assert.deepEqual(JSON.parse(mcp.buildMcpJsonConfig(url)), {
+    mcpServers: { pinit: { type: 'http', url } },
+  })
+  assert.equal(
+    mcp.buildClaudeCodeCommandWithToken(url),
+    'claude mcp add --transport http pinit https://mono.pinit.go-gradually.me/mcp --header "Authorization: Bearer <PAT>"',
+  )
+  assert.deepEqual(JSON.parse(mcp.buildMcpJsonConfigWithToken(url)), {
     mcpServers: {
       pinit: { type: 'http', url, headers: { Authorization: 'Bearer <PAT>' } },
     },

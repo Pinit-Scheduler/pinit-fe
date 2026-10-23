@@ -8,10 +8,13 @@ import type { ScheduleRequest, ScheduleResponse } from '../features/schedules/ty
 import type { StatisticsResponse } from '../features/statistics/types/statistics'
 import type { PushTokenRequest } from '../features/settings/api/notifications'
 import type { CreatePersonalAccessTokenRequest } from '../features/settings/types/personalAccessToken'
+import type { OAuthDecisionRequest } from '../features/oauth/types/oauth'
 import type { LoginPayload, SignupPayload, SocialLoginPayload } from '../features/auth/api/auth'
 import {
   activeScheduleId,
   makeToken,
+  mockOAuthAuthorizationRequests,
+  mockOAuthGrants,
   mockPersonalAccessTokens,
   mockPushSubscriptions,
   mockSchedules,
@@ -232,6 +235,57 @@ const handlePersonalAccessTokens = async (path: string, method: string, request:
     const token = mockPersonalAccessTokens.find((item) => item.id === Number(revokeMatch[1]))
     if (!token) return notFound('토큰을 찾을 수 없습니다.')
     token.revokedAt = token.revokedAt ?? new Date().toISOString()
+    return noContent()
+  }
+
+  return null
+}
+
+const handleOAuth = async (path: string, method: string, request: Request) => {
+  const requestMatch = path.match(/^\/oauth\/authorize\/requests\/([^/]+)$/)
+  if (requestMatch && method === 'GET') {
+    const pending = mockOAuthAuthorizationRequests[decodeURIComponent(requestMatch[1])]
+    if (!pending) return notFound('인가 요청을 찾을 수 없습니다.')
+    // redirectUri는 서버 내부 값이라 동의 화면 응답에는 넣지 않는다.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { redirectUri, ...summary } = pending
+    return json(summary)
+  }
+
+  if (path === '/oauth/authorize/decision' && method === 'POST') {
+    const body = await readJson<OAuthDecisionRequest>(request)
+    const pending = body ? mockOAuthAuthorizationRequests[body.requestId] : undefined
+    if (!body || !pending) return notFound('인가 요청을 찾을 수 없습니다.')
+    // pending authorization은 1회용이다.
+    delete mockOAuthAuthorizationRequests[body.requestId]
+    const target = new URL(pending.redirectUri)
+    if (body.approve) {
+      target.searchParams.set('code', `mock-code-${Date.now()}`)
+      const scopes = body.scopes.includes('mcp:write') ? ['mcp:read', 'mcp:write'] : ['mcp:read']
+      mockOAuthGrants.unshift({
+        grantId: Math.max(0, ...mockOAuthGrants.map((grant) => Number(grant.grantId))) + 1,
+        clientName: pending.clientName,
+        clientId: pending.clientId,
+        scopes,
+        createdAt: new Date().toISOString(),
+        lastUsedAt: null,
+      })
+    } else {
+      target.searchParams.set('error', 'access_denied')
+    }
+    target.searchParams.set('state', 'mock-state')
+    return json({ redirectUri: target.toString() })
+  }
+
+  if (path === '/v2/oauth/grants' && method === 'GET') {
+    return json(mockOAuthGrants)
+  }
+
+  const grantMatch = path.match(/^\/v2\/oauth\/grants\/([^/]+)$/)
+  if (grantMatch && method === 'DELETE') {
+    const index = mockOAuthGrants.findIndex((grant) => String(grant.grantId) === decodeURIComponent(grantMatch[1]))
+    if (index < 0) return notFound('연결된 앱을 찾을 수 없습니다.')
+    mockOAuthGrants.splice(index, 1)
     return noContent()
   }
 
@@ -587,7 +641,7 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
   const method = request.method.toUpperCase()
   const path = url.pathname.replace(/\/+$/, '') || '/'
 
-  if (!path.startsWith('/v0/') && !path.startsWith('/v1/') && !path.startsWith('/v2/')) {
+  if (!path.startsWith('/v0/') && !path.startsWith('/v1/') && !path.startsWith('/v2/') && !path.startsWith('/oauth/')) {
     return null
   }
 
@@ -596,6 +650,9 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const notification = await handleNotifications(path, method, request, searchParams)
   if (notification) return notification
+
+  const oauth = await handleOAuth(path, method, request)
+  if (oauth) return oauth
 
   const personalAccessTokens = await handlePersonalAccessTokens(path, method, request)
   if (personalAccessTokens) return personalAccessTokens

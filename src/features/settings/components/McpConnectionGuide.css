@@ -32,3 +32,12 @@
   font-size: 13px;
   color: #475569;
 }
+
+.mcp-guide__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #475569;
+}

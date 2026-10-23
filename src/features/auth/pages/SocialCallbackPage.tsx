@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { exchangeSocialLogin, type AuthProvider } from '../api/auth'
+import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
 import './LoginPage.css'
 
 const SocialCallbackPage = () => {
   const { provider: rawProvider } = useParams<{ provider?: string }>()
   const provider: AuthProvider | null = rawProvider === 'naver' ? 'naver' : null
   const [searchParams] = useSearchParams()
-  const navigate = useNavigate()
+  const navigateAfterLogin = useNavigateAfterLogin()
   const providerError = useMemo(
     () => (!provider ? '지원하지 않는 소셜 로그인 경로예요.' : null),
     [provider],
@@ -37,8 +38,8 @@ const SocialCallbackPage = () => {
     exchangeSocialLogin(provider, payload)
       .then(() => {
         if (isCancelled) return
-        setStatus('로그인 완료! 대시보드로 이동해요.')
-        navigate('/app', { replace: true })
+        setStatus('로그인 완료! 이전 화면으로 이동해요.')
+        navigateAfterLogin()
       })
       .catch((err) => {
         if (isCancelled) return
@@ -53,7 +54,7 @@ const SocialCallbackPage = () => {
     return () => {
       isCancelled = true
     }
-  }, [providerError, provider, payload, navigate])
+  }, [providerError, provider, payload, navigateAfterLogin])
 
   return (
     <div className="login login--callback">

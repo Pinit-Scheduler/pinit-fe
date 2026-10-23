@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { buildAuthorizeUrl, login, type AuthProvider } from '../api/auth'
 import { clearLogoutMarker } from '@shared/api/authTokens'
 import { useToast } from '@contexts/ToastContext'
+import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
 import './LoginPage.css'
 import { useEffect } from 'react'
 
@@ -14,6 +15,7 @@ const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const navigateAfterLogin = useNavigateAfterLogin()
   const isStandalone = () =>
     window.matchMedia?.('(display-mode: standalone)').matches ||
     (window.navigator as unknown as { standalone?: boolean })?.standalone === true
@@ -70,7 +72,7 @@ const LoginPage = () => {
       })
       clearLogoutMarker()
       addToast('로그인에 성공했어요.', 'success')
-      navigate('/app', { replace: true })
+      navigateAfterLogin()
     } catch (error) {
       const message = error instanceof Error ? error.message : '로그인에 실패했습니다.'
       setErrors({ form: message })

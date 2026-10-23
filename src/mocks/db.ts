@@ -5,6 +5,7 @@ import type { DateTimeWithZone, DateWithOffset } from '../shared/types/datetime'
 import type { Task } from '../features/tasks/types/task'
 import type { ScheduleResponse, ScheduleState } from '../features/schedules/types/schedule'
 import type { PersonalAccessToken } from '../features/settings/types/personalAccessToken'
+import type { OAuthAuthorizationRequest, OAuthGrant } from '../features/oauth/types/oauth'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -168,6 +169,61 @@ export let activeScheduleId: number | null = mockSchedules.find((item) => item.s
 export const nextTaskId = () => ++taskSeq
 export const nextScheduleId = () => ++scheduleSeq
 export const nextPersonalAccessTokenId = () => ++personalAccessTokenSeq
+
+const minutesFromNow = (minutes: number) => dayjs().add(minutes, 'minute').toISOString()
+
+// /oauth/consent?request=demo-local | demo-web | demo-read 로 동의 화면을 확인할 수 있다. 그 외 id는 404(만료)다.
+export const mockOAuthAuthorizationRequests: Record<string, OAuthAuthorizationRequest & { redirectUri: string }> = {
+  'demo-local': {
+    requestId: 'demo-local',
+    clientName: 'Claude Code',
+    clientId: 'https://claude.ai/oauth/claude-code-client-metadata',
+    redirectHost: 'localhost:6274',
+    localhostRedirect: true,
+    requestedScopes: ['mcp:read', 'mcp:write'],
+    expiresAt: minutesFromNow(10),
+    redirectUri: 'http://localhost:6274/callback',
+  },
+  'demo-web': {
+    requestId: 'demo-web',
+    clientName: 'Claude',
+    clientId: 'mock-dcr-client-7f3a',
+    redirectHost: 'claude.ai',
+    localhostRedirect: false,
+    requestedScopes: ['mcp:read', 'mcp:write'],
+    expiresAt: minutesFromNow(10),
+    redirectUri: 'https://claude.ai/api/mcp/auth_callback',
+  },
+  'demo-read': {
+    requestId: 'demo-read',
+    clientName: 'Read Only Agent',
+    clientId: 'mock-dcr-client-read',
+    redirectHost: 'localhost:8976',
+    localhostRedirect: true,
+    requestedScopes: ['mcp:read'],
+    expiresAt: minutesFromNow(10),
+    redirectUri: 'http://localhost:8976/oauth/callback',
+  },
+}
+
+export const mockOAuthGrants: OAuthGrant[] = [
+  {
+    grantId: 2,
+    clientName: 'Claude',
+    clientId: 'mock-dcr-client-7f3a',
+    scopes: ['mcp:read', 'mcp:write'],
+    createdAt: daysFromNow(-5),
+    lastUsedAt: daysFromNow(0),
+  },
+  {
+    grantId: 1,
+    clientName: 'Claude Code',
+    clientId: 'https://claude.ai/oauth/claude-code-client-metadata',
+    scopes: ['mcp:read'],
+    createdAt: daysFromNow(-12),
+    lastUsedAt: null,
+  },
+]
 
 export const setActiveScheduleId = (id: number | null, nextState?: ScheduleState) => {
   activeScheduleId = id
