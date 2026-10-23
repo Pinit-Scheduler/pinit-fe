@@ -26,10 +26,12 @@ export class ApiError extends Error {
 
 export type HttpClientOptions = RequestInit & {
   json?: unknown
+  /** 응답 본문에 비밀값(예: 평문 PAT)이 있어 성공 응답 데이터를 로그에 남기지 않는다. */
+  sensitiveResponse?: boolean
 }
 
 export const httpClient = async <T>(path: string, options: HttpClientOptions = {}): Promise<T> => {
-  const { json, headers, credentials, ...rest } = options
+  const { json, headers, credentials, sensitiveResponse, ...rest } = options
   const url = path.startsWith('http') ? path : buildUrl(API_BASE_URL, path)
   let accessToken = getAccessToken()
   const body = json ? JSON.stringify(json) : undefined
@@ -137,7 +139,7 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
     debugLog(`✅ Success:`, {
       url,
       dataType: Array.isArray(data) ? `Array[${data.length}]` : typeof data,
-      sampleData: Array.isArray(data) && data.length > 0 ? data[0] : data
+      sampleData: sensitiveResponse ? '[redacted]' : Array.isArray(data) && data.length > 0 ? data[0] : data
     })
     return data
   } catch (error) {

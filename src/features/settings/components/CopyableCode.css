@@ -1,0 +1,41 @@
+.copyable-code {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.copyable-code__field {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  user-select: text;
+}
+
+.copyable-code__field--multiline {
+  resize: none;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.copyable-code__btn {
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background-color: #fff;
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.copyable-code__btn:hover {
+  background-color: #f1f5f9;
+}
