@@ -73,7 +73,7 @@ const TodayPage = () => {
 
   return (
     <section className="today-page">
-      <header className="today-page__header">
+      <header className="today-page__header" data-onboarding-anchor="today.header">
         <p className="today-page__eyebrow">오늘 할당된 일</p>
         <h1 className="today-page__title">오늘 추천 작업 & 일정</h1>
         <p className="today-page__description">

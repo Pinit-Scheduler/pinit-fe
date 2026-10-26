@@ -323,6 +323,7 @@ const SchedulesTabPage = () => {
       <div
         ref={listRef}
         className={['schedules-tab__list', 'fade-slide', `week-transition--${weekDirection}`].join(' ')}
+        data-onboarding-anchor="schedules.list"
         onTouchStart={containerTouchHandlers.onTouchStart}
         onTouchMove={containerTouchHandlers.onTouchMove}
         onTouchEnd={containerTouchHandlers.onTouchEnd}

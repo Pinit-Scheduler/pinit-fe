@@ -100,7 +100,7 @@ const AiConnectionSection = () => {
   }
 
   return (
-    <section className="settings__card ai-connection" aria-label="AI 연결 (MCP)">
+    <section className="settings__card ai-connection" aria-label="AI 연결 (MCP)" data-onboarding-anchor="settings.ai-connection">
       <h2>AI 연결 (MCP)</h2>
       <p className="settings__description">AI 앱에 아래 주소를 등록한 뒤 Pinit에 로그인하고 허용하면 연결돼요.</p>
       <CopyableCode label="MCP 서버 URL" value={MCP_SERVER_URL} />

@@ -61,6 +61,7 @@ const WeeklyDateStrip = ({
   return (
     <div
       className="weekly-date-strip"
+      data-onboarding-anchor="schedules.week-strip"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}

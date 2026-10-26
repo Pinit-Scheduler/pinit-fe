@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import TopBar from './TopBar'
 import BottomTabBar from './BottomTabBar'
 import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
+import { OnboardingTourProvider } from '@features/onboarding'
 import { refreshAccessToken } from '@features/auth/api/auth'
 import { clearAuthTokens, getAccessToken, isLoggedOut } from '@shared/api/authTokens'
 import './AppShell.css'
@@ -81,19 +82,21 @@ const AppShell = () => {
 
   return (
     <div className="app-shell">
-      <TopBar
-        title={title}
-        showBackButton={showBackButton}
-        onBack={() => navigate(-1)}
-        onSettings={() => navigate('/app/settings')}
-        showSettingsButton={showSettingsButton}
-      />
-      {/*  리액트 라우터 호출: app-shell__content */}
-      <main className="app-shell__content">
-        <Outlet />
-      </main>
-      <MiniPlayerBar />
-      <BottomTabBar activePath={pathname} />
+      <OnboardingTourProvider>
+        <TopBar
+          title={title}
+          showBackButton={showBackButton}
+          onBack={() => navigate(-1)}
+          onSettings={() => navigate('/app/settings')}
+          showSettingsButton={showSettingsButton}
+        />
+        {/*  리액트 라우터 호출: app-shell__content */}
+        <main className="app-shell__content">
+          <Outlet />
+        </main>
+        <MiniPlayerBar />
+        <BottomTabBar activePath={pathname} />
+      </OnboardingTourProvider>
     </div>
   )
 }
