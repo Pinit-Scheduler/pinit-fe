@@ -183,6 +183,7 @@ const WeeklyReviewSection = ({ weekStart }: Props) => {
         <label className="weekly-review__toggle">
           <input
             type="checkbox"
+            aria-label="플래너에 보정 적용"
             checked={calibration.enabled}
             disabled={isSaving}
             onChange={(event) => toggleCalibration(event.target.checked)}
