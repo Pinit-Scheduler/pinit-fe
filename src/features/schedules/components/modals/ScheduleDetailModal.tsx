@@ -10,6 +10,10 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './ScheduleDetailModal.css'
 import '../ScheduleForm.css'
 import { scheduleTypeLabel, stateLabel } from '@constants/schedules'
+import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
+import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
+import { dispatchScheduleChanged } from '@shared/utils/events'
+import '@features/recurrence/components/RecurrenceRuleFields.css'
 
 type ScheduleDetailModalProps = {
   scheduleId: number
@@ -30,11 +34,32 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const { addToast } = useToast()
   const { activeScheduleId, setActiveSchedule } = useScheduleCache()
   const { offsetLabel } = useTimePreferences()
+  const recurrenceScope = useRecurrenceScope()
 
   const handleDelete = async () => {
     if (!schedule) return
 
-    if (window.confirm(`"${schedule.title}" 일정을 삭제하시겠습니까?`)) {
+    if (schedule.recurrence) {
+      const scope = await recurrenceScope.ask('delete', schedule.title)
+      if (scope === null) return
+      if (scope !== 'THIS') {
+        try {
+          if (await confirmAndDeleteSeries(schedule.recurrence, scope)) {
+            if (activeScheduleId === schedule.id) setActiveSchedule(null)
+            dispatchScheduleChanged({ reason: 'recurrence' })
+            onClose()
+            addToast('반복 일정을 지웠어요.', 'success')
+            onRefresh?.()
+          }
+        } catch (error) {
+          console.error('반복 삭제 실패:', error)
+          addToast('반복 일정을 지우지 못했어요.', 'error')
+        }
+        return
+      }
+    }
+
+    if (schedule.recurrence || window.confirm(`"${schedule.title}" 일정을 삭제하시겠습니까?`)) {
       try {
         await deleteSchedule(schedule.id)
         console.log(`✅ Schedule deleted: ${schedule.id}`)

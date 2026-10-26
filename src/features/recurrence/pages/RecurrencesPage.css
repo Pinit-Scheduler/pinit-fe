@@ -1,0 +1,144 @@
+.recurrences {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.recurrences__eyebrow {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.recurrences__title {
+  margin: 4px 0;
+  font-size: 22px;
+}
+
+.recurrences__description,
+.recurrences__note {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.recurrences__tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.recurrences__tab {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.recurrences__tab.is-active {
+  background: #1e293b;
+  border-color: #1e293b;
+  color: #fff;
+}
+
+.recurrences__placeholder {
+  padding: 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 14px;
+}
+
+.recurrences__link {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+}
+
+.recurrences__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recurrences__item {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.recurrences__item-title {
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.recurrences__mode {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.recurrences__item-rule {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.recurrences__item-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.recurrences__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.recurrences__actions button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.recurrences__actions button.is-primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.recurrences__actions button.is-danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.recurrences__editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

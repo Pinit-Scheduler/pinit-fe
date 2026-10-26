@@ -12,7 +12,7 @@ type FixtureResponse = { revision: number; acknowledgedRevision: number; pending
 const items = (...values: string[]): FixtureGroup[] => [{ heading: null, items: values }]
 
 export const onboardingFixture: FixtureResponse = {
-  revision: 1,
+  revision: 2,
   acknowledgedRevision: 0,
   pendingTour: [],
   features: [
@@ -198,6 +198,22 @@ export const onboardingFixture: FixtureResponse = {
           '수면을 하나라도 등록하면 계획 시간창이 계획한 날 하루 전체가 돼요.',
         ),
         usage: items('설정 → "생활 시간"에서 항목을 켜고 시각·길이·요일을 고른 뒤 저장해요.'),
+      },
+    },
+    {
+      key: 'recurrence',
+      title: '반복',
+      revision: 2,
+      tour: {
+        route: '/app/settings',
+        anchor: 'settings.recurrences',
+        purpose: '주간 회의나 운동처럼 반복되는 일을 한 번만 등록해요.',
+        benefit: '회차가 일정과 작업에 알아서 생기고, 자동 배치도 그날의 회차를 챙겨요.',
+      },
+      guide: {
+        behavior: items('일정이나 작업을 만들 때 "반복"을 켜면 반복으로 만들어요.'),
+        principle: items('"이번 및 이후"는 고른 회차부터, "전체"는 반복 전체를 바꿔요.'),
+        usage: items('설정 → "반복 관리"에서 반복 목록을 보고 고치거나 끝낼 수 있어요.'),
       },
     },
     {

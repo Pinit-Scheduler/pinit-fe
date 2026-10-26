@@ -16,6 +16,7 @@ const SettingsPage = () => {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   // 처음 한 번만 "새 기능"을 단다. 생활 시간 화면에 들어가면 확인한 것으로 본다.
   const [showRoutinesNew] = useState(() => !readFlag(NUDGE_KEYS.routinesNewBadgeSeen))
+  const [showRecurrencesNew] = useState(() => !readFlag(NUDGE_KEYS.recurrencesNewBadgeSeen))
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { offsetLabel, isLoading: isTimeLoading } = useTimePreferences()
@@ -115,6 +116,22 @@ const SettingsPage = () => {
               {showRoutinesNew && <span className="settings__badge settings__badge--new">새 기능</span>}
             </p>
             <p className="settings__description">식사·수면 시간을 알려 주면 계획이 그 시간을 비워 둬요.</p>
+          </div>
+          <span className="settings__chevron" aria-hidden>
+            ›
+          </span>
+        </Link>
+        <Link
+          to="/app/settings/recurrences"
+          className="settings__row settings__row--link"
+          data-onboarding-anchor="settings.recurrences"
+        >
+          <div>
+            <p className="settings__label">
+              반복 관리
+              {showRecurrencesNew && <span className="settings__badge settings__badge--new">새 기능</span>}
+            </p>
+            <p className="settings__description">주간 회의나 운동처럼 반복되는 일정·작업을 보고 고치거나 끝내요.</p>
           </div>
           <span className="settings__chevron" aria-hidden>
             ›

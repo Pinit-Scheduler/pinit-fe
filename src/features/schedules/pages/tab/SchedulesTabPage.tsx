@@ -29,10 +29,14 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import useScheduleDrag from '../../hooks/useScheduleDrag'
+import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
+import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
+import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
 
 const SchedulesTabPage = () => {
   const listRef = useRef<HTMLDivElement | null>(null)
   const [movingScheduleId, setMovingScheduleId] = useState<number | null>(null)
+  const recurrenceScope = useRecurrenceScope()
   const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null)
   const [weekDirection, setWeekDirection] = useState<'forward' | 'backward'>('forward')
   const {
@@ -169,6 +173,25 @@ const SchedulesTabPage = () => {
   }
 
   const handleDelete = async (scheduleId: number) => {
+    // 반복 회차(ADR-0019)면 범위를 먼저 묻는다. 카드는 반복 회차의 삭제 확인을 이 화면에 맡긴다.
+    const target = schedules.find((schedule) => schedule.id === scheduleId)
+    if (target?.recurrence) {
+      const scope = await recurrenceScope.ask('delete', target.title)
+      if (scope === null) return
+      if (scope !== 'THIS') {
+        try {
+          if (await confirmAndDeleteSeries(target.recurrence, scope)) {
+            if (activeScheduleId === scheduleId) setActiveSchedule(null)
+            dispatchScheduleChanged({ reason: 'recurrence' })
+            refetchOverdue()
+          }
+        } catch (error) {
+          console.error(`❌ Recurrence delete failed for schedule ${scheduleId}:`, error)
+          addToast('반복 일정을 지우지 못했어요.', 'error')
+        }
+        return
+      }
+    }
     try {
       await deleteSchedule(scheduleId)
       if (activeScheduleId === scheduleId) {
@@ -309,6 +332,11 @@ const SchedulesTabPage = () => {
           <span>이번 주 총 작업 0시간 0분</span>
         )}
       </div>
+      {isBeyondGeneration(selectedDateKey, getTodayWithOffset().format('YYYY-MM-DD')) && (
+        <p className="schedules-tab__notice" role="note">
+          🔁 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가 가까워지면 생겨요.
+        </p>
+      )}
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
         <div className="schedules-tab__header-actions">
@@ -395,6 +423,7 @@ const SchedulesTabPage = () => {
         )}
       </div>
 
+      {recurrenceScope.dialog}
       {detailScheduleId && (
         <ScheduleDetailModal
           scheduleId={detailScheduleId}

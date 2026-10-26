@@ -47,6 +47,8 @@ type DraftBlock = {
   suggestedType: ScheduleTaskType
   /** ADR-0018: 보정으로 길이가 바뀌었으면 그 설명 */
   calibrationNote: string | null
+  /** ADR-0019: 반복 작업의 회차인지 */
+  recurring: boolean
 }
 
 const HORIZON_OPTIONS = [0, 1, 3, 7, 14, 30]
@@ -80,6 +82,7 @@ const toDraft = (block: PlannedBlock, zoneId: string): DraftBlock => {
     suggestedStartLocal: startLocal,
     suggestedType: block.scheduleType,
     calibrationNote: blockCalibrationNote(block),
+    recurring: Boolean(block.recurrenceSeriesId),
   }
 }
 
@@ -566,6 +569,11 @@ const PlanPage = () => {
                             onChange={(event) => updateDraft(draft.taskId, { selected: event.target.checked })}
                           />
                           <span className="plan-page__block-title">{draft.title}</span>
+                          {draft.recurring && (
+                            <span className="plan-page__badge" title="반복 작업의 오늘 회차예요. 그날이 마감이에요">
+                              🔁 반복
+                            </span>
+                          )}
                           {draft.mustTier && (
                             <span className="plan-page__badge plan-page__badge--must" title="마감이 지났거나 계획일이 마감이에요">
                               필수

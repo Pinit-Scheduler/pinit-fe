@@ -11,6 +11,9 @@ import { getDeadlineStyle } from '@shared/utils/deadlineStyles'
 import { formatDateWithOffset } from '@shared/utils/datetime'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import './TaskDetailModal.css'
+import '@features/recurrence/components/RecurrenceRuleFields.css'
+import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
+import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -26,6 +29,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const [error, setError] = useState<string | null>(null)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
+  const recurrenceScope = useRecurrenceScope()
 
   useEffect(() => {
     const cached = tasksById[taskId]
@@ -85,8 +89,28 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
 
   const handleDelete = async () => {
     if (!task) return
-    if (!window.confirm('작업을 삭제하시겠습니까?')) return
+    if (task.recurrence) {
+      const scope = await recurrenceScope.ask('delete', task.title)
+      if (scope === null) return
+      if (scope !== 'THIS') {
+        try {
+          if (await confirmAndDeleteSeries(task.recurrence, scope)) {
+            dispatchTaskChanged({ reason: 'recurrence' })
+            dispatchScheduleChanged({ reason: 'recurrence' })
+            addToast('반복 작업을 지웠어요.', 'success')
+            onClose()
+          }
+        } catch (err) {
+          console.error('반복 작업 삭제 실패', err)
+          addToast('반복 작업을 지우지 못했어요.', 'error')
+        }
+        return
+      }
+    } else if (!window.confirm('작업을 삭제하시겠습니까?')) {
+      return
+    }
     try {
+      // 반복 회차는 서버가 시작 전인 연결 일정도 함께 지운다(ADR-0019 §7).
       await deleteTask(task.id, false)
       removeTask(task.id)
       dispatchTaskChanged(task.id, 'delete')
@@ -146,6 +170,12 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
             <div className="task-detail-modal__body">
               <section className="task-detail-modal__section">
                 <h2>{task.title}</h2>
+                {task.recurrence && (
+                  <p className="task-detail-modal__description">
+                    <span className="recurrence-badge">🔁 반복</span>{' '}
+                    {task.recurrence.occurrenceDate} 회차{task.missed ? ' · 놓친 회차예요' : ''}
+                  </p>
+                )}
                 <p className="task-detail-modal__description">{task.description}</p>
                 <div className="task-detail-modal__meta">
                   <span className="task-detail-modal__badge task-detail-modal__badge--state">
@@ -218,6 +248,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
           </>
         )}
       </div>
+      {recurrenceScope.dialog}
       <TaskScheduleModal
         isOpen={showScheduleModal}
         onClose={() => setShowScheduleModal(false)}

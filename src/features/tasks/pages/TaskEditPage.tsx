@@ -15,6 +15,9 @@ import {
   parseIsoDurationMinutes,
 } from '@shared/utils/isoDuration'
 import './TaskPages.css'
+import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
+import { confirmAndUpdateSeries } from '@features/recurrence/utils/seriesMutations'
+import { flexibleChanges } from '@features/recurrence/utils/recurrenceRules'
 
 const TaskEditPage = () => {
   const { taskId } = useParams()
@@ -27,6 +30,7 @@ const TaskEditPage = () => {
   const [initialNextIds, setInitialNextIds] = useState<number[]>([])
   const { setTask: cacheSetTask } = useTaskCache()
   const { addToast } = useToast()
+  const recurrenceScope = useRecurrenceScope()
 
   useEffect(() => {
     if (!numericId) return
@@ -53,8 +57,52 @@ const TaskEditPage = () => {
     }
   }, [numericId])
 
+  /** ADR-0019 "이번 및 이후"·"전체": 바꾼 값만 시리즈에 보낸다. 날짜 이동은 "이번만"에서만 된다. */
+  const updateSeries = async (values: TaskFormValues, scope: 'FOLLOWING' | 'ALL') => {
+    if (!task?.recurrence) return
+    if (values.dueDate !== toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD')) {
+      addToast('날짜를 옮기는 것은 "이번만"으로 해 주세요. 반복 요일은 반복 관리에서 바꿔요.', 'error')
+      return
+    }
+    const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
+    const before = {
+      title: task.title,
+      description: task.description,
+      importance: task.importance,
+      difficulty: task.difficulty,
+      expectedDurationMinutes: parseIsoDurationMinutes(task.expectedDuration) ?? 0,
+    }
+    const after = {
+      title: values.title,
+      description: values.description,
+      importance: values.importance,
+      difficulty: values.difficulty,
+      expectedDurationMinutes: expectedDuration.kind === 'value' ? expectedDuration.minutes : 0,
+    }
+    try {
+      const outcome = await confirmAndUpdateSeries(task.recurrence, scope, flexibleChanges(before, after))
+      if (outcome === 'cancelled') return
+      if (outcome === 'updated') {
+        dispatchTaskChanged({ reason: 'recurrence' })
+        addToast('반복 작업을 바꿨어요.', 'success')
+      }
+      navigate('/app/tasks')
+    } catch (err) {
+      console.error('반복 작업 수정 실패', err)
+      addToast('반복 작업을 바꾸지 못했어요.', 'error')
+    }
+  }
+
   const handleSubmit = async (values: TaskFormValues) => {
     if (!numericId) return
+    if (task?.recurrence) {
+      const scope = await recurrenceScope.ask('edit', task.title)
+      if (scope === null) return
+      if (scope !== 'THIS') {
+        await updateSeries(values, scope)
+        return
+      }
+    }
     try {
       const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
       // 입력값을 비우면 "PT0S"로 해제해 난이도 환산값으로 돌린다. 원래 입력이 없었으면 보내지 않는다(유지).
@@ -143,6 +191,7 @@ const TaskEditPage = () => {
             }}
             onSubmit={handleSubmit}
             submitLabel="작업 수정"
+            hideDependencies={Boolean(task.recurrence)}
             effectiveExpectedDurationLabel={(() => {
               const label = formatIsoDurationLabel(task.effectiveExpectedDuration)
               if (!label) return undefined
@@ -151,6 +200,7 @@ const TaskEditPage = () => {
           />
         )}
       </div>
+      {recurrenceScope.dialog}
     </section>
   )
 }

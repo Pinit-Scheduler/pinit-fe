@@ -184,3 +184,12 @@
     opacity: 1;
   }
 }
+
+.schedules-tab__notice {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 13px;
+}

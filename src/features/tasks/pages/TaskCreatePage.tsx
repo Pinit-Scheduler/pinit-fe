@@ -4,17 +4,51 @@ import type { TaskFormValues } from '../components/TaskForm'
 import { createTask } from '../api/tasks'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
-import { toApiDateWithOffset } from '@shared/utils/datetime'
+import { getDisplayZoneId, toApiDateWithOffset } from '@shared/utils/datetime'
 import { dispatchTaskChanged } from '@shared/utils/events'
 import { minutesToIsoDuration, parseDurationInput } from '@shared/utils/isoDuration'
 import './TaskPages.css'
+import type { RuleDraft } from '@features/recurrence/utils/recurrenceRules'
+import { mapRecurrenceServerErrors, toRule } from '@features/recurrence/utils/recurrenceRules'
+import { createRecurrence } from '@features/recurrence/api/recurrences'
+import { ApiError } from '@shared/api/httpClient'
 
 const TaskCreatePage = () => {
   const navigate = useNavigate()
   const { setTask } = useTaskCache()
   const { addToast } = useToast()
 
-  const handleSubmit = async (values: TaskFormValues) => {
+  /** ADR-0019 FLEXIBLE 반복: 회차마다 그날이 마감인 작업을 만든다. */
+  const createRecurringTask = async (values: TaskFormValues, rule: RuleDraft) => {
+    const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
+    try {
+      await createRecurrence({
+        mode: 'FLEXIBLE',
+        title: values.title,
+        description: values.description,
+        flexible: {
+          importance: values.importance,
+          difficulty: values.difficulty,
+          ...(expectedDuration.kind === 'value' ? { expectedDuration: minutesToIsoDuration(expectedDuration.minutes) } : {}),
+        },
+        rule: toRule(rule),
+        zoneId: getDisplayZoneId(),
+      })
+      dispatchTaskChanged({ reason: 'recurrence' })
+      addToast('반복 작업을 만들었어요. 할 일 목록에는 오늘까지의 회차가 보여요.', 'success')
+      navigate('/app/tasks')
+    } catch (error) {
+      console.error('반복 작업 생성 실패', error)
+      const fieldErrors = error instanceof ApiError && error.status === 400 ? Object.values(mapRecurrenceServerErrors(error.data)) : []
+      addToast(fieldErrors[0] ?? (error instanceof ApiError && error.status === 409 ? '진행 중인 반복이 너무 많아요.' : '반복 작업을 만들지 못했어요.'), 'error')
+    }
+  }
+
+  const handleSubmit = async (values: TaskFormValues, rule?: RuleDraft | null) => {
+    if (rule) {
+      await createRecurringTask(values, rule)
+      return
+    }
     try {
       const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
       const payload = {
@@ -50,7 +84,7 @@ const TaskCreatePage = () => {
         <p className="task-page__description">Task 폼과 의존성 선택 모달을 연결할 예정입니다.</p>
       </header>
       <div className="task-page__content">
-        <TaskForm onSubmit={handleSubmit} submitLabel="작업 생성" />
+        <TaskForm onSubmit={handleSubmit} submitLabel="작업 생성" allowRecurrence />
       </div>
     </section>
   )

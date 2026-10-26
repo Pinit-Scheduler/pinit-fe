@@ -18,6 +18,7 @@ const TAB_TITLES: Record<string, string> = {
   '/app/statistics': '통계',
   '/app/settings': '설정',
   '/app/settings/routines': '생활 시간',
+  '/app/settings/recurrences': '반복 관리',
   '/app/settings/onboarding': '온보딩',
 }
 

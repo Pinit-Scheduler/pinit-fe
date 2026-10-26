@@ -29,7 +29,7 @@ const plain = (value) => JSON.parse(JSON.stringify(value))
 const { onboardingFixture } = loadModule('../src/mocks/onboardingFixture.ts')
 const fixture = plain(onboardingFixture)
 
-// ADR-0017 §7 앵커 계약. 백엔드 YAML도 같은 표를 따른다.
+// ADR-0017 §7 앵커 계약(ADR-0019가 반복을 더함). 백엔드 YAML도 같은 표를 따른다.
 const ADR_CONTRACT = {
   today: { route: '/app/today', anchor: 'today.header' },
   tasks: { route: '/app/tasks', anchor: 'tasks.header' },
@@ -39,6 +39,7 @@ const ADR_CONTRACT = {
   planner: { route: '/app/plan', anchor: 'plan.controls' },
   statistics: { route: '/app/statistics', anchor: 'statistics.cards' },
   routines: { route: '/app/settings', anchor: 'settings.routines' },
+  recurrence: { route: '/app/settings', anchor: 'settings.recurrences' },
   notifications: { route: '/app/settings', anchor: 'settings.push' },
   'ai-connection': { route: '/app/settings', anchor: 'settings.ai-connection' },
   onboarding: { route: '/app/settings', anchor: 'settings.onboarding' },
@@ -75,7 +76,8 @@ test('fixture keys and anchors match the ADR contract', () => {
   assert.deepEqual(actual, ADR_CONTRACT)
   assert.deepEqual(Object.keys(actual), Object.keys(ADR_CONTRACT), 'tour order')
 
-  assert.equal(fixture.revision, 1)
+  // ADR-0019 added the recurrence feature at revision 2.
+  assert.equal(fixture.revision, 2)
   assert.equal(fixture.revision, Math.max(...fixture.features.map((feature) => feature.revision)))
   assert.deepEqual(
     fixture.features.filter((feature) => feature.guide === null).map((feature) => feature.key),

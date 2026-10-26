@@ -2,6 +2,7 @@ import type { ScheduleSummary } from '../types/schedule'
 import './ScheduleCard.css'
 import { scheduleTypeLabel, stateIcon, stateLabel } from '@constants/schedules'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
+import '@features/recurrence/components/RecurrenceRuleFields.css'
 
 type ScheduleCardProps = {
   schedule: ScheduleSummary
@@ -38,7 +39,8 @@ const ScheduleCard = ({
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation() // 카드 클릭 이벤트 방지
-    if (window.confirm(`"${title}" 일정을 삭제하시겠습니까?`)) {
+    // 반복 회차는 화면이 범위(이번만·이번 및 이후·전체)를 묻는다.
+    if (schedule.recurrence || window.confirm(`"${title}" 일정을 삭제하시겠습니까?`)) {
       onDelete(id)
     }
   }
@@ -97,6 +99,11 @@ const ScheduleCard = ({
         <div className="schedule-card__text">
           <div className="schedule-card__title-row">
             <p className="schedule-card__title">{title}</p>
+            {schedule.recurrence && (
+              <span className="recurrence-badge" title="반복 일정" aria-label="반복 일정">
+                🔁 반복
+              </span>
+            )}
             {scheduleType && <p className="schedule-card__subtitle">{scheduleTypeLabel[scheduleType]}</p>}
             {plannedDurationLabel && <p className="schedule-card__subtitle">{plannedDurationLabel}</p>}
           </div>

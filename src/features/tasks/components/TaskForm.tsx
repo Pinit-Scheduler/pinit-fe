@@ -6,6 +6,13 @@ import type { DifficultyValue } from '@constants/difficulty'
 import { parseDurationInput } from '@shared/utils/isoDuration'
 import './TaskForm.css'
 import TaskDependencyModal from './modals/TaskDependencyModal'
+import RecurrenceRuleFields from '@features/recurrence/components/RecurrenceRuleFields'
+import {
+  defaultRuleDraft,
+  validateRuleDraft,
+  type RuleDraft,
+  type RuleDraftField,
+} from '@features/recurrence/utils/recurrenceRules'
 
 export type TaskFormValues = {
   title: string
@@ -21,8 +28,13 @@ export type TaskFormValues = {
 
 type TaskFormProps = {
   initialValues?: Partial<TaskFormValues>
-  onSubmit: (values: TaskFormValues) => Promise<void>
+  /** rule은 "반복"을 켰을 때만 있다. 첫 회차 날짜는 마감 날짜다 */
+  onSubmit: (values: TaskFormValues, rule?: RuleDraft | null) => Promise<void>
   submitLabel?: string
+  /** 새 작업에서 "반복"(ADR-0019 FLEXIBLE)을 켤 수 있게 한다 */
+  allowRecurrence?: boolean
+  /** 반복 회차는 이전·다음 작업을 연결할 수 없다 */
+  hideDependencies?: boolean
   /** 서버가 돌려준 유효 예상 소요시간 라벨(수정 화면). 예: "45분 · 난이도 기준" */
   effectiveExpectedDurationLabel?: string
 }
@@ -42,8 +54,17 @@ const buildDefaultValues = (initial?: Partial<TaskFormValues>): TaskFormValues =
   }
 }
 
-const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장', effectiveExpectedDurationLabel }: TaskFormProps) => {
+const TaskForm = ({
+  initialValues,
+  onSubmit,
+  submitLabel = '저장',
+  effectiveExpectedDurationLabel,
+  allowRecurrence,
+  hideDependencies,
+}: TaskFormProps) => {
   const [values, setValues] = useState<TaskFormValues>(() => buildDefaultValues(initialValues))
+  const [rule, setRule] = useState<RuleDraft | null>(null)
+  const [ruleErrors, setRuleErrors] = useState<Partial<Record<RuleDraftField, string>>>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [modalMode, setModalMode] = useState<null | 'previous' | 'next'>(null)
   const [dependencyMeta, setDependencyMeta] = useState<Record<number, { title: string }>>({})
@@ -64,9 +85,15 @@ const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장', effectiveEx
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!validate()) return
-    await onSubmit(values)
+    const valid = validate()
+    const ruleWithStart = rule ? { ...rule, startDate: values.dueDate } : null
+    const nextRuleErrors = ruleWithStart ? validateRuleDraft(ruleWithStart, dayjs().format('YYYY-MM-DD')) : {}
+    setRuleErrors(nextRuleErrors)
+    if (!valid || Object.keys(nextRuleErrors).length) return
+    await onSubmit(values, ruleWithStart)
   }
+
+  const showDependencies = !hideDependencies && rule === null
 
   return (
     <form className="task-form" onSubmit={handleSubmit}>
@@ -170,72 +197,102 @@ const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장', effectiveEx
         {errors.expectedDurationMinutes && <small>{errors.expectedDurationMinutes}</small>}
       </label>
 
+      {allowRecurrence && (
+        <div className="task-form__field">
+          <label className="recurrence-toggle">
+            <input
+              type="checkbox"
+              checked={rule !== null}
+              onChange={(e) => {
+                const checked = e.target.checked
+                setRule(checked ? defaultRuleDraft(values.dueDate) : null)
+                if (checked) setValues((prev) => ({ ...prev, previousTaskIds: [], nextTaskIds: [] }))
+              }}
+            />
+            <span>🔁 반복</span>
+          </label>
+          {rule && (
+            <>
+              <RecurrenceRuleFields draft={rule} onChange={setRule} errors={ruleErrors} hideStartDate />
+              <p className="task-form__note">
+                마감 날짜가 첫 회차예요. 회차마다 그날이 마감인 작업이 생기고, 자동 계획이 그날 시간을 잡아요. 반복 작업에는
+                이전·다음 작업을 연결할 수 없어요.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="task-form__actions">
         <button type="submit" className="task-form__primary" disabled={isSubmitting}>
           {submitLabel}
         </button>
       </div>
 
-      <div className="task-form__dependency" data-onboarding-anchor="task-form.dependencies">
-        <div className="task-form__dependency-row">
-          <h3>이전 작업</h3>
-          <button type="button" onClick={() => setModalMode('previous')}>선택</button>
-        </div>
-        {values.previousTaskIds.length === 0 ? (
-          <p className="task-form__note">선택된 이전 작업이 없습니다.</p>
-        ) : (
-          <div className="task-form__tags">
-            {values.previousTaskIds.map((id) => (
-              <span key={id} className="task-form__tag">
-                {dependencyMeta[id]?.title ?? `작업 #${id}`}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setValues((prev) => ({
-                      ...prev,
-                      previousTaskIds: prev.previousTaskIds.filter((v) => v !== id),
-                    }))
-                  }
-                  aria-label="이전 작업 제거"
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
+      {showDependencies && (
+        <>
+          <div className="task-form__dependency" data-onboarding-anchor="task-form.dependencies">
+            <div className="task-form__dependency-row">
+              <h3>이전 작업</h3>
+              <button type="button" onClick={() => setModalMode('previous')}>선택</button>
+            </div>
+            {values.previousTaskIds.length === 0 ? (
+              <p className="task-form__note">선택된 이전 작업이 없습니다.</p>
+            ) : (
+              <div className="task-form__tags">
+                {values.previousTaskIds.map((id) => (
+                  <span key={id} className="task-form__tag">
+                    {dependencyMeta[id]?.title ?? `작업 #${id}`}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValues((prev) => ({
+                          ...prev,
+                          previousTaskIds: prev.previousTaskIds.filter((v) => v !== id),
+                        }))
+                      }
+                      aria-label="이전 작업 제거"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <div className="task-form__dependency">
-        <div className="task-form__dependency-row">
-          <h3>이후 작업</h3>
-          <button type="button" onClick={() => setModalMode('next')}>선택</button>
-        </div>
-        {values.nextTaskIds.length === 0 ? (
-          <p className="task-form__note">선택된 이후 작업이 없습니다.</p>
-        ) : (
-          <div className="task-form__tags">
-            {values.nextTaskIds.map((id) => (
-              <span key={id} className="task-form__tag is-next">
-                {dependencyMeta[id]?.title ?? `작업 #${id}`}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setValues((prev) => ({
-                      ...prev,
-                      nextTaskIds: prev.nextTaskIds.filter((v) => v !== id),
-                    }))
-                  }
-                  aria-label="이후 작업 제거"
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
+          <div className="task-form__dependency">
+            <div className="task-form__dependency-row">
+              <h3>이후 작업</h3>
+              <button type="button" onClick={() => setModalMode('next')}>선택</button>
+            </div>
+            {values.nextTaskIds.length === 0 ? (
+              <p className="task-form__note">선택된 이후 작업이 없습니다.</p>
+            ) : (
+              <div className="task-form__tags">
+                {values.nextTaskIds.map((id) => (
+                  <span key={id} className="task-form__tag is-next">
+                    {dependencyMeta[id]?.title ?? `작업 #${id}`}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setValues((prev) => ({
+                          ...prev,
+                          nextTaskIds: prev.nextTaskIds.filter((v) => v !== id),
+                        }))
+                      }
+                      aria-label="이후 작업 제거"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
+        </>
+      )}
       <TaskDependencyModal
         isOpen={modalMode !== null}
         onClose={() => setModalMode(null)}

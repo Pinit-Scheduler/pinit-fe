@@ -36,6 +36,8 @@ export type PlannedBlock = {
   calibrationFactor?: number
   /** ADR-0018: 계수 출처 */
   factorSource?: FactorSource
+  /** ADR-0019: 반복 작업 회차이면 시리즈 ID. 이전 서버 응답에는 없다 */
+  recurrenceSeriesId?: number | null
 }
 
 export type UnplacedTask = {

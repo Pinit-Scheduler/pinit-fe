@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMemo } from 'react'
 import ScheduleForm from '../../components/ScheduleForm'
-import { getTodayWithOffset, toApiDateTimeWithZone, toDisplayDayjs } from '@shared/utils/datetime'
+import { getDisplayZoneId, getTodayWithOffset, toApiDateTimeWithZone, toDisplayDayjs } from '@shared/utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../types/schedule'
 import { createSchedule } from '../../api/schedules'
 import { useToast } from '@contexts/ToastContext'
@@ -9,6 +9,9 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import { minutesToIsoDuration, parseDurationInput } from '@shared/utils/isoDuration'
 import './ScheduleFormPage.css'
+import { createRecurrence } from '@features/recurrence/api/recurrences'
+import { mapRecurrenceServerErrors, toRule, type RuleDraft } from '@features/recurrence/utils/recurrenceRules'
+import { ApiError } from '@shared/api/httpClient'
 
 type LocationState = {
   initialDateKey?: string
@@ -41,7 +44,11 @@ const ScheduleCreatePage = () => {
     }
   }
 
-  const handleSubmit = async (values: ScheduleFormValues) => {
+  const handleSubmit = async (values: ScheduleFormValues, rule?: RuleDraft | null) => {
+    if (rule) {
+      await createRecurringSchedule(values, rule)
+      return
+    }
     try {
       const plannedDuration = parseDurationInput(values.plannedDurationMinutes ?? '')
       const payload = {
@@ -64,6 +71,33 @@ const ScheduleCreatePage = () => {
     }
   }
 
+  /** ADR-0019 FIXED 반복: 회차마다 작업 없는 일정을 같은 시각에 만든다. */
+  const createRecurringSchedule = async (values: ScheduleFormValues, rule: RuleDraft) => {
+    const plannedDuration = parseDurationInput(values.plannedDurationMinutes ?? '')
+    try {
+      await createRecurrence({
+        mode: 'FIXED',
+        title: values.title,
+        description: values.description,
+        fixed: {
+          startTime: toDisplayDayjs(values.date).format('HH:mm'),
+          plannedDuration: minutesToIsoDuration(plannedDuration.kind === 'value' ? plannedDuration.minutes : 30),
+          scheduleType: values.scheduleType,
+        },
+        rule: toRule(rule),
+        zoneId: getDisplayZoneId(),
+      })
+      dispatchScheduleChanged({ reason: 'recurrence' })
+      addToast('반복 일정을 만들었어요.', 'success')
+      handleClose()
+    } catch (error) {
+      console.error('반복 일정 저장 실패:', error)
+      const fieldErrors = error instanceof ApiError && error.status === 400 ? Object.values(mapRecurrenceServerErrors(error.data)) : []
+      addToast(fieldErrors[0] ?? (error instanceof ApiError && error.status === 409 ? '진행 중인 반복이 너무 많아요.' : '반복 일정을 만들지 못했어요.'), 'error')
+      throw error
+    }
+  }
+
   return (
     <section className="schedule-form-page">
       <header className="schedule-form-page__header">
@@ -79,6 +113,7 @@ const ScheduleCreatePage = () => {
         onSubmit={handleSubmit}
         submitLabel="일정 추가"
         plannedDurationHint="비워 두면 30분으로 저장돼요."
+        allowRecurrence
       />
     </section>
   )
