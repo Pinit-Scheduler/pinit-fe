@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import useScheduleViewState from '../../hooks/useScheduleViewState.ts'
 import WeeklyDateStrip from '../../components/WeeklyDateStrip.tsx'
 import OverdueBanner from '../../components/OverdueBanner.tsx'
@@ -274,9 +275,14 @@ const SchedulesTabPage = () => {
       </div>
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
-        <button type="button" className="schedules-tab__refresh" onClick={handleRefresh}>
-          새로고침
-        </button>
+        <div className="schedules-tab__header-actions">
+          <Link to={`/app/plan?date=${selectedDateKey}`} className="schedules-tab__refresh">
+            자동 계획
+          </Link>
+          <button type="button" className="schedules-tab__refresh" onClick={handleRefresh}>
+            새로고침
+          </button>
+        </div>
       </header>
       <div
         ref={listRef}

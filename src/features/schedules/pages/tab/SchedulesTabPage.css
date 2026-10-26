@@ -19,11 +19,19 @@
   font-weight: 600;
 }
 
+.schedules-tab__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .schedules-tab__refresh {
   border: none;
   background: none;
   color: #2563eb;
   font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
 }
 
 .schedules-tab__list {

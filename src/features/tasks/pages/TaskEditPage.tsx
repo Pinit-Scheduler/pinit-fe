@@ -8,6 +8,12 @@ import type { Task } from '../types/task'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
 import { dispatchTaskChanged } from '@shared/utils/events'
+import {
+  formatIsoDurationLabel,
+  minutesToIsoDuration,
+  parseDurationInput,
+  parseIsoDurationMinutes,
+} from '@shared/utils/isoDuration'
 import './TaskPages.css'
 
 const TaskEditPage = () => {
@@ -50,12 +56,21 @@ const TaskEditPage = () => {
   const handleSubmit = async (values: TaskFormValues) => {
     if (!numericId) return
     try {
+      const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
+      // 입력값을 비우면 "PT0S"로 해제해 난이도 환산값으로 돌린다. 원래 입력이 없었으면 보내지 않는다(유지).
+      const expectedDurationField =
+        expectedDuration.kind === 'value'
+          ? { expectedDuration: minutesToIsoDuration(expectedDuration.minutes) }
+          : task?.expectedDuration
+            ? { expectedDuration: minutesToIsoDuration(0) }
+            : {}
       const payload = {
         title: values.title,
         description: values.description,
         dueDate: toApiDateWithOffset(values.dueDate),
         importance: values.importance,
         difficulty: values.difficulty,
+        ...expectedDurationField,
         addDependencies: [
           ...values.previousTaskIds
             .filter((id) => !initialPrevIds.includes(id))
@@ -119,11 +134,20 @@ const TaskEditPage = () => {
               dueDate: toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD'),
               importance: task.importance,
               difficulty: task.difficulty as TaskFormValues['difficulty'],
+              expectedDurationMinutes: (() => {
+                const entered = parseIsoDurationMinutes(task.expectedDuration)
+                return entered ? String(entered) : ''
+              })(),
               previousTaskIds: initialPrevIds,
               nextTaskIds: initialNextIds,
             }}
             onSubmit={handleSubmit}
             submitLabel="작업 수정"
+            effectiveExpectedDurationLabel={(() => {
+              const label = formatIsoDurationLabel(task.effectiveExpectedDuration)
+              if (!label) return undefined
+              return `${label} · ${task.expectedDuration ? '직접 입력' : '난이도 기준'}`
+            })()}
           />
         )}
       </div>

@@ -10,6 +10,7 @@ import { LandingPage } from '@features/landing'
 import { LoginPage, SignupPage, SocialCallbackPage, AuthGuard } from '@features/auth'
 import { ScheduleCreatePage, ScheduleEditPage, SchedulesTabPage } from '@features/schedules'
 import { TodayPage } from '@features/today'
+import { PlanPage } from '@features/planner'
 import { TaskListPage, TaskCreatePage, TaskEditPage, TaskDetailPage } from '@features/tasks'
 import { StatisticsTabPage } from '@features/statistics'
 import { SettingsPage } from '@features/settings'
@@ -48,6 +49,7 @@ const AppContent = () => {
                   <Route path="/app" element={<AppShell />}>
                     <Route index element={<Navigate to="/app/today" replace />} />
                     <Route path="today" element={<TodayPage />} />
+                    <Route path="plan" element={<PlanPage />} />
                     <Route path="schedules" element={<SchedulesTabPage />} />
                     <Route path="schedules/new" element={<ScheduleCreatePage />} />
                     <Route path="schedules/:scheduleId/edit" element={<ScheduleEditPage />} />

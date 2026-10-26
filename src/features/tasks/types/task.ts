@@ -13,6 +13,11 @@ export type TaskRequest = {
   difficulty: number // fibonacci values
   addDependencies?: TaskDependency[]
   removeDependencies?: TaskDependency[]
+  /**
+   * 예상 소요시간(ISO-8601, 0 또는 5분~24시간). 생성에서 생략하면 입력 안 함(난이도 환산값 사용),
+   * 수정에서 생략하면 기존 값 유지, "PT0S"는 입력 해제
+   */
+  expectedDuration?: string
 }
 
 export type Task = {
@@ -22,6 +27,10 @@ export type Task = {
   dueDate: DateWithOffset
   importance: number
   difficulty: number
+  /** 입력한 예상 소요시간(ISO-8601). 입력하지 않았으면 null */
+  expectedDuration?: string | null
+  /** 유효 예상 소요시간(ISO-8601). 입력값, 없으면 난이도 환산값 */
+  effectiveExpectedDuration?: string
   completed: boolean
   isCompleted?: boolean
   inboundDependencyCount?: number

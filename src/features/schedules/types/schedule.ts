@@ -18,6 +18,8 @@ export type ScheduleResponse = {
   scheduleType: ScheduleTaskType
   state: ScheduleState
   taskId?: number
+  /** 계획 길이(ISO-8601). v2 응답에는 항상 있다 */
+  plannedDuration?: string
   // legacy / v0 fields (optional)
   deadline?: DateTimeWithZone
   importance?: number
@@ -38,6 +40,8 @@ export type ScheduleFormValues = {
   description: string
   date: Date
   scheduleType: ScheduleTaskType
+  /** 계획 길이(분) 입력칸 값. 비우면 서버 기본값(새 일정 30분)이나 기존 값 */
+  plannedDurationMinutes?: string
   taskId?: number
 }
 
@@ -50,6 +54,8 @@ export type ScheduleSummary = {
   scheduleType?: ScheduleTaskType // 백엔드에서 제공하지 않을 수 있음
   state: ScheduleState
   duration?: string
+  /** 계획 길이(ISO-8601) */
+  plannedDuration?: string
   taskId?: number
   // optional legacy fields
   deadline?: DateTimeWithZone

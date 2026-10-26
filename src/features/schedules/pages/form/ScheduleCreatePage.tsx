@@ -7,6 +7,7 @@ import { createSchedule } from '../../api/schedules'
 import { useToast } from '@contexts/ToastContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { dispatchScheduleChanged } from '@shared/utils/events'
+import { minutesToIsoDuration, parseDurationInput } from '@shared/utils/isoDuration'
 import './ScheduleFormPage.css'
 
 type LocationState = {
@@ -42,11 +43,14 @@ const ScheduleCreatePage = () => {
 
   const handleSubmit = async (values: ScheduleFormValues) => {
     try {
+      const plannedDuration = parseDurationInput(values.plannedDurationMinutes ?? '')
       const payload = {
         title: values.title,
         description: values.description,
         date: toApiDateTimeWithZone(values.date),
         scheduleType: values.scheduleType,
+        // 비워 두면 보내지 않는다: 서버가 30분을 저장한다.
+        ...(plannedDuration.kind === 'value' ? { plannedDuration: minutesToIsoDuration(plannedDuration.minutes) } : {}),
       }
       const result: ScheduleResponse | null = await createSchedule(payload)
       if (result) {
@@ -70,7 +74,12 @@ const ScheduleCreatePage = () => {
           설정해 보세요.
         </p>
       </header>
-      <ScheduleForm initialValues={initialValues} onSubmit={handleSubmit} submitLabel="일정 추가" />
+      <ScheduleForm
+        initialValues={initialValues}
+        onSubmit={handleSubmit}
+        submitLabel="일정 추가"
+        plannedDurationHint="비워 두면 30분으로 저장돼요."
+      />
     </section>
   )
 }

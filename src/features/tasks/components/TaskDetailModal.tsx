@@ -9,6 +9,7 @@ import { useToast } from '@contexts/ToastContext'
 import { dispatchScheduleChanged, dispatchTaskChanged } from '@shared/utils/events'
 import { getDeadlineStyle } from '@shared/utils/deadlineStyles'
 import { formatDateWithOffset } from '@shared/utils/datetime'
+import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import './TaskDetailModal.css'
 
 type TaskDetailModalProps = {
@@ -156,6 +157,14 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                   <span className="task-detail-modal__badge" style={getDifficultyStyle(task.difficulty)}>
                     난이도 {task.difficulty}
                   </span>
+                  {formatIsoDurationLabel(task.effectiveExpectedDuration) && (
+                    <span
+                      className="task-detail-modal__badge"
+                      title={task.expectedDuration ? '직접 입력한 예상 소요시간' : '난이도 기준 예상 소요시간'}
+                    >
+                      예상 {formatIsoDurationLabel(task.effectiveExpectedDuration)}
+                    </span>
+                  )}
                   {task.dueDate && (
                     <span className="task-detail-modal__badge" style={getDeadlineStyle(task.dueDate)}>
                       마감 {formatDateWithOffset(task.dueDate, 'M/D')}

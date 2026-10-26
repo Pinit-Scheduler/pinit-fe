@@ -8,6 +8,8 @@ type ScheduleFormProps = {
   initialValues?: Partial<ScheduleFormValues>
   onSubmit: (values: ScheduleFormValues) => Promise<void>
   submitLabel?: string
+  /** 계획 길이 입력칸 아래 안내. 예: 새 일정은 "비워 두면 30분" */
+  plannedDurationHint?: string
 }
 
 const scheduleTypeOptions: { value: ScheduleTaskType; label: string }[] = [
@@ -29,7 +31,7 @@ const parseDateTimeLocalValue = (value: string, offsetMinutes: number) =>
  * @param submitLabel - 제출 버튼 라벨
  * @constructor
  */
-const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }: ScheduleFormProps) => {
+const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', plannedDurationHint }: ScheduleFormProps) => {
   const form = useScheduleForm({ initialValues })
   const { offsetMinutes } = useTimePreferences()
 
@@ -96,6 +98,21 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장' }
             form.onChange('date', parseDateTimeLocalValue(event.target.value, offsetMinutes))
           }
         />
+      </label>
+
+      <label className="schedule-form__field">
+        <span>계획 길이 (분, 선택)</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={5}
+          max={1440}
+          value={form.values.plannedDurationMinutes ?? ''}
+          onChange={(event) => form.onChange('plannedDurationMinutes', event.target.value)}
+          placeholder="예: 45"
+        />
+        {plannedDurationHint && <p className="schedule-form__hint">{plannedDurationHint}</p>}
+        {form.errors.plannedDurationMinutes && <small>{form.errors.plannedDurationMinutes}</small>}
       </label>
 
       <div className="schedule-form__actions">

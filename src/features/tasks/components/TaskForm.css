@@ -170,3 +170,8 @@
   font-weight: 700;
   cursor: pointer;
 }
+
+.task-form__note {
+  color: #64748b;
+  font-size: 12px;
+}

@@ -34,7 +34,7 @@ const makeDateWithOffset = (offsetDays: number, zoneId = 'Asia/Seoul'): DateWith
   }
 }
 
-let taskSeq = 3
+let taskSeq = 6
 let scheduleSeq = 4
 
 export const mockUsers: MockUser[] = [
@@ -76,6 +76,43 @@ export const mockTasks: Task[] = [
     completed: true,
     inboundDependencyCount: 0,
   },
+  // 하루 계획(/app/plan) 확인용 후보 작업
+  {
+    id: 4,
+    title: '발표 자료 만들기',
+    description: '다음 주 데모 슬라이드',
+    dueDate: makeDateWithOffset(2, 'Asia/Seoul'),
+    importance: 8,
+    difficulty: 8,
+    expectedDuration: 'PT1H30M',
+    isCompleted: false,
+    completed: false,
+    inboundDependencyCount: 0,
+  },
+  {
+    id: 5,
+    title: '분기 보고서 초안',
+    description: '지표 정리와 초안 작성',
+    dueDate: makeDateWithOffset(0, 'Asia/Seoul'),
+    importance: 6,
+    difficulty: 13,
+    expectedDuration: null,
+    isCompleted: false,
+    completed: false,
+    inboundDependencyCount: 0,
+  },
+  {
+    id: 6,
+    title: '메일함 정리',
+    description: '답장 밀린 메일 처리',
+    dueDate: makeDateWithOffset(5, 'Asia/Seoul'),
+    importance: 3,
+    difficulty: 2,
+    expectedDuration: 'PT20M',
+    isCompleted: false,
+    completed: false,
+    inboundDependencyCount: 0,
+  },
 ]
 
 export const mockSchedules: ScheduleResponse[] = [
@@ -89,6 +126,7 @@ export const mockSchedules: ScheduleResponse[] = [
     state: 'IN_PROGRESS',
     taskId: 1,
     duration: '01:00:00',
+    plannedDuration: 'PT1H',
   },
   {
     id: 2,
@@ -100,6 +138,7 @@ export const mockSchedules: ScheduleResponse[] = [
     state: 'NOT_STARTED',
     taskId: 2,
     duration: '00:45:00',
+    plannedDuration: 'PT45M',
   },
   {
     id: 3,
@@ -110,6 +149,7 @@ export const mockSchedules: ScheduleResponse[] = [
     scheduleType: 'QUICK_TASK',
     state: 'COMPLETED',
     duration: '00:30:00',
+    plannedDuration: 'PT30M',
   },
   {
     id: 4,
@@ -121,6 +161,7 @@ export const mockSchedules: ScheduleResponse[] = [
     scheduleType: 'ADMIN_TASK',
     state: 'NOT_STARTED',
     duration: '00:20:00',
+    plannedDuration: 'PT30M',
   },
 ]
 
