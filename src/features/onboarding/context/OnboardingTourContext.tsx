@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import type { Location, NavigateFunction } from 'react-router-dom'
+import type { NavigateFunction } from 'react-router-dom'
 import { useToast } from '@contexts/ToastContext'
 import { acknowledgeOnboarding, fetchOnboarding } from '../api/onboarding'
 import SpotlightTour from '../components/SpotlightTour'
@@ -34,6 +34,12 @@ const LOAD_FAILED_MESSAGE = '온보딩 안내를 불러오지 못했어요.'
 const OnboardingContext = createContext<OnboardingContextValue | null>(null)
 
 /**
+ * 지금 브라우저 경로. BrowserRouter는 location 갱신을 transition으로 늦게 반영하므로, navigate() 직후에 연달아 누른
+ * 이전·다음·건너뛰기도 맞는 경로를 보도록 history가 동기로 바꾸는 window.location에서 읽는다.
+ */
+const currentPath = () => ({ pathname: window.location.pathname, search: window.location.search })
+
+/**
  * 앱에 들어올 때 GET /v2/onboarding을 한 번 불러와 공유하고, 서버가 준 pendingTour가 있으면 투어를 띄운다.
  * FE는 어떤 기능이 있는지, 언제 다시 보여 줄지 모른다. 응답을 그대로 따른다(ADR-0017 §7).
  */
@@ -49,14 +55,12 @@ export const OnboardingTourProvider = ({ children }: { children: ReactNode }) =>
   // 이벤트 처리기와 비동기 콜백이 최신 값을 쓰도록 ref로 들고 있는다. 렌더링 중에는 읽지 않는다.
   const tourRef = useRef<ActiveTour | null>(null)
   const expectedPathRef = useRef<string | null>(null)
-  const locationRef = useRef<Location>(location)
   const navigateRef = useRef<NavigateFunction>(navigate)
   const lastPathnameRef = useRef(location.pathname)
   const mountedRef = useRef(false)
   const didFetchRef = useRef(false)
 
   useLayoutEffect(() => {
-    locationRef.current = location
     navigateRef.current = navigate
   })
 
@@ -83,7 +87,7 @@ export const OnboardingTourProvider = ({ children }: { children: ReactNode }) =>
       const step = next.steps[next.index]
       expectedPathRef.current = step.route
       commitTour(next)
-      if (locationRef.current.pathname !== step.route) {
+      if (currentPath().pathname !== step.route) {
         navigateRef.current(step.route, { replace: true })
       }
     },
@@ -117,7 +121,7 @@ export const OnboardingTourProvider = ({ children }: { children: ReactNode }) =>
         })
 
       if (restore) {
-        const current = locationRef.current
+        const current = currentPath()
         if (`${current.pathname}${current.search}` !== active.origin) {
           navigateRef.current(active.origin, { replace: true })
         }
@@ -131,7 +135,7 @@ export const OnboardingTourProvider = ({ children }: { children: ReactNode }) =>
       if (tourRef.current) return
       const steps = buildTourSteps(source, keys)
       if (steps.length === 0) return
-      const current = locationRef.current
+      const current = currentPath()
       enterStep({ steps, index: 0, origin: `${current.pathname}${current.search}`, revision: source.revision })
     },
     [enterStep],

@@ -87,7 +87,7 @@ const AppShell = () => {
     if (isOnboardingGuide) {
       const historyIndex = (window.history.state as { idx?: number } | null)?.idx
       if (historyIndex === undefined || historyIndex <= 0) {
-        navigate('/app/settings')
+        navigate('/app/settings', { replace: true })
         return
       }
     }

@@ -33,11 +33,14 @@
   background: #fff;
   color: #0f172a;
   box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  /* 앵커를 찾기 전에는 보이지도, 눌리지도, focus를 받지도 않는다. */
+  visibility: hidden;
   opacity: 0;
   transition: opacity 150ms ease;
 }
 
 .spotlight-tour__callout.is-ready {
+  visibility: visible;
   opacity: 1;
 }
 

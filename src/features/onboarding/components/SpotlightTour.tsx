@@ -51,9 +51,10 @@ const SpotlightTour = ({ step, index, total, onPrev, onNext, onSkip }: Spotlight
     return () => observer.disconnect()
   }, [])
 
+  // 말풍선이 보이게 된 뒤에야 focus를 받을 수 있으므로 단계가 바뀌고 앵커가 정해졌을 때 옮긴다.
   useEffect(() => {
-    nextButtonRef.current?.focus({ preventScroll: true })
-  }, [index, step.key])
+    if (resolved) nextButtonRef.current?.focus({ preventScroll: true })
+  }, [index, step.key, resolved])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
