@@ -1,0 +1,197 @@
+.onboarding-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.onboarding-guide__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 0 4px;
+}
+
+.onboarding-guide__eyebrow {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.onboarding-guide__title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.onboarding-guide__description {
+  font-size: 13px;
+  color: #475569;
+}
+
+.onboarding-guide__replay,
+.onboarding-guide__retry {
+  margin-top: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.onboarding-guide__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.onboarding-guide__card {
+  background-color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+}
+
+.onboarding-guide__card-heading {
+  margin: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.onboarding-guide__toggle {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 16px 44px 16px 16px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.onboarding-guide__toggle:focus-visible,
+.onboarding-guide__show:focus-visible,
+.onboarding-guide__replay:focus-visible,
+.onboarding-guide__retry:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.onboarding-guide__card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.onboarding-guide__new {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.onboarding-guide__purpose {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #475569;
+}
+
+.onboarding-guide__caret {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  font-size: 22px;
+  line-height: 1;
+  color: #94a3b8;
+  transition: transform 150ms ease;
+}
+
+.onboarding-guide__card.is-open .onboarding-guide__caret {
+  transform: rotate(90deg);
+}
+
+.onboarding-guide__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 0 16px 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.onboarding-guide__panel[hidden] {
+  display: none;
+}
+
+/* 전역 user-select: none을 풀어 안내 문구를 복사할 수 있게 한다. */
+.onboarding-guide__panel,
+.onboarding-guide__panel * {
+  user-select: text;
+}
+
+.onboarding-guide__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+}
+
+.onboarding-guide__section h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.onboarding-guide__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding-guide__group-heading {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.onboarding-guide__group p,
+.onboarding-guide__group li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #334155;
+}
+
+.onboarding-guide__group ul,
+.onboarding-guide__group ol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 20px;
+}
+
+.onboarding-guide__show {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-guide__caret {
+    transition: none;
+  }
+}

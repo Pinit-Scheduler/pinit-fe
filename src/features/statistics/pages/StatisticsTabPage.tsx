@@ -91,7 +91,7 @@ const StatisticsTabPage = () => {
           <button type="button" onClick={refetch}>새로고침</button>
         </div>
       </header>
-      <div className="statistics-tab__cards stats-transition" key={weekStartLabel}>
+      <div className="statistics-tab__cards stats-transition" key={weekStartLabel} data-onboarding-anchor="statistics.cards">
         <StatisticCard
           label="집중 작업"
           value={formatMinutesToTime(deepWorkMinutes)}

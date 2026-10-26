@@ -12,6 +12,7 @@
   - `--z-bottom-tab`: 하단 탭 바
   - `--z-bottom-tab-fab`: 하단 탭 플로팅 추가 버튼
   - `--z-modal-backdrop`: 모든 기본 모달 백드롭
+  - `--z-onboarding`: 온보딩 스포트라이트 투어 덮개와 말풍선(`300`). 모달 위, 토스트 아래
   - `--z-toast`: 토스트
 
 ## 사용 규칙
@@ -20,4 +21,4 @@
 - 중첩 모달이 필요한 경우에만 `calc(var(--z-modal-backdrop) + 1)`처럼 최소 증분을 사용한다.
 
 ## 기본 우선순위
-- `topbar < mini-player < bottom-tab < modal-backdrop < toast`
+- `topbar < mini-player < bottom-tab < modal-backdrop < onboarding < toast`

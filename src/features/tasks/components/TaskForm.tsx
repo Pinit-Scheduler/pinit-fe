@@ -176,7 +176,7 @@ const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장', effectiveEx
         </button>
       </div>
 
-      <div className="task-form__dependency">
+      <div className="task-form__dependency" data-onboarding-anchor="task-form.dependencies">
         <div className="task-form__dependency-row">
           <h3>이전 작업</h3>
           <button type="button" onClick={() => setModalMode('previous')}>선택</button>

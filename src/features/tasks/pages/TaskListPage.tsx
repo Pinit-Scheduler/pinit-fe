@@ -175,7 +175,7 @@ const TaskListPage = () => {
 
   return (
     <section className="task-page">
-      <header className="task-page__header task-page__header--split">
+      <header className="task-page__header task-page__header--split" data-onboarding-anchor="tasks.header">
         <div className="task-page__title-block">
           <p className="task-page__eyebrow">작업</p>
           <h1 className="task-page__title">작업 목록</h1>

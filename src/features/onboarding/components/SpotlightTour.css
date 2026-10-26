@@ -1,0 +1,153 @@
+.spotlight-tour {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-onboarding);
+}
+
+.spotlight-tour__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.spotlight-tour__hole {
+  position: absolute;
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.6);
+  pointer-events: none;
+}
+
+.spotlight-tour__callout {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(340px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 16px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+  /* 앵커를 찾기 전에는 보이지도, 눌리지도, focus를 받지도 않는다. */
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.spotlight-tour__callout.is-ready {
+  visibility: visible;
+  opacity: 1;
+}
+
+.spotlight-tour__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.spotlight-tour__progress {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.spotlight-tour__new {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.spotlight-tour__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.spotlight-tour__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.spotlight-tour__item dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.spotlight-tour__item dd {
+  margin: 2px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.spotlight-tour__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.spotlight-tour__nav {
+  display: flex;
+  gap: 8px;
+}
+
+.spotlight-tour__skip {
+  padding: 8px 4px;
+  font-size: 13px;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.spotlight-tour__prev,
+.spotlight-tour__next {
+  min-width: 64px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.spotlight-tour__prev {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+}
+
+.spotlight-tour__prev:disabled {
+  color: #cbd5e1;
+  cursor: default;
+}
+
+.spotlight-tour__next {
+  background: #2563eb;
+  color: #fff;
+}
+
+.spotlight-tour__skip:focus-visible,
+.spotlight-tour__prev:focus-visible,
+.spotlight-tour__next:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spotlight-tour__callout {
+    transition: none;
+  }
+}

@@ -104,7 +104,11 @@ const SettingsPage = () => {
 
       <section className="settings__card" aria-label="자동 계획">
         <h2>자동 계획</h2>
-        <Link to="/app/settings/routines" className="settings__row settings__row--link">
+        <Link
+          to="/app/settings/routines"
+          className="settings__row settings__row--link"
+          data-onboarding-anchor="settings.routines"
+        >
           <div>
             <p className="settings__label">
               생활 시간
@@ -146,7 +150,7 @@ const SettingsPage = () => {
             <span />
           </button>
         </div>
-        <div className="settings__row settings__row--stack">
+        <div className="settings__row settings__row--stack" data-onboarding-anchor="settings.push">
           <div>
             <p className="settings__label">브라우저 푸시 알림</p>
             <p className="settings__description">{pushDescription}</p>
@@ -195,6 +199,23 @@ const SettingsPage = () => {
       </section>
 
       <AiConnectionSection />
+
+      <section className="settings__card" aria-label="도움말">
+        <h2>도움말</h2>
+        <Link
+          to="/app/settings/onboarding"
+          className="settings__row settings__row--link"
+          data-onboarding-anchor="settings.onboarding"
+        >
+          <div>
+            <p className="settings__label">온보딩</p>
+            <p className="settings__description">핀잇의 기능과 동작 원리, 사용 방법</p>
+          </div>
+          <span className="settings__chevron" aria-hidden>
+            ›
+          </span>
+        </Link>
+      </section>
 
       <section className="settings__card" aria-label="향후 추가 예정">
         <h2>향후 추가 예정</h2>

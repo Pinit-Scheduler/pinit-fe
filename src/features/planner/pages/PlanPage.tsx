@@ -331,7 +331,7 @@ const PlanPage = () => {
         </p>
       </header>
 
-      <div className="plan-page__controls">
+      <div className="plan-page__controls" data-onboarding-anchor="plan.controls">
         <label className="plan-page__control">
           <span>계획일</span>
           <input type="date" value={date} min={today} onChange={(event) => handleDateChange(event.target.value)} />
