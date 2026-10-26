@@ -172,3 +172,12 @@ test('client-side selection checks catch past starts and [start, end) overlaps o
 
   assert.deepEqual(plain(mapping.validatePlanSelection([], obstacles, at(8))), {})
 })
+
+test('date keys from the URL are accepted only when they are real calendar dates', () => {
+  const dateKey = loadModule('../src/shared/utils/dateKey.ts')
+  assert.deepEqual(plain(dateKey.parseDateKey('2026-10-27')), { year: 2026, month: 10, day: 27 })
+  assert.deepEqual(plain(dateKey.parseDateKey('2028-02-29')), { year: 2028, month: 2, day: 29 })
+  for (const invalid of ['2026-02-29', '2026-13-01', '2026-10-32', '2026-1-5', '20261027', '2026-10-27T00:00', '', null, undefined]) {
+    assert.equal(dateKey.parseDateKey(invalid), null, String(invalid))
+  }
+})

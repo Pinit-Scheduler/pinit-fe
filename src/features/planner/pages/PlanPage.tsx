@@ -97,7 +97,8 @@ const PlanPage = () => {
   const [serverIssues, setServerIssues] = useState<Record<number, BlockIssue[]>>({})
   const [applyError, setApplyError] = useState<string | null>(null)
   const [isApplying, setIsApplying] = useState(false)
-  const [created, setCreated] = useState<ScheduleResponse[] | null>(null)
+  /** 승인으로 만든 일정과 그 계획일 */
+  const [created, setCreated] = useState<{ date: string; schedules: ScheduleResponse[] } | null>(null)
   const [now, setNow] = useState(() => Date.now())
 
   // 새 제안을 받으면 편집 상태를 제안 그대로 되돌린다.
@@ -199,7 +200,7 @@ const PlanPage = () => {
         dispatchScheduleChanged({ schedule, reason: 'plan-applied' })
       })
       submitted.forEach((draft) => dispatchTaskChanged({ taskId: draft.taskId, reason: 'plan-applied' }))
-      setCreated(schedulesCreated)
+      setCreated({ date: plan.date, schedules: schedulesCreated })
       addToast(`${schedulesCreated.length}개 일정을 만들었어요.`, 'success')
       setRefreshKey((key) => key + 1)
     } catch (err) {
@@ -291,10 +292,10 @@ const PlanPage = () => {
         {created && (
           <div className="plan-page__banner plan-page__banner--success" role="status">
             <p>
-              <strong>{created.length}개 일정을 만들었어요.</strong>
+              <strong>{created.schedules.length}개 일정을 만들었어요.</strong>
             </p>
             <ul>
-              {created.map((schedule) => {
+              {created.schedules.map((schedule) => {
                 const span = scheduleSpan(schedule)
                 return (
                   <li key={schedule.id}>
@@ -304,7 +305,7 @@ const PlanPage = () => {
                 )
               })}
             </ul>
-            <Link to="/app/schedules">일정 탭에서 보기</Link>
+            <Link to={`/app/schedules?date=${created.date}`}>일정 탭에서 보기</Link>
           </div>
         )}
 
