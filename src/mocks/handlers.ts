@@ -24,6 +24,7 @@ import {
   vapidPublicKey,
 } from './db'
 import { effectiveExpectedMinutes, handlePlans } from './planner'
+import { handleOnboarding } from './onboarding'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -621,6 +622,9 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const member = handleMember(path, method)
   if (member) return member
+
+  const onboarding = await handleOnboarding(path, method, request)
+  if (onboarding) return onboarding
 
   const plans = await handlePlans(path, method, searchParams, request)
   if (plans) return plans
