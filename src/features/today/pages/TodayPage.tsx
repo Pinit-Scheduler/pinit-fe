@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
+import { Link } from 'react-router-dom'
 import { fetchSchedules } from '@features/schedules/api/schedules'
 import { fetchTasks, createScheduleFromTask } from '@features/tasks/api/tasks'
 import { formatDateWithOffset, getTodayWithOffset, toApiDateTimeWithZone } from '@shared/utils/datetime'
@@ -78,6 +79,9 @@ const TodayPage = () => {
         <p className="today-page__description">
           오늘 날짜의 일정과 선행 작업이 없는 작업을 모아 보여줍니다.
         </p>
+        <Link to="/app/plan" className="today-page__plan-cta">
+          🗓️ 오늘 하루 계획 자동으로 세우기
+        </Link>
       </header>
 
       <div className="today-page__content">

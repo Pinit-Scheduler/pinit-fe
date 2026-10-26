@@ -6,6 +6,7 @@ import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
 import { toApiDateWithOffset } from '@shared/utils/datetime'
 import { dispatchTaskChanged } from '@shared/utils/events'
+import { minutesToIsoDuration, parseDurationInput } from '@shared/utils/isoDuration'
 import './TaskPages.css'
 
 const TaskCreatePage = () => {
@@ -15,12 +16,15 @@ const TaskCreatePage = () => {
 
   const handleSubmit = async (values: TaskFormValues) => {
     try {
+      const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
       const payload = {
         title: values.title,
         description: values.description,
         dueDate: toApiDateWithOffset(values.dueDate),
         importance: values.importance,
         difficulty: values.difficulty,
+        // 비워 두면 보내지 않는다: 서버가 난이도 환산값을 쓴다.
+        ...(expectedDuration.kind === 'value' ? { expectedDuration: minutesToIsoDuration(expectedDuration.minutes) } : {}),
         addDependencies: [
           // 새 작업 이전에 해야 할 작업: fromId=선행, toId=0
           ...values.previousTaskIds.map((fromId) => ({ fromId, toId: 0 })),

@@ -116,3 +116,15 @@
     transform: translateY(0);
   }
 }
+
+.today-page__plan-cta {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}

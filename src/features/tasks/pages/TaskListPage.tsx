@@ -8,6 +8,7 @@ import { useToast } from '@contexts/ToastContext'
 import { dispatchTaskChanged, onScheduleChanged, onTaskChanged } from '@shared/utils/events'
 import { getDeadlineStyle } from '@shared/utils/deadlineStyles'
 import { formatDateWithOffset } from '@shared/utils/datetime'
+import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import TaskDetailModal from '../components/TaskDetailModal'
 import TaskArchiveModal from '../components/modals/TaskArchiveModal'
 import './TaskPages.css'
@@ -237,6 +238,11 @@ const TaskListPage = () => {
                       <span className="task-page__pill" style={getDifficultyStyle(item.difficulty)}>
                         난이도 {item.difficulty}
                       </span>
+                      {formatIsoDurationLabel(item.effectiveExpectedDuration) && (
+                        <span className="task-page__pill">
+                          예상 {formatIsoDurationLabel(item.effectiveExpectedDuration)}
+                        </span>
+                      )}
                     </div>
                   </li>
                 )

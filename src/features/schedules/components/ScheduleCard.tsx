@@ -1,6 +1,7 @@
 import type { ScheduleSummary } from '../types/schedule'
 import './ScheduleCard.css'
 import { scheduleTypeLabel, stateIcon, stateLabel } from '@constants/schedules'
+import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 
 type ScheduleCardProps = {
   schedule: ScheduleSummary
@@ -29,6 +30,7 @@ const ScheduleCard = ({
   onCancel,
 }: ScheduleCardProps) => {
   const { id, title, description, scheduleType, state } = schedule
+  const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
 
   const handleClick = () => {
     onOpenDetail(id)
@@ -96,6 +98,7 @@ const ScheduleCard = ({
           <div className="schedule-card__title-row">
             <p className="schedule-card__title">{title}</p>
             {scheduleType && <p className="schedule-card__subtitle">{scheduleTypeLabel[scheduleType]}</p>}
+            {plannedDurationLabel && <p className="schedule-card__subtitle">{plannedDurationLabel}</p>}
           </div>
           {description && <p className="schedule-card__description">{description}</p>}
         </div>

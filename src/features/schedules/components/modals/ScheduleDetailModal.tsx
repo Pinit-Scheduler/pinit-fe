@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '@contexts/ToastContext'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import { formatDurationLabel } from '@shared/utils/duration'
+import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './ScheduleDetailModal.css'
@@ -85,6 +86,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
 
   const startTime = formatDateTimeWithZone(schedule.date)
   const spentTimeLabel = formatDurationLabel(schedule.duration)
+  const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
 
   return (
     <div className="schedule-detail-modal__backdrop" onClick={onClose}>
@@ -129,6 +131,12 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
             <p>
               시작: {startTime}
               <br />
+              {plannedDurationLabel && (
+                <>
+                  계획 길이: {plannedDurationLabel}
+                  <br />
+                </>
+              )}
               진행 시간: {spentTimeLabel}
             </p>
           </section>

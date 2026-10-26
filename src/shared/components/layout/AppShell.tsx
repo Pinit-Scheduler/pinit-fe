@@ -9,6 +9,7 @@ import './AppShell.css'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘 할당된 일',
+  '/app/plan': '하루 계획',
   '/app/schedules': '일정',
   '/app/schedules/new': '일정 추가',
   '/app/new': '일정 추가',
@@ -75,7 +76,8 @@ const AppShell = () => {
   const isTaskDetail = pathname.startsWith('/app/tasks/') && pathname.split('/').length > 3
   const isNewPage = pathname === '/app/new' || pathname === '/app/schedules/new' || pathname === '/app/tasks/new'
   const isSettingsPage = pathname === '/app/settings'
-  const showBackButton = isScheduleDetail || isTaskDetail || isSettingsPage || isNewPage
+  const isPlanPage = pathname === '/app/plan'
+  const showBackButton = isScheduleDetail || isTaskDetail || isSettingsPage || isNewPage || isPlanPage
 
   return (
     <div className="app-shell">

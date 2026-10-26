@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import dayjs from 'dayjs'
 import { FIBONACCI_DIFFICULTIES } from '@constants/difficulty'
 import type { DifficultyValue } from '@constants/difficulty'
+import { parseDurationInput } from '@shared/utils/isoDuration'
 import './TaskForm.css'
 import TaskDependencyModal from './modals/TaskDependencyModal'
 
@@ -12,6 +13,8 @@ export type TaskFormValues = {
   dueDate: string // YYYY-MM-DD
   importance: number
   difficulty: DifficultyValue
+  /** 예상 소요시간(분) 입력칸 값. 비우면 서버가 난이도 환산값을 쓴다 */
+  expectedDurationMinutes: string
   previousTaskIds: number[]
   nextTaskIds: number[]
 }
@@ -20,6 +23,8 @@ type TaskFormProps = {
   initialValues?: Partial<TaskFormValues>
   onSubmit: (values: TaskFormValues) => Promise<void>
   submitLabel?: string
+  /** 서버가 돌려준 유효 예상 소요시간 라벨(수정 화면). 예: "45분 · 난이도 기준" */
+  effectiveExpectedDurationLabel?: string
 }
 
 const buildDefaultValues = (initial?: Partial<TaskFormValues>): TaskFormValues => {
@@ -30,13 +35,14 @@ const buildDefaultValues = (initial?: Partial<TaskFormValues>): TaskFormValues =
     dueDate: initial?.dueDate ?? now.add(1, 'day').format('YYYY-MM-DD'),
     importance: initial?.importance ?? 5,
     difficulty: initial?.difficulty ?? 2,
+    expectedDurationMinutes: initial?.expectedDurationMinutes ?? '',
     previousTaskIds: initial?.previousTaskIds ?? [],
     nextTaskIds: initial?.nextTaskIds ?? [],
     ...initial,
   }
 }
 
-const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장' }: TaskFormProps) => {
+const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장', effectiveExpectedDurationLabel }: TaskFormProps) => {
   const [values, setValues] = useState<TaskFormValues>(() => buildDefaultValues(initialValues))
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [modalMode, setModalMode] = useState<null | 'previous' | 'next'>(null)
@@ -50,6 +56,8 @@ const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장' }: TaskFormP
     if (!values.description.trim()) next.description = '설명을 입력하세요.'
     if (!values.dueDate) next.dueDate = '마감 날짜를 선택하세요.'
     if (values.importance < 1 || values.importance > 9) next.importance = '중요도는 1~9'
+    const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
+    if (expectedDuration.kind === 'invalid') next.expectedDurationMinutes = expectedDuration.message
     setErrors(next)
     return Object.keys(next).length === 0
   }
@@ -144,6 +152,23 @@ const TaskForm = ({ initialValues, onSubmit, submitLabel = '저장' }: TaskFormP
           ))}
         </div>
       </div>
+
+      <label className="task-form__field">
+        <span>예상 소요시간 (분, 선택)</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={5}
+          max={1440}
+          value={values.expectedDurationMinutes}
+          onChange={(e) => setValues((prev) => ({ ...prev, expectedDurationMinutes: e.target.value }))}
+          placeholder="비워 두면 난이도에 맞춰 정해져요"
+        />
+        {effectiveExpectedDurationLabel && (
+          <p className="task-form__note">현재 적용: {effectiveExpectedDurationLabel}</p>
+        )}
+        {errors.expectedDurationMinutes && <small>{errors.expectedDurationMinutes}</small>}
+      </label>
 
       <div className="task-form__actions">
         <button type="submit" className="task-form__primary" disabled={isSubmitting}>

@@ -25,6 +25,8 @@ export type ScheduleSimpleRequest = {
   description: string
   date: DateTimeWithZone
   scheduleType: 'DEEP_WORK' | 'QUICK_TASK' | 'ADMIN_TASK'
+  /** 계획 길이(ISO-8601, 5분~24시간). 생략하면 생성은 30분, 수정은 기존 값 유지 */
+  plannedDuration?: string
 }
 
 export type ScheduleSimplePatchRequest = Partial<ScheduleSimpleRequest>

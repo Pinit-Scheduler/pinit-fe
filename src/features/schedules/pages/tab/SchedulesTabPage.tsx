@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import useScheduleViewState from '../../hooks/useScheduleViewState.ts'
 import WeeklyDateStrip from '../../components/WeeklyDateStrip.tsx'
 import OverdueBanner from '../../components/OverdueBanner.tsx'
@@ -20,9 +21,11 @@ import type { ScheduleResponse, ScheduleSummary } from '../../types/schedule'
 import useWeeklyStatistics from '@features/statistics/hooks/useWeeklyStatistics'
 import { formatMinutesToTime } from '@shared/utils/statisticsTransform'
 import './SchedulesTabPage.css'
-import { addDays, toApiDateTimeWithZone, toDateKey, toDisplayDayjs } from '@shared/utils/datetime'
+import { addDays, getTodayWithOffset, toApiDateTimeWithZone, toDateKey, toDisplayDayjs } from '@shared/utils/datetime'
+import { parseDateKey } from '@shared/utils/dateKey'
 import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
+import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import useScheduleDrag from '../../hooks/useScheduleDrag'
@@ -40,6 +43,40 @@ const SchedulesTabPage = () => {
     goToWeek,
     selectDate,
   } = useScheduleViewState()
+  const { offsetMinutes } = useTimePreferences()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedDateKey = searchParams.get('date')
+  const appliedDateKeyRef = useRef<string | null>(null)
+
+  // ?date=YYYY-MM-DD(예: 하루 계획 승인 후 링크)로 들어오면 그 날짜를 한 번 선택하고 쿼리를 지운다.
+  // 쿼리를 남기면 이후 사용자가 고른 날짜를 덮어쓰게 된다. 잘못된 값은 무시해 기존 선택(오늘)을 유지한다.
+  // 쿼리 삭제는 transition으로 늦게 반영되므로, 같은 값을 두 번 적용하지 않도록 ref로 막는다.
+  useEffect(() => {
+    if (requestedDateKey === null) {
+      appliedDateKeyRef.current = null
+      return
+    }
+    if (appliedDateKeyRef.current === requestedDateKey) return
+    appliedDateKeyRef.current = requestedDateKey
+    const parts = parseDateKey(requestedDateKey)
+    if (parts) {
+      selectDate(
+        getTodayWithOffset(offsetMinutes)
+          .date(1)
+          .year(parts.year)
+          .month(parts.month - 1)
+          .date(parts.day),
+      )
+    }
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('date')
+        return next
+      },
+      { replace: true },
+    )
+  }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
   const { presenceMap, isLoading: isPresenceLoading, error: presenceError, refetch: refetchPresence } =
     useWeeklySchedulePresence({ weekStart: currentWeekStart, anchorDate: selectedDate })
@@ -274,9 +311,14 @@ const SchedulesTabPage = () => {
       </div>
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
-        <button type="button" className="schedules-tab__refresh" onClick={handleRefresh}>
-          새로고침
-        </button>
+        <div className="schedules-tab__header-actions">
+          <Link to={`/app/plan?date=${selectedDateKey}`} className="schedules-tab__refresh">
+            자동 계획
+          </Link>
+          <button type="button" className="schedules-tab__refresh" onClick={handleRefresh}>
+            새로고침
+          </button>
+        </div>
       </header>
       <div
         ref={listRef}

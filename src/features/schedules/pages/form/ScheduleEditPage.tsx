@@ -9,6 +9,7 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './ScheduleFormPage.css'
 import { updateSchedule } from '../../api/schedules'
 import { dispatchScheduleChanged } from '@shared/utils/events'
+import { minutesToIsoDuration, parseDurationInput, parseIsoDurationMinutes } from '@shared/utils/isoDuration'
 
 const ScheduleEditPage = () => {
   const { scheduleId } = useParams()
@@ -34,11 +35,18 @@ const ScheduleEditPage = () => {
 
   const handleSubmit = async (values: ScheduleFormValues) => {
     try {
+      const plannedDuration = parseDurationInput(values.plannedDurationMinutes ?? '')
       const payload = {
         title: values.title,
         description: values.description,
         date: toApiDateTimeWithZone(values.date),
         scheduleType: values.scheduleType,
+        // 바꾸지 않았거나 비워 두면 보내지 않는다: 서버가 기존 계획 길이를 유지한다.
+        // (값이 저장되지 않은 예전 일정이 수정만으로 대체값을 저장하지 않게 한다.)
+        ...(plannedDuration.kind === 'value' &&
+        plannedDuration.minutes !== parseIsoDurationMinutes(schedule?.plannedDuration)
+          ? { plannedDuration: minutesToIsoDuration(plannedDuration.minutes) }
+          : {}),
       }
       const result: ScheduleResponse | null = await updateSchedule(Number(scheduleId), payload)
       if (result) {
@@ -61,6 +69,10 @@ const ScheduleEditPage = () => {
             description: schedule.description,
             date: toDateFromApi(schedule.date),
             scheduleType: schedule.scheduleType ?? 'DEEP_WORK',
+            plannedDurationMinutes: (() => {
+              const minutes = parseIsoDurationMinutes(schedule.plannedDuration)
+              return minutes ? String(minutes) : ''
+            })(),
           }
           : undefined
     },
@@ -91,7 +103,12 @@ const ScheduleEditPage = () => {
       {isLoading || !schedule ? (
         <p className="schedule-form-page__status">일정을 불러오는 중...</p>
       ) : (
-        <ScheduleForm initialValues={initialValues} onSubmit={handleSubmit} submitLabel="일정 수정" />
+        <ScheduleForm
+          initialValues={initialValues}
+          onSubmit={handleSubmit}
+          submitLabel="일정 수정"
+          plannedDurationHint="비워 두면 지금 계획 길이를 그대로 둬요."
+        />
       )}
     </section>
   )

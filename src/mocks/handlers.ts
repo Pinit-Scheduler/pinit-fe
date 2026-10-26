@@ -23,6 +23,7 @@ import {
   setActiveScheduleId,
   vapidPublicKey,
 } from './db'
+import { effectiveExpectedMinutes, handlePlans } from './planner'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -96,6 +97,8 @@ const toTaskResponse = (task: Task) => ({
   dueDate: task.dueDate,
   importance: task.importance,
   difficulty: task.difficulty,
+  expectedDuration: task.expectedDuration && task.expectedDuration !== 'PT0S' ? task.expectedDuration : null,
+  effectiveExpectedDuration: formatIsoMinutes(effectiveExpectedMinutes(task)),
   completed: task.completed ?? task.isCompleted ?? false,
   inboundDependencyCount: task.inboundDependencyCount ?? 0,
   previousTaskIds: task.previousTaskIds ?? [],
@@ -398,6 +401,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
       state: 'NOT_STARTED',
       taskId: id,
       duration: '01:00:00',
+      plannedDuration: formatIsoMinutes(effectiveExpectedMinutes(task)),
     })
     return noContent(201)
   }
@@ -440,6 +444,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
       dueDate: body.dueDate,
       importance: body.importance ?? 5,
       difficulty: body.difficulty ?? 1,
+      expectedDuration: body.expectedDuration ?? null,
       isCompleted: false,
       completed: false,
       inboundDependencyCount: body.addDependencies?.length ?? 0,
@@ -555,6 +560,7 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
       state: 'NOT_STARTED',
       taskId: body.taskId,
       duration: '01:00:00',
+      plannedDuration: (body as { plannedDuration?: string }).plannedDuration ?? 'PT30M',
     }
     mockSchedules.push(newSchedule)
     return json(newSchedule, 201)
@@ -615,6 +621,9 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const member = handleMember(path, method)
   if (member) return member
+
+  const plans = await handlePlans(path, method, searchParams, request)
+  if (plans) return plans
 
   const tasks = await handleTasks(path, method, searchParams, request)
   if (tasks) return tasks

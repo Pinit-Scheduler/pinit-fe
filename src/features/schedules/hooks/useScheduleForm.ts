@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { getTodayWithOffset } from '@shared/utils/datetime'
+import { parseDurationInput } from '@shared/utils/isoDuration'
 import type { ScheduleFormValues } from '../types/schedule'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 
@@ -41,6 +42,8 @@ const useScheduleForm = ({ initialValues }: UseScheduleFormOptions = {}): UseSch
     const nextErrors: Partial<Record<keyof ScheduleFormValues, string>> = {}
     if (!values.title.trim()) nextErrors.title = '제목을 입력해 주세요.'
     if (!values.description.trim()) nextErrors.description = '설명을 입력해 주세요.'
+    const plannedDuration = parseDurationInput(values.plannedDurationMinutes ?? '')
+    if (plannedDuration.kind === 'invalid') nextErrors.plannedDurationMinutes = plannedDuration.message
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
