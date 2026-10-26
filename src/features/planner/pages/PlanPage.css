@@ -314,3 +314,54 @@
   font-size: 12px;
   color: #b91c1c;
 }
+
+.plan-page__nudge {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  font-size: 13px;
+}
+
+.plan-page__nudge-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.plan-page__nudge-actions a {
+  color: #1d4ed8;
+  font-weight: 600;
+}
+
+.plan-page__nudge-actions button,
+.plan-page__dismiss {
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.plan-page__hint--nudge a,
+.plan-page__meal-hint a {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.plan-page__meal-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #92400e;
+  background: #fffbeb;
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+
+.plan-page__issues--warning li {
+  color: #b45309;
+}
