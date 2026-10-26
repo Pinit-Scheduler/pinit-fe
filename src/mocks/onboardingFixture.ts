@@ -182,6 +182,25 @@ export const onboardingFixture: FixtureResponse = {
       },
     },
     {
+      key: 'routines',
+      title: '생활 시간',
+      revision: 1,
+      tour: {
+        route: '/app/settings',
+        anchor: 'settings.routines',
+        purpose: '식사·수면처럼 매일 반복되는 쉬는 시간을 요일별로 등록해요.',
+        benefit: '자동 배치가 그 시간을 비워 두고 계획해요. 점심시간에 일이 잡히지 않아요.',
+      },
+      guide: {
+        behavior: items('설정의 "생활 시간"에서 아침·점심·저녁·수면을 켜거나 "직접 추가"로 시간을 넣어요.'),
+        principle: items(
+          '생활 시간은 자동 배치에서 이미 있는 일정처럼 비워 두는 시간이에요.',
+          '수면을 하나라도 등록하면 계획 시간창이 계획한 날 하루 전체가 돼요.',
+        ),
+        usage: items('설정 → "생활 시간"에서 항목을 켜고 시각·길이·요일을 고른 뒤 저장해요.'),
+      },
+    },
+    {
       key: 'notifications',
       title: '알림',
       revision: 1,

@@ -5,11 +5,15 @@ import { ApiError } from '@shared/api/httpClient'
 import { getTodayWithOffset } from '@shared/utils/datetime'
 import { dispatchScheduleChanged, dispatchTaskChanged } from '@shared/utils/events'
 import { formatIsoDurationLabel, formatMinutesLabel, parseIsoDurationMinutes } from '@shared/utils/isoDuration'
+import { NUDGE_KEYS, readFlag, writeFlag } from '@shared/utils/safeStorage'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { scheduleTypeLabel } from '@constants/schedules'
 import type { ScheduleResponse, ScheduleTaskType } from '@features/schedules/types/schedule'
+import { fetchRoutines } from '@features/routines/api/routines'
+import type { RoutineKind } from '@features/routines/types/routine'
+import { KIND_LABEL, mealHintFor, routineName } from '@features/routines/utils/routineRules'
 import { applyDayPlan } from '../api/plans'
 import useDayPlan from '../hooks/useDayPlan'
 import PlanTimeline from '../components/PlanTimeline'
@@ -17,12 +21,13 @@ import type { PlanTimelineItem } from '../components/PlanTimeline'
 import type { PlanApplyBlock, PlannedBlock } from '../types/plan'
 import {
   MAX_APPLY_BLOCKS,
+  findRoutineConflicts,
   mapRejectionsToBlocks,
   parsePlanRejections,
   unplacedReasonLabel,
   validatePlanSelection,
 } from '../utils/planMapping'
-import type { BlockIssue, SelectionObstacle } from '../utils/planMapping'
+import type { BlockIssue, RoutineSpan, SelectionObstacle } from '../utils/planMapping'
 import './PlanPage.css'
 
 type DraftBlock = {
@@ -100,6 +105,32 @@ const PlanPage = () => {
   /** 승인으로 만든 일정과 그 계획일 */
   const [created, setCreated] = useState<{ date: string; schedules: ScheduleResponse[] } | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  /** 등록한 생활 시간 수. 모르면(불러오기 실패) null이고 안내 카드를 띄우지 않는다 */
+  const [routineCount, setRoutineCount] = useState<number | null>(null)
+  const [dismissed, setDismissed] = useState(() => ({
+    routinesCard: readFlag(NUDGE_KEYS.planRoutinesCardDismissed),
+    mealHint: readFlag(NUDGE_KEYS.planMealHintDismissed),
+    windowHint: readFlag(NUDGE_KEYS.planWindowHintDismissed),
+  }))
+
+  const dismiss = (name: keyof typeof dismissed, key: string) => {
+    writeFlag(key)
+    setDismissed((prev) => ({ ...prev, [name]: true }))
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    fetchRoutines()
+      .then((response) => {
+        if (!cancelled) setRoutineCount(response?.routines?.length ?? 0)
+      })
+      .catch(() => {
+        if (!cancelled) setRoutineCount(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshKey])
 
   // 새 제안을 받으면 편집 상태를 제안 그대로 되돌린다.
   useEffect(() => {
@@ -150,6 +181,30 @@ const PlanPage = () => {
       ),
     [selectedSpans, obstacles, now],
   )
+
+  // ADR-0016: 생활 시간 구간. 서버는 승인 때 검사하지 않으므로 겹치면 경고만 한다.
+  const routineSpans = useMemo<(RoutineSpan & { key: string; kind: RoutineKind })[]>(
+    () =>
+      (plan?.routines ?? []).flatMap((routine, index) => {
+        const startMs = toMs(routine.start.dateTime, routine.start.zoneId)
+        const endMs = toMs(routine.end.dateTime, routine.end.zoneId)
+        if (startMs === null || endMs === null) return []
+        return [{ key: `routine-${routine.routineId}-${index}`, kind: routine.kind, name: routineName(routine), startMs, endMs }]
+      }),
+    [plan],
+  )
+
+  const routineWarnings = useMemo(
+    () =>
+      findRoutineConflicts(
+        selectedSpans.map(({ draft, startMs, endMs }) => ({ taskId: draft.taskId, title: draft.title, startMs, endMs })),
+        routineSpans,
+      ),
+    [selectedSpans, routineSpans],
+  )
+
+  const registeredKinds = useMemo(() => new Set(routineSpans.map((routine) => routine.kind)), [routineSpans])
+  const planDayStartMs = plan ? toMs(`${plan.date}T00:00:00`, plan.zoneId) : null
 
   const selectedCount = selectedSpans.length
   const selectedMinutes = selectedSpans.reduce((sum, { draft }) => sum + draft.durationMinutes, 0)
@@ -247,9 +302,22 @@ const PlanPage = () => {
               ((clientIssues[draft.taskId]?.length ?? 0) > 0 || (serverIssues[draft.taskId]?.length ?? 0) > 0),
           }],
     ),
+    ...routineSpans.map((routine) => ({
+      key: routine.key,
+      kind: 'routine' as const,
+      title: routine.name,
+      startMs: routine.startMs,
+      endMs: routine.endMs,
+    })),
   ]
 
   const formatTime = (ms: number) => dayjs(ms).tz(planZoneId).format('HH:mm')
+  // 시간창 끝이 다음 날이면(수면 기준 하루 전체, 자정을 넘는 취침) 00:00 대신 24:00 또는 "다음 날"로 적는다.
+  const formatWindowEnd = (ms: number) => {
+    const end = dayjs(ms).tz(planZoneId)
+    if (!plan || end.format('YYYY-MM-DD') <= plan.date) return end.format('HH:mm')
+    return end.format('HH:mm') === '00:00' ? '24:00' : `다음 날 ${end.format('HH:mm')}`
+  }
   const formatDuration = (value: string) => formatIsoDurationLabel(value) ?? value
 
   return (
@@ -289,6 +357,24 @@ const PlanPage = () => {
       </div>
 
       <div className="plan-page__content">
+        {routineCount === 0 && !dismissed.routinesCard && (
+          <div className="plan-page__nudge" role="note">
+            <p>
+              <span aria-hidden>🍚🌙 </span>식사·수면 시간을 알려 주시면 그 시간은 비워 두고 계획해요.
+            </p>
+            <div className="plan-page__nudge-actions">
+              <Link to="/app/settings/routines">생활 시간 설정하기</Link>
+              <button
+                type="button"
+                aria-label="생활 시간 안내 닫기"
+                onClick={() => dismiss('routinesCard', NUDGE_KEYS.planRoutinesCardDismissed)}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {created && (
           <div className="plan-page__banner plan-page__banner--success" role="status">
             <p>
@@ -330,8 +416,24 @@ const PlanPage = () => {
               {windowStartMs !== null && windowEndMs !== null && (
                 <p className="plan-page__hint">
                   {isWindowEmpty
-                    ? '이 날은 남은 배치 가능 시간이 없어요. (기상~취침 시간이 지났어요)'
-                    : `배치 가능 시간 ${formatTime(windowStartMs)}–${formatTime(windowEndMs)}`}
+                    ? plan.windowSource === 'SLEEP_ROUTINE'
+                      ? '이 날은 남은 배치 가능 시간이 없어요.'
+                      : '이 날은 남은 배치 가능 시간이 없어요. (기상~취침 시간이 지났어요)'
+                    : `배치 가능 시간 ${formatTime(windowStartMs)}–${formatWindowEnd(windowEndMs)}`}
+                  {plan.windowSource === 'SLEEP_ROUTINE' && ' · 수면 시간 기준'}
+                </p>
+              )}
+              {plan.windowSource === 'PROFILE' && !dismissed.windowHint && (
+                <p className="plan-page__hint plan-page__hint--nudge">
+                  기본값 07:00–23:00 · <Link to="/app/settings/routines">수면 시간 설정하기</Link>
+                  <button
+                    type="button"
+                    className="plan-page__dismiss"
+                    aria-label="시간창 안내 닫기"
+                    onClick={() => dismiss('windowHint', NUDGE_KEYS.planWindowHintDismissed)}
+                  >
+                    ✕
+                  </button>
                 </p>
               )}
             </section>
@@ -373,6 +475,11 @@ const PlanPage = () => {
                     const issues = draft.selected
                       ? [...(clientIssues[draft.taskId] ?? []), ...(serverIssues[draft.taskId] ?? [])]
                       : serverIssues[draft.taskId] ?? []
+                    const warnings = draft.selected ? routineWarnings[draft.taskId] ?? [] : []
+                    const mealHint =
+                      !dismissed.mealHint && startMs !== null && endMs !== null && planDayStartMs !== null
+                        ? mealHintFor((startMs - planDayStartMs) / 60000, (endMs - planDayStartMs) / 60000, registeredKinds)
+                        : null
                     const isEdited =
                       draft.startLocal !== draft.suggestedStartLocal || draft.scheduleType !== draft.suggestedType
                     return (
@@ -450,6 +557,27 @@ const PlanPage = () => {
                             </button>
                           )}
                         </div>
+                        {warnings.length > 0 && (
+                          <ul className="plan-page__issues plan-page__issues--warning">
+                            {warnings.map((warning, index) => (
+                              <li key={`warning-${index}`}>{warning.message}</li>
+                            ))}
+                          </ul>
+                        )}
+                        {mealHint && (
+                          <p className="plan-page__meal-hint">
+                            {KIND_LABEL[mealHint]}시간이에요. {KIND_LABEL[mealHint]}을 등록하면 피해서 배치해요.{' '}
+                            <Link to="/app/settings/routines">등록하기</Link>
+                            <button
+                              type="button"
+                              className="plan-page__dismiss"
+                              aria-label="식사 시간 안내 그만 보기"
+                              onClick={() => dismiss('mealHint', NUDGE_KEYS.planMealHintDismissed)}
+                            >
+                              ✕
+                            </button>
+                          </p>
+                        )}
                         {issues.length > 0 && (
                           <ul className="plan-page__issues" role="alert">
                             {issues.map((issue, index) => (

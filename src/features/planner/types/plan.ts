@@ -1,5 +1,6 @@
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import type { ScheduleResponse, ScheduleTaskType } from '@features/schedules/types/schedule'
+import type { RoutineKind } from '@features/routines/types/routine'
 
 // ADR-0015 하루 계획 API(GET /v2/plans, POST /v2/plans/apply) wire 형식.
 // 길이는 ISO-8601 기간 문자열("PT1H30M")이다.
@@ -50,6 +51,21 @@ export type DayPlanResponse = {
     plannedWork: string
     used: string
   }
+  /**
+   * ADR-0016: 시간창 출처. 수면 생활 시간이 하나라도 있으면 SLEEP_ROUTINE(계획일 하루에서 생활 시간을 뺀 시간),
+   * 없으면 PROFILE(기상~취침, 기본 07:00–23:00). 이전 서버 응답에는 없다.
+   */
+  windowSource?: 'PROFILE' | 'SLEEP_ROUTINE'
+  /** ADR-0016: 계획일과 겹치는 생활 시간 구간, 시작 순. 이전 서버 응답에는 없다 */
+  routines?: PlanRoutineOccurrence[]
+}
+
+export type PlanRoutineOccurrence = {
+  routineId: number
+  kind: RoutineKind
+  label: string | null
+  start: DateTimeWithZone
+  end: DateTimeWithZone
 }
 
 export type PlanApplyBlock = {

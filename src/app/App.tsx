@@ -14,6 +14,7 @@ import { PlanPage } from '@features/planner'
 import { TaskListPage, TaskCreatePage, TaskEditPage, TaskDetailPage } from '@features/tasks'
 import { StatisticsTabPage } from '@features/statistics'
 import { SettingsPage } from '@features/settings'
+import { RoutinesPage } from '@features/routines'
 import { OAuthConsentPage } from '@features/oauth'
 import { OnboardingGuidePage } from '@features/onboarding'
 
@@ -61,6 +62,7 @@ const AppContent = () => {
                     <Route path="tasks/:taskId/edit" element={<TaskEditPage />} />
                     <Route path="statistics" element={<StatisticsTabPage />} />
                     <Route path="settings" element={<SettingsPage />} />
+                    <Route path="settings/routines" element={<RoutinesPage />} />
                     <Route path="settings/onboarding" element={<OnboardingGuidePage />} />
                   </Route>
                 </Route>

@@ -17,6 +17,7 @@ const TAB_TITLES: Record<string, string> = {
   '/app/tasks': '작업',
   '/app/statistics': '통계',
   '/app/settings': '설정',
+  '/app/settings/routines': '생활 시간',
   '/app/settings/onboarding': '온보딩',
 }
 
@@ -73,11 +74,11 @@ const AppShell = () => {
   }, [navigate])
 
   const title = getPageTitle(pathname)
-  const showSettingsButton = pathname !== '/app/settings'
+  const showSettingsButton = !pathname.startsWith('/app/settings')
   const isScheduleDetail = pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3
   const isTaskDetail = pathname.startsWith('/app/tasks/') && pathname.split('/').length > 3
   const isNewPage = pathname === '/app/new' || pathname === '/app/schedules/new' || pathname === '/app/tasks/new'
-  const isSettingsPage = pathname === '/app/settings'
+  const isSettingsPage = pathname.startsWith('/app/settings')
   const isPlanPage = pathname === '/app/plan'
   const isOnboardingGuide = pathname === '/app/settings/onboarding'
   const showBackButton = isScheduleDetail || isTaskDetail || isSettingsPage || isNewPage || isPlanPage || isOnboardingGuide

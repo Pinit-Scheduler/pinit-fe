@@ -5,6 +5,7 @@ import type { DateTimeWithZone, DateWithOffset } from '../shared/types/datetime'
 import type { Task } from '../features/tasks/types/task'
 import type { ScheduleResponse, ScheduleState } from '../features/schedules/types/schedule'
 import type { OAuthAuthorizationRequest, OAuthGrant } from '../features/oauth/types/oauth'
+import type { Routine } from '../features/routines/types/routine'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -164,6 +165,14 @@ export const mockSchedules: ScheduleResponse[] = [
     plannedDuration: 'PT30M',
   },
 ]
+
+// ADR-0016 생활 시간. 기존 회원처럼 비어 있게 시작한다.
+export let mockRoutines: Routine[] = []
+let routineSeq = 0
+export const replaceMockRoutines = (routines: Omit<Routine, 'id'>[]) => {
+  mockRoutines = routines.map((routine) => ({ ...routine, id: ++routineSeq }))
+  return mockRoutines
+}
 
 export const mockPushSubscriptions = new Map<string, Set<string>>()
 export const vapidPublicKey = 'MOCK_VAPID_PUBLIC_KEY'

@@ -38,6 +38,7 @@ const ADR_CONTRACT = {
   'schedule-run': { route: '/app/schedules', anchor: 'schedules.list' },
   planner: { route: '/app/plan', anchor: 'plan.controls' },
   statistics: { route: '/app/statistics', anchor: 'statistics.cards' },
+  routines: { route: '/app/settings', anchor: 'settings.routines' },
   notifications: { route: '/app/settings', anchor: 'settings.push' },
   'ai-connection': { route: '/app/settings', anchor: 'settings.ai-connection' },
   onboarding: { route: '/app/settings', anchor: 'settings.onboarding' },

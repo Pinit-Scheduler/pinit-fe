@@ -4,7 +4,9 @@ import timezone from 'dayjs/plugin/timezone'
 import type { Task } from '../features/tasks/types/task'
 import type { ScheduleResponse, ScheduleTaskType } from '../features/schedules/types/schedule'
 import type { PlanApplyRequest, PlanRejection } from '../features/planner/types/plan'
-import { mockSchedules, mockTasks, nextScheduleId } from './db'
+import type { DayOfWeek, Routine, RoutinesRequest } from '../features/routines/types/routine'
+import { DAYS_OF_WEEK, toRoutineDraft, validateRoutineDrafts } from '../features/routines/utils/routineRules'
+import { mockRoutines, mockSchedules, mockTasks, nextScheduleId, replaceMockRoutines } from './db'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -50,7 +52,54 @@ const local = (ms: number, zoneId: string) => ({ dateTime: dayjs(ms).tz(zoneId).
 
 const suggestedType = (task: Task): ScheduleTaskType => (task.difficulty >= 5 ? 'DEEP_WORK' : 'QUICK_TASK')
 
+const DAY_INDEX: Record<number, DayOfWeek> = { 1: 'MONDAY', 2: 'TUESDAY', 3: 'WEDNESDAY', 4: 'THURSDAY', 5: 'FRIDAY', 6: 'SATURDAY', 0: 'SUNDAY' }
+
+/** 계획일 전날~다음 날에 시작하는 생활 시간 구간 */
+const routineOccurrences = (date: string, zoneId: string) => {
+  const result: { routine: Routine; start: number; end: number }[] = []
+  for (const offset of [-1, 0, 1]) {
+    const day = dayjs.tz(`${date}T00:00:00`, zoneId).add(offset, 'day')
+    const weekday = DAY_INDEX[day.day()]
+    mockRoutines.forEach((routine) => {
+      if (!routine.days.includes(weekday)) return
+      const start = dayjs.tz(`${day.format('YYYY-MM-DD')}T${routine.startTime}:00`, zoneId)
+      result.push({ routine, start: start.valueOf(), end: start.add(parseMinutes(routine.duration) ?? 0, 'minute').valueOf() })
+    })
+  }
+  return result.sort((a, b) => a.start - b.start)
+}
+
+const handleRoutines = async (path: string, method: string, request: Request) => {
+  if (method === 'GET') return json({ routines: mockRoutines })
+  if (method === 'PUT') {
+    const body = (await request.json().catch(() => null)) as RoutinesRequest | null
+    if (!body || !Array.isArray(body.routines)) return errorBody(400, 'Bad Request', 'routines가 필요합니다.', path)
+    const validation = validateRoutineDrafts(body.routines.map((routine, index) => toRoutineDraft(routine, String(index))))
+    const errors = Object.entries(validation.byIndex).flatMap(([index, issues]) =>
+      issues.map((issue) => ({
+        field: issue.field ? `routines[${index}].${issue.field}` : `routines[${index}]`,
+        rejectedValue: null,
+        reason: issue.message,
+      })),
+    )
+    validation.general.forEach((reason) => errors.push({ field: 'routines', rejectedValue: null, reason }))
+    if (errors.length > 0) {
+      return errorBody(400, 'Bad Request', `Validation failed for ${errors.length} field(s)`, path, { errors })
+    }
+    const order = (routine: Routine) => [DAYS_OF_WEEK.indexOf(routine.days[0]), routine.startTime, routine.id] as const
+    const saved = replaceMockRoutines(body.routines).sort((a, b) => {
+      const [ad, at, ai] = order(a)
+      const [bd, bt, bi] = order(b)
+      return ad - bd || at.localeCompare(bt) || ai - bi
+    })
+    return json({ routines: saved })
+  }
+  return null
+}
+
 export const handlePlans = async (path: string, method: string, searchParams: URLSearchParams, request: Request) => {
+  if (path === '/v2/routines') return handleRoutines(path, method, request)
+
   if (method === 'GET' && path === '/v2/plans') {
     const date = searchParams.get('date') ?? ''
     const zoneId = searchParams.get('zoneId')
@@ -64,8 +113,11 @@ export const handlePlans = async (path: string, method: string, searchParams: UR
       return errorBody(400, 'Bad Request', 'horizonDays는 0 이상 30 이하여야 합니다.', path)
     }
 
-    const wake = dayjs.tz(`${date}T00:00:00`, zoneId).hour(WAKE_HOUR)
-    const sleep = dayjs.tz(`${date}T00:00:00`, zoneId).hour(SLEEP_HOUR)
+    // ADR-0016: 수면 생활 시간이 있으면 계획일 하루 전체에서 생활 시간을 뺀 시간, 없으면 기상~취침.
+    const hasSleepRoutine = mockRoutines.some((routine) => routine.kind === 'SLEEP')
+    const dayStart = dayjs.tz(`${date}T00:00:00`, zoneId)
+    const wake = hasSleepRoutine ? dayStart : dayStart.hour(WAKE_HOUR)
+    const sleep = hasSleepRoutine ? dayStart.add(1, 'day') : dayStart.hour(SLEEP_HOUR)
     const nowMs = Date.now()
     const rawStart = Math.max(wake.valueOf(), date === today ? nowMs : 0)
     const windowStart = Math.min(Math.ceil(rawStart / 300000) * 300000, sleep.valueOf())
@@ -76,7 +128,8 @@ export const handlePlans = async (path: string, method: string, searchParams: UR
       const span = scheduleSpan(schedule)
       return span.end > wake.valueOf() && span.start < windowEnd
     })
-    const occupied = daySchedules.map(scheduleSpan)
+    const occurrences = routineOccurrences(date, zoneId)
+    const occupied = [...daySchedules.map(scheduleSpan), ...occurrences.map(({ start, end }) => ({ start, end }))]
     const existingTaskWork = daySchedules
       .filter((schedule) => schedule.taskId)
       .reduce((sum, schedule) => sum + (parseMinutes(schedule.plannedDuration) ?? 30), 0)
@@ -139,10 +192,21 @@ export const handlePlans = async (path: string, method: string, searchParams: UR
       (a as { start: { dateTime: string } }).start.dateTime.localeCompare((b as { start: { dateTime: string } }).start.dateTime),
     )
 
+    const routinesEnd = Math.max(dayStart.add(1, 'day').valueOf(), windowEnd)
     return json({
       date,
       zoneId,
       window: { start: local(windowStart, zoneId), end: local(windowEnd, zoneId) },
+      windowSource: hasSleepRoutine ? 'SLEEP_ROUTINE' : 'PROFILE',
+      routines: occurrences
+        .filter(({ start, end }) => start < routinesEnd && end > dayStart.valueOf())
+        .map(({ routine, start, end }) => ({
+          routineId: routine.id,
+          kind: routine.kind,
+          label: routine.label,
+          start: local(start, zoneId),
+          end: local(end, zoneId),
+        })),
       blocks,
       unplaced,
       objective: {

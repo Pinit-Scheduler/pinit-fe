@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { NUDGE_KEYS, readFlag } from '@shared/utils/safeStorage'
 import { clearAuthTokens, markLoggedOut } from '@shared/api/authTokens'
 import { logout as requestLogout } from '@features/auth/api/auth'
 import { useToast } from '@contexts/ToastContext'
@@ -13,6 +14,8 @@ const SettingsPage = () => {
   const [isDeadlineReminderEnabled, setIsDeadlineReminderEnabled] = useState(false)
   const [isAutoStatsEnabled, setIsAutoStatsEnabled] = useState(true)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  // 처음 한 번만 "새 기능"을 단다. 생활 시간 화면에 들어가면 확인한 것으로 본다.
+  const [showRoutinesNew] = useState(() => !readFlag(NUDGE_KEYS.routinesNewBadgeSeen))
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { offsetLabel, isLoading: isTimeLoading } = useTimePreferences()
@@ -98,6 +101,26 @@ const SettingsPage = () => {
         <p className="settings__subheading">앱 기본값</p>
         <h1 className="settings__title">알림 및 기준 정보</h1>
       </header>
+
+      <section className="settings__card" aria-label="자동 계획">
+        <h2>자동 계획</h2>
+        <Link
+          to="/app/settings/routines"
+          className="settings__row settings__row--link"
+          data-onboarding-anchor="settings.routines"
+        >
+          <div>
+            <p className="settings__label">
+              생활 시간
+              {showRoutinesNew && <span className="settings__badge settings__badge--new">새 기능</span>}
+            </p>
+            <p className="settings__description">식사·수면 시간을 알려 주면 계획이 그 시간을 비워 둬요.</p>
+          </div>
+          <span className="settings__chevron" aria-hidden>
+            ›
+          </span>
+        </Link>
+      </section>
 
       <section className="settings__card" aria-label="알림 설정">
         <h2>알림 설정</h2>

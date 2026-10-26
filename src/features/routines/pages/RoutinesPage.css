@@ -1,0 +1,263 @@
+.routines {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.routines__header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0 4px;
+}
+
+.routines__eyebrow {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.routines__title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.routines__description {
+  font-size: 13px;
+  color: #475569;
+}
+
+.routines__placeholder {
+  padding: 16px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 12px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.routines__card {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.routines__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.routines__card-title {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.routines__card-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.routines__toggle {
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background-color: #cbd5f5;
+  border: none;
+  padding: 3px;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s ease;
+}
+
+.routines__toggle span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #fff;
+  transition: transform 0.2s ease;
+}
+
+.routines__toggle.is-active {
+  background-color: #2563eb;
+}
+
+.routines__toggle.is-active span {
+  transform: translateX(18px);
+}
+
+.routines__toggle:disabled {
+  opacity: 0.5;
+}
+
+.routines__entries {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.routines__entry {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f8fafc;
+}
+
+.routines__entry.has-issue {
+  border-color: #ef4444;
+}
+
+.routines__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.routines__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.routines__field input,
+.routines__field select {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 14px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.routines__field input[aria-invalid='true'],
+.routines__field select[aria-invalid='true'] {
+  border-color: #ef4444;
+}
+
+.routines__duration {
+  display: flex;
+  gap: 4px;
+}
+
+.routines__remove {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: #94a3b8;
+  font-size: 16px;
+  padding: 6px;
+}
+
+.routines__days {
+  display: flex;
+  gap: 4px;
+}
+
+.routines__day {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  border-radius: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.routines__day.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+
+.routines__summary {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.routines__issues {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.routines__link-button {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 2px 0;
+}
+
+.routines__link-button:disabled {
+  color: #94a3b8;
+}
+
+.routines__note,
+.routines__saved {
+  font-size: 13px;
+  color: #475569;
+}
+
+.routines__saved a {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.routines__error {
+  font-size: 13px;
+  color: #b91c1c;
+}
+
+.routines__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.routines__footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.routines__save {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+
+.routines__save:disabled {
+  background: #94a3b8;
+}
