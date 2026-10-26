@@ -14,6 +14,9 @@ import type { ScheduleResponse, ScheduleTaskType } from '@features/schedules/typ
 import { fetchRoutines } from '@features/routines/api/routines'
 import type { RoutineKind } from '@features/routines/types/routine'
 import { KIND_LABEL, mealHintFor, routineName } from '@features/routines/utils/routineRules'
+import { fetchTimeCalibration, updateTimeCalibration } from '@features/calibration/api/calibration'
+import type { TimeCalibrationResponse } from '@features/calibration/types/calibration'
+import { blockCalibrationNote, hasUsableFactor } from '@features/calibration/utils/calibrationView'
 import { applyDayPlan } from '../api/plans'
 import useDayPlan from '../hooks/useDayPlan'
 import PlanTimeline from '../components/PlanTimeline'
@@ -42,6 +45,8 @@ type DraftBlock = {
   scheduleType: ScheduleTaskType
   suggestedStartLocal: string
   suggestedType: ScheduleTaskType
+  /** ADR-0018: 보정으로 길이가 바뀌었으면 그 설명 */
+  calibrationNote: string | null
 }
 
 const HORIZON_OPTIONS = [0, 1, 3, 7, 14, 30]
@@ -74,6 +79,7 @@ const toDraft = (block: PlannedBlock, zoneId: string): DraftBlock => {
     scheduleType: block.scheduleType,
     suggestedStartLocal: startLocal,
     suggestedType: block.scheduleType,
+    calibrationNote: blockCalibrationNote(block),
   }
 }
 
@@ -107,7 +113,11 @@ const PlanPage = () => {
   const [now, setNow] = useState(() => Date.now())
   /** 등록한 생활 시간 수. 모르면(불러오기 실패) null이고 안내 카드를 띄우지 않는다 */
   const [routineCount, setRoutineCount] = useState<number | null>(null)
+  /** ADR-0018 보정 설정과 계수. 모르면(불러오기 실패) null이고 보정 안내 카드를 띄우지 않는다 */
+  const [calibration, setCalibration] = useState<TimeCalibrationResponse | null>(null)
+  const [isEnablingCalibration, setIsEnablingCalibration] = useState(false)
   const [dismissed, setDismissed] = useState(() => ({
+    calibrationCard: readFlag(NUDGE_KEYS.planCalibrationCardDismissed),
     routinesCard: readFlag(NUDGE_KEYS.planRoutinesCardDismissed),
     mealHint: readFlag(NUDGE_KEYS.planMealHintDismissed),
     windowHint: readFlag(NUDGE_KEYS.planWindowHintDismissed),
@@ -131,6 +141,33 @@ const PlanPage = () => {
       cancelled = true
     }
   }, [refreshKey])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchTimeCalibration()
+      .then((response) => {
+        if (!cancelled) setCalibration(response ?? null)
+      })
+      .catch(() => {
+        if (!cancelled) setCalibration(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [refreshKey])
+
+  const enableCalibration = async () => {
+    setIsEnablingCalibration(true)
+    try {
+      setCalibration(await updateTimeCalibration(true))
+      addToast('보정을 켰어요. 기록에 맞춰 다시 제안해요.', 'success')
+      setRefreshKey((key) => key + 1)
+    } catch (err) {
+      addToast(err instanceof Error ? `보정을 켜지 못했어요. ${err.message}` : '보정을 켜지 못했어요.', 'error')
+    } finally {
+      setIsEnablingCalibration(false)
+    }
+  }
 
   // 새 제안을 받으면 편집 상태를 제안 그대로 되돌린다.
   useEffect(() => {
@@ -357,6 +394,28 @@ const PlanPage = () => {
       </div>
 
       <div className="plan-page__content">
+        {plan && plan.calibrationApplied === false && hasUsableFactor(calibration) && !dismissed.calibrationCard && (
+          <div className="plan-page__nudge" role="note">
+            <p>
+              <span aria-hidden>⏱️ </span>지난 기록으로 보면 예상과 실제 걸린 시간이 달라요. 보정하면 블록 길이를 기록에
+              맞춰요.
+            </p>
+            <div className="plan-page__nudge-actions">
+              <button type="button" onClick={enableCalibration} disabled={isEnablingCalibration}>
+                {isEnablingCalibration ? '켜는 중...' : '보정 적용하기'}
+              </button>
+              <Link to="/app/statistics">주간 리뷰 보기</Link>
+              <button
+                type="button"
+                aria-label="보정 안내 닫기"
+                onClick={() => dismiss('calibrationCard', NUDGE_KEYS.planCalibrationCardDismissed)}
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+
         {routineCount === 0 && !dismissed.routinesCard && (
           <div className="plan-page__nudge" role="note">
             <p>
@@ -421,6 +480,11 @@ const PlanPage = () => {
                       : '이 날은 남은 배치 가능 시간이 없어요. (기상~취침 시간이 지났어요)'
                     : `배치 가능 시간 ${formatTime(windowStartMs)}–${formatWindowEnd(windowEndMs)}`}
                   {plan.windowSource === 'SLEEP_ROUTINE' && ' · 수면 시간 기준'}
+                </p>
+              )}
+              {plan.calibrationApplied && (
+                <p className="plan-page__hint">
+                  블록 길이에 내 예상 대비 실제 기록을 반영했어요 · <Link to="/app/statistics">주간 리뷰에서 끄기</Link>
                 </p>
               )}
               {plan.windowSource === 'PROFILE' && !dismissed.windowHint && (
@@ -515,6 +579,7 @@ const PlanPage = () => {
                           · {formatMinutesLabel(draft.durationMinutes)}
                           {isEdited && ' · 수정함'}
                         </p>
+                        {draft.calibrationNote && <p className="plan-page__calibration">{draft.calibrationNote}</p>}
                         <div className="plan-page__block-fields">
                           <label>
                             <span>시작</span>

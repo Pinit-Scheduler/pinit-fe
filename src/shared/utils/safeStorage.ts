@@ -36,4 +36,6 @@ export const NUDGE_KEYS = {
   planMealHintDismissed: 'pinit.plan.mealHintDismissed',
   /** 계획 화면 시간창 기본값 안내를 닫았다 */
   planWindowHintDismissed: 'pinit.plan.windowHintDismissed',
+  /** 계획 화면 상단 예상 대비 실제 보정 안내 카드를 닫았다(ADR-0018) */
+  planCalibrationCardDismissed: 'pinit.plan.calibrationCardDismissed',
 } as const
