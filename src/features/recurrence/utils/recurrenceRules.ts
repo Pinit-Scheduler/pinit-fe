@@ -7,6 +7,7 @@ import type {
   RecurrenceEditImpact,
   RecurrenceFrequency,
   RecurrenceRule,
+  RecurrenceScope,
 } from '../types/recurrence'
 
 export const MIN_INTERVAL = 1
@@ -186,6 +187,37 @@ export const deleteImpactMessage = (impact: RecurrenceDeleteImpact): string => {
   const kept = impact.protected ? ` 시작했거나 끝났거나 지난 회차 ${impact.protected}개는 남아요.` : ''
   return `회차 ${impact.deleted}개를 지워요.${kept}`
 }
+
+export type ScopeAction = 'edit' | 'delete'
+
+/** "이번만"은 기존 일정·작업 API로, 나머지는 반복 API로 간다. */
+export type OccurrenceScope = 'THIS' | RecurrenceScope
+
+export type ScopeOption = { scope: OccurrenceScope; label: string; description: string }
+
+/** 범위 시트의 선택지(ADR-0019 §6·§7). 수정과 삭제가 각각 무엇을 바꾸거나 지우는지 적는다. */
+export const scopeOptions = (action: ScopeAction): ScopeOption[] =>
+  action === 'edit'
+    ? [
+        { scope: 'THIS', label: '이번만', description: '이 회차 하나만 바꿔요. 다른 회차는 그대로예요.' },
+        { scope: 'FOLLOWING', label: '이번 및 이후', description: '이 회차부터 뒤의 회차를 모두 바꿔요. 앞의 회차는 그대로예요.' },
+        { scope: 'ALL', label: '전체', description: '반복 전체를 바꿔요. 시작했거나 지난 회차는 그대로 둬요.' },
+      ]
+    : [
+        { scope: 'THIS', label: '이번만', description: '이 회차 하나만 지워요. 지운 회차는 다시 생기지 않아요.' },
+        { scope: 'FOLLOWING', label: '이번 및 이후', description: '이 회차부터 뒤의 회차를 모두 지워요. 반복은 그 전날 끝나요.' },
+        { scope: 'ALL', label: '전체', description: '남은 회차를 모두 지워요. 시작했거나 지난 회차는 남기고 반복을 끝내요.' },
+      ]
+
+/** 받침이 있으면 "을", 없으면 "를". 한글로 끝나지 않으면 "을(를)". */
+const objectParticle = (word: string) => {
+  const code = word.trim().charCodeAt(word.trim().length - 1)
+  if (Number.isNaN(code) || code < 0xac00 || code > 0xd7a3) return '을(를)'
+  return (code - 0xac00) % 28 === 0 ? '를' : '을'
+}
+
+export const scopeQuestion = (action: ScopeAction, title: string) =>
+  `반복 회차 "${title}"${objectParticle(title)} 어디까지 ${action === 'edit' ? '바꿀까요' : '지울까요'}?`
 
 /** 주간 화면이 서버가 회차를 채우는 범위(오늘 + 90일)보다 먼 날을 보는지. */
 export const isBeyondGeneration = (dateKey: string, today: string) => daysBetween(today, dateKey) > TOP_UP_LIMIT_DAYS

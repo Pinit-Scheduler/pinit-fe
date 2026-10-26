@@ -92,3 +92,17 @@ test('the weekly view knows when it looks past the generated range', () => {
     { 'rule.days': 'x' })
   assert.deepEqual(plain(rules.mapRecurrenceServerErrors(null)), {})
 })
+
+test('the scope sheet says what each choice changes or deletes', () => {
+  const edit = plain(rules.scopeOptions('edit'))
+  const remove = plain(rules.scopeOptions('delete'))
+  assert.deepEqual(edit.map((option) => option.scope), ['THIS', 'FOLLOWING', 'ALL'])
+  assert.deepEqual(remove.map((option) => option.scope), ['THIS', 'FOLLOWING', 'ALL'])
+  assert.ok(edit.every((option) => option.description.includes('바꿔요')))
+  assert.ok(remove.every((option) => option.description.includes('지워요') && !option.description.includes('바꿔요')))
+  assert.match(remove[0].description, /다시 생기지 않아요/)
+  assert.match(remove[1].description, /전날 끝나요/)
+  assert.match(remove[2].description, /반복을 끝내요/)
+  assert.equal(rules.scopeQuestion('delete', '주간 회의'), '반복 회차 "주간 회의"를 어디까지 지울까요?')
+  assert.equal(rules.scopeQuestion('edit', '운동'), '반복 회차 "운동"을 어디까지 바꿀까요?')
+})
