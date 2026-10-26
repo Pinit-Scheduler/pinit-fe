@@ -17,6 +17,7 @@ const TAB_TITLES: Record<string, string> = {
   '/app/tasks': '작업',
   '/app/statistics': '통계',
   '/app/settings': '설정',
+  '/app/settings/onboarding': '온보딩',
 }
 
 const getPageTitle = (pathname: string): string => {
@@ -78,7 +79,20 @@ const AppShell = () => {
   const isNewPage = pathname === '/app/new' || pathname === '/app/schedules/new' || pathname === '/app/tasks/new'
   const isSettingsPage = pathname === '/app/settings'
   const isPlanPage = pathname === '/app/plan'
-  const showBackButton = isScheduleDetail || isTaskDetail || isSettingsPage || isNewPage || isPlanPage
+  const isOnboardingGuide = pathname === '/app/settings/onboarding'
+  const showBackButton = isScheduleDetail || isTaskDetail || isSettingsPage || isNewPage || isPlanPage || isOnboardingGuide
+
+  const handleBack = () => {
+    // 온보딩 가이드는 딥링크로 열 수 있다. 앱 안에서 쌓인 history가 없으면 설정으로 간다.
+    if (isOnboardingGuide) {
+      const historyIndex = (window.history.state as { idx?: number } | null)?.idx
+      if (historyIndex === undefined || historyIndex <= 0) {
+        navigate('/app/settings')
+        return
+      }
+    }
+    navigate(-1)
+  }
 
   return (
     <div className="app-shell">
@@ -86,7 +100,7 @@ const AppShell = () => {
         <TopBar
           title={title}
           showBackButton={showBackButton}
-          onBack={() => navigate(-1)}
+          onBack={handleBack}
           onSettings={() => navigate('/app/settings')}
           showSettingsButton={showSettingsButton}
         />
