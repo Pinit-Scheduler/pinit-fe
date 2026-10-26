@@ -9,6 +9,8 @@ import { formatMinutesToTime } from '@shared/utils/statisticsTransform'
 import { getTodayWithOffset } from '@shared/utils/datetime'
 import { useToast } from '@contexts/ToastContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
+import { WeeklyReviewSection } from '@features/calibration'
+import { weekStartOf } from '@features/calibration/utils/calibrationView'
 
 const StatisticsTabPage = () => {
   const { offsetMinutes } = useTimePreferences()
@@ -19,6 +21,7 @@ const StatisticsTabPage = () => {
   const anchorDay = useMemo(() => today.add(anchorOffsetDays, 'day'), [anchorOffsetDays, today])
   const { current: stats, previous, isLoading, error, refetch } = useWeeklyStatistics({ weekStart: anchorDay })
   const { addToast } = useToast()
+  const reviewWeekStart = useMemo(() => weekStartOf(anchorDay.format('YYYY-MM-DD')), [anchorDay])
 
   useEffect(() => {
     if (error) {
@@ -118,6 +121,7 @@ const StatisticsTabPage = () => {
         quickWorkMinutes={quickWorkMinutes}
         totalMinutes={totalMinutes}
       />
+      {reviewWeekStart && <WeeklyReviewSection weekStart={reviewWeekStart} />}
     </section>
   )
 }

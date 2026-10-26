@@ -1,0 +1,124 @@
+.weekly-review {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.weekly-review h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.weekly-review h3 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.weekly-review__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weekly-review__hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.weekly-review__sentence {
+  margin: 0;
+  font-weight: 600;
+}
+
+.weekly-review__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.weekly-review__summary div {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background-color: #f1f5f9;
+}
+
+.weekly-review__summary dt {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.weekly-review__summary dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+}
+
+.weekly-review__list ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.weekly-review__list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weekly-review__list--muted li {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.weekly-review__item-title {
+  font-weight: 500;
+}
+
+.weekly-review__item-meta {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.weekly-review__calibration table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.weekly-review__calibration th,
+.weekly-review__calibration td {
+  padding: 4px 6px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.weekly-review__calibration tr.is-muted {
+  color: #94a3b8;
+}
+
+.weekly-review__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.weekly-review__toggle span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-weight: 600;
+}
+
+.weekly-review__toggle small {
+  color: #64748b;
+  font-weight: 400;
+}

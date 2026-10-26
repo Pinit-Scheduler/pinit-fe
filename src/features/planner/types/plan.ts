@@ -1,6 +1,7 @@
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import type { ScheduleResponse, ScheduleTaskType } from '@features/schedules/types/schedule'
 import type { RoutineKind } from '@features/routines/types/routine'
+import type { FactorSource } from '@features/calibration/types/calibration'
 
 // ADR-0015 하루 계획 API(GET /v2/plans, POST /v2/plans/apply) wire 형식.
 // 길이는 ISO-8601 기간 문자열("PT1H30M")이다.
@@ -24,11 +25,17 @@ export type PlannedBlock = {
   start: DateTimeWithZone
   /** 블록 끝(제외) */
   end: DateTimeWithZone
-  /** 블록 길이 = 작업의 유효 예상 소요시간 */
+  /** 블록 길이. 보정을 켰으면 baseDuration × calibrationFactor(5분 단위 올림)이다 */
   duration: string
   scheduleType: ScheduleTaskType
   /** 마감이 지났거나 계획일이 마감인 필수 등급 */
   mustTier: boolean
+  /** ADR-0018: 보정 전 길이 = 작업의 유효 예상 소요시간. 이전 서버 응답에는 없다 */
+  baseDuration?: string
+  /** ADR-0018: 곱한 계수. 보정하지 않았으면 1 */
+  calibrationFactor?: number
+  /** ADR-0018: 계수 출처 */
+  factorSource?: FactorSource
 }
 
 export type UnplacedTask = {
@@ -36,6 +43,11 @@ export type UnplacedTask = {
   title: string
   reason: UnplacedReason
   mustTier: boolean
+  /** ADR-0018: 배치하려던 블록 길이와 그 계수. 이전 서버 응답에는 없다 */
+  duration?: string
+  baseDuration?: string
+  calibrationFactor?: number
+  factorSource?: FactorSource
 }
 
 export type DayPlanResponse = {
@@ -58,6 +70,8 @@ export type DayPlanResponse = {
   windowSource?: 'PROFILE' | 'SLEEP_ROUTINE'
   /** ADR-0016: 계획일과 겹치는 생활 시간 구간, 시작 순. 이전 서버 응답에는 없다 */
   routines?: PlanRoutineOccurrence[]
+  /** ADR-0018: 회원이 보정을 켜서 블록 길이에 예상 대비 실제 계수를 썼는지. 이전 서버 응답에는 없다 */
+  calibrationApplied?: boolean
 }
 
 export type PlanRoutineOccurrence = {
