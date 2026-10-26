@@ -56,6 +56,8 @@ export type BlockIssue = {
   reason?: string
   message: string
   detail?: string
+  /** warning은 알려 주기만 하고 승인을 막지 않는다 */
+  severity?: 'warning'
 }
 
 /**
@@ -130,6 +132,37 @@ export const validatePlanSelection = (
       if (overlaps(span, obstacle)) {
         add(block.taskId, { reason: 'OVERLAPS_SCHEDULE', message: `기존 일정 "${obstacle.title}"과 시간이 겹쳐요.` })
       }
+    })
+  })
+  return result
+}
+
+export type RoutineSpan = {
+  name: string
+  startMs: number
+  endMs: number
+}
+
+/**
+ * 생활 시간(ADR-0016)과 겹치는 블록을 찾는다. 서버는 승인 때 생활 시간을 검사하지 않으므로(사용자의 선택)
+ * 경고(severity: warning)로만 돌려준다.
+ */
+export const findRoutineConflicts = (
+  blocks: SelectionBlock[],
+  routines: RoutineSpan[],
+): Record<number, BlockIssue[]> => {
+  const result: Record<number, BlockIssue[]> = {}
+  blocks.forEach((block) => {
+    if (block.startMs === null || block.endMs === null) return
+    const span = { startMs: block.startMs, endMs: block.endMs }
+    routines.forEach((routine) => {
+      if (!overlaps(span, routine)) return
+      const issues = result[block.taskId] ?? (result[block.taskId] = [])
+      issues.push({
+        reason: 'OVERLAPS_ROUTINE',
+        message: `생활 시간 "${routine.name}"과 겹쳐요. 그래도 승인할 수 있어요.`,
+        severity: 'warning',
+      })
     })
   })
   return result

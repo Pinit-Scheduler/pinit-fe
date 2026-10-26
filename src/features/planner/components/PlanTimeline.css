@@ -121,3 +121,28 @@
 .plan-timeline__item-time {
   opacity: 0.8;
 }
+
+.plan-timeline__legend-item--routine::before {
+  background: repeating-linear-gradient(45deg, #fef3c7, #fef3c7 3px, #fde68a 3px, #fde68a 6px);
+  border: 1px solid #f59e0b;
+}
+
+.plan-timeline__routine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(45deg, rgba(254, 243, 199, 0.85), rgba(254, 243, 199, 0.85) 6px, rgba(253, 230, 138, 0.85) 6px, rgba(253, 230, 138, 0.85) 12px);
+  border-top: 1px solid #f59e0b;
+  border-bottom: 1px solid #f59e0b;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.plan-timeline__routine span {
+  position: absolute;
+  right: 4px;
+  top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #92400e;
+}

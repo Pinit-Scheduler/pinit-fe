@@ -3,7 +3,8 @@ import './PlanTimeline.css'
 
 export type PlanTimelineItem = {
   key: string
-  kind: 'schedule' | 'block'
+  /** routine: ADR-0016 생활 시간. 두 줄 뒤에 전체 폭의 띠로 그린다 */
+  kind: 'schedule' | 'block' | 'routine'
   title: string
   startMs: number
   endMs: number
@@ -29,7 +30,7 @@ const HOUR_MS = 60 * 60 * 1000
 const toZoned = (ms: number, zoneId: string) => dayjs(ms).tz(zoneId)
 
 /**
- * 하루 계획 타임라인. 왼쪽 줄은 이미 있는 일정, 오른쪽 줄은 제안 블록이다.
+ * 하루 계획 타임라인. 왼쪽 줄은 이미 있는 일정, 오른쪽 줄은 제안 블록이고, 생활 시간은 그 뒤의 띠다.
  * 배치를 계산하지 않고, 받은 구간을 그대로 그린다.
  */
 const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock }: PlanTimelineProps) => {
@@ -51,6 +52,9 @@ const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock
       <div className="plan-timeline__legend" aria-hidden>
         <span className="plan-timeline__legend-item plan-timeline__legend-item--schedule">기존 일정</span>
         <span className="plan-timeline__legend-item plan-timeline__legend-item--block">제안 블록</span>
+        {items.some((item) => item.kind === 'routine') && (
+          <span className="plan-timeline__legend-item plan-timeline__legend-item--routine">생활 시간</span>
+        )}
       </div>
       <div className="plan-timeline__grid" style={{ height }}>
         {hours.map((at) => (
@@ -65,7 +69,24 @@ const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock
             title={`배치 가능 시간 ${formatTime(windowStartMs)}–${formatTime(windowEndMs)}`}
           />
         )}
-        {items.map((item) => {
+        {items
+          .filter((item) => item.kind === 'routine')
+          .map((item) => {
+            const top = toPx(item.startMs)
+            const label = `${item.title} ${formatTime(item.startMs)}–${formatTime(item.endMs)}`
+            return (
+              <div
+                key={item.key}
+                className="plan-timeline__routine"
+                style={{ top, height: Math.max(MIN_ITEM_HEIGHT, toPx(item.endMs) - top) }}
+                title={label}
+                aria-label={`생활 시간 ${label}`}
+              >
+                <span>{item.title}</span>
+              </div>
+            )
+          })}
+        {items.filter((item) => item.kind !== 'routine').map((item) => {
           const top = toPx(item.startMs)
           const itemHeight = Math.max(MIN_ITEM_HEIGHT, toPx(item.endMs) - top)
           const className = [
