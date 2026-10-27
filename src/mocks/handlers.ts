@@ -25,6 +25,8 @@ import {
 } from './db'
 import { effectiveExpectedMinutes, handlePlans } from './planner'
 import { handleOnboarding } from './onboarding'
+import { handleRecurrences } from './recurrences'
+import { handleCalibration } from './calibration'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -107,6 +109,8 @@ const toTaskResponse = (task: Task) => ({
   ownerId: task.ownerId ?? 1,
   createdAt: task.createdAt ?? new Date().toISOString(),
   updatedAt: task.updatedAt ?? new Date().toISOString(),
+  recurrence: task.recurrence ?? null,
+  missed: task.missed ?? false,
 })
 const findSchedule = (id: number) => mockSchedules.find((schedule) => schedule.id === id)
 
@@ -628,6 +632,12 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const plans = await handlePlans(path, method, searchParams, request)
   if (plans) return plans
+
+  const recurrences = await handleRecurrences(path, method, searchParams, request)
+  if (recurrences) return recurrences
+
+  const calibration = await handleCalibration(path, method, searchParams, request)
+  if (calibration) return calibration
 
   const tasks = await handleTasks(path, method, searchParams, request)
   if (tasks) return tasks
