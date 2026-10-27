@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type dayjs from 'dayjs'
 import { toApiDateTimeWithZone, toDateKey } from '@shared/utils/datetime'
 import { onScheduleChanged } from '@shared/utils/events'
@@ -9,11 +9,12 @@ type UseMonthlySchedulesReturn = {
   summaryByDate: Record<string, DaySummary>
   isLoading: boolean
   error: string | null
+  refetch: () => void
 }
 
 /**
  * 월간 달력용 날짜별 일정 요약. 월 범위 API가 없으므로 달력에 보이는 주마다 주간 API를 한 번씩 부른다.
- * 일정이 바뀌면 다시 받는다.
+ * 다른 화면에서 일정이 바뀌면(schedule:changed) 다시 받고, 이 화면에서 바꾼 뒤에는 refetch를 부른다.
  */
 const useMonthlySchedules = (month: dayjs.Dayjs, enabled = true): UseMonthlySchedulesReturn => {
   const monthKey = month.format('YYYY-MM')
@@ -24,7 +25,9 @@ const useMonthlySchedules = (month: dayjs.Dayjs, enabled = true): UseMonthlySche
   const [error, setError] = useState<string | null>(null)
   const [version, setVersion] = useState(0)
 
-  useEffect(() => onScheduleChanged(() => setVersion((value) => value + 1)), [])
+  const refetch = useCallback(() => setVersion((value) => value + 1), [])
+
+  useEffect(() => onScheduleChanged(refetch), [refetch])
 
   useEffect(() => {
     if (!enabled) return
@@ -51,7 +54,7 @@ const useMonthlySchedules = (month: dayjs.Dayjs, enabled = true): UseMonthlySche
     }
   }, [enabled, weekStarts, version])
 
-  return { summaryByDate, isLoading, error }
+  return { summaryByDate, isLoading, error, refetch }
 }
 
 export default useMonthlySchedules

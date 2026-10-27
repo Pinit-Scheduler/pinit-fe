@@ -127,6 +127,7 @@ const SchedulesTabPage = () => {
   const refetchSchedules = () => {
     refetchPresence()
     refetchSchedulesRaw()
+    monthly.refetch()
   }
 
   const refreshScheduleDetail = async (

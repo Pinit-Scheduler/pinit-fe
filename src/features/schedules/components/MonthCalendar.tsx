@@ -51,7 +51,7 @@ const MonthCalendar = ({
   }
 
   return (
-    <div className="month-calendar" data-onboarding-anchor="schedules.week-strip">
+    <div className="month-calendar">
       <div className="month-calendar__nav">
         <button type="button" className="month-calendar__nav-btn" onClick={() => onChangeMonth(-1)} aria-label="이전 달">
           ‹
