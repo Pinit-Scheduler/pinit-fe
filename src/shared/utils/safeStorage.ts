@@ -43,3 +43,24 @@ export const NUDGE_KEYS = {
   /** 오늘 화면의 홈 화면 설치 안내를 닫았거나 설치했다 */
   installBannerDismissed: 'pinit.pwa.installBannerDismissed',
 } as const
+
+export const readText = (key: string, storage: FlagStorage | null = defaultStorage()): string | null => {
+  try {
+    return storage?.getItem(key) ?? null
+  } catch {
+    return null
+  }
+}
+
+export const writeText = (key: string, value: string, storage: FlagStorage | null = defaultStorage()): void => {
+  try {
+    storage?.setItem(key, value)
+  } catch {
+    // 저장하지 못해도 화면은 동작한다. 다음 실행은 서버 값을 받을 때까지 기본 시간대로 그린다.
+  }
+}
+
+export const STORAGE_KEYS = {
+  /** 마지막으로 받은 회원 시간대(ADR-0028). 다음 실행의 첫 화면을 같은 시간대로 그린다 */
+  displayZoneId: 'pinit.time.displayZoneId',
+} as const

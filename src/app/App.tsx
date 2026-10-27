@@ -31,17 +31,19 @@ const InitialLoadingScreen = () => {
 }
 
 const AppContent = () => {
-  const { offsetMinutes, isLoading } = useTimePreferences()
+  const { offsetMinutes, zoneId, isLoading } = useTimePreferences()
 
   if (isLoading) {
     return <InitialLoadingScreen />
   }
 
+  // 시간대가 바뀌면(ADR-0028) 캐시와 화면 상태를 새로 만든다. 날짜 경계가 시간대마다 다르기 때문이다.
+  // 토스트는 그 밖에 두어 "시간대를 바꿨어요" 안내가 다시 그릴 때 사라지지 않게 한다.
   return (
-    <TaskCacheProvider>
-      <ScheduleCacheProvider>
-        <ScheduleViewStateProvider key={offsetMinutes}>
-          <ToastProvider>
+    <ToastProvider>
+      <TaskCacheProvider key={zoneId}>
+        <ScheduleCacheProvider>
+          <ScheduleViewStateProvider key={offsetMinutes}>
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
@@ -72,10 +74,10 @@ const AppContent = () => {
                 </Route>
               </Routes>
             </BrowserRouter>
-          </ToastProvider>
-        </ScheduleViewStateProvider>
-      </ScheduleCacheProvider>
-    </TaskCacheProvider>
+          </ScheduleViewStateProvider>
+        </ScheduleCacheProvider>
+      </TaskCacheProvider>
+    </ToastProvider>
   )
 }
 

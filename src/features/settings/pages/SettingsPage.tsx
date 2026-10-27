@@ -17,6 +17,8 @@ import {
   reminderOptionLabel,
   type NotificationPreferences,
 } from '../utils/notificationPreferences'
+import { DailyObjectiveSetting, TimeZoneSetting } from '../components/ProfileSettingRows'
+import useProfileSettings from '../hooks/useProfileSettings'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
@@ -26,7 +28,7 @@ const SettingsPage = () => {
   const [showRecurrencesNew] = useState(() => !readFlag(NUDGE_KEYS.recurrencesNewBadgeSeen))
   const navigate = useNavigate()
   const { addToast } = useToast()
-  const { offsetLabel, zoneId, isLoading: isTimeLoading } = useTimePreferences()
+  const { zoneId } = useTimePreferences()
   const {
     preferences,
     isLoading: isPreferencesLoading,
@@ -39,6 +41,7 @@ const SettingsPage = () => {
   const isPreferencesDisabled = isPreferencesUnavailable || isPreferencesSaving
   // 시각은 입력하는 동안 화면에만 두고, 입력을 마치면(blur) 저장한다.
   const [deadlineTimeDraft, setDeadlineTimeDraft] = useState<string | null>(null)
+  const profileSettings = useProfileSettings()
   const {
     state: pushState,
     isProcessing: isPushProcessing,
@@ -173,6 +176,7 @@ const SettingsPage = () => {
             ›
           </span>
         </Link>
+        <DailyObjectiveSetting {...profileSettings} />
       </section>
 
       <section className="settings__card" aria-label="휴지통">
@@ -284,10 +288,7 @@ const SettingsPage = () => {
       <section className="settings__card" aria-label="시간 및 통계 기준">
         <h2>시간 & 통계 기준</h2>
         <ul className="settings__list">
-          <li>
-            <p className="settings__label">표시 타임존</p>
-            <p className="settings__value">{isTimeLoading ? '시간대를 불러오는 중...' : offsetLabel}</p>
-          </li>
+          <TimeZoneSetting {...profileSettings} />
           <li>
             <p className="settings__label">주간 기준</p>
             <p className="settings__value">월요일 시작 · 7일 고정</p>

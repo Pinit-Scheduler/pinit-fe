@@ -40,12 +40,18 @@ let displayOffsetMinutes = getOffsetMinutesForZone(displayZoneId)
 export const getDisplayZoneId = () => displayZoneId
 export const getDisplayOffsetMinutes = () => displayOffsetMinutes
 
-export const setDisplayOffset = (offsetMinutes: number, zoneId?: string) => {
-    displayZoneId = zoneId ? normalizeZoneId(zoneId, displayZoneId || DEFAULT_ZONE) : displayZoneId || DEFAULT_ZONE
-  displayOffsetMinutes = Number.isFinite(offsetMinutes)
-    ? offsetMinutes
-    : getOffsetMinutesForZone(displayZoneId)
+/**
+ * 표시 시간대를 회원 시간대로 바꾼다(ADR-0028). 알 수 없는 id면 지금 값을 유지한다. 실제로 쓰게 된 id를 돌려준다.
+ * 날짜 계산 함수들은 호출할 때마다 이 값을 읽으므로, 바꾼 뒤 화면을 새로 그리면 새 시간대로 보인다.
+ */
+export const setDisplayZone = (zoneId: string) => {
+  displayZoneId = normalizeZoneId(zoneId, displayZoneId || DEFAULT_ZONE)
+  displayOffsetMinutes = getOffsetMinutesForZone(displayZoneId)
+  return displayZoneId
 }
+
+/** 그 시간대의 지금 UTC 오프셋(분). 시간대 선택 목록의 라벨에 쓴다. */
+export const getZoneOffsetMinutes = (zoneId: string) => getOffsetMinutesForZone(zoneId)
 
 export const formatOffsetLabel = (offsetMinutes: number) => {
   const sign = offsetMinutes >= 0 ? '+' : '-'
