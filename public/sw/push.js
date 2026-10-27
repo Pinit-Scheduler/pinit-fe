@@ -22,7 +22,7 @@ const buildNotificationOptions = (notificationPayload, dataPayload, scheduleId, 
   tag: idempotentKey || (scheduleId ? `schedule-${scheduleId}` : undefined),
   data: {
     ...dataPayload,
-    url: scheduleId ? `/app/schedules?scheduleId=${scheduleId}` : '/app/schedules',
+    url: dataPayload.url || (scheduleId ? `/app/schedules?scheduleId=${scheduleId}` : '/app/schedules'),
   },
 })
 

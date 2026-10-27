@@ -14,6 +14,7 @@ self.pinitSw.constants = {
     '/sw/time.js',
     '/sw/idempotency.js',
     '/sw/push.js',
+    '/sw/content.js',
     '/sw/clients.js',
   ],
   OFFLINE_URL: '/offline.html',
