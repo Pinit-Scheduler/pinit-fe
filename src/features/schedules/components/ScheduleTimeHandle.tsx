@@ -85,6 +85,10 @@ const ScheduleTimeHandle = ({ start, title, disabled = false, onCommit }: Schedu
           if (!dragRef.current && pending !== null) finish(false)
         }}
         onClick={(event) => event.stopPropagation()}
+        // 목록의 당겨서 새로고침은 터치 이벤트로 동작한다. 손잡이를 끄는 손가락이 거기 잡히지 않게 막는다.
+        onTouchStart={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
+        onTouchEnd={(event) => event.stopPropagation()}
       >
         <span aria-hidden>🕒</span>
         <span className="schedule-time-handle__time">{preview.format('HH:mm')}</span>

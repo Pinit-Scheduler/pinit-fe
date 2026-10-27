@@ -31,6 +31,12 @@ test('the start time stays inside the same day', () => {
   assert.equal(shift.appliedShiftMinutes(at('23:00'), 120), 30)
 })
 
+test('a schedule after 23:30 is not pulled earlier by a click or a later drag', () => {
+  assert.equal(shift.appliedShiftMinutes(at('23:45'), 0), 0)
+  assert.equal(shift.appliedShiftMinutes(at('23:45'), 30), 0)
+  assert.equal(shift.shiftWithinDay(at('23:45'), -30).format('HH:mm'), '23:15')
+})
+
 test('the shift label reads in hours and minutes', () => {
   assert.equal(shift.formatShift(0), '그대로')
   assert.equal(shift.formatShift(90), '+1시간 30분')

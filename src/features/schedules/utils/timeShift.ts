@@ -13,11 +13,14 @@ export const stepsFromDelta = (deltaY: number, stepPx: number = TIME_STEP_PX) =>
 
 /**
  * 시작 시각을 minutes만큼 옮기되 같은 날 안에 둔다(00:00 ~ 23:30).
+ * 이미 23:30 뒤에 시작하는 일정은 늦추지 못할 뿐 앞당겨지지는 않는다. 0분이면 그대로다.
  * 날짜를 바꾸는 이동은 좌우 끌기(전날·다음날)가 맡는다.
  */
 export const shiftWithinDay = (start: dayjs.Dayjs, minutes: number): dayjs.Dayjs => {
+  if (minutes === 0) return start
   const dayStart = start.startOf('day')
-  const latest = dayStart.add(24 * 60 - TIME_STEP_MINUTES, 'minute')
+  const lastSlot = dayStart.add(24 * 60 - TIME_STEP_MINUTES, 'minute')
+  const latest = start.isAfter(lastSlot) ? start : lastSlot
   const next = start.add(minutes, 'minute')
   if (next.isBefore(dayStart)) return dayStart
   if (next.isAfter(latest)) return latest
