@@ -75,7 +75,9 @@ const Modal = ({
       const first = items[0]
       const last = items[items.length - 1]
       const active = document.activeElement
-      if (event.shiftKey && (active === first || !dialogRef.current.contains(active))) {
+      // 로딩 중 조작할 요소가 없어 본체에 둔 포커스가 남아 있을 수 있다. 본체도 앞쪽 경계로 본다.
+      const atStart = active === first || active === dialogRef.current || !dialogRef.current.contains(active)
+      if (event.shiftKey && atStart) {
         event.preventDefault()
         last.focus()
       } else if (!event.shiftKey && (active === last || !dialogRef.current.contains(active))) {
