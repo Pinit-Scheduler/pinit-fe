@@ -30,6 +30,7 @@ import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 import { dispatchScheduleChanged } from '@shared/utils/events'
+import { useTrashUndo } from '@features/trash'
 import useScheduleDrag from '../../hooks/useScheduleDrag'
 import ScheduleTimeHandle from '../../components/ScheduleTimeHandle'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
@@ -86,6 +87,7 @@ const SchedulesTabPage = () => {
     )
   }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
+  const { offerScheduleUndo } = useTrashUndo()
   const { presenceMap, isLoading: isPresenceLoading, error: presenceError, refetch: refetchPresence } =
     useWeeklySchedulePresence({ weekStart: currentWeekStart, anchorDate: selectedDate })
   const monthly = useMonthlySchedules(selectedDate, calendarView === 'month')
@@ -208,6 +210,10 @@ const SchedulesTabPage = () => {
       }
       refetchSchedules()
       refetchOverdue()
+      offerScheduleUndo(scheduleId, () => {
+        refetchSchedules()
+        refetchOverdue()
+      })
     } catch (error) {
       console.error(`❌ Delete failed for schedule ${scheduleId}:`, error)
       addToast('일정 삭제에 실패했습니다.', 'error')

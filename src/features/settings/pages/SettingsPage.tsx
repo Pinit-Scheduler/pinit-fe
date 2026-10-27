@@ -174,6 +174,19 @@ const SettingsPage = () => {
         </Link>
       </section>
 
+      <section className="settings__card" aria-label="휴지통">
+        <h2>휴지통</h2>
+        <Link to="/app/settings/trash" className="settings__row settings__row--link">
+          <div>
+            <p className="settings__label">휴지통</p>
+            <p className="settings__description">지운 작업·일정은 30일 동안 남아요. 여기서 복구하거나 바로 영구 삭제해요.</p>
+          </div>
+          <span className="settings__chevron" aria-hidden>
+            ›
+          </span>
+        </Link>
+      </section>
+
       <section className="settings__card" aria-label="알림 설정">
         <h2>알림 설정</h2>
         {preferencesLoadError && (

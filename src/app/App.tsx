@@ -14,6 +14,7 @@ import { PlanPage } from '@features/planner'
 import { TaskListPage, TaskCreatePage, TaskEditPage, TaskDetailPage } from '@features/tasks'
 import { StatisticsTabPage } from '@features/statistics'
 import { SettingsPage } from '@features/settings'
+import { TrashPage } from '@features/trash'
 import { RoutinesPage } from '@features/routines'
 import { RecurrencesPage } from '@features/recurrence'
 import { OAuthConsentPage } from '@features/oauth'
@@ -65,6 +66,7 @@ const AppContent = () => {
                     <Route path="settings" element={<SettingsPage />} />
                     <Route path="settings/routines" element={<RoutinesPage />} />
                     <Route path="settings/recurrences" element={<RecurrencesPage />} />
+                    <Route path="settings/trash" element={<TrashPage />} />
                     <Route path="settings/onboarding" element={<OnboardingGuidePage />} />
                   </Route>
                 </Route>

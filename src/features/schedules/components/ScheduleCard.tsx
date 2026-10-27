@@ -40,7 +40,7 @@ const ScheduleCard = ({
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation() // 카드 클릭 이벤트 방지
     // 반복 회차는 화면이 범위(이번만·이번 및 이후·전체)를 묻는다.
-    if (schedule.recurrence || window.confirm(`"${title}" 일정을 삭제하시겠습니까?`)) {
+    if (schedule.recurrence || window.confirm(`"${title}" 일정을 휴지통으로 옮길까요?\n30일 안에 되돌릴 수 있어요.`)) {
       onDelete(id)
     }
   }

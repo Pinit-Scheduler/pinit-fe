@@ -15,6 +15,7 @@ import './TaskDetailModal.css'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
 import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
+import { useTrashUndo } from '@features/trash'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -25,6 +26,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const titleId = useId()
   const { tasksById, setTask, removeTask } = useTaskCache()
   const { addToast } = useToast()
+  const { offerTaskUndo } = useTrashUndo()
   const navigate = useNavigate()
   const [task, setTaskState] = useState<Task | null>(tasksById[taskId] ?? null)
   const [isLoading, setIsLoading] = useState(!tasksById[taskId])
@@ -108,7 +110,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         }
         return
       }
-    } else if (!window.confirm('작업을 삭제하시겠습니까?')) {
+    } else if (!window.confirm('작업을 휴지통으로 옮길까요?\n선후관계는 끊기고, 30일 안에 되돌리면 다시 이어져요.')) {
       return
     }
     try {
@@ -116,7 +118,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
       await deleteTask(task.id, false)
       removeTask(task.id)
       dispatchTaskChanged(task.id, 'delete')
-      addToast('작업을 삭제했습니다.', 'success')
+      offerTaskUndo(task.id)
       onClose()
     } catch (err) {
       console.error('작업 삭제 실패', err)
