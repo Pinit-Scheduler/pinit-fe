@@ -5,6 +5,8 @@ export type StatisticsResponse = {
   startOfWeek: DateTimeWithZone | string
   deepWorkElapsedTime: string
   adminWorkElapsedTime: string
+  /** ADR-0025 §6. 이전 서버 응답에는 없다 */
+  quickWorkElapsedTime?: string
   totalWorkElapsedTime: string
 }
 

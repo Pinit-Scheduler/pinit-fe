@@ -70,7 +70,9 @@ export const toWeeklyStatisticsView = (payload: StatisticsResponse): WeeklyStati
   const deepWorkMinutes = parseElapsedTime(payload.deepWorkElapsedTime)
   const adminWorkMinutes = parseElapsedTime(payload.adminWorkElapsedTime)
   const totalMinutes = parseElapsedTime(payload.totalWorkElapsedTime)
-  const quickWorkMinutes = Math.max(totalMinutes - deepWorkMinutes - adminWorkMinutes, 0)
+  const quickWorkMinutes = payload.quickWorkElapsedTime
+    ? parseElapsedTime(payload.quickWorkElapsedTime)
+    : Math.max(totalMinutes - deepWorkMinutes - adminWorkMinutes, 0)
   const startOfWeek = toDisplayDayjs(payload.startOfWeek)
 
   const result = {
