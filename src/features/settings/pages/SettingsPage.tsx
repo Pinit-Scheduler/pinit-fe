@@ -7,6 +7,7 @@ import { useToast } from '@contexts/ToastContext'
 import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import AiConnectionSection from '../components/AiConnectionSection'
+import ThemeSection from '../components/ThemeSection'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
@@ -214,6 +215,8 @@ const SettingsPage = () => {
           </li>
         </ul>
       </section>
+
+      <ThemeSection />
 
       <AiConnectionSection />
 
