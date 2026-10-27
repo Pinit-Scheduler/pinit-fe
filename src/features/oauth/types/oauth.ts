@@ -36,3 +36,28 @@ export type OAuthGrant = {
   /** 묶인 활성 grant(기기) 수. 묶기 이전 백엔드는 보내지 않는다. */
   connectionCount?: number
 }
+
+/** AI 사용 이력의 대상. 제목은 저장하지 않으므로 종류와 id만 있다(ADR-0026 §5). */
+export type McpActivityTarget = {
+  type: 'task' | 'schedule' | 'recurrence' | string
+  id: number
+}
+
+/** GET /v2/oauth/activity 항목: AI 앱의 MCP tool 호출 한 번. 인자 값은 없고 인자 이름만 있다. */
+export type McpActivity = {
+  id: number
+  calledAt: string
+  clientName: string
+  grantId: number | null
+  tool: string
+  access: 'READ' | 'WRITE' | 'DELETE' | string
+  outcome: 'OK' | 'ERROR' | 'DENIED' | 'RATE_LIMITED' | string
+  argumentNames: string[]
+  targets: McpActivityTarget[]
+  durationMs: number
+}
+
+export type McpActivityPage = {
+  items: McpActivity[]
+  nextCursor: number | null
+}

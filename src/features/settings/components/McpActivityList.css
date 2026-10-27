@@ -1,0 +1,98 @@
+.mcp-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcp-activity__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.ai-connection__subheading.mcp-activity__heading {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.mcp-activity__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #475569;
+  cursor: pointer;
+}
+
+.mcp-activity__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.mcp-activity__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.mcp-activity__item:last-child {
+  border-bottom: none;
+}
+
+.mcp-activity__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.mcp-activity__action {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.mcp-activity__badge.settings__badge {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.mcp-activity__meta {
+  font-size: 12px;
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.mcp-activity__more {
+  align-self: center;
+  padding: 6px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #0f172a;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mcp-activity__more:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.mcp-activity__error {
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.mcp-activity__note {
+  font-size: 12px;
+  color: #94a3b8;
+}

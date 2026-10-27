@@ -1,6 +1,7 @@
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
 import type {
+  McpActivityPage,
   OAuthAuthorizationRequest,
   OAuthDecisionRequest,
   OAuthDecisionResponse,
@@ -29,3 +30,21 @@ export const revokeOAuthGrant = (grantId: OAuthGrant['grantId']) =>
   httpClient<void>(buildApiUrl(`/oauth/grants/${encodeURIComponent(String(grantId))}`, GRANTS_API_VERSION), {
     method: 'DELETE',
   })
+
+export type McpActivityQuery = {
+  cursor?: number | null
+  size?: number
+  changesOnly?: boolean
+}
+
+/** AI 사용 이력(ADR-0026). 최신순이며 nextCursor로 다음 페이지를 읽는다. */
+export const fetchMcpActivity = ({ cursor, size, changesOnly }: McpActivityQuery = {}) => {
+  const params = new URLSearchParams()
+  if (cursor != null) params.set('cursor', String(cursor))
+  if (size != null) params.set('size', String(size))
+  if (changesOnly) params.set('changesOnly', 'true')
+  const query = params.toString()
+  return httpClient<McpActivityPage>(
+    buildApiUrl(`/oauth/activity${query ? `?${query}` : ''}`, GRANTS_API_VERSION),
+  )
+}

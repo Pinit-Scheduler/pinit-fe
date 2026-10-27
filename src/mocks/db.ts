@@ -4,7 +4,7 @@ import timezone from 'dayjs/plugin/timezone'
 import type { DateTimeWithZone, DateWithOffset } from '../shared/types/datetime'
 import type { Task } from '../features/tasks/types/task'
 import type { ScheduleResponse, ScheduleState } from '../features/schedules/types/schedule'
-import type { OAuthAuthorizationRequest, OAuthGrant } from '../features/oauth/types/oauth'
+import type { McpActivity, OAuthAuthorizationRequest, OAuthGrant } from '../features/oauth/types/oauth'
 import type { Routine } from '../features/routines/types/routine'
 
 dayjs.extend(utc)
@@ -253,6 +253,23 @@ export const mockOAuthGrants: OAuthGrant[] = [
     connectionCount: 1,
   },
 ]
+
+// AI 사용 이력(ADR-0026) 예시: 최신순, 값 없이 인자 이름과 대상 id만 있다.
+const ACTIVITY_SAMPLES: Omit<McpActivity, 'id' | 'calledAt'>[] = [
+  { clientName: 'Claude', grantId: 2, tool: 'apply_plan', access: 'WRITE', outcome: 'OK', argumentNames: ['blocks', 'date', 'zoneId'], targets: [{ type: 'task', id: 3 }, { type: 'schedule', id: 41 }, { type: 'task', id: 5 }, { type: 'schedule', id: 42 }], durationMs: 84 },
+  { clientName: 'Claude', grantId: 2, tool: 'plan_day', access: 'READ', outcome: 'OK', argumentNames: ['date', 'zoneId'], targets: [], durationMs: 61 },
+  { clientName: 'Claude', grantId: 2, tool: 'delete_task', access: 'DELETE', outcome: 'OK', argumentNames: ['confirmationToken', 'taskId'], targets: [{ type: 'task', id: 9 }], durationMs: 22 },
+  { clientName: 'Claude', grantId: 2, tool: 'delete_task', access: 'DELETE', outcome: 'OK', argumentNames: ['taskId'], targets: [{ type: 'task', id: 9 }], durationMs: 18 },
+  { clientName: 'Claude Code', grantId: 1, tool: 'update_task', access: 'WRITE', outcome: 'DENIED', argumentNames: ['importance', 'taskId'], targets: [{ type: 'task', id: 3 }], durationMs: 0 },
+  { clientName: 'Claude', grantId: 2, tool: 'replace_routines', access: 'WRITE', outcome: 'ERROR', argumentNames: ['routines'], targets: [], durationMs: 15 },
+  { clientName: 'Claude', grantId: 2, tool: 'get_weekly_statistics', access: 'READ', outcome: 'OK', argumentNames: [], targets: [], durationMs: 9 },
+]
+
+export const mockMcpActivity: McpActivity[] = Array.from({ length: 25 }, (_, index) => ({
+  ...ACTIVITY_SAMPLES[index % ACTIVITY_SAMPLES.length],
+  id: 100 - index,
+  calledAt: dayjs().subtract(index * 37, 'minute').toISOString(),
+}))
 
 export const setActiveScheduleId = (id: number | null, nextState?: ScheduleState) => {
   activeScheduleId = id

@@ -8,6 +8,7 @@ import useOAuthGrants from '../hooks/useOAuthGrants'
 import { buildClaudeCodeCommand, formatConnectionCount } from '../utils/mcpConnection'
 import { MCP_SERVER_URL } from '../utils/mcpServerUrl'
 import CopyableCode from './CopyableCode'
+import McpActivityList from './McpActivityList'
 import './AiConnectionSection.css'
 
 const DATE_FORMAT = 'YYYY.MM.DD HH:mm'
@@ -115,6 +116,8 @@ const AiConnectionSection = () => {
 
       <h3 className="ai-connection__subheading">연결된 앱</h3>
       {renderGrants()}
+
+      <McpActivityList />
     </section>
   )
 }
