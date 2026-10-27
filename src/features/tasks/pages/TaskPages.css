@@ -205,3 +205,223 @@
   font-size: 12px;
   font-weight: 700;
 }
+
+/* ADR-0023 작업 검색·필터·태그 */
+.task-search {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-search__bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.task-search__input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.task-search__filter,
+.task-search__sort {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.task-search__sort {
+  max-width: 132px;
+}
+
+.task-search__filter.is-active {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.task-search__summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #475569;
+  font-size: 13px;
+}
+
+.task-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.task-filter__group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.task-filter__row {
+  display: flex;
+  gap: 12px;
+}
+
+.task-filter__row .task-filter__group {
+  flex: 1;
+}
+
+.task-filter__row select {
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.task-filter__label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.task-filter__label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-filter__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.task-filter__dates {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.task-filter__dates input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.task-filter__empty {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.task-filter__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.task-filter__link {
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tag-chip.is-active {
+  border-color: #2563eb;
+  background: #2563eb;
+  color: #fff;
+}
+
+.tag-chip--static {
+  cursor: default;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-color: transparent;
+  color: #475569;
+}
+
+.task-page__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.task-page__pill--waiting {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tag-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-picker__new {
+  display: flex;
+  gap: 6px;
+}
+
+.tag-picker__new input {
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-picker__new button,
+.tag-manager__row button {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tag-manager__row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.tag-manager__row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.tag-manager__delete {
+  color: #b91c1c;
+}

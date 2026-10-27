@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { Link } from 'react-router-dom'
 import { fetchSchedules } from '@features/schedules/api/schedules'
-import { fetchTasks, createScheduleFromTask } from '@features/tasks/api/tasks'
+import { fetchTasks, fetchTasksByDeadline, createScheduleFromTask } from '@features/tasks/api/tasks'
 import { formatDateWithOffset, getTodayWithOffset, toApiDateTimeWithZone } from '@shared/utils/datetime'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import type { ScheduleResponse } from '@features/schedules/types/schedule'
@@ -19,6 +19,7 @@ const TodayPage = () => {
   const today = useMemo(() => getTodayWithOffset(offsetMinutes), [offsetMinutes])
   const [schedules, setSchedules] = useState<ScheduleResponse[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [dueToday, setDueToday] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
@@ -32,14 +33,18 @@ const TodayPage = () => {
       setError(null)
       try {
         const timeParam = toApiDateTimeWithZone(today.hour(12))
-        const [scheduleList, taskList] = await Promise.all([
+        const [scheduleList, taskList, dueList] = await Promise.all([
           fetchSchedules(timeParam),
           fetchTasks({ page: 0, size: 10, readyOnly: true }),
+          // ADR-0023 §4: 오늘(회원 시간대) 마감인 작업. 완료한 것도 함께 보여 준다.
+          fetchTasksByDeadline(today.format('YYYY-MM-DD')),
         ])
         if (!mounted) return
         setSchedules(scheduleList)
         setTasks(taskList.content ?? [])
+        setDueToday(dueList)
         ;(taskList.content ?? []).forEach(setTask)
+        dueList.forEach(setTask)
       } catch (err) {
         if (!mounted) return
         setError(err instanceof Error ? err.message : '데이터를 불러오지 못했습니다.')
@@ -77,7 +82,7 @@ const TodayPage = () => {
         <p className="today-page__eyebrow">오늘 할당된 일</p>
         <h1 className="today-page__title">오늘 추천 작업 & 일정</h1>
         <p className="today-page__description">
-          오늘 날짜의 일정과 선행 작업이 없는 작업을 모아 보여줍니다.
+          오늘 날짜의 일정, 오늘 마감인 작업, 이전 작업을 모두 끝내 바로 시작할 수 있는 작업을 모아 보여줍니다.
         </p>
         <Link to="/app/plan" className="today-page__plan-cta">
           🗓️ 오늘 하루 계획 자동으로 세우기
@@ -116,9 +121,32 @@ const TodayPage = () => {
             </section>
 
             <section className="today-page__section">
+              <h2>⏰ 오늘 마감 ({dueToday.length}건)</h2>
+              {dueToday.length === 0 ? (
+                <p className="today-page__placeholder">오늘 마감인 작업이 없습니다.</p>
+              ) : (
+                <ul className="today-page__list">
+                  {dueToday.map((task) => {
+                    const cached = tasksById[task.id] ?? task
+                    const done = cached.completed ?? cached.isCompleted ?? false
+                    return (
+                      <li key={task.id}>
+                        <strong>{cached.title}</strong>
+                        <span className="today-page__pill">{done ? '완료' : '미완료'}</span>
+                        {!done && (cached.inboundDependencyCount ?? 0) > 0 && (
+                          <span className="today-page__pill">이전 작업 {cached.inboundDependencyCount}개 남음</span>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="today-page__section">
               <h2>✅ 준비된 작업 ({tasks.length}건)</h2>
               {tasks.length === 0 ? (
-                <p className="today-page__placeholder">선행 작업 없는 작업이 없습니다.</p>
+                <p className="today-page__placeholder">바로 시작할 수 있는 작업이 없습니다.</p>
               ) : (
                 <ul className="today-page__list">
                   {tasks.map((task) => (

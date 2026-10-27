@@ -135,6 +135,7 @@ const TaskEditPage = () => {
             .filter((id) => !values.nextTaskIds.includes(id))
             .map((toId) => ({ fromId: numericId, toId })),
         ],
+        tagIds: values.tagIds,
       }
       const updated = await updateTask(numericId, payload)
       cacheSetTask(updated)
@@ -188,7 +189,9 @@ const TaskEditPage = () => {
               })(),
               previousTaskIds: initialPrevIds,
               nextTaskIds: initialNextIds,
+              tagIds: (task.tags ?? []).map((tag) => tag.id),
             }}
+            taskId={task.id}
             onSubmit={handleSubmit}
             submitLabel="작업 수정"
             hideDependencies={Boolean(task.recurrence)}

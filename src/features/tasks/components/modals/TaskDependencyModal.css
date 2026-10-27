@@ -65,3 +65,23 @@
 .task-dep-modal__error {
   color: var(--c-red-500);
 }
+
+/* ADR-0023 검색과 더 보기 */
+.task-dep-modal__search {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.task-dep-modal__more {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}

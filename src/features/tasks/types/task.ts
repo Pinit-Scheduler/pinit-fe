@@ -1,6 +1,12 @@
 import type { DateWithOffset, DateTimeWithZone } from '@shared/types/datetime'
 import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
 
+/** 회원 태그(ADR-0023 §2) */
+export type TaskTag = {
+  id: number
+  name: string
+}
+
 export type TaskDependency = {
   fromId: number
   toId: number
@@ -19,6 +25,8 @@ export type TaskRequest = {
    * 수정에서 생략하면 기존 값 유지, "PT0S"는 입력 해제
    */
   expectedDuration?: string
+  /** 붙일 태그 ID(최대 5개). 수정에서 생략하면 그대로, 배열이면 그 목록으로 바꾼다 */
+  tagIds?: number[]
 }
 
 export type Task = {
@@ -34,6 +42,7 @@ export type Task = {
   effectiveExpectedDuration?: string
   completed: boolean
   isCompleted?: boolean
+  /** 아직 완료되지 않은 이전 작업 수(ADR-0023 §1). 0이고 미완료면 바로 시작할 수 있다 */
   inboundDependencyCount?: number
   previousTaskIds?: number[]
   nextTaskIds?: number[]
@@ -46,6 +55,8 @@ export type Task = {
   availableFrom?: string | null
   /** 놓친 반복 회차: 날짜가 지났는데 미완료 */
   missed?: boolean
+  /** 붙은 태그, 이름순 */
+  tags?: TaskTag[]
 }
 
 export type TaskListResponse = {
