@@ -2,6 +2,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
 import TopBar from './TopBar'
 import BottomTabBar from './BottomTabBar'
+import { InstallBanner, OfflineBanner } from './AppBanners'
 import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
 import { refreshAccessToken } from '@features/auth/api/auth'
@@ -106,6 +107,8 @@ const AppShell = () => {
           onSettings={() => navigate('/app/settings')}
           showSettingsButton={showSettingsButton}
         />
+        <OfflineBanner />
+        {pathname === '/app/today' && <InstallBanner />}
         {/*  리액트 라우터 호출: app-shell__content */}
         <main className="app-shell__content">
           <Outlet />

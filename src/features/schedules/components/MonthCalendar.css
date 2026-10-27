@@ -1,0 +1,112 @@
+.month-calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0 12px;
+}
+
+.month-calendar__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.month-calendar__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-slate-900);
+}
+
+.month-calendar__nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 20px;
+  color: var(--c-slate-600);
+  cursor: pointer;
+}
+
+.month-calendar__nav-btn:hover {
+  background-color: var(--c-slate-100);
+}
+
+.month-calendar__weekdays,
+.month-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.month-calendar__weekdays span {
+  text-align: center;
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+
+.month-calendar__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  min-height: 48px;
+  padding: 6px 0 4px;
+  border-radius: 12px;
+  color: var(--c-slate-700);
+  cursor: pointer;
+}
+
+.month-calendar__day:hover {
+  background-color: var(--c-slate-100);
+}
+
+.month-calendar__day:focus-visible {
+  outline: 2px solid var(--c-blue-500);
+  outline-offset: 1px;
+}
+
+.month-calendar__day.is-outside {
+  color: var(--c-slate-400);
+}
+
+.month-calendar__day.is-today .month-calendar__date {
+  color: var(--c-blue-600);
+  font-weight: 700;
+}
+
+.month-calendar__day.is-selected {
+  background-color: var(--c-blue-100);
+  color: var(--c-slate-900);
+}
+
+.month-calendar__date {
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 남은 일정이 있으면 파랑, 모두 끝났으면 회색 */
+.month-calendar__count {
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  background-color: var(--c-blue-100);
+  color: var(--c-blue-700);
+}
+
+.month-calendar__count.is-done {
+  background-color: var(--c-slate-100);
+  color: var(--c-slate-500);
+}
+
+.month-calendar__day.is-selected .month-calendar__count {
+  background-color: var(--c-surface);
+}
+
+.month-calendar__error {
+  font-size: 12px;
+  color: var(--c-red-700);
+}

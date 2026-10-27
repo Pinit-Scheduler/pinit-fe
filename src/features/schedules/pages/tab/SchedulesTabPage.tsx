@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import useScheduleViewState from '../../hooks/useScheduleViewState.ts'
 import WeeklyDateStrip from '../../components/WeeklyDateStrip.tsx'
+import MonthCalendar from '../../components/MonthCalendar'
+import useMonthlySchedules from '../../hooks/useMonthlySchedules'
 import OverdueBanner from '../../components/OverdueBanner.tsx'
 import useWeeklySchedulePresence from '../../hooks/useWeeklySchedulePresence.ts'
 import useOverdueSchedulesSummary from '../../hooks/useOverdueSchedulesSummary.ts'
@@ -29,6 +31,7 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import useScheduleDrag from '../../hooks/useScheduleDrag'
+import ScheduleTimeHandle from '../../components/ScheduleTimeHandle'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
 import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
@@ -39,6 +42,7 @@ const SchedulesTabPage = () => {
   const recurrenceScope = useRecurrenceScope()
   const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null)
   const [weekDirection, setWeekDirection] = useState<'forward' | 'backward'>('forward')
+  const [calendarView, setCalendarView] = useState<'week' | 'month'>('week')
   const {
     currentWeekStart,
     selectedDate,
@@ -84,6 +88,7 @@ const SchedulesTabPage = () => {
   const { addToast } = useToast()
   const { presenceMap, isLoading: isPresenceLoading, error: presenceError, refetch: refetchPresence } =
     useWeeklySchedulePresence({ weekStart: currentWeekStart, anchorDate: selectedDate })
+  const monthly = useMonthlySchedules(selectedDate, calendarView === 'month')
   const {
     schedules: schedulesByDate,
     isLoading: isScheduleLoadingRaw,
@@ -122,6 +127,7 @@ const SchedulesTabPage = () => {
   const refetchSchedules = () => {
     refetchPresence()
     refetchSchedulesRaw()
+    monthly.refetch()
   }
 
   const refreshScheduleDetail = async (
@@ -146,6 +152,9 @@ const SchedulesTabPage = () => {
     setWeekDirection(offset > 0 ? 'forward' : 'backward')
     goToWeek(offset)
   }
+
+  // 달을 넘기면 주간 이동처럼 선택 날짜도 같은 날로 옮긴다(없는 날은 그 달 말일).
+  const handleChangeMonth = (offset: 1 | -1) => selectDate(selectedDate.add(offset, 'month'))
 
   const presenceMapWithSelected = useMemo(() => {
     const hasSchedule = schedules.length > 0
@@ -277,6 +286,27 @@ const SchedulesTabPage = () => {
     }
   }
 
+  const handleShiftScheduleTime = async (schedule: ScheduleSummary, minutes: number) => {
+    if (movingScheduleId === schedule.id) return
+    const previousDateKey = toDateKey(schedule.date)
+    setMovingScheduleId(schedule.id)
+    try {
+      const nextDate = toDisplayDayjs(schedule.date).add(minutes, 'minute')
+      const updated = await updateSchedule(schedule.id, {
+        date: toApiDateTimeWithZone(nextDate),
+      })
+      setSchedule(updated)
+      dispatchScheduleChanged({ schedule: updated, previousDateKey, reason: 'moved' })
+      refetchSchedules()
+      addToast(`"${schedule.title}" 일정을 ${nextDate.format('HH:mm')}로 옮겼어요.`, 'success')
+    } catch (error) {
+      console.error('❌ Failed to shift schedule time:', error)
+      addToast('일정 시간을 옮기지 못했어요.', 'error')
+    } finally {
+      setMovingScheduleId(null)
+    }
+  }
+
   const {
     edgeTarget,
     draggingScheduleId,
@@ -302,18 +332,44 @@ const SchedulesTabPage = () => {
           }}
         />
       ) : null}
-      <div
-        className={['week-transition', `week-transition--${weekDirection}`].join(' ')}
-        key={currentWeekStart.format('YYYY-MM-DD')}
-      >
-        <WeeklyDateStrip
-          weekStart={currentWeekStart}
-          selectedDate={selectedDate}
-          presenceMap={presenceMapWithSelected}
-          onSelectDate={selectDate}
-          onChangeWeek={handleChangeWeek}
-        />
+      <div className="schedules-tab__view-toggle" role="group" aria-label="달력 보기">
+        {(['week', 'month'] as const).map((view) => (
+          <button
+            key={view}
+            type="button"
+            className={calendarView === view ? 'is-active' : undefined}
+            aria-pressed={calendarView === view}
+            onClick={() => setCalendarView(view)}
+          >
+            {view === 'week' ? '주' : '월'}
+          </button>
+        ))}
       </div>
+      {calendarView === 'month' ? (
+        <MonthCalendar
+          month={selectedDate.startOf('month')}
+          selectedDate={selectedDate}
+          todayKey={toDateKey(getTodayWithOffset(offsetMinutes))}
+          summaryByDate={monthly.summaryByDate}
+          isLoading={monthly.isLoading}
+          error={monthly.error}
+          onSelectDate={selectDate}
+          onChangeMonth={handleChangeMonth}
+        />
+      ) : (
+        <div
+          className={['week-transition', `week-transition--${weekDirection}`].join(' ')}
+          key={currentWeekStart.format('YYYY-MM-DD')}
+        >
+          <WeeklyDateStrip
+            weekStart={currentWeekStart}
+            selectedDate={selectedDate}
+            presenceMap={presenceMapWithSelected}
+            onSelectDate={selectDate}
+            onChangeWeek={handleChangeWeek}
+          />
+        </div>
+      )}
       <div
         className={[
           'schedules-tab__weekly-stats',
@@ -404,6 +460,12 @@ const SchedulesTabPage = () => {
                 .join(' ')}
               {...getItemHandlers(schedule)}
             >
+              <ScheduleTimeHandle
+                start={toDisplayDayjs(schedule.date)}
+                title={schedule.title}
+                disabled={movingScheduleId === schedule.id}
+                onCommit={(minutes) => void handleShiftScheduleTime(schedule, minutes)}
+              />
               <ScheduleCard
                 schedule={schedule}
                 onOpenDetail={setDetailScheduleId}

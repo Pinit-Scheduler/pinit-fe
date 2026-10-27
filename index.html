@@ -8,6 +8,15 @@
     <meta name="theme-color" content="#0b1b42" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Pinit</title>
+    <script>
+      // 첫 렌더 전에 저장된 테마를 적용한다(src/shared/theme/theme.ts와 같은 키·값).
+      try {
+        var theme = localStorage.getItem('pinit.theme')
+        var dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
+        if (dark) document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0b1220')
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

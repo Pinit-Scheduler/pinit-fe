@@ -1,10 +1,11 @@
 self.pinitSw = self.pinitSw || {}
 
 self.pinitSw.constants = {
-  CACHE_NAME: 'pinit-cache-v12', //TODO CACHE_NAME 자동으로 올릴 기법
+  CACHE_NAME: 'pinit-cache-v13', //TODO CACHE_NAME 자동으로 올릴 기법
   PRECACHE_URLS: [
     '/',
     '/index.html',
+    '/offline.html',
     '/manifest.webmanifest',
     '/icons/icon.svg',
     '/vite.svg',
@@ -15,6 +16,7 @@ self.pinitSw.constants = {
     '/sw/push.js',
     '/sw/clients.js',
   ],
+  OFFLINE_URL: '/offline.html',
   KST_TIMEZONE: 'Asia/Seoul',
   IDEMPOTENT_DB_NAME: 'pinit-notifications',
   IDEMPOTENT_STORE_NAME: 'recent-idempotent-keys',

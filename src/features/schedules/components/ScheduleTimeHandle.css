@@ -1,0 +1,52 @@
+.schedule-time-handle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.schedule-time-handle__grip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--c-slate-200);
+  background-color: var(--c-slate-50);
+  color: var(--c-slate-700);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: ns-resize;
+  /* 세로로 끄는 손잡이라 브라우저 스크롤에 넘기지 않는다. */
+  touch-action: none;
+}
+
+.schedule-time-handle__grip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.schedule-time-handle__grip:focus-visible {
+  outline: 2px solid var(--c-blue-500);
+  outline-offset: 2px;
+}
+
+.schedule-time-handle__time {
+  font-variant-numeric: tabular-nums;
+}
+
+.schedule-time-handle__icon {
+  color: var(--c-slate-400);
+}
+
+.schedule-time-handle.is-active .schedule-time-handle__grip {
+  border-color: var(--c-blue-600);
+  background-color: var(--c-blue-50);
+  color: var(--c-blue-700);
+}
+
+.schedule-time-handle__hint {
+  font-size: 12px;
+  color: var(--c-blue-700);
+}

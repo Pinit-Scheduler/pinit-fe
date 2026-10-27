@@ -40,4 +40,6 @@ export const NUDGE_KEYS = {
   planWindowHintDismissed: 'pinit.plan.windowHintDismissed',
   /** 계획 화면 상단 예상 대비 실제 보정 안내 카드를 닫았다(ADR-0018) */
   planCalibrationCardDismissed: 'pinit.plan.calibrationCardDismissed',
+  /** 오늘 화면의 홈 화면 설치 안내를 닫았거나 설치했다 */
+  installBannerDismissed: 'pinit.pwa.installBannerDismissed',
 } as const

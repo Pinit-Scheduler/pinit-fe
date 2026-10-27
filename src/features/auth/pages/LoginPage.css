@@ -250,7 +250,7 @@
   padding: 12px 12px;
   border-radius: 12px;
   border: 1px solid var(--c-slate-200);
-  background: rgba(248, 250, 252, 0.8);
+  background: color-mix(in srgb, var(--c-slate-50) 80%, transparent);
   font-weight: 600;
   color: var(--c-slate-900);
 }
