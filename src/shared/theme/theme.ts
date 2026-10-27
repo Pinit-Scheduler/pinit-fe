@@ -58,3 +58,11 @@ export const applyThemePreference = (preference: ThemePreference) => {
   const meta = document.querySelector('meta[name="theme-color"]')
   meta?.setAttribute('content', THEME_COLOR[resolveTheme(preference, systemPrefersDark())])
 }
+
+/** 앱 전체에서 한 번 부른다. '기기 설정'일 때 OS 테마가 바뀌면 주소창 색을 따라 바꾼다(팔레트는 CSS 미디어 쿼리가 바꾼다). */
+export const watchSystemTheme = () => {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (readThemePreference() === 'system') applyThemePreference('system')
+  })
+}
