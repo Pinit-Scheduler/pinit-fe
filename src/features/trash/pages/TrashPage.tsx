@@ -3,7 +3,7 @@ import dayjs from 'dayjs'
 import { useToast } from '@contexts/ToastContext'
 import { ApiError } from '@shared/api/httpClient'
 import { formatDateTimeWithZone, formatDateWithOffset, toDisplayDayjs } from '@shared/utils/datetime'
-import { dispatchScheduleChanged, dispatchTaskChanged } from '@shared/utils/events'
+import { dispatchScheduleChanged, dispatchTaskChanged, onScheduleChanged, onTaskChanged } from '@shared/utils/events'
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import { emptyTrash, fetchTrash, purgeSchedule, purgeTask, restoreSchedule, restoreTask } from '../api/trash'
 import { purgeDaysLabel, restoreTaskMessage } from '../utils/trashLabels'
@@ -36,6 +36,19 @@ const TrashPage = () => {
 
   useEffect(() => {
     void load()
+  }, [load])
+
+  // 이 화면에 있는 동안 삭제 토스트의 "되돌리기"로 복구하면 목록에서도 빠져야 한다.
+  useEffect(() => {
+    const reloadOnRestore = (detail: { reason?: string }) => {
+      if (detail.reason === 'restore') void load()
+    }
+    const offTask = onTaskChanged(reloadOnRestore)
+    const offSchedule = onScheduleChanged(reloadOnRestore)
+    return () => {
+      offTask()
+      offSchedule()
+    }
   }, [load])
 
   const run = async (key: string, work: () => Promise<string | null>) => {
