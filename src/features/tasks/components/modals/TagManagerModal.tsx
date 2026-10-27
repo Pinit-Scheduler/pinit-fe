@@ -36,6 +36,8 @@ const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
     }
   }, [addToast])
 
+  const busy = busyId !== null
+
   const update = (next: TaskTag[]) => {
     setTags(next)
     onChanged(next)
@@ -94,11 +96,11 @@ const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
                   <button
                     type="button"
                     onClick={() => save(tag).catch(() => {})}
-                    disabled={busyId === tag.id || !(drafts[tag.id] ?? '').trim() || drafts[tag.id]?.trim() === tag.name}
+                    disabled={busy || !(drafts[tag.id] ?? '').trim() || drafts[tag.id]?.trim() === tag.name}
                   >
                     저장
                   </button>
-                  <button type="button" className="tag-manager__delete" onClick={() => remove(tag).catch(() => {})} disabled={busyId === tag.id}>
+                  <button type="button" className="tag-manager__delete" onClick={() => remove(tag).catch(() => {})} disabled={busy}>
                     지우기
                   </button>
                 </li>

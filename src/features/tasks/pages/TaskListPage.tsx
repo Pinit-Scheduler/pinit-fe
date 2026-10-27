@@ -36,7 +36,7 @@ const QUERY_DEBOUNCE_MS = 300
 
 const readStoredFilters = () => {
   try {
-    return restoreFilters(sessionStorage.getItem(FILTER_STORAGE_KEY))
+    return { ...restoreFilters(sessionStorage.getItem(FILTER_STORAGE_KEY)), query: '' }
   } catch {
     return restoreFilters(null)
   }
@@ -75,7 +75,8 @@ const TaskListPage = () => {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))
+      // 검색어는 작업 내용이 들어갈 수 있어 남기지 않는다. 같은 탭에서 다른 계정으로 로그인해도 보이지 않게 한다.
+      sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ ...filters, query: '' }))
     } catch {
       // 저장소를 못 쓰면 이번 화면에서만 기억한다.
     }
@@ -89,7 +90,14 @@ const TaskListPage = () => {
 
   const loadTags = useCallback(() => {
     fetchTags()
-      .then(setTags)
+      .then((list) => {
+        setTags(list)
+        // 저장해 둔 태그 조건 중 지금 없는 태그는 버린다.
+        setFilters((prev) => {
+          const kept = prev.tagIds.filter((id) => list.some((tag) => tag.id === id))
+          return kept.length === prev.tagIds.length ? prev : { ...prev, tagIds: kept }
+        })
+      })
       .catch(() => setTags([]))
   }, [])
 
@@ -113,6 +121,8 @@ const TaskListPage = () => {
     const requestId = ++requestIdRef.current
     if (replace) {
       setIsLoading(true)
+      // 이 요청이 진행 중이던 "더 불러오기"를 대신하므로 그 표시도 끈다.
+      setIsLoadingMore(false)
       setError(null)
       setLoadMoreError(null)
     } else {

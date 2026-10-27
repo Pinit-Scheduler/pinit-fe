@@ -81,6 +81,7 @@ const TagPicker = ({ selectedIds, onChange }: TagPickerProps) => {
                 type="button"
                 className={['tag-chip', active ? 'is-active' : ''].filter(Boolean).join(' ')}
                 aria-pressed={active}
+                disabled={creating}
                 onClick={() => toggle(tag.id)}
               >
                 #{tag.name}
