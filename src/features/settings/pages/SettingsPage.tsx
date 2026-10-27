@@ -6,6 +6,7 @@ import { logout as requestLogout } from '@features/auth/api/auth'
 import { useToast } from '@contexts/ToastContext'
 import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
+import AccountSection from '../components/AccountSection'
 import AiConnectionSection from '../components/AiConnectionSection'
 import ThemeSection from '../components/ThemeSection'
 import useNotificationPreferences from '../hooks/useNotificationPreferences'
@@ -315,18 +316,7 @@ const SettingsPage = () => {
         </Link>
       </section>
 
-      <section className="settings__card settings__card--danger" aria-label="계정">
-        <h2>계정</h2>
-        <div className="settings__row settings__row--between">
-          <div>
-            <p className="settings__label">로그아웃</p>
-            <p className="settings__description">로그아웃하면 액세스/리프레시 토큰이 삭제됩니다.</p>
-          </div>
-          <button type="button" className="settings__logout-btn" onClick={handleLogout}>
-            {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
-          </button>
-        </div>
-      </section>
+      <AccountSection onLogout={handleLogout} isLoggingOut={isLoggingOut} />
     </section>
   )
 }
