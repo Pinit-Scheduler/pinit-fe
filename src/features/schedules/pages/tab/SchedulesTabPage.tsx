@@ -29,6 +29,7 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import useScheduleDrag from '../../hooks/useScheduleDrag'
+import ScheduleTimeHandle from '../../components/ScheduleTimeHandle'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
 import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
@@ -277,6 +278,27 @@ const SchedulesTabPage = () => {
     }
   }
 
+  const handleShiftScheduleTime = async (schedule: ScheduleSummary, minutes: number) => {
+    if (movingScheduleId === schedule.id) return
+    const previousDateKey = toDateKey(schedule.date)
+    setMovingScheduleId(schedule.id)
+    try {
+      const nextDate = toDisplayDayjs(schedule.date).add(minutes, 'minute')
+      const updated = await updateSchedule(schedule.id, {
+        date: toApiDateTimeWithZone(nextDate),
+      })
+      setSchedule(updated)
+      dispatchScheduleChanged({ schedule: updated, previousDateKey, reason: 'moved' })
+      refetchSchedules()
+      addToast(`"${schedule.title}" 일정을 ${nextDate.format('HH:mm')}로 옮겼어요.`, 'success')
+    } catch (error) {
+      console.error('❌ Failed to shift schedule time:', error)
+      addToast('일정 시간을 옮기지 못했어요.', 'error')
+    } finally {
+      setMovingScheduleId(null)
+    }
+  }
+
   const {
     edgeTarget,
     draggingScheduleId,
@@ -404,6 +426,12 @@ const SchedulesTabPage = () => {
                 .join(' ')}
               {...getItemHandlers(schedule)}
             >
+              <ScheduleTimeHandle
+                start={toDisplayDayjs(schedule.date)}
+                title={schedule.title}
+                disabled={movingScheduleId === schedule.id}
+                onCommit={(minutes) => void handleShiftScheduleTime(schedule, minutes)}
+              />
               <ScheduleCard
                 schedule={schedule}
                 onOpenDetail={setDetailScheduleId}
