@@ -1,5 +1,12 @@
 import { minutesToIsoDuration, parseIsoDurationMinutes } from '@shared/utils/isoDuration'
-import type { DayOfWeek, Routine, RoutineInput, RoutineKind } from '../types/routine'
+import type {
+  DayOfWeek,
+  Routine,
+  RoutineInput,
+  RoutineKind,
+  RoutineOverrideItem,
+  RoutineOverrideItemInput,
+} from '../types/routine'
 
 // ADR-0016 생활 시간 규칙의 클라이언트 사본. 서버(domain)가 최종 판단하고, 여기서는 저장 전에
 // 같은 기준으로 알려 준다: 0~20개, 이름 1~20자(CUSTOM 필수), 분 단위 시각, 5분~16시간, 요일 1개 이상,
@@ -55,6 +62,8 @@ export type RoutineDraft = {
   /** 입력이 올바르지 않으면 null */
   durationMinutes: number | null
   days: DayOfWeek[]
+  /** ADR-0027 시작 알림 */
+  remindAtStart: boolean
 }
 
 export type RoutineField = 'label' | 'startTime' | 'duration' | 'days'
@@ -94,6 +103,7 @@ export const toRoutineDraft = (routine: Routine | RoutineInput, key: string): Ro
   startTime: routine.startTime.slice(0, 5),
   durationMinutes: parseIsoDurationMinutes(routine.duration),
   days: sortDays(routine.days),
+  remindAtStart: routine.remindAtStart === true,
 })
 
 export const toRoutineInput = (draft: RoutineDraft): RoutineInput => ({
@@ -102,6 +112,7 @@ export const toRoutineInput = (draft: RoutineDraft): RoutineInput => ({
   startTime: draft.startTime,
   duration: minutesToIsoDuration(draft.durationMinutes ?? 0),
   days: sortDays(draft.days),
+  remindAtStart: draft.remindAtStart,
 })
 
 type Occurrence = { day: DayOfWeek; start: number; end: number }
@@ -231,3 +242,96 @@ export const splitDaysForNewEntry = (entryDays: DayOfWeek[][]): { lastDays: DayO
   }
   return { lastDays: null, newDays: [] }
 }
+
+// ADR-0027 날짜 예외. 예외는 그 날짜에 시작하는 생활 시간 전체를 바꾼다. 항목 규칙은 주간과 같고 요일이 없으며,
+// 그날 [시작, 시작 + 길이) 구간끼리 겹치면 안 된다(맞닿음은 허용). 앞뒤 날짜와는 보지 않는다.
+
+export const MAX_OVERRIDE_NOTE_LENGTH = 20
+export const OVERRIDE_PAST_DAYS = 1
+export const OVERRIDE_FUTURE_DAYS = 365
+
+export type OverrideItemDraft = Omit<RoutineDraft, 'days'>
+
+const SUNDAY_FIRST: DayOfWeek[] = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+
+/** "YYYY-MM-DD"의 요일. 형식이 아니면 null */
+export const dayOfWeekOf = (date: string): DayOfWeek | null => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  if (!match) return null
+  const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])))
+  if (Number.isNaN(parsed.getTime()) || parsed.getUTCDate() !== Number(match[3])) return null
+  return SUNDAY_FIRST[parsed.getUTCDay()]
+}
+
+/** "YYYY-MM-DD"에 days일을 더한다 */
+export const addDays = (date: string, days: number): string => {
+  const [year, month, day] = date.split('-').map(Number)
+  const parsed = new Date(Date.UTC(year, month - 1, day + days))
+  return parsed.toISOString().slice(0, 10)
+}
+
+const byStart = (a: { startTime: string }, b: { startTime: string }) => a.startTime.localeCompare(b.startTime)
+
+/** 예외를 새로 만들 때 채울 값: 그 날짜 요일의 주간 항목, 시작 순 */
+export const overrideItemsFromWeekly = (date: string, weekly: RoutineDraft[], nextKey: () => string): OverrideItemDraft[] => {
+  const day = dayOfWeekOf(date)
+  if (!day) return []
+  return weekly
+    .filter((draft) => draft.days.includes(day))
+    .map((draft) => ({
+      key: nextKey(),
+      kind: draft.kind,
+      label: draft.label,
+      startTime: draft.startTime,
+      durationMinutes: draft.durationMinutes,
+      remindAtStart: draft.remindAtStart,
+    }))
+    .sort(byStart)
+}
+
+export const toOverrideItemDraft = (item: RoutineOverrideItem | RoutineOverrideItemInput, key: string): OverrideItemDraft => ({
+  key,
+  kind: item.kind,
+  label: item.label ?? '',
+  startTime: item.startTime.slice(0, 5),
+  durationMinutes: parseIsoDurationMinutes(item.duration),
+  remindAtStart: item.remindAtStart === true,
+})
+
+export const toOverrideItemInput = (draft: OverrideItemDraft): RoutineOverrideItemInput => ({
+  kind: draft.kind,
+  label: draft.label.trim() ? draft.label.trim() : null,
+  startTime: draft.startTime,
+  duration: minutesToIsoDuration(draft.durationMinutes ?? 0),
+  remindAtStart: draft.remindAtStart,
+})
+
+export const validateOverrideItems = (drafts: OverrideItemDraft[], note = ''): RoutineValidation => {
+  const { byIndex, general } = validateRoutineDrafts(drafts.map((draft) => ({ ...draft, days: ['MONDAY'] as DayOfWeek[] })))
+  // 위 검사는 한 주 순환 겹침도 보지만 모두 같은 요일이라 그날 겹침과 같다. 자정을 넘는 항목끼리만 다를 수 있어 다시 계산한다.
+  Object.values(byIndex).forEach((issues) => {
+    for (let i = issues.length - 1; i >= 0; i -= 1) if (!issues[i].field) issues.splice(i, 1)
+  })
+  const spans = drafts.map((draft) => {
+    const start = parseClock(draft.startTime)
+    return start === null || draft.durationMinutes === null ? null : { start, end: start + draft.durationMinutes }
+  })
+  for (let i = 0; i < drafts.length; i += 1) {
+    for (let j = i + 1; j < drafts.length; j += 1) {
+      const a = spans[i]
+      const b = spans[j]
+      if (!a || !b || !(a.start < b.end && b.start < a.end)) continue
+      addIssue(byIndex, i, { message: `"${routineName(drafts[j])}"과 시간이 겹쳐요.` })
+      addIssue(byIndex, j, { message: `"${routineName(drafts[i])}"과 시간이 겹쳐요.` })
+    }
+  }
+  Object.keys(byIndex).forEach((index) => {
+    if (byIndex[Number(index)].length === 0) delete byIndex[Number(index)]
+  })
+  if (note.trim().length > MAX_OVERRIDE_NOTE_LENGTH) general.push(`메모는 ${MAX_OVERRIDE_NOTE_LENGTH}자 이하로 입력하세요.`)
+  return { byIndex, general: general.map((message) => message.replace('생활 시간은', '하루 생활 시간은')) }
+}
+
+/** 오늘(회원 로컬 "YYYY-MM-DD") 기준으로 저장할 수 있는 날짜인가 */
+export const isEditableOverrideDate = (date: string, today: string) =>
+  dayOfWeekOf(date) !== null && date >= addDays(today, -OVERRIDE_PAST_DAYS) && date <= addDays(today, OVERRIDE_FUTURE_DAYS)

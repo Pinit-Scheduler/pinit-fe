@@ -4,6 +4,8 @@ import { ApiError } from '@shared/api/httpClient'
 import { useToast } from '@contexts/ToastContext'
 import { formatMinutesLabel } from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, writeFlag } from '@shared/utils/safeStorage'
+import usePushSubscription from '@shared/hooks/usePushSubscription'
+import RoutineOverridesSection from '../components/RoutineOverridesSection'
 import { fetchRoutines, saveRoutines } from '../api/routines'
 import type { DayOfWeek, Routine, RoutineKind } from '../types/routine'
 import {
@@ -56,6 +58,7 @@ const newDraft = (kind: RoutineKind, overrides: Partial<RoutineDraft> = {}): Rou
   startTime: KIND_PRESET[kind].startTime,
   durationMinutes: KIND_PRESET[kind].durationMinutes,
   days: [...DAYS_OF_WEEK],
+  remindAtStart: false,
   ...overrides,
 })
 
@@ -84,6 +87,25 @@ const RoutinesPage = () => {
   const [generalErrors, setGeneralErrors] = useState<string[]>([])
   const [conflict, setConflict] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
+  const [savedDrafts, setSavedDrafts] = useState<RoutineDraft[]>([])
+  const { state: pushState, isProcessing: isPushProcessing, describeStatus, subscribe, refreshStatus } = usePushSubscription()
+  const [pushChecked, setPushChecked] = useState(false)
+
+  /** 시작 알림을 켤 때: 이 기기에서 푸시를 아직 받지 않으면 기존 알림 권한 흐름(설정 > 알림과 같은)을 띄운다 */
+  // 실패하면 훅이 상태(blocked/error)와 문구를 남기고, 아래 안내가 그 문구를 보여 준다
+  const ensurePushForReminders = useCallback(async () => {
+    setPushChecked(true)
+    if (isPushProcessing || pushState.status === 'subscribed') return
+    try {
+      await subscribe()
+    } catch {
+      // 상태와 문구는 usePushSubscription이 이미 기록했다
+    }
+  }, [isPushProcessing, pushState.status, subscribe])
+
+  useEffect(() => {
+    void refreshStatus()
+  }, [refreshStatus])
 
   useEffect(() => {
     writeFlag(NUDGE_KEYS.routinesNewBadgeSeen)
@@ -96,6 +118,7 @@ const RoutinesPage = () => {
       const response = await fetchRoutines()
       const next = fromServer(response?.routines ?? [])
       setDrafts(next)
+      setSavedDrafts(next)
       setSavedSnapshot(snapshotOf(next))
       setServerIssues({})
       setGeneralErrors([])
@@ -183,6 +206,7 @@ const RoutinesPage = () => {
       const response = await saveRoutines({ routines: sent.map(toRoutineInput) })
       const next = fromServer(response?.routines ?? [])
       setDrafts(next)
+      setSavedDrafts(next)
       setSavedSnapshot(snapshotOf(next))
       setJustSaved(true)
       addToast(next.length > 0 ? '생활 시간을 저장했어요. 다음 계획부터 비워 두고 배치해요.' : '생활 시간을 모두 지웠어요.', 'success')
@@ -293,6 +317,17 @@ const RoutinesPage = () => {
           ))}
         </div>
         <p className="routines__summary">{summaryOf(draft)}</p>
+        <label className="routines__remind">
+          <input
+            type="checkbox"
+            checked={draft.remindAtStart}
+            onChange={(event) => {
+              patchDraft(draft.key, { remindAtStart: event.target.checked })
+              if (event.target.checked) void ensurePushForReminders()
+            }}
+          />
+          {draft.kind === 'SLEEP' ? '잘 시간에 알림' : '시작할 때 알림'}
+        </label>
         {issues.length > 0 && (
           <ul className="routines__issues" role="alert">
             {issues.map((issue, index) => (
@@ -389,6 +424,11 @@ const RoutinesPage = () => {
           </section>
 
           {atLimit && <p className="routines__note">생활 시간은 {MAX_ROUTINES}개까지 등록할 수 있어요.</p>}
+          {pushChecked && !isPushProcessing && pushState.status !== 'subscribed' && (
+            <p className="routines__note" role="status">
+              {describeStatus} 알림을 받으려면 <Link to="/app/settings">설정</Link>에서 알림을 켜 주세요.
+            </p>
+          )}
 
           <footer className="routines__footer">
             {conflict && (
@@ -417,6 +457,8 @@ const RoutinesPage = () => {
               </button>
             </div>
           </footer>
+
+          <RoutineOverridesSection weekly={savedDrafts} onReminderEnabled={() => void ensurePushForReminders()} />
         </>
       )}
     </section>

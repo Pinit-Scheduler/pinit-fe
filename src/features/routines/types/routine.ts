@@ -14,6 +14,8 @@ export type RoutineInput = {
   duration: string
   /** 이 요일 startTime에 시작한다 */
   days: DayOfWeek[]
+  /** ADR-0027: 시작 시각 알림. 보내지 않으면 서버가 false로 본다. 이전 서버 응답에는 없다 */
+  remindAtStart?: boolean
 }
 
 export type Routine = RoutineInput & { id: number }
@@ -21,3 +23,32 @@ export type Routine = RoutineInput & { id: number }
 export type RoutinesResponse = { routines: Routine[] }
 
 export type RoutinesRequest = { routines: RoutineInput[] }
+
+// ADR-0027 날짜 예외(GET /v2/routines/overrides, PUT·DELETE /v2/routines/overrides/{date}) wire 형식.
+// 예외는 그 날짜에 시작하는 생활 시간 전체를 routines로 바꾼다. 빈 배열은 그날 생활 시간 없음이다.
+
+export type RoutineOverrideItemInput = {
+  kind: RoutineKind
+  label: string | null
+  /** "HH:mm" 그날 시작 시각 */
+  startTime: string
+  /** ISO-8601 기간 */
+  duration: string
+  remindAtStart: boolean
+}
+
+export type RoutineOverrideItem = RoutineOverrideItemInput & { id: number }
+
+export type RoutineOverride = {
+  /** YYYY-MM-DD 회원 로컬 날짜 */
+  date: string
+  note: string | null
+  routines: RoutineOverrideItem[]
+}
+
+export type RoutineOverridesResponse = { overrides: RoutineOverride[] }
+
+export type RoutineOverrideRequest = {
+  note: string | null
+  routines: RoutineOverrideItemInput[]
+}
