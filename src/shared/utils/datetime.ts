@@ -13,13 +13,20 @@ dayjs.extend(weekday)
 dayjs.locale('ko')
 
 const DEFAULT_ZONE = 'Asia/Seoul'
-const getTz = () => (dayjs as unknown as { tz?: { guess?: () => string; zone?: (id: string) => unknown } }).tz
+// dayjs timezone 플러그인에는 시간대 존재 여부를 묻는 API가 없다. 브라우저가 모르는 id면 Intl이 RangeError를 던진다.
+const isKnownZone = (zoneId: string) => {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zoneId })
+    return true
+  } catch {
+    return false
+  }
+}
 
 const normalizeZoneId = (zoneId?: string, fallback = DEFAULT_ZONE) => {
   if (!zoneId) return fallback
   if (zoneId.toUpperCase() === 'UTC') return 'UTC'
-  const tz = getTz()
-  return tz?.zone && tz.zone(zoneId) ? zoneId : fallback
+  return isKnownZone(zoneId) ? zoneId : fallback
 }
 
 const resolveInitialZone = () => normalizeZoneId(DEFAULT_ZONE, DEFAULT_ZONE)

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
@@ -20,6 +21,13 @@ const loadModule = (relativePath, dependencies = {}) => {
   })
   return module.exports
 }
+
+const require = createRequire(import.meta.url)
+const dayjsDependencies = Object.fromEntries(
+  ['dayjs', 'dayjs/plugin/utc', 'dayjs/plugin/timezone', 'dayjs/plugin/isoWeek', 'dayjs/plugin/weekday', 'dayjs/locale/ko']
+    // 소스는 default import를 쓰고 transpile은 interop 없이 CommonJS로 바꾸므로 default로 감싼다
+    .map((name) => [name, { __esModule: true, default: require(name) }]),
+)
 
 const settings = loadModule('../src/features/settings/utils/profileSettings.ts')
 const storage = loadModule('../src/shared/utils/safeStorage.ts')
@@ -72,4 +80,19 @@ test('the last member zone is stored and read back, and storage failures fall ba
   const broken = { getItem: () => { throw new Error('denied') }, setItem: () => { throw new Error('denied') } }
   assert.equal(storage.readText('x', broken), null)
   assert.doesNotThrow(() => storage.writeText('x', 'y', broken))
+})
+
+test('the display zone switches to any region the browser knows and ignores unknown ids', () => {
+  const datetime = loadModule('../src/shared/utils/datetime.ts', dayjsDependencies)
+  assert.equal(datetime.getDisplayZoneId(), 'Asia/Seoul')
+
+  assert.equal(datetime.setDisplayZone('America/New_York'), 'America/New_York')
+  assert.equal(datetime.getDisplayZoneId(), 'America/New_York')
+  assert.equal(datetime.getDisplayOffsetMinutes(), datetime.getZoneOffsetMinutes('America/New_York'))
+
+  assert.equal(datetime.setDisplayZone('UTC'), 'UTC')
+  assert.equal(datetime.setDisplayZone('Asia/Seoul'), 'Asia/Seoul')
+  assert.equal(datetime.getDisplayOffsetMinutes(), 540)
+
+  assert.equal(datetime.setDisplayZone('Mars/Olympus'), 'Asia/Seoul')
 })
