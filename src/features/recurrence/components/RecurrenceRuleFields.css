@@ -1,0 +1,111 @@
+.recurrence-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.recurrence-fields__row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.recurrence-fields__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 120px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.recurrence-fields__field--narrow {
+  flex: 0 1 140px;
+}
+
+.recurrence-fields__field input,
+.recurrence-fields__field select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 14px;
+  background: #fff;
+  min-width: 0;
+}
+
+.recurrence-fields__inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.recurrence-fields__inline input {
+  width: 72px;
+}
+
+.recurrence-fields__days {
+  display: flex;
+  gap: 4px;
+}
+
+.recurrence-fields__day {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  border-radius: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.recurrence-fields__day.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+
+.recurrence-fields__summary {
+  margin: 0;
+  font-size: 13px;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.recurrence-fields__error {
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.recurrence-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #1e293b;
+}
+
+.recurrence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.recurrence-badge--missed {
+  background: #fef2f2;
+  color: #b91c1c;
+}

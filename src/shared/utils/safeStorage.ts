@@ -30,6 +30,8 @@ export const writeFlag = (key: string, storage: FlagStorage | null = defaultStor
 export const NUDGE_KEYS = {
   /** 설정 목록의 "생활 시간" 새 기능 표시를 확인했다 */
   routinesNewBadgeSeen: 'pinit.routines.newBadgeSeen',
+  /** 설정 목록의 "반복 관리" 새 기능 표시를 확인했다(ADR-0019) */
+  recurrencesNewBadgeSeen: 'pinit.recurrences.newBadgeSeen',
   /** 계획 화면 상단 생활 시간 안내 카드를 닫았다 */
   planRoutinesCardDismissed: 'pinit.plan.routinesCardDismissed',
   /** 계획 화면 블록의 식사 시간 안내를 닫았다 */

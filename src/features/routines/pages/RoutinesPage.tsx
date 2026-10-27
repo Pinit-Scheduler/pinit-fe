@@ -316,6 +316,10 @@ const RoutinesPage = () => {
           식사·수면 시간을 알려 주시면 자동 계획이 그 시간은 비워 두고 배치해요. 모두 선택 사항이고, 요일마다 다르게 정할 수
           있어요.
         </p>
+        <p className="routines__description">
+          운동처럼 완료를 체크할 일은 생활 시간이 아니라 <Link to="/app/settings/recurrences">반복 일정·작업</Link>으로 등록해
+          주세요.
+        </p>
       </header>
 
       {isLoading ? (

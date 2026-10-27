@@ -1,15 +1,27 @@
 import dayjs from 'dayjs'
+import { useState } from 'react'
 import useScheduleForm from '../hooks/useScheduleForm'
+import RecurrenceRuleFields from '@features/recurrence/components/RecurrenceRuleFields'
+import {
+  defaultRuleDraft,
+  validateRuleDraft,
+  type RuleDraft,
+  type RuleDraftField,
+} from '@features/recurrence/utils/recurrenceRules'
+import { getTodayWithOffset, toDateKey } from '@shared/utils/datetime'
 import type { ScheduleTaskType, ScheduleFormValues } from '../types/schedule'
 import './ScheduleForm.css'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 
 type ScheduleFormProps = {
   initialValues?: Partial<ScheduleFormValues>
-  onSubmit: (values: ScheduleFormValues) => Promise<void>
+  /** rule은 "반복"을 켰을 때만 있다. 시작일은 시작 시간의 날짜다 */
+  onSubmit: (values: ScheduleFormValues, rule?: RuleDraft | null) => Promise<void>
   submitLabel?: string
   /** 계획 길이 입력칸 아래 안내. 예: 새 일정은 "비워 두면 30분" */
   plannedDurationHint?: string
+  /** 새 일정에서 "반복"(ADR-0019 FIXED)을 켤 수 있게 한다 */
+  allowRecurrence?: boolean
 }
 
 const scheduleTypeOptions: { value: ScheduleTaskType; label: string }[] = [
@@ -31,17 +43,24 @@ const parseDateTimeLocalValue = (value: string, offsetMinutes: number) =>
  * @param submitLabel - 제출 버튼 라벨
  * @constructor
  */
-const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', plannedDurationHint }: ScheduleFormProps) => {
+const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', plannedDurationHint, allowRecurrence }: ScheduleFormProps) => {
   const form = useScheduleForm({ initialValues })
   const { offsetMinutes } = useTimePreferences()
+  const [rule, setRule] = useState<RuleDraft | null>(null)
+  const [ruleErrors, setRuleErrors] = useState<Partial<Record<RuleDraftField, string>>>({})
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!form.validate()) return
+    const valid = form.validate()
+    const ruleWithStart = rule ? { ...rule, startDate: toDateKey(form.values.date) } : null
+    const nextRuleErrors = ruleWithStart ? validateRuleDraft(ruleWithStart, getTodayWithOffset().format('YYYY-MM-DD')) : {}
+    setRuleErrors(nextRuleErrors)
+    if (!valid || Object.keys(nextRuleErrors).length) return
     form.setSubmitting(true)
     try {
-      await onSubmit(form.values)
+      await onSubmit(form.values, ruleWithStart)
       form.reset(initialValues)
+      setRule(null)
     } catch (error) {
       console.error('일정 저장 중 오류가 발생했습니다.', error)
     } finally {
@@ -114,6 +133,27 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', 
         {plannedDurationHint && <p className="schedule-form__hint">{plannedDurationHint}</p>}
         {form.errors.plannedDurationMinutes && <small>{form.errors.plannedDurationMinutes}</small>}
       </label>
+
+      {allowRecurrence && (
+        <div className="schedule-form__field">
+          <label className="recurrence-toggle">
+            <input
+              type="checkbox"
+              checked={rule !== null}
+              onChange={(event) => setRule(event.target.checked ? defaultRuleDraft(toDateKey(form.values.date)) : null)}
+            />
+            <span>🔁 반복</span>
+          </label>
+          {rule && (
+            <>
+              <RecurrenceRuleFields draft={rule} onChange={setRule} errors={ruleErrors} hideStartDate />
+              <p className="schedule-form__hint">
+                시작 시간의 날짜부터 정한 시각에 일정이 생겨요. 오늘부터 28일 치를 먼저 만들고 이어서 만들어요.
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="schedule-form__actions">
         <button type="button" onClick={() => form.reset(initialValues)} disabled={form.isSubmitting}>

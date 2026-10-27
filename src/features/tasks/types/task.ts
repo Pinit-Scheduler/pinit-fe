@@ -1,4 +1,5 @@
 import type { DateWithOffset, DateTimeWithZone } from '@shared/types/datetime'
+import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
 
 export type TaskDependency = {
   fromId: number
@@ -39,6 +40,12 @@ export type Task = {
   ownerId?: number
   createdAt?: string
   updatedAt?: string
+  /** 반복 작업의 회차이면 시리즈와 회차 날짜(ADR-0019). 아니면 null */
+  recurrence?: RecurrenceRef | null
+  /** 플래너 후보가 되는 첫 날짜(YYYY-MM-DD). 반복 회차만 있다 */
+  availableFrom?: string | null
+  /** 놓친 반복 회차: 날짜가 지났는데 미완료 */
+  missed?: boolean
 }
 
 export type TaskListResponse = {

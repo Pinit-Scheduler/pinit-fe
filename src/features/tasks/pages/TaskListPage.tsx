@@ -12,6 +12,7 @@ import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import TaskDetailModal from '../components/TaskDetailModal'
 import TaskArchiveModal from '../components/modals/TaskArchiveModal'
 import './TaskPages.css'
+import '@features/recurrence/components/RecurrenceRuleFields.css'
 
 const PAGE_SIZE = 20
 const SCROLL_STORAGE_KEY = 'task-list-scroll-top'
@@ -223,6 +224,16 @@ const TaskListPage = () => {
                       </label>
                       <div>
                         <strong>{item.title}</strong>
+                        {item.recurrence && (
+                          <span className="recurrence-badge" style={{ marginLeft: 6 }} aria-label="반복 작업">
+                            🔁 반복
+                          </span>
+                        )}
+                        {item.missed && (
+                          <span className="recurrence-badge recurrence-badge--missed" style={{ marginLeft: 6 }}>
+                            놓침
+                          </span>
+                        )}
                         <p className="task-page__item-desc">{item.description}</p>
                       </div>
                     </div>

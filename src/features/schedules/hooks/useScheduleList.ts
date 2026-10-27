@@ -66,6 +66,12 @@ const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
 
   useEffect(() => {
     const unsubscribe = onScheduleChanged((detail) => {
+      // 반복 시리즈 변경(ADR-0019)은 여러 날짜의 회차를 바꾼다. 캐시를 비우고 다시 읽는다.
+      if (detail.reason === 'recurrence') {
+        cacheRef.current = {}
+        setTimestamp(Date.now())
+        return
+      }
       const nextKey = detail.schedule ? toDateKey((detail.schedule as ScheduleSummary).date) : null
       const affectedKeys = [detail.previousDateKey, nextKey].filter(Boolean)
       if (affectedKeys.includes(displayDateKey)) {

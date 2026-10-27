@@ -1,5 +1,6 @@
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import type { DifficultyValue } from '@constants/difficulty'
+import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
 
 export type ScheduleState =
   | 'NOT_STARTED'   // 미시작 - 시작 버튼만
@@ -20,6 +21,8 @@ export type ScheduleResponse = {
   taskId?: number
   /** 계획 길이(ISO-8601). v2 응답에는 항상 있다 */
   plannedDuration?: string
+  /** 반복 회차이면 시리즈와 회차 날짜(ADR-0019). 아니면 null */
+  recurrence?: RecurrenceRef | null
   // legacy / v0 fields (optional)
   deadline?: DateTimeWithZone
   importance?: number
@@ -57,6 +60,8 @@ export type ScheduleSummary = {
   /** 계획 길이(ISO-8601) */
   plannedDuration?: string
   taskId?: number
+  /** 반복 회차이면 시리즈와 회차 날짜(ADR-0019) */
+  recurrence?: RecurrenceRef | null
   // optional legacy fields
   deadline?: DateTimeWithZone
   importance?: number
