@@ -11,7 +11,7 @@
   gap: 12px;
   margin-top: 4px;
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--c-slate-200);
 }
 
 .ai-connection__subheading.mcp-activity__heading {
@@ -25,7 +25,7 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #475569;
+  color: var(--c-slate-600);
   cursor: pointer;
 }
 
@@ -40,7 +40,7 @@
   flex-direction: column;
   gap: 2px;
   padding: 8px 0;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--c-slate-200);
 }
 
 .mcp-activity__item:last-child {
@@ -57,7 +57,7 @@
 .mcp-activity__action {
   font-size: 14px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .mcp-activity__badge.settings__badge {
@@ -67,17 +67,17 @@
 
 .mcp-activity__meta {
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
   overflow-wrap: anywhere;
 }
 
 .mcp-activity__more {
   align-self: center;
   padding: 6px 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 8px;
-  background-color: #ffffff;
-  color: #0f172a;
+  background-color: var(--c-surface);
+  color: var(--c-slate-900);
   font-size: 13px;
   cursor: pointer;
 }
@@ -89,10 +89,10 @@
 
 .mcp-activity__error {
   font-size: 12px;
-  color: #b91c1c;
+  color: var(--c-red-700);
 }
 
 .mcp-activity__note {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--c-slate-400);
 }
