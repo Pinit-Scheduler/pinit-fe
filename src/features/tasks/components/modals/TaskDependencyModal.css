@@ -70,7 +70,7 @@
 .task-dep-modal__search {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 10px;
   box-sizing: border-box;
 }
@@ -79,9 +79,9 @@
   width: 100%;
   margin-top: 8px;
   padding: 8px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--c-slate-300);
   border-radius: 10px;
-  background: #fff;
+  background: var(--c-surface);
   font-weight: 700;
   cursor: pointer;
 }

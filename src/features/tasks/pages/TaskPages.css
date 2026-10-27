@@ -223,7 +223,7 @@
   flex: 1;
   min-width: 0;
   padding: 8px 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 10px;
   font-size: 14px;
 }
@@ -231,10 +231,10 @@
 .task-search__filter,
 .task-search__sort {
   padding: 8px 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 10px;
-  background: #fff;
-  color: #334155;
+  background: var(--c-surface);
+  color: var(--c-slate-700);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
@@ -245,16 +245,16 @@
 }
 
 .task-search__filter.is-active {
-  border-color: #2563eb;
-  color: #1d4ed8;
-  background: #eff6ff;
+  border-color: var(--c-blue-600);
+  color: var(--c-blue-700);
+  background: var(--c-blue-50);
 }
 
 .task-search__summary {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  color: #475569;
+  color: var(--c-slate-600);
   font-size: 13px;
 }
 
@@ -263,9 +263,9 @@
   flex-direction: column;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 12px;
-  background: #f8fafc;
+  background: var(--c-slate-50);
 }
 
 .task-filter__group {
@@ -285,15 +285,15 @@
 
 .task-filter__row select {
   padding: 6px 8px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 8px;
-  background: #fff;
+  background: var(--c-surface);
 }
 
 .task-filter__label {
   font-size: 12px;
   font-weight: 700;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .task-filter__label-row {
@@ -318,13 +318,13 @@
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 8px;
 }
 
 .task-filter__empty {
   margin: 0;
-  color: #94a3b8;
+  color: var(--c-slate-400);
   font-size: 13px;
 }
 
@@ -336,7 +336,7 @@
 .task-filter__link {
   border: none;
   background: none;
-  color: #2563eb;
+  color: var(--c-blue-600);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
@@ -347,27 +347,27 @@
   display: inline-flex;
   align-items: center;
   padding: 4px 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 999px;
-  background: #fff;
-  color: #334155;
+  background: var(--c-surface);
+  color: var(--c-slate-700);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
 
 .tag-chip.is-active {
-  border-color: #2563eb;
-  background: #2563eb;
+  border-color: var(--c-blue-600);
+  background: var(--c-blue-600);
   color: #fff;
 }
 
 .tag-chip--static {
   cursor: default;
   padding: 2px 8px;
-  background: #f1f5f9;
+  background: var(--c-slate-100);
   border-color: transparent;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .task-page__tags {
@@ -378,8 +378,8 @@
 }
 
 .task-page__pill--waiting {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--c-amber-100);
+  color: var(--c-amber-800);
 }
 
 .tag-picker__chips {
@@ -401,9 +401,9 @@
 .tag-picker__new button,
 .tag-manager__row button {
   padding: 6px 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 8px;
-  background: #fff;
+  background: var(--c-surface);
   font-weight: 700;
   cursor: pointer;
 }
@@ -418,10 +418,10 @@
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--c-slate-300);
   border-radius: 8px;
 }
 
 .tag-manager__delete {
-  color: #b91c1c;
+  color: var(--c-red-700);
 }

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
+import Modal from '@shared/components/common/Modal'
 import './TaskDependencyModal.css'
 import { ApiError } from '@shared/api/httpClient'
 import { useToast } from '@contexts/ToastContext'
@@ -13,6 +14,7 @@ type TagManagerModalProps = {
 
 /** 태그 이름 바꾸기와 지우기(ADR-0023 §2). 지우면 붙어 있던 작업에서 떨어진다. */
 const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
+  const titleId = useId()
   const { addToast } = useToast()
   const [tags, setTags] = useState<TaskTag[]>([])
   const [drafts, setDrafts] = useState<Record<number, string>>({})
@@ -69,10 +71,9 @@ const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
   }
 
   return (
-    <div className="task-dep-modal__backdrop" onClick={onClose}>
-      <div className="task-dep-modal__content" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="태그 관리">
+    <Modal backdropClassName="task-dep-modal__backdrop" className="task-dep-modal__content" onClose={onClose} labelledBy={titleId}>
         <header className="task-dep-modal__header">
-          <h1>태그 관리</h1>
+          <h1 id={titleId}>태그 관리</h1>
           <button type="button" onClick={onClose} aria-label="닫기">✕</button>
         </header>
         <div className="task-dep-modal__body">
@@ -108,8 +109,7 @@ const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
         <footer className="task-dep-modal__footer">
           <button type="button" onClick={onClose}>닫기</button>
         </footer>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
