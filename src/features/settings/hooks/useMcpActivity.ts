@@ -20,7 +20,10 @@ type UseMcpActivityReturn = {
 const toMessage = (error: unknown) =>
   error instanceof Error && error.message ? error.message : 'AI 사용 이력을 불러오지 못했어요.'
 
-/** AI 사용 이력 첫 페이지와 "더 보기". 필터를 바꾸면 첫 페이지부터 다시 읽는다. */
+/**
+ * AI 사용 이력 첫 페이지와 "더 보기". 필터를 바꾸거나 다시 읽으면 목록과 커서를 비우고 첫 페이지부터 읽으며,
+ * 그동안에는 "더 보기"를 막는다(이전 필터의 커서가 섞이지 않게).
+ */
 const useMcpActivity = (): UseMcpActivityReturn => {
   const [items, setItems] = useState<McpActivity[]>([])
   const [nextCursor, setNextCursor] = useState<number | null>(null)
@@ -37,6 +40,8 @@ const useMcpActivity = (): UseMcpActivityReturn => {
     const load = async () => {
       setIsLoading(true)
       setError(null)
+      setItems([])
+      setNextCursor(null)
       try {
         const page = await fetchMcpActivity({ size: MCP_ACTIVITY_PAGE_SIZE, changesOnly })
         if (current !== generation.current) return
@@ -52,9 +57,10 @@ const useMcpActivity = (): UseMcpActivityReturn => {
   }, [changesOnly, timestamp])
 
   const loadMore = useCallback(async () => {
-    if (nextCursor == null || isLoadingMore) return
+    if (nextCursor == null || isLoading || isLoadingMore) return
     const current = generation.current
     setIsLoadingMore(true)
+    setError(null)
     try {
       const page = await fetchMcpActivity({ cursor: nextCursor, size: MCP_ACTIVITY_PAGE_SIZE, changesOnly })
       if (current !== generation.current) return
@@ -65,7 +71,7 @@ const useMcpActivity = (): UseMcpActivityReturn => {
     } finally {
       setIsLoadingMore(false)
     }
-  }, [changesOnly, isLoadingMore, nextCursor])
+  }, [changesOnly, isLoading, isLoadingMore, nextCursor])
 
   const refetch = useCallback(() => setTimestamp(Date.now()), [])
 
@@ -74,7 +80,7 @@ const useMcpActivity = (): UseMcpActivityReturn => {
     isLoading,
     isLoadingMore,
     error,
-    hasMore: nextCursor != null,
+    hasMore: !isLoading && nextCursor != null,
     changesOnly,
     setChangesOnly,
     loadMore,
