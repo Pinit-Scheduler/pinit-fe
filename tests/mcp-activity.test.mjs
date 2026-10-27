@@ -19,7 +19,7 @@ const activity = loadModule('../src/features/settings/utils/mcpActivity.ts')
 test('known tools read as Korean actions and unknown tools keep their name', () => {
   assert.equal(activity.describeActivity({ tool: 'update_task', outcome: 'OK', argumentNames: ['taskId'] }), '작업 수정')
   assert.equal(activity.describeActivity({ tool: 'replace_routines', outcome: 'OK' }), '생활 시간 저장')
-  assert.equal(activity.describeActivity({ tool: 'get_weekly_statistics', outcome: 'OK' }), '주간 통계 조회')
+  assert.equal(activity.describeActivity({ tool: 'get_statistics', outcome: 'OK' }), '통계 조회')
   assert.equal(activity.describeActivity({ tool: 'future_tool', outcome: 'OK' }), 'future_tool')
 })
 
@@ -64,11 +64,12 @@ test('every MCP tool of ADR-0026 has a label', () => {
     'list_schedules_by_date', 'list_schedules_by_week', 'get_schedule', 'create_schedule', 'update_schedule',
     'start_schedule', 'complete_schedule', 'suspend_schedule', 'cancel_schedule', 'list_tasks',
     'list_tasks_by_deadline', 'get_task', 'create_task', 'update_task', 'complete_task', 'reopen_task',
-    'schedule_task', 'plan_day', 'apply_plan', 'weekly_review', 'get_time_calibration', 'get_weekly_statistics',
+    'schedule_task', 'plan_day', 'apply_plan', 'weekly_review', 'get_time_calibration', 'get_statistics',
+    'get_recurrence_statistics',
     'get_routines', 'replace_routines', 'create_recurrence', 'list_recurrences', 'update_recurrence',
     'delete_schedule', 'delete_task', 'delete_recurrence',
   ]
-  assert.equal(tools.length, 30)
+  assert.equal(tools.length, 31)
   for (const tool of tools) {
     assert.notEqual(
       activity.describeActivity({ tool, outcome: 'OK', argumentNames: ['confirmationToken'] }),

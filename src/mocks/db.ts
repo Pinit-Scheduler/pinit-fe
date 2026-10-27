@@ -262,7 +262,7 @@ const ACTIVITY_SAMPLES: Omit<McpActivity, 'id' | 'calledAt'>[] = [
   { clientName: 'Claude', grantId: 2, tool: 'delete_task', access: 'DELETE', outcome: 'OK', argumentNames: ['taskId'], targets: [{ type: 'task', id: 9 }], durationMs: 18 },
   { clientName: 'Claude Code', grantId: 1, tool: 'update_task', access: 'WRITE', outcome: 'DENIED', argumentNames: ['importance', 'taskId'], targets: [{ type: 'task', id: 3 }], durationMs: 0 },
   { clientName: 'Claude', grantId: 2, tool: 'replace_routines', access: 'WRITE', outcome: 'ERROR', argumentNames: ['routines'], targets: [], durationMs: 15 },
-  { clientName: 'Claude', grantId: 2, tool: 'get_weekly_statistics', access: 'READ', outcome: 'OK', argumentNames: [], targets: [], durationMs: 9 },
+  { clientName: 'Claude', grantId: 2, tool: 'get_statistics', access: 'READ', outcome: 'OK', argumentNames: [], targets: [], durationMs: 9 },
 ]
 
 export const mockMcpActivity: McpActivity[] = Array.from({ length: 25 }, (_, index) => ({
