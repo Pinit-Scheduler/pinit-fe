@@ -27,6 +27,7 @@ import { effectiveExpectedMinutes, handlePlans } from './planner'
 import { handleOnboarding } from './onboarding'
 import { handleRecurrences } from './recurrences'
 import { handleCalibration } from './calibration'
+import { handleStatisticsReport } from './statisticsReport'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -638,6 +639,9 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const calibration = await handleCalibration(path, method, searchParams, request)
   if (calibration) return calibration
+
+  const statisticsReport = handleStatisticsReport(path, method, searchParams)
+  if (statisticsReport) return statisticsReport
 
   const tasks = await handleTasks(path, method, searchParams, request)
   if (tasks) return tasks

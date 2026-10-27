@@ -1,0 +1,150 @@
+.report-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background-color: var(--c-surface);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.report-section h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.report-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.report-section__hint {
+  margin: 0;
+  color: var(--c-slate-500);
+  font-size: 0.85rem;
+}
+
+.report-section__big {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.report-section__link {
+  align-self: flex-start;
+  color: var(--c-blue-600);
+  font-weight: 600;
+}
+
+.trend-chart {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trend-chart__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.trend-chart__value {
+  min-height: 1.2em;
+  color: var(--c-slate-600);
+  font-size: 0.65rem;
+  white-space: nowrap;
+}
+
+.trend-chart__track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 32px;
+  height: 96px;
+  border-radius: 8px;
+  background-color: var(--c-slate-100);
+  overflow: hidden;
+}
+
+.trend-chart__bar {
+  display: block;
+  width: 100%;
+  background-color: var(--c-blue-300);
+  transition: height 220ms ease;
+}
+
+.trend-chart__item.is-current .trend-chart__bar {
+  background-color: var(--c-blue-600);
+}
+
+.trend-chart__label {
+  color: var(--c-slate-700);
+  font-size: 0.75rem;
+}
+
+.trend-chart__item.is-current .trend-chart__label {
+  font-weight: 700;
+}
+
+.trend-chart__rate {
+  color: var(--c-slate-500);
+  font-size: 0.7rem;
+}
+
+.recurrence-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recurrence-stats__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background-color: var(--c-slate-50);
+}
+
+.recurrence-stats__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.recurrence-stats__title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recurrence-stats__rate {
+  font-weight: 700;
+  color: var(--c-blue-600);
+}
+
+.recurrence-stats__line,
+.recurrence-stats__meta,
+.recurrence-stats__pending {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.recurrence-stats__meta {
+  color: var(--c-slate-500);
+}
+
+.recurrence-stats__pending {
+  color: var(--c-orange-700);
+}
