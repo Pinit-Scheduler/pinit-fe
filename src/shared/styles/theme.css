@@ -1,0 +1,127 @@
+/*
+ * 색 토큰. 화면 CSS는 색 리터럴 대신 이 토큰을 쓴다.
+ * --c-<색>-<단계>는 Tailwind 팔레트 이름을 따른다. 밝은 테마에서는 같은 값이고,
+ * 어두운 테마에서는 단계를 뒤집는다(50은 옅은 틴트 → 어두운 틴트, 900은 진한 글자 → 밝은 글자).
+ * 색이 칠해진 버튼 위 흰 글자처럼 테마와 무관하게 고정할 색은 리터럴로 둔다.
+ * --c-page는 화면 바탕, --c-surface는 카드·시트 바탕, --c-surface-inverse는 진한 버튼·토스트 바탕이다.
+ * 이 파일은 자동 생성하지 않으므로 값을 바꿀 때 두 테마를 함께 고친다.
+ */
+
+:root {
+  color-scheme: light;
+  --c-page: #f8fafc;
+  --c-page-outer: #f1f5f9;
+  --c-surface: #ffffff;
+  --c-surface-inverse: #0f172a;
+  --c-surface-inverse-soft: #1e293b;
+  --c-slate-50: #f8fafc;
+  --c-slate-100: #f1f5f9;
+  --c-slate-200: #e2e8f0;
+  --c-slate-300: #cbd5e1;
+  --c-slate-400: #94a3b8;
+  --c-slate-500: #64748b;
+  --c-slate-600: #475569;
+  --c-slate-700: #334155;
+  --c-slate-800: #1e293b;
+  --c-slate-900: #0f172a;
+  --c-red-50: #fef2f2;
+  --c-red-100: #fee2e2;
+  --c-red-200: #fecaca;
+  --c-red-300: #fca5a5;
+  --c-red-400: #f87171;
+  --c-red-500: #ef4444;
+  --c-red-600: #dc2626;
+  --c-red-700: #b91c1c;
+  --c-red-800: #991b1b;
+  --c-red-900: #7f1d1d;
+  --c-orange-50: #fff7ed;
+  --c-orange-100: #ffedd5;
+  --c-orange-200: #fed7aa;
+  --c-orange-300: #fdba74;
+  --c-orange-400: #fb923c;
+  --c-orange-500: #f97316;
+  --c-orange-600: #ea580c;
+  --c-orange-700: #c2410c;
+  --c-orange-800: #9a3412;
+  --c-orange-900: #7c2d12;
+  --c-amber-50: #fffbeb;
+  --c-amber-100: #fef3c7;
+  --c-amber-200: #fde68a;
+  --c-amber-300: #fcd34d;
+  --c-amber-400: #fbbf24;
+  --c-amber-500: #f59e0b;
+  --c-amber-600: #d97706;
+  --c-amber-700: #b45309;
+  --c-amber-800: #92400e;
+  --c-amber-900: #78350f;
+  --c-green-50: #f0fdf4;
+  --c-green-100: #dcfce7;
+  --c-green-200: #bbf7d0;
+  --c-green-300: #86efac;
+  --c-green-400: #4ade80;
+  --c-green-500: #22c55e;
+  --c-green-600: #16a34a;
+  --c-green-700: #15803d;
+  --c-green-800: #166534;
+  --c-green-900: #14532d;
+  --c-emerald-50: #ecfdf5;
+  --c-emerald-100: #d1fae5;
+  --c-emerald-200: #a7f3d0;
+  --c-emerald-300: #6ee7b7;
+  --c-emerald-400: #34d399;
+  --c-emerald-500: #10b981;
+  --c-emerald-600: #059669;
+  --c-emerald-700: #047857;
+  --c-emerald-800: #065f46;
+  --c-emerald-900: #064e3b;
+  --c-sky-50: #f0f9ff;
+  --c-sky-100: #e0f2fe;
+  --c-sky-200: #bae6fd;
+  --c-sky-300: #7dd3fc;
+  --c-sky-400: #38bdf8;
+  --c-sky-500: #0ea5e9;
+  --c-sky-600: #0284c7;
+  --c-sky-700: #0369a1;
+  --c-sky-800: #075985;
+  --c-sky-900: #0c4a6e;
+  --c-blue-50: #eff6ff;
+  --c-blue-100: #dbeafe;
+  --c-blue-200: #bfdbfe;
+  --c-blue-300: #93c5fd;
+  --c-blue-400: #60a5fa;
+  --c-blue-500: #3b82f6;
+  --c-blue-600: #2563eb;
+  --c-blue-700: #1d4ed8;
+  --c-blue-800: #1e40af;
+  --c-blue-900: #1e3a8a;
+  --c-indigo-50: #eef2ff;
+  --c-indigo-100: #e0e7ff;
+  --c-indigo-200: #c7d2fe;
+  --c-indigo-300: #a5b4fc;
+  --c-indigo-400: #818cf8;
+  --c-indigo-500: #6366f1;
+  --c-indigo-600: #4f46e5;
+  --c-indigo-700: #4338ca;
+  --c-indigo-800: #3730a3;
+  --c-indigo-900: #312e81;
+  --c-rose-50: #fff1f2;
+  --c-rose-100: #ffe4e6;
+  --c-rose-200: #fecdd3;
+  --c-rose-300: #fda4af;
+  --c-rose-400: #fb7185;
+  --c-rose-500: #f43f5e;
+  --c-rose-600: #e11d48;
+  --c-rose-700: #be123c;
+  --c-rose-800: #9f1239;
+  --c-rose-900: #881337;
+  --c-cyan-50: #ecfeff;
+  --c-cyan-100: #cffafe;
+  --c-cyan-200: #a5f3fc;
+  --c-cyan-300: #67e8f9;
+  --c-cyan-400: #22d3ee;
+  --c-cyan-500: #06b6d4;
+  --c-cyan-600: #0891b2;
+  --c-cyan-700: #0e7490;
+  --c-cyan-800: #155e75;
+  --c-cyan-900: #164e63;
+}

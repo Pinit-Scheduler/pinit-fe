@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, type ReactNode } from 'react'
+import Modal from '@shared/components/common/Modal'
 import { scopeOptions, scopeQuestion, type OccurrenceScope, type ScopeAction } from '../utils/recurrenceRules'
 import './RecurrenceScopeDialog.css'
 
@@ -35,31 +36,28 @@ export const useRecurrenceScope = (): { dialog: ReactNode; ask: (action: ScopeAc
   }
 
   const dialog = pending ? (
-    <div className="recurrence-scope__backdrop" onClick={() => finish(null)}>
-      <div
-        className="recurrence-scope__sheet"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="recurrence-scope-title"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 id="recurrence-scope-title" className="recurrence-scope__title">
-          🔁 반복 {pending.action === 'edit' ? '수정' : '삭제'}
-        </h2>
-        <p className="recurrence-scope__subtitle">{scopeQuestion(pending.action, pending.title)}</p>
-        <div className="recurrence-scope__options">
-          {scopeOptions(pending.action).map((option) => (
-            <button key={option.scope} type="button" className="recurrence-scope__option" onClick={() => finish(option.scope)}>
-              <strong>{option.label}</strong>
-              <span>{option.description}</span>
-            </button>
-          ))}
-        </div>
-        <button type="button" className="recurrence-scope__cancel" onClick={() => finish(null)}>
-          취소
-        </button>
+    <Modal
+      backdropClassName="recurrence-scope__backdrop"
+      className="recurrence-scope__sheet"
+      onClose={() => finish(null)}
+      labelledBy="recurrence-scope-title"
+    >
+      <h2 id="recurrence-scope-title" className="recurrence-scope__title">
+        🔁 반복 {pending.action === 'edit' ? '수정' : '삭제'}
+      </h2>
+      <p className="recurrence-scope__subtitle">{scopeQuestion(pending.action, pending.title)}</p>
+      <div className="recurrence-scope__options">
+        {scopeOptions(pending.action).map((option) => (
+          <button key={option.scope} type="button" className="recurrence-scope__option" onClick={() => finish(option.scope)}>
+            <strong>{option.label}</strong>
+            <span>{option.description}</span>
+          </button>
+        ))}
       </div>
-    </div>
+      <button type="button" className="recurrence-scope__cancel" onClick={() => finish(null)}>
+        취소
+      </button>
+    </Modal>
   ) : null
 
   return { dialog, ask }

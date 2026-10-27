@@ -2,8 +2,8 @@
   font-family: 'Pretendard', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #0f172a;
-  background-color: #f8fafc;
+  color: var(--c-slate-900);
+  background-color: var(--c-page);
   --z-topbar: 10;
   --z-mini-player: 90;
   --z-bottom-tab: 100;
@@ -35,7 +35,7 @@ body,
 }
 
 body {
-  background-color: #f1f5f9;
+  background-color: var(--c-page-outer);
 }
 
 a,
@@ -57,4 +57,8 @@ option,
 button {
   border: none;
   background: none;
+}
+
+[role='dialog']:focus {
+  outline: none;
 }

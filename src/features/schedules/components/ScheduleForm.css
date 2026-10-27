@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background-color: #fff;
+  background-color: var(--c-surface);
   border-radius: 16px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
   padding: 16px;
@@ -20,13 +20,13 @@
 .schedule-form__field textarea,
 .schedule-form__field select {
   border-radius: 12px;
-  border: 1px solid #cbd5f5;
+  border: 1px solid var(--c-indigo-200);
   padding: 10px;
   font-size: 14px;
 }
 
 .schedule-form__field small {
-  color: #dc2626;
+  color: var(--c-red-600);
 }
 
 .schedule-form__actions {
@@ -40,16 +40,16 @@
   border-radius: 12px;
   padding: 12px;
   font-weight: 600;
-  background-color: #e2e8f0;
+  background-color: var(--c-slate-200);
 }
 
 .schedule-form__actions button.is-primary {
-  background-color: #2563eb;
+  background-color: var(--c-blue-600);
   color: #fff;
 }
 
 .schedule-form__dependency {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 16px;
   padding: 16px;
 }
@@ -80,8 +80,8 @@
 }
 
 .schedule-form__dependency-header button {
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
   border-radius: 12px;
   padding: 8px 10px;
   font-weight: 700;
@@ -89,7 +89,7 @@
 
 .schedule-form__dependency-empty {
   margin: 0;
-  color: #94a3b8;
+  color: var(--c-slate-400);
   font-size: 14px;
 }
 
@@ -105,14 +105,14 @@
   gap: 6px;
   padding: 8px 10px;
   border-radius: 12px;
-  background: #eef2ff;
-  color: #1e3a8a;
+  background: var(--c-indigo-50);
+  color: var(--c-blue-900);
   font-weight: 600;
 }
 
 .schedule-form__tag.is-next {
-  background: #fff1f2;
-  color: #b91c1c;
+  background: var(--c-rose-50);
+  color: var(--c-red-700);
 }
 
 .schedule-form__tag-remove {
@@ -140,9 +140,9 @@
   min-width: 36px;
   padding: 4px 8px;
   border-radius: 12px;
-  background-color: #e2e8f0;
+  background-color: var(--c-slate-200);
   font-weight: 600;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .schedule-form__range-input {
@@ -153,10 +153,10 @@
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    var(--range-color, #2563eb) 0%,
-    var(--range-color, #2563eb) var(--range-progress, 50%),
-    #e2e8f0 var(--range-progress, 50%),
-    #e2e8f0 100%
+    var(--range-color, var(--c-blue-600)) 0%,
+    var(--range-color, var(--c-blue-600)) var(--range-progress, 50%),
+    var(--c-slate-200) var(--range-progress, 50%),
+    var(--c-slate-200) 100%
   );
   outline: none;
 }
@@ -166,8 +166,8 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--range-color, #2563eb);
-  border: 2px solid #fff;
+  background: var(--range-color, var(--c-blue-600));
+  border: 2px solid var(--c-surface);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
@@ -175,22 +175,22 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--range-color, #2563eb);
-  border: 2px solid #fff;
+  background: var(--range-color, var(--c-blue-600));
+  border: 2px solid var(--c-surface);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
 }
 
 .schedule-form__range-input::-moz-range-track {
   height: 8px;
   border-radius: 999px;
-  background: #e2e8f0;
+  background: var(--c-slate-200);
 }
 
 .schedule-form__range-scale {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .schedule-form__difficulty {
@@ -201,8 +201,8 @@
 }
 
 .schedule-form__difficulty-step {
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
   border-radius: 12px;
   padding: 8px 10px;
   font-weight: 700;
@@ -223,29 +223,29 @@
 }
 
 .schedule-form__difficulty-option {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-slate-50);
   padding: 8px 10px;
   border-radius: 12px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
   min-width: 48px;
 }
 
 .schedule-form__difficulty-option.is-active {
-  background: #fee2e2;
-  border-color: #ef4444;
-  color: #b91c1c;
+  background: var(--c-red-100);
+  border-color: var(--c-red-500);
+  color: var(--c-red-700);
   box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.6);
 }
 
 .schedule-form__helper {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .schedule-form__hint {
-  color: #64748b;
+  color: var(--c-slate-500);
   font-size: 12px;
 }

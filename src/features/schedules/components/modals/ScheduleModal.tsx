@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useId } from 'react'
+import Modal from '@shared/components/common/Modal'
 import ScheduleForm from '../ScheduleForm'
 import { createSchedule, updateSchedule } from '../../api/schedules'
 import { toApiDateTimeWithZone, toDateFromApi } from '@shared/utils/datetime'
@@ -21,6 +22,7 @@ type ScheduleModalProps = {
  * @constructor
  */
 const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
+  const titleId = useId()
   const { addToast } = useToast()
 
   useEffect(() => {
@@ -68,31 +70,29 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
     : undefined
 
   return (
-    <div className="schedule-modal__backdrop" onClick={onClose}>
-      <div className="schedule-modal__content" onClick={(e) => e.stopPropagation()}>
-        <header className="schedule-modal__header">
-          <h1>{mode === 'create' ? '일정 추가' : '일정 수정'}</h1>
-          <button
-            className="schedule-modal__close"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            type="button"
-            aria-label="닫기"
-          >
-            ✕
-          </button>
-        </header>
-        <div className="schedule-modal__body">
-          <ScheduleForm
-            initialValues={initialValues}
-            onSubmit={handleSubmit}
-            submitLabel={mode === 'create' ? '일정 추가' : '일정 수정'}
-          />
-        </div>
+    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} labelledBy={titleId}>
+      <header className="schedule-modal__header">
+        <h1 id={titleId}>{mode === 'create' ? '일정 추가' : '일정 수정'}</h1>
+        <button
+          className="schedule-modal__close"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+          type="button"
+          aria-label="닫기"
+        >
+          ✕
+        </button>
+      </header>
+      <div className="schedule-modal__body">
+        <ScheduleForm
+          initialValues={initialValues}
+          onSubmit={handleSubmit}
+          submitLabel={mode === 'create' ? '일정 추가' : '일정 수정'}
+        />
       </div>
-    </div>
+    </Modal>
   )
 }
 

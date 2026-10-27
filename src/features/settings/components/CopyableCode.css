@@ -9,9 +9,9 @@
   min-width: 0;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background-color: #f8fafc;
-  color: #0f172a;
+  border: 1px solid var(--c-slate-200);
+  background-color: var(--c-slate-50);
+  color: var(--c-slate-900);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -22,14 +22,14 @@
   flex-shrink: 0;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid #cbd5e1;
-  background-color: #fff;
-  color: #0f172a;
+  border: 1px solid var(--c-slate-300);
+  background-color: var(--c-surface);
+  color: var(--c-slate-900);
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
 }
 
 .copyable-code__btn:hover {
-  background-color: #f1f5f9;
+  background-color: var(--c-slate-100);
 }

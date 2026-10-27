@@ -11,7 +11,7 @@
 }
 
 .task-archive-modal__content {
-  background: #fff;
+  background: var(--c-surface);
   width: 100%;
   max-width: 720px;
   max-height: 90vh;
@@ -29,13 +29,13 @@
   align-items: flex-start;
   gap: 12px;
   padding: 20px 22px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--c-slate-200);
 }
 
 .task-archive-modal__eyebrow {
   font-size: 12px;
   letter-spacing: 0.06em;
-  color: #64748b;
+  color: var(--c-slate-500);
   text-transform: uppercase;
   margin: 0 0 4px;
 }
@@ -44,12 +44,12 @@
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .task-archive-modal__hint {
   margin: 6px 0 0;
-  color: #475569;
+  color: var(--c-slate-600);
   font-size: 13px;
 }
 
@@ -58,16 +58,16 @@
   height: 34px;
   border-radius: 10px;
   border: none;
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--c-slate-100);
+  color: var(--c-slate-600);
   font-size: 18px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .task-archive-modal__close:hover {
-  background: #e2e8f0;
-  color: #0f172a;
+  background: var(--c-slate-200);
+  color: var(--c-slate-900);
 }
 
 .task-archive-modal__body {
@@ -88,10 +88,10 @@
 }
 
 .task-archive-modal__item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 14px;
   padding: 14px 16px;
-  background: #fff;
+  background: var(--c-surface);
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
   transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
@@ -104,12 +104,12 @@
 .task-archive-modal__item-head strong {
   display: block;
   font-size: 16px;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .task-archive-modal__item-desc {
   margin: 6px 0 0;
-  color: #475569;
+  color: var(--c-slate-600);
   line-height: 1.5;
 }
 
@@ -125,30 +125,30 @@
   align-items: center;
   padding: 4px 10px;
   border-radius: 999px;
-  background: #f8fafc;
-  color: #334155;
+  background: var(--c-slate-50);
+  color: var(--c-slate-700);
   font-size: 12px;
   font-weight: 700;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
 }
 
 .task-archive-modal__pill--state {
-  background: #ecfeff;
-  color: #0ea5e9;
-  border-color: #bae6fd;
+  background: var(--c-cyan-50);
+  color: var(--c-sky-500);
+  border-color: var(--c-sky-200);
 }
 
 .task-archive-modal__placeholder {
   padding: 22px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--c-slate-300);
   border-radius: 14px;
   text-align: center;
-  background: #f8fafc;
-  color: #475569;
+  background: var(--c-slate-50);
+  color: var(--c-slate-600);
 }
 
 .task-archive-modal__error {
-  color: #dc2626;
+  color: var(--c-red-600);
   margin: 8px 0 0;
   font-size: 13px;
 }
@@ -157,17 +157,17 @@
   margin-top: 12px;
   padding: 8px 12px;
   border-radius: 10px;
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--c-slate-300);
+  background: var(--c-surface);
   cursor: pointer;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .task-archive-modal__sentinel {
   padding: 12px;
   text-align: center;
-  color: #94a3b8;
+  color: var(--c-slate-400);
   font-size: 12px;
 }
 

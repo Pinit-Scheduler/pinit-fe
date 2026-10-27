@@ -10,7 +10,7 @@
 .recurrences__eyebrow {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .recurrences__title {
@@ -22,7 +22,7 @@
 .recurrences__note {
   margin: 0;
   font-size: 13px;
-  color: #475569;
+  color: var(--c-slate-600);
   line-height: 1.5;
 }
 
@@ -32,8 +32,8 @@
 }
 
 .recurrences__tab {
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
   border-radius: 999px;
   padding: 6px 14px;
   font-size: 14px;
@@ -41,23 +41,23 @@
 }
 
 .recurrences__tab.is-active {
-  background: #1e293b;
-  border-color: #1e293b;
+  background: var(--c-surface-inverse-soft);
+  border-color: var(--c-surface-inverse-soft);
   color: #fff;
 }
 
 .recurrences__placeholder {
   padding: 16px;
   border-radius: 12px;
-  background: #f8fafc;
-  color: #475569;
+  background: var(--c-slate-50);
+  color: var(--c-slate-600);
   font-size: 14px;
 }
 
 .recurrences__link {
   border: none;
   background: transparent;
-  color: #2563eb;
+  color: var(--c-blue-600);
   cursor: pointer;
   padding: 0;
 }
@@ -72,9 +72,9 @@
 }
 
 .recurrences__item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 14px;
-  background: #fff;
+  background: var(--c-surface);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -93,8 +93,8 @@
 .recurrences__mode {
   font-size: 11px;
   font-weight: 600;
-  color: #1d4ed8;
-  background: #eff6ff;
+  color: var(--c-blue-700);
+  background: var(--c-blue-50);
   border-radius: 999px;
   padding: 1px 8px;
 }
@@ -102,13 +102,13 @@
 .recurrences__item-rule {
   margin: 4px 0 0;
   font-size: 14px;
-  color: #1e293b;
+  color: var(--c-slate-800);
 }
 
 .recurrences__item-meta {
   margin: 2px 0 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .recurrences__actions {
@@ -118,8 +118,8 @@
 }
 
 .recurrences__actions button {
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--c-slate-300);
+  background: var(--c-surface);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 13px;
@@ -127,14 +127,14 @@
 }
 
 .recurrences__actions button.is-primary {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: var(--c-blue-600);
+  border-color: var(--c-blue-600);
   color: #fff;
 }
 
 .recurrences__actions button.is-danger {
-  color: #b91c1c;
-  border-color: #fecaca;
+  color: var(--c-red-700);
+  border-color: var(--c-red-200);
 }
 
 .recurrences__editor {

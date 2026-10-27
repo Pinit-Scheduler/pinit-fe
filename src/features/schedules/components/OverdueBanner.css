@@ -1,8 +1,8 @@
 .overdue-banner {
   width: 100%;
   border: none;
-  background-color: #fef3c7;
-  color: #78350f;
+  background-color: var(--c-amber-100);
+  color: var(--c-amber-900);
   border-radius: 16px;
   padding: 12px;
   display: flex;

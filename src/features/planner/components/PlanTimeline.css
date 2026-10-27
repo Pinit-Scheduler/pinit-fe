@@ -8,7 +8,7 @@
   display: flex;
   gap: 12px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .plan-timeline__legend-item {
@@ -25,26 +25,26 @@
 }
 
 .plan-timeline__legend-item--schedule::before {
-  background: #e2e8f0;
-  border: 1px solid #94a3b8;
+  background: var(--c-slate-200);
+  border: 1px solid var(--c-slate-400);
 }
 
 .plan-timeline__legend-item--block::before {
-  background: #dbeafe;
-  border: 1px solid #2563eb;
+  background: var(--c-blue-100);
+  border: 1px solid var(--c-blue-600);
 }
 
 .plan-timeline__grid {
   position: relative;
   margin-left: 44px;
-  border-left: 1px solid #e2e8f0;
+  border-left: 1px solid var(--c-slate-200);
 }
 
 .plan-timeline__hour {
   position: absolute;
   left: 0;
   right: 0;
-  border-top: 1px dashed #e2e8f0;
+  border-top: 1px dashed var(--c-slate-200);
 }
 
 .plan-timeline__hour span {
@@ -54,7 +54,7 @@
   width: 38px;
   text-align: right;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--c-slate-400);
 }
 
 .plan-timeline__window {
@@ -84,31 +84,31 @@
 .plan-timeline__item--schedule {
   left: 4px;
   width: calc(45% - 6px);
-  background: #e2e8f0;
-  border: 1px solid #94a3b8;
-  color: #334155;
+  background: var(--c-slate-200);
+  border: 1px solid var(--c-slate-400);
+  color: var(--c-slate-700);
 }
 
 .plan-timeline__item--block {
   left: calc(45% + 2px);
   right: 4px;
-  background: #dbeafe;
-  border: 1px solid #2563eb;
-  color: #1e3a8a;
+  background: var(--c-blue-100);
+  border: 1px solid var(--c-blue-600);
+  color: var(--c-blue-900);
   cursor: pointer;
 }
 
 .plan-timeline__item--block.is-unselected {
-  background: #f8fafc;
+  background: var(--c-slate-50);
   border-style: dashed;
-  border-color: #93c5fd;
-  color: #64748b;
+  border-color: var(--c-blue-300);
+  color: var(--c-slate-500);
 }
 
 .plan-timeline__item--block.has-issue {
-  background: #fee2e2;
-  border-color: #ef4444;
-  color: #991b1b;
+  background: var(--c-red-100);
+  border-color: var(--c-red-500);
+  color: var(--c-red-800);
 }
 
 .plan-timeline__item-title {
@@ -123,8 +123,8 @@
 }
 
 .plan-timeline__legend-item--routine::before {
-  background: repeating-linear-gradient(45deg, #fef3c7, #fef3c7 3px, #fde68a 3px, #fde68a 6px);
-  border: 1px solid #f59e0b;
+  background: repeating-linear-gradient(45deg, var(--c-amber-100), var(--c-amber-100) 3px, var(--c-amber-200) 3px, var(--c-amber-200) 6px);
+  border: 1px solid var(--c-amber-500);
 }
 
 .plan-timeline__routine {
@@ -132,8 +132,8 @@
   left: 0;
   right: 0;
   background: repeating-linear-gradient(45deg, rgba(254, 243, 199, 0.85), rgba(254, 243, 199, 0.85) 6px, rgba(253, 230, 138, 0.85) 6px, rgba(253, 230, 138, 0.85) 12px);
-  border-top: 1px solid #f59e0b;
-  border-bottom: 1px solid #f59e0b;
+  border-top: 1px solid var(--c-amber-500);
+  border-bottom: 1px solid var(--c-amber-500);
   pointer-events: none;
   overflow: hidden;
 }
@@ -144,5 +144,5 @@
   top: 1px;
   font-size: 10px;
   font-weight: 600;
-  color: #92400e;
+  color: var(--c-amber-800);
 }

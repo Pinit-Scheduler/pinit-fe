@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: #f8fafc;
+  background: var(--c-slate-50);
   max-height: 420px;
   overflow-y: auto;
 }
@@ -11,7 +11,7 @@
   font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #2563eb;
+  color: var(--c-blue-600);
   margin: 0 0 4px;
   font-weight: 700;
 }
@@ -25,20 +25,20 @@
 
 .dependency-modal__date-row button,
 .dependency-modal__info button {
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .dependency-modal__date-row input[type='date'] {
   width: 100%;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 12px;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--c-surface);
   font-weight: 600;
 }
 
@@ -47,7 +47,7 @@
   align-items: center;
   justify-content: space-between;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .dependency-modal__list {
@@ -64,14 +64,14 @@
   gap: 10px;
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
   align-items: center;
   cursor: pointer;
 }
 
 .dependency-modal__list li label.is-checked {
-  border-color: #2563eb;
+  border-color: var(--c-blue-600);
   box-shadow: 0 6px 18px rgba(37, 99, 235, 0.08);
 }
 
@@ -81,20 +81,20 @@
 }
 
 .dependency-modal__list small {
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .dependency-modal__status {
   padding: 12px;
   border-radius: 12px;
-  background: #eef2ff;
-  color: #312e81;
+  background: var(--c-indigo-50);
+  color: var(--c-indigo-900);
   font-weight: 600;
 }
 
 .dependency-modal__status--error {
-  background: #fef2f2;
-  color: #b91c1c;
+  background: var(--c-red-50);
+  color: var(--c-red-700);
 }
 
 .dependency-modal__footer {
@@ -102,8 +102,8 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   padding: 16px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
+  border-top: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
 }
 
 .dependency-modal__ghost,
@@ -115,12 +115,12 @@
 }
 
 .dependency-modal__ghost {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--c-slate-100);
+  color: var(--c-slate-900);
 }
 
 .dependency-modal__primary {
-  background: #2563eb;
+  background: var(--c-blue-600);
   color: #fff;
 }
 

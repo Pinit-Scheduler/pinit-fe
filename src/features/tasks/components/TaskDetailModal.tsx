@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useId } from 'react'
+import Modal from '@shared/components/common/Modal'
 import { useNavigate } from 'react-router-dom'
 import { completeTask, createScheduleFromTask, deleteTask, fetchTaskDetail, reopenTask } from '../api/tasks'
 import type { Task } from '../types/task'
@@ -21,6 +22,7 @@ type TaskDetailModalProps = {
 }
 
 const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
+  const titleId = useId()
   const { tasksById, setTask, removeTask } = useTaskCache()
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -136,8 +138,8 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   }
 
   return (
-    <div className="task-detail-modal__backdrop" onClick={onClose}>
-      <div className="task-detail-modal__content" onClick={(e) => e.stopPropagation()}>
+    <>
+      <Modal backdropClassName="task-detail-modal__backdrop" className="task-detail-modal__content" onClose={onClose} labelledBy={titleId} ariaLabel="작업 상세">
         {isLoading ? (
           <p className="task-detail-modal__loading">작업 정보를 불러오는 중...</p>
         ) : error || !task ? (
@@ -155,7 +157,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         ) : (
           <>
             <header className="task-detail-modal__header">
-              <h1>작업 상세</h1>
+              <h1 id={titleId}>작업 상세</h1>
               <button
                 className="task-detail-modal__close"
                 onClick={(e) => {
@@ -247,7 +249,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
             </div>
           </>
         )}
-      </div>
+      </Modal>
       {recurrenceScope.dialog}
       <TaskScheduleModal
         isOpen={showScheduleModal}
@@ -257,7 +259,7 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         defaultDescription={task?.description}
         taskLabel={task ? `작업 #${task.id}` : undefined}
       />
-    </div>
+    </>
   )
 }
 

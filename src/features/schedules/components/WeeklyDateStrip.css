@@ -16,12 +16,12 @@
   padding: 8px 0;
   background-color: transparent;
   cursor: pointer;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .weekly-date-strip__day.is-selected {
-  background-color: #e0ecff;
-  color: #0f172a;
+  background-color: var(--c-blue-100);
+  color: var(--c-slate-900);
 }
 
 .weekly-date-strip__day-number {
@@ -35,9 +35,9 @@
 }
 
 .weekly-date-strip__day.has-schedule .weekly-date-strip__dot {
-  color: #2563eb; /* 파란색 */
+  color: var(--c-blue-600); /* 파란색 */
 }
 
 .weekly-date-strip__day.has-overdue .weekly-date-strip__dot {
-  color: #ef4444; /* 빨간색 */
+  color: var(--c-red-500); /* 빨간색 */
 }

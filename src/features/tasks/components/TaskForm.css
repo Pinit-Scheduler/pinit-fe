@@ -18,20 +18,20 @@
 
 .task-form__field-value {
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
   font-size: 14px;
 }
 
 .task-form__field input:not([type='range']),
 .task-form__field textarea {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 14px;
 }
 
 .task-form__field small {
-  color: #ef4444;
+  color: var(--c-red-500);
 }
 
 .task-form__chips {
@@ -41,16 +41,16 @@
 }
 
 .task-form__chip {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-slate-50);
   padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
 }
 
 .task-form__chip.is-active {
-  border-color: #2563eb;
-  background: #2563eb;
+  border-color: var(--c-blue-600);
+  background: var(--c-blue-600);
   color: #fff;
 }
 
@@ -71,10 +71,10 @@
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    var(--range-color, #2563eb) 0%,
-    var(--range-color, #2563eb) var(--range-progress, 50%),
-    #e2e8f0 var(--range-progress, 50%),
-    #e2e8f0 100%
+    var(--range-color, var(--c-blue-600)) 0%,
+    var(--range-color, var(--c-blue-600)) var(--range-progress, 50%),
+    var(--c-slate-200) var(--range-progress, 50%),
+    var(--c-slate-200) 100%
   );
   border: none;
   box-shadow: none;
@@ -86,8 +86,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--range-color, #2563eb);
-  border: 2px solid #fff;
+  background: var(--range-color, var(--c-blue-600));
+  border: 2px solid var(--c-surface);
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
   cursor: pointer;
   margin-top: -5px; /* center on thinner track */
@@ -97,8 +97,8 @@
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--range-color, #2563eb);
-  border: 2px solid #fff;
+  background: var(--range-color, var(--c-blue-600));
+  border: 2px solid var(--c-surface);
   box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
   cursor: pointer;
 }
@@ -108,10 +108,10 @@
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    var(--range-color, #2563eb) 0%,
-    var(--range-color, #2563eb) var(--range-progress, 50%),
-    #e2e8f0 var(--range-progress, 50%),
-    #e2e8f0 100%
+    var(--range-color, var(--c-blue-600)) 0%,
+    var(--range-color, var(--c-blue-600)) var(--range-progress, 50%),
+    var(--c-slate-200) var(--range-progress, 50%),
+    var(--c-slate-200) 100%
   );
   border: none;
   box-shadow: none;
@@ -121,7 +121,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
   padding: 0 2px;
 }
 
@@ -132,12 +132,12 @@
 }
 
 .task-form__difficulty-pill {
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-slate-50);
   border-radius: 999px;
   padding: 8px 10px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: center;
@@ -149,9 +149,9 @@
 }
 
 .task-form__difficulty-pill.is-active {
-  border-color: #ef4444;
-  background: #fee2e2;
-  color: #b91c1c;
+  border-color: var(--c-red-500);
+  background: var(--c-red-100);
+  color: var(--c-red-700);
   box-shadow: 0 6px 16px rgba(239, 68, 68, 0.18);
 }
 
@@ -162,7 +162,7 @@
 }
 
 .task-form__primary {
-  background: #2563eb;
+  background: var(--c-blue-600);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -172,6 +172,6 @@
 }
 
 .task-form__note {
-  color: #64748b;
+  color: var(--c-slate-500);
   font-size: 12px;
 }

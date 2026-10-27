@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useId } from 'react'
+import Modal from '@shared/components/common/Modal'
 import { fetchTaskArchiveByCursor } from '../../api/tasks'
 import type { Task } from '../../types/task'
 import { formatDateWithOffset } from '@shared/utils/datetime'
@@ -13,6 +14,7 @@ type TaskArchiveModalProps = {
 }
 
 const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
+  const titleId = useId()
   const [tasks, setTasks] = useState<Task[]>([])
   const [hasNext, setHasNext] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
@@ -75,63 +77,61 @@ const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
   const handleRetry = () => load({ reset: tasks.length === 0 })
 
   return (
-    <div className="task-archive-modal__backdrop" onClick={onClose}>
-      <div className="task-archive-modal__content" onClick={(e) => e.stopPropagation()}>
-        <header className="task-archive-modal__header">
-          <div>
-            <p className="task-archive-modal__eyebrow">완료 · 마감 지난 작업</p>
-            <h1>작업 아카이브</h1>
-            <p className="task-archive-modal__hint">완료되었고 마감이 지난 작업이 최신순으로 표시됩니다.</p>
-          </div>
-          <button type="button" className="task-archive-modal__close" onClick={onClose} aria-label="닫기">✕</button>
-        </header>
-        <div className="task-archive-modal__body" ref={scrollRef}>
-          {error ? (
-            <div className="task-archive-modal__placeholder">
-              <p>아카이브를 불러오지 못했습니다.</p>
-              <p className="task-archive-modal__error">{error}</p>
-              <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
-            </div>
-          ) : !initialLoaded && isLoading ? (
-            <div className="task-archive-modal__placeholder">불러오는 중...</div>
-          ) : tasks.length === 0 ? (
-            <div className="task-archive-modal__placeholder">아카이브된 작업이 없습니다.</div>
-          ) : (
-            <ul className="task-archive-modal__list">
-              {tasks.map((task) => (
-                <li key={task.id} className="task-archive-modal__item">
-                  <div className="task-archive-modal__item-head">
-                    <strong>{task.title}</strong>
-                    <p className="task-archive-modal__item-desc">{task.description}</p>
-                  </div>
-                  <div className="task-archive-modal__item-meta">
-                    {task.dueDate && (
-                      <span className="task-archive-modal__pill" style={getDeadlineStyle(task.dueDate)}>
-                        마감 {formatDateWithOffset(task.dueDate, 'M/D')}
-                      </span>
-                    )}
-                    <span className="task-archive-modal__pill task-archive-modal__pill--state">완료</span>
-                    <span className="task-archive-modal__pill" style={getImportanceStyle(task.importance)}>
-                      중요도 {task.importance}
-                    </span>
-                    <span className="task-archive-modal__pill" style={getDifficultyStyle(task.difficulty)}>
-                      난이도 {task.difficulty}
-                    </span>
-                  </div>
-                </li>
-              ))}
-              <div className="task-archive-modal__sentinel" ref={sentinelRef}>
-                {isLoading && hasNext
-                  ? '추가 아카이브를 불러오는 중...'
-                  : hasNext
-                    ? '계속 불러옵니다...'
-                    : '마지막 아카이브까지 모두 확인했어요.'}
-              </div>
-            </ul>
-          )}
+    <Modal backdropClassName="task-archive-modal__backdrop" className="task-archive-modal__content" onClose={onClose} labelledBy={titleId}>
+      <header className="task-archive-modal__header">
+        <div>
+          <p className="task-archive-modal__eyebrow">완료 · 마감 지난 작업</p>
+          <h1 id={titleId}>작업 아카이브</h1>
+          <p className="task-archive-modal__hint">완료되었고 마감이 지난 작업이 최신순으로 표시됩니다.</p>
         </div>
+        <button type="button" className="task-archive-modal__close" onClick={onClose} aria-label="닫기">✕</button>
+      </header>
+      <div className="task-archive-modal__body" ref={scrollRef}>
+        {error ? (
+          <div className="task-archive-modal__placeholder">
+            <p>아카이브를 불러오지 못했습니다.</p>
+            <p className="task-archive-modal__error">{error}</p>
+            <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
+          </div>
+        ) : !initialLoaded && isLoading ? (
+          <div className="task-archive-modal__placeholder">불러오는 중...</div>
+        ) : tasks.length === 0 ? (
+          <div className="task-archive-modal__placeholder">아카이브된 작업이 없습니다.</div>
+        ) : (
+          <ul className="task-archive-modal__list">
+            {tasks.map((task) => (
+              <li key={task.id} className="task-archive-modal__item">
+                <div className="task-archive-modal__item-head">
+                  <strong>{task.title}</strong>
+                  <p className="task-archive-modal__item-desc">{task.description}</p>
+                </div>
+                <div className="task-archive-modal__item-meta">
+                  {task.dueDate && (
+                    <span className="task-archive-modal__pill" style={getDeadlineStyle(task.dueDate)}>
+                      마감 {formatDateWithOffset(task.dueDate, 'M/D')}
+                    </span>
+                  )}
+                  <span className="task-archive-modal__pill task-archive-modal__pill--state">완료</span>
+                  <span className="task-archive-modal__pill" style={getImportanceStyle(task.importance)}>
+                    중요도 {task.importance}
+                  </span>
+                  <span className="task-archive-modal__pill" style={getDifficultyStyle(task.difficulty)}>
+                    난이도 {task.difficulty}
+                  </span>
+                </div>
+              </li>
+            ))}
+            <div className="task-archive-modal__sentinel" ref={sentinelRef}>
+              {isLoading && hasNext
+                ? '추가 아카이브를 불러오는 중...'
+                : hasNext
+                  ? '계속 불러옵니다...'
+                  : '마지막 아카이브까지 모두 확인했어요.'}
+            </div>
+          </ul>
+        )}
       </div>
-    </div>
+    </Modal>
   )
 }
 

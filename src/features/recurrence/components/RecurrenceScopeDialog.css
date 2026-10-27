@@ -11,7 +11,7 @@
 .recurrence-scope__sheet {
   width: 100%;
   max-width: 480px;
-  background: #fff;
+  background: var(--c-surface);
   border-radius: 16px 16px 0 0;
   padding: 20px 16px calc(16px + env(safe-area-inset-bottom));
   display: flex;
@@ -27,7 +27,7 @@
 .recurrence-scope__subtitle {
   margin: 0;
   font-size: 14px;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .recurrence-scope__options {
@@ -42,9 +42,9 @@
   align-items: flex-start;
   gap: 2px;
   text-align: left;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 12px;
-  background: #fff;
+  background: var(--c-surface);
   padding: 12px;
   cursor: pointer;
   font-size: 15px;
@@ -52,18 +52,18 @@
 
 .recurrence-scope__option span {
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .recurrence-scope__option:hover,
 .recurrence-scope__option:focus-visible {
-  border-color: #2563eb;
+  border-color: var(--c-blue-600);
 }
 
 .recurrence-scope__cancel {
   border: none;
   background: transparent;
-  color: #475569;
+  color: var(--c-slate-600);
   padding: 8px;
   cursor: pointer;
 }
