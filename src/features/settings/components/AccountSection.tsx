@@ -38,6 +38,18 @@ const WITHDRAWAL_DELETES = [
 
 const SETTINGS_PATH = '/app/settings'
 
+// 탈퇴하면 서버의 구독 정보는 지워지지만 브라우저의 푸시 구독은 남는다. 이미 보낸 알림이 도착하지 않게
+// 브라우저 쪽 구독도 해지한다. 서버 API는 탈퇴 뒤라 부를 수 없으므로 브라우저 구독만 해지하고, 실패해도 무시한다.
+const unsubscribeBrowserPush = async () => {
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration()
+    const subscription = await registration?.pushManager.getSubscription()
+    await subscription?.unsubscribe()
+  } catch (error) {
+    console.warn('[Push] Failed to unsubscribe the browser after withdrawal:', error)
+  }
+}
+
 const errorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback
 
@@ -115,6 +127,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
         password: isSocial ? null : withdrawalPassword,
         confirmation: confirmation.trim(),
       })
+      await unsubscribeBrowserPush()
       clearAuthTokens()
       markLoggedOut()
       addToast('탈퇴가 끝났어요. 그동안 핀잇을 써 주셔서 고마워요.', 'info')
