@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b1b42" />
+    <title>Pinit · 오프라인</title>
+    <!-- 서비스 워커가 앱 껍데기(index.html)도 캐시에 없을 때 주는 화면. 외부 파일 없이 혼자 그린다. -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --page: #f8fafc;
+        --surface: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --accent: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --page: #0b1220;
+          --surface: #131c2e;
+          --text: #f1f5f9;
+          --muted: #a9b6c8;
+          --accent: #3b82f6;
+        }
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px 16px;
+        background: var(--page);
+        color: var(--text);
+        font-family: 'Pretendard', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        line-height: 1.5;
+      }
+      main {
+        width: 100%;
+        max-width: 360px;
+        padding: 28px 24px;
+        border-radius: 20px;
+        background: var(--surface);
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+      }
+      .icon {
+        font-size: 36px;
+      }
+      h1 {
+        font-size: 20px;
+        margin: 12px 0 8px;
+      }
+      p {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      button {
+        margin-top: 20px;
+        min-height: 44px;
+        padding: 0 20px;
+        border: none;
+        border-radius: 12px;
+        background: var(--accent);
+        color: #fff;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="icon" aria-hidden="true">📡</div>
+      <h1>인터넷에 연결되어 있지 않아요</h1>
+      <p>연결되면 Pinit을 다시 열 수 있어요. 와이파이나 모바일 데이터를 확인해 주세요.</p>
+      <button type="button" onclick="location.reload()">다시 시도</button>
+    </main>
+  </body>
+</html>

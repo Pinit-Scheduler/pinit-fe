@@ -1,0 +1,53 @@
+.app-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.app-banner p {
+  flex: 1;
+}
+
+.app-banner--offline {
+  background-color: var(--c-amber-100);
+  color: var(--c-amber-900);
+}
+
+.app-banner--install {
+  background-color: var(--c-blue-50);
+  color: var(--c-slate-700);
+  border: 1px solid var(--c-blue-100);
+}
+
+.app-banner__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-banner__primary {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background-color: var(--c-blue-600);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-banner__close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--c-slate-500);
+  cursor: pointer;
+}
+
+.app-banner__close:hover {
+  background-color: var(--c-slate-100);
+}

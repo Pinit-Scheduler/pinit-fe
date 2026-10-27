@@ -5,6 +5,7 @@ import '@app/App.css'
 import './index.css'
 import App from '@app/App.tsx'
 import { watchSystemTheme } from '@shared/theme/theme'
+import { listenForInstallPrompt } from '@shared/pwa/installPrompt'
 
 const enableMockApi = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API === 'true'
 
@@ -14,6 +15,7 @@ if (enableMockApi) {
 }
 
 watchSystemTheme()
+listenForInstallPrompt()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
