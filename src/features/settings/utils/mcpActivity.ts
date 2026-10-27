@@ -25,6 +25,8 @@ const TOOL_LABELS: Record<string, string> = {
   complete_task: '작업 완료',
   reopen_task: '작업 다시 열기',
   schedule_task: '작업을 일정에 등록',
+  link_tasks: '작업 순서 연결',
+  unlink_tasks: '작업 순서 끊기',
   plan_day: '하루 계획 제안',
   apply_plan: '계획 적용',
   weekly_review: '주간 리뷰 조회',

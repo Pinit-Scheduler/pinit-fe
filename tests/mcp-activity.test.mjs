@@ -59,17 +59,17 @@ test('only unsuccessful calls get a badge', () => {
   assert.equal(activity.outcomeBadge('SOMETHING_NEW'), 'SOMETHING_NEW')
 })
 
-test('every MCP tool of ADR-0026 has a label', () => {
+test('every MCP tool after ADR-0026 has a label', () => {
   const tools = [
     'list_schedules_by_date', 'list_schedules_by_week', 'get_schedule', 'create_schedule', 'update_schedule',
     'start_schedule', 'complete_schedule', 'suspend_schedule', 'cancel_schedule', 'list_tasks',
     'list_tasks_by_deadline', 'get_task', 'create_task', 'update_task', 'complete_task', 'reopen_task',
     'schedule_task', 'plan_day', 'apply_plan', 'weekly_review', 'get_time_calibration', 'get_statistics',
-    'get_recurrence_statistics',
+    'get_recurrence_statistics', 'link_tasks', 'unlink_tasks',
     'get_routines', 'replace_routines', 'create_recurrence', 'list_recurrences', 'update_recurrence',
     'delete_schedule', 'delete_task', 'delete_recurrence',
   ]
-  assert.equal(tools.length, 31)
+  assert.equal(tools.length, 33)
   for (const tool of tools) {
     assert.notEqual(
       activity.describeActivity({ tool, outcome: 'OK', argumentNames: ['confirmationToken'] }),
