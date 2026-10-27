@@ -2,10 +2,16 @@ self.pinitSw = self.pinitSw || {}
 
 // 푸시 문구(ADR-0021 §7). 서버는 data-only 메시지에 kind를 싣는다.
 // 일정 알림은 시각 문구를 기기 시간대로 여기서 만들고, 그 밖의 종류는 서버가 만든 title/body를 그대로 쓴다.
+// FCM notification 필드가 오면 title·body를 각각 그 값으로 덮는다(ADR-0021 이전 동작과 같다).
 const getNotificationContent = (notificationPayload, dataPayload, formattedStart) => {
-  if (notificationPayload.title) {
-    return { title: notificationPayload.title, body: notificationPayload.body || '' }
+  const defaults = getDefaultContent(dataPayload, formattedStart)
+  return {
+    title: notificationPayload.title || defaults.title,
+    body: notificationPayload.body || defaults.body,
   }
+}
+
+const getDefaultContent = (dataPayload, formattedStart) => {
   const { kind, scheduleTitle, scheduleStartTime, reminderMinutes } = dataPayload
   const scheduleLabel = formattedStart || scheduleStartTime
 

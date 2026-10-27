@@ -17,13 +17,14 @@ const loadModule = (relativePath) => {
 
 const prefs = loadModule('../src/features/settings/utils/notificationPreferences.ts')
 
-const loadContent = () => {
-  const scope = {}
+const loadSwScript = (file, globals = {}) => {
+  const scope = { ...globals }
   scope.self = scope
   vm.createContext(scope)
-  vm.runInContext(readFileSync(new URL('../public/sw/content.js', import.meta.url), 'utf8'), scope)
-  return scope.pinitSw.content
+  vm.runInContext(readFileSync(new URL(`../public/sw/${file}`, import.meta.url), 'utf8'), scope)
+  return scope.pinitSw
 }
+const loadContent = () => loadSwScript('content.js').content
 
 test('reminder options map to server minutes and off', () => {
   assert.equal(prefs.parseReminderOption('off'), null)
@@ -67,4 +68,27 @@ test('push text follows the kind the server sends', () => {
   )
   // ADR-0021 이전 서버 메시지(kind 없음)는 시작 알림으로 본다.
   assert.equal(getNotificationContent({}, { scheduleTitle: '회의' }, '오전 10:00').title, '"회의" 일정이 시작돼요')
+})
+
+test('an FCM notification title or body overrides only that part', () => {
+  const { getNotificationContent } = loadContent()
+  const data = { kind: 'SCHEDULE_START', scheduleTitle: '회의' }
+  assert.deepEqual(
+    { ...getNotificationContent({ title: '서버 제목' }, data, '오전 10:00') },
+    { title: '서버 제목', body: '오전 10:00 시작 예정이에요.' },
+  )
+  assert.deepEqual(
+    { ...getNotificationContent({ body: '서버 본문' }, data, '오전 10:00') },
+    { title: '"회의" 일정이 시작돼요', body: '서버 본문' },
+  )
+})
+
+test('tapping a notification opens only paths of this app', () => {
+  const { clients } = loadSwScript('clients.js', { location: { origin: 'https://pinit.go-gradually.me' }, URL })
+  assert.equal(clients.resolveTargetUrl({ data: { url: '/app/tasks' } }), 'https://pinit.go-gradually.me/app/tasks')
+  assert.equal(
+    clients.resolveTargetUrl({ data: { url: '//example.org/login' } }),
+    'https://pinit.go-gradually.me/app/schedules',
+  )
+  assert.equal(clients.resolveTargetUrl({ data: {} }), 'https://pinit.go-gradually.me/app/schedules')
 })

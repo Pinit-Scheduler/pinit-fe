@@ -33,7 +33,11 @@ const SettingsPage = () => {
     loadError: preferencesLoadError,
     update: updatePreferences,
   } = useNotificationPreferences(zoneId)
-  const isPreferencesDisabled = isPreferencesLoading || isPreferencesSaving || preferencesLoadError !== null
+  const isPreferencesUnavailable = isPreferencesLoading || preferencesLoadError !== null
+  // 토글은 저장 중 한 번 더 눌리지 않게 막는다. select·시각 입력은 막으면 키보드 편집 중 포커스를 잃는다.
+  const isPreferencesDisabled = isPreferencesUnavailable || isPreferencesSaving
+  // 시각은 입력하는 동안 화면에만 두고, 입력을 마치면(blur) 저장한다.
+  const [deadlineTimeDraft, setDeadlineTimeDraft] = useState<string | null>(null)
   const {
     state: pushState,
     isProcessing: isPushProcessing,
@@ -104,8 +108,9 @@ const SettingsPage = () => {
     }
   }
 
-  const handleDeadlineTimeChange = (value: string) => {
-    const time = normalizeDeadlineTime(value)
+  const commitDeadlineTime = () => {
+    const time = deadlineTimeDraft === null ? null : normalizeDeadlineTime(deadlineTimeDraft)
+    setDeadlineTimeDraft(null)
     if (time && time !== preferences.taskDeadlineTime) {
       savePreferences({ taskDeadlineTime: time })
     }
@@ -200,7 +205,7 @@ const SettingsPage = () => {
           <select
             className="settings__select"
             value={preferences.scheduleReminderMinutes === null ? 'off' : String(preferences.scheduleReminderMinutes)}
-            disabled={isPreferencesDisabled}
+            disabled={isPreferencesUnavailable}
             onChange={(event) => savePreferences({ scheduleReminderMinutes: parseReminderOption(event.target.value) })}
             aria-label="일정 시작 전 알림"
           >
@@ -222,9 +227,10 @@ const SettingsPage = () => {
               <input
                 type="time"
                 className="settings__time"
-                value={preferences.taskDeadlineTime}
-                disabled={isPreferencesDisabled}
-                onChange={(event) => handleDeadlineTimeChange(event.target.value)}
+                value={deadlineTimeDraft ?? preferences.taskDeadlineTime}
+                disabled={isPreferencesUnavailable}
+                onChange={(event) => setDeadlineTimeDraft(event.target.value)}
+                onBlur={commitDeadlineTime}
                 aria-label="작업 마감일 알림 시각"
               />
             )}
