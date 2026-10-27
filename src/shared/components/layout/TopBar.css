@@ -3,8 +3,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  background-color: #fff;
+  border-bottom: 1px solid var(--c-slate-200);
+  background-color: var(--c-surface);
   position: sticky;
   top: 0;
   z-index: var(--z-topbar);
@@ -30,7 +30,7 @@
 .top-bar__title {
   font-size: 18px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .top-bar__icon-button {
@@ -38,7 +38,7 @@
   height: 32px;
   border: none;
   border-radius: 16px;
-  background-color: #e2e8f0;
+  background-color: var(--c-slate-200);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -47,5 +47,5 @@
 }
 
 .top-bar__icon-button:active {
-  background-color: #cbd5f5;
+  background-color: var(--c-indigo-200);
 }

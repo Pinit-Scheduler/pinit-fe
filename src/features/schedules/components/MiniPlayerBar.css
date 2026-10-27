@@ -58,21 +58,21 @@
 }
 
 .mini-player__button--start {
-  background: linear-gradient(135deg, #dbeafe, #60a5fa);
+  background: linear-gradient(135deg, var(--c-blue-100), var(--c-blue-400));
   color: #0b3b7e;
 }
 
 .mini-player__button--pause {
-  background: linear-gradient(135deg, #ffedd5, #fb923c);
-  color: #7c2d12;
+  background: linear-gradient(135deg, var(--c-orange-100), var(--c-orange-400));
+  color: var(--c-orange-900);
 }
 
 .mini-player__button--complete {
-  background: linear-gradient(135deg, #bbf7d0, #34d399);
-  color: #065f46;
+  background: linear-gradient(135deg, var(--c-green-200), var(--c-emerald-400));
+  color: var(--c-emerald-800);
 }
 
 .mini-player__button--cancel {
-  background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
-  color: #475569;
+  background: linear-gradient(135deg, var(--c-slate-200), var(--c-slate-300));
+  color: var(--c-slate-600);
 }

@@ -5,8 +5,8 @@
   overflow-x: hidden;
   overflow-y: auto;
   touch-action: pan-y;
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--c-slate-50);
+  color: var(--c-slate-900);
   padding: 32px 16px 48px;
   -webkit-overflow-scrolling: touch;
 }
@@ -16,10 +16,10 @@
   margin: 0 auto;
   padding: 28px 24px;
   border-radius: 20px;
-  background: #fff;
+  background: var(--c-surface);
   position: relative;
   overflow: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
 }
 
@@ -34,8 +34,8 @@
   gap: 8px;
   padding: 8px 12px;
   border-radius: 999px;
-  background: #e8f0fe;
-  color: #1d4ed8;
+  background: var(--c-indigo-50);
+  color: var(--c-blue-700);
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.01em;
@@ -54,7 +54,7 @@
 
 .landing p {
   max-width: 600px;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .landing__actions {
@@ -77,21 +77,21 @@
 }
 
 .landing__action--primary {
-  background: linear-gradient(135deg, #60a5fa, #2563eb);
-  color: #f8fafc;
+  background: linear-gradient(135deg, var(--c-blue-400), var(--c-blue-600));
+  color: var(--c-slate-50);
   box-shadow: 0 10px 30px rgba(37, 99, 235, 0.18);
 }
 
 .landing__action--ghost {
-  border: 1px solid #dbeafe;
-  color: #1e3a8a;
-  background: #f8fafc;
+  border: 1px solid var(--c-blue-100);
+  color: var(--c-blue-900);
+  background: var(--c-slate-50);
 }
 
 .landing__hint {
   margin: 0;
   font-size: 14px;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .landing__action:active {
@@ -139,8 +139,8 @@
 }
 
 .landing__slide {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--c-surface);
+  border: 1px solid var(--c-slate-200);
   border-radius: 16px;
   padding: 16px;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
@@ -148,12 +148,12 @@
 
 .landing__slide-header h2 {
   margin-bottom: 4px;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .landing__slide-header p {
   margin: 0;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .landing__bullets {
@@ -169,14 +169,14 @@
   display: flex;
   gap: 8px;
   align-items: flex-start;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .landing__dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #60a5fa, #f87171);
+  background: linear-gradient(135deg, var(--c-blue-400), var(--c-red-400));
   margin-top: 6px;
   flex-shrink: 0;
 }
@@ -187,8 +187,8 @@
   justify-content: center;
   padding: 10px 14px;
   border-radius: 12px;
-  background: #2563eb;
-  color: #f8fafc;
+  background: var(--c-blue-600);
+  color: var(--c-slate-50);
   text-decoration: none;
   font-weight: 700;
   margin-top: 12px;
@@ -202,9 +202,9 @@
 }
 
 .landing__pagination button {
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: #0f172a;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
+  color: var(--c-slate-900);
   padding: 10px 12px;
   border-radius: 12px;
   font-weight: 700;
@@ -224,14 +224,14 @@
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  border: 1px solid #94a3b8;
-  background: #fff;
+  border: 1px solid var(--c-slate-400);
+  background: var(--c-surface);
   padding: 0;
 }
 
 .landing__dots button.is-active {
   width: 20px;
-  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  background: linear-gradient(135deg, var(--c-blue-400), var(--c-blue-600));
   border-color: transparent;
 }
 
@@ -239,7 +239,7 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 11px;
-  color: #1d4ed8;
+  color: var(--c-blue-700);
   margin-bottom: 8px;
   font-weight: 700;
 }

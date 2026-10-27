@@ -1,5 +1,5 @@
 .donut-chart {
-  background-color: #fff;
+  background-color: var(--c-surface);
   border-radius: 16px;
   padding: 16px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
@@ -11,9 +11,9 @@
   margin: 0 auto 12px;
   border-radius: 50%;
   background: conic-gradient(
-    #2563eb var(--deep, 0%),
-    #f97316 var(--deep, 0%) var(--admin, 0%),
-    #e2e8f0 var(--admin, 0%)
+    var(--c-blue-600) var(--deep, 0%),
+    var(--c-orange-500) var(--deep, 0%) var(--admin, 0%),
+    var(--c-slate-200) var(--admin, 0%)
   );
   display: flex;
   align-items: center;
@@ -29,5 +29,5 @@
   flex-direction: column;
   gap: 4px;
   font-size: 14px;
-  color: #475569;
+  color: var(--c-slate-600);
 }

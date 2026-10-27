@@ -4,7 +4,7 @@
   gap: 12px;
   padding: 16px;
   border-radius: 16px;
-  background-color: #ffffff;
+  background-color: var(--c-surface);
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
@@ -26,7 +26,7 @@
 
 .weekly-review__hint {
   margin: 0;
-  color: #64748b;
+  color: var(--c-slate-500);
   font-size: 0.85rem;
 }
 
@@ -45,11 +45,11 @@
 .weekly-review__summary div {
   padding: 10px 12px;
   border-radius: 12px;
-  background-color: #f1f5f9;
+  background-color: var(--c-slate-100);
 }
 
 .weekly-review__summary dt {
-  color: #64748b;
+  color: var(--c-slate-500);
   font-size: 0.8rem;
 }
 
@@ -74,7 +74,7 @@
 }
 
 .weekly-review__list--muted li {
-  color: #64748b;
+  color: var(--c-slate-500);
   font-size: 0.85rem;
 }
 
@@ -83,7 +83,7 @@
 }
 
 .weekly-review__item-meta {
-  color: #64748b;
+  color: var(--c-slate-500);
   font-size: 0.85rem;
 }
 
@@ -97,11 +97,11 @@
 .weekly-review__calibration td {
   padding: 4px 6px;
   text-align: left;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--c-slate-200);
 }
 
 .weekly-review__calibration tr.is-muted {
-  color: #94a3b8;
+  color: var(--c-slate-400);
 }
 
 .weekly-review__toggle {
@@ -119,6 +119,6 @@
 }
 
 .weekly-review__toggle small {
-  color: #64748b;
+  color: var(--c-slate-500);
   font-weight: 400;
 }

@@ -17,7 +17,7 @@
 }
 
 .schedule-modal__content {
-  background-color: #fff;
+  background-color: var(--c-surface);
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
@@ -40,7 +40,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--c-slate-200);
   flex-shrink: 0;
 }
 
@@ -55,8 +55,8 @@
   height: 32px;
   border-radius: 8px;
   border: none;
-  background-color: #f1f5f9;
-  color: #64748b;
+  background-color: var(--c-slate-100);
+  color: var(--c-slate-500);
   font-size: 18px;
   cursor: pointer;
   display: flex;
@@ -66,8 +66,8 @@
 }
 
 .schedule-modal__close:hover {
-  background-color: #e2e8f0;
-  color: #334155;
+  background-color: var(--c-slate-200);
+  color: var(--c-slate-700);
 }
 
 .schedule-modal__body {

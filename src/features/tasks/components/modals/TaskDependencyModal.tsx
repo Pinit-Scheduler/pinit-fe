@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useId } from 'react'
+import Modal from '@shared/components/common/Modal'
 import './TaskDependencyModal.css'
 import { fetchTasks } from '../../api/tasks'
 import type { Task } from '../../types/task'
@@ -12,6 +13,7 @@ type TaskDependencyModalProps = {
 }
 
 const TaskDependencyModal = ({ isOpen, onClose, selectedIds, onApply, title }: TaskDependencyModalProps) => {
+  const titleId = useId()
   const [tasks, setTasks] = useState<Task[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -55,48 +57,46 @@ const TaskDependencyModal = ({ isOpen, onClose, selectedIds, onApply, title }: T
   if (!isOpen) return null
 
   return (
-    <div className="task-dep-modal__backdrop" onClick={onClose}>
-      <div className="task-dep-modal__content" onClick={(e) => e.stopPropagation()}>
-        <header className="task-dep-modal__header">
-          <h1>{title}</h1>
-          <button type="button" onClick={onClose} aria-label="닫기">✕</button>
-        </header>
-        <div className="task-dep-modal__body">
-          {loading ? (
-            <p>불러오는 중...</p>
-          ) : error ? (
-            <p className="task-dep-modal__error">{error}</p>
-          ) : tasks.length === 0 ? (
-            <p>선택할 작업이 없습니다.</p>
-          ) : (
-            <ul className="task-dep-modal__list">
-              {tasks.map((task) => {
-                const checked = localSelection.includes(task.id)
-                return (
-                  <li key={task.id}>
-                    <label className={checked ? 'is-checked' : ''}>
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggle(task.id)}
-                      />
-                      <div>
-                        <strong>{task.title}</strong>
-                        <small>{task.description}</small>
-                      </div>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-        <footer className="task-dep-modal__footer">
-          <button type="button" onClick={onClose}>취소</button>
-          <button type="button" onClick={handleApply} disabled={localSelection.length === 0}>추가</button>
-        </footer>
+    <Modal backdropClassName="task-dep-modal__backdrop" className="task-dep-modal__content" onClose={onClose} labelledBy={titleId}>
+      <header className="task-dep-modal__header">
+        <h1 id={titleId}>{title}</h1>
+        <button type="button" onClick={onClose} aria-label="닫기">✕</button>
+      </header>
+      <div className="task-dep-modal__body">
+        {loading ? (
+          <p>불러오는 중...</p>
+        ) : error ? (
+          <p className="task-dep-modal__error">{error}</p>
+        ) : tasks.length === 0 ? (
+          <p>선택할 작업이 없습니다.</p>
+        ) : (
+          <ul className="task-dep-modal__list">
+            {tasks.map((task) => {
+              const checked = localSelection.includes(task.id)
+              return (
+                <li key={task.id}>
+                  <label className={checked ? 'is-checked' : ''}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(task.id)}
+                    />
+                    <div>
+                      <strong>{task.title}</strong>
+                      <small>{task.description}</small>
+                    </div>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
-    </div>
+      <footer className="task-dep-modal__footer">
+        <button type="button" onClick={onClose}>취소</button>
+        <button type="button" onClick={handleApply} disabled={localSelection.length === 0}>추가</button>
+      </footer>
+    </Modal>
   )
 }
 

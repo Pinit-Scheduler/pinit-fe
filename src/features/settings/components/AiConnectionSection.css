@@ -14,12 +14,12 @@
   flex-direction: column;
   gap: 6px;
   font-size: 13px;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .ai-connection__clients strong {
   margin-right: 4px;
-  color: #0f172a;
+  color: var(--c-slate-900);
 }
 
 .ai-connection__clients code {
@@ -27,7 +27,7 @@
   font-size: 12px;
   padding: 1px 4px;
   border-radius: 6px;
-  background-color: #f1f5f9;
+  background-color: var(--c-slate-100);
   overflow-wrap: anywhere;
   user-select: text;
 }
@@ -35,10 +35,10 @@
 .ai-connection__subheading {
   font-size: 14px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--c-slate-900);
   margin-top: 4px;
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--c-slate-200);
 }
 
 .ai-connection__list {
@@ -53,7 +53,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 0;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--c-slate-200);
 }
 
 .ai-connection__item:last-child {
@@ -81,22 +81,22 @@
 
 .ai-connection__meta {
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .ai-connection__revoke-btn {
   flex-shrink: 0;
   padding: 8px 12px;
   border-radius: 12px;
-  border: 1px solid #fecdd3;
-  background-color: #fff;
-  color: #b91c1c;
+  border: 1px solid var(--c-rose-200);
+  background-color: var(--c-surface);
+  color: var(--c-red-700);
   font-weight: 700;
   cursor: pointer;
 }
 
 .ai-connection__revoke-btn:hover {
-  background-color: #fef2f2;
+  background-color: var(--c-red-50);
 }
 
 .ai-connection__revoke-btn:disabled {

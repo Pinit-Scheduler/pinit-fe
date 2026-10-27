@@ -11,7 +11,7 @@
 .task-dep-modal__content {
   width: min(640px, 90vw);
   max-height: 80vh;
-  background: #fff;
+  background: var(--c-surface);
   border-radius: 14px;
   padding: 16px;
   display: flex;
@@ -27,7 +27,7 @@
 
 .task-dep-modal__body {
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 12px;
   padding: 12px;
   min-height: 160px;
@@ -46,14 +46,14 @@
   display: flex;
   gap: 10px;
   padding: 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 10px;
   cursor: pointer;
 }
 
 .task-dep-modal__list li label.is-checked {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--c-blue-600);
+  background: var(--c-blue-50);
 }
 
 .task-dep-modal__footer {
@@ -63,5 +63,5 @@
 }
 
 .task-dep-modal__error {
-  color: #ef4444;
+  color: var(--c-red-500);
 }

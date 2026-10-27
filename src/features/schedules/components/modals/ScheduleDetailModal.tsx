@@ -1,3 +1,5 @@
+import { useId } from 'react'
+import Modal from '@shared/components/common/Modal'
 import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { deleteSchedule } from '../../api/schedules'
 import { useNavigate } from 'react-router-dom'
@@ -35,6 +37,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const { activeScheduleId, setActiveSchedule } = useScheduleCache()
   const { offsetLabel } = useTimePreferences()
   const recurrenceScope = useRecurrenceScope()
+  const titleId = useId()
 
   const handleDelete = async () => {
     if (!schedule) return
@@ -80,32 +83,28 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
 
   if (isLoading) {
     return (
-      <div className="schedule-detail-modal__backdrop" onClick={onClose}>
-        <div className="schedule-detail-modal__content" onClick={(e) => e.stopPropagation()}>
-          <p className="schedule-detail-modal__loading">일정 정보를 불러오는 중...</p>
-        </div>
-      </div>
+      <Modal backdropClassName="schedule-detail-modal__backdrop" className="schedule-detail-modal__content" onClose={onClose} ariaLabel="일정 상세">
+        <p className="schedule-detail-modal__loading">일정 정보를 불러오는 중...</p>
+      </Modal>
     )
   }
 
   if (error || !schedule) {
     return (
-      <div className="schedule-detail-modal__backdrop" onClick={onClose}>
-        <div className="schedule-detail-modal__content" onClick={(e) => e.stopPropagation()}>
-          <p className="schedule-detail-modal__loading">일정 정보를 불러오지 못했어요.</p>
-          <p className="schedule-detail-modal__description">{error}</p>
-          <button
-            type="button"
-            className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-          >
-            닫기
-          </button>
-        </div>
-      </div>
+      <Modal backdropClassName="schedule-detail-modal__backdrop" className="schedule-detail-modal__content" onClose={onClose} ariaLabel="일정 상세">
+        <p className="schedule-detail-modal__loading">일정 정보를 불러오지 못했어요.</p>
+        <p className="schedule-detail-modal__description">{error}</p>
+        <button
+          type="button"
+          className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+        >
+          닫기
+        </button>
+      </Modal>
     )
   }
 
@@ -114,82 +113,81 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
 
   return (
-    <div className="schedule-detail-modal__backdrop" onClick={onClose}>
-      <div className="schedule-detail-modal__content" onClick={(e) => e.stopPropagation()}>
-        <header className="schedule-detail-modal__header">
-          <h1>일정 상세</h1>
-          <button
-            className="schedule-detail-modal__close"
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            aria-label="닫기"
-          >
-            ✕
-          </button>
-        </header>
+    <Modal backdropClassName="schedule-detail-modal__backdrop" className="schedule-detail-modal__content" onClose={onClose} labelledBy={titleId} ariaLabel="일정 상세">
+      <header className="schedule-detail-modal__header">
+        <h1 id={titleId}>일정 상세</h1>
+        <button
+          className="schedule-detail-modal__close"
+          onClick={(e) => {
+            e.stopPropagation()
+            onClose()
+          }}
+          aria-label="닫기"
+        >
+          ✕
+        </button>
+      </header>
 
-        <div className="schedule-detail-modal__body">
-          <section className="schedule-detail-modal__section">
-            <h2>{schedule.title}</h2>
-            <p className="schedule-detail-modal__description">{schedule.description}</p>
-            <div className="schedule-detail-modal__meta">
-              <span className="schedule-detail-modal__badge schedule-detail-modal__badge--state">
-                {stateLabel[schedule.state]}
+      <div className="schedule-detail-modal__body">
+        <section className="schedule-detail-modal__section">
+          <h2>{schedule.title}</h2>
+          <p className="schedule-detail-modal__description">{schedule.description}</p>
+          <div className="schedule-detail-modal__meta">
+            <span className="schedule-detail-modal__badge schedule-detail-modal__badge--state">
+              {stateLabel[schedule.state]}
+            </span>
+            {scheduleTypeLabel[schedule.scheduleType] && (
+              <span className="schedule-detail-modal__badge">
+                {schedule.scheduleType}
               </span>
-              {scheduleTypeLabel[schedule.scheduleType] && (
-                <span className="schedule-detail-modal__badge">
-                  {schedule.scheduleType}
-                </span>
-              )}
-              {typeof schedule.taskId === 'number' && (
-                <span className="schedule-detail-modal__badge">
-                  작업 #{schedule.taskId}
-                </span>
-              )}
-            </div>
-          </section>
+            )}
+            {typeof schedule.taskId === 'number' && (
+              <span className="schedule-detail-modal__badge">
+                작업 #{schedule.taskId}
+              </span>
+            )}
+          </div>
+        </section>
 
-          <section className="schedule-detail-modal__section">
-            <h3>시간 ({offsetLabel})</h3>
-            <p>
-              시작: {startTime}
-              <br />
-              {plannedDurationLabel && (
-                <>
-                  계획 길이: {plannedDurationLabel}
-                  <br />
-                </>
-              )}
-              진행 시간: {spentTimeLabel}
-            </p>
-          </section>
+        <section className="schedule-detail-modal__section">
+          <h3>시간 ({offsetLabel})</h3>
+          <p>
+            시작: {startTime}
+            <br />
+            {plannedDurationLabel && (
+              <>
+                계획 길이: {plannedDurationLabel}
+                <br />
+              </>
+            )}
+            진행 시간: {spentTimeLabel}
+          </p>
+        </section>
 
-          <footer className="schedule-detail-modal__actions">
-            <button
-              type="button"
-            onClick={() => {
-              onClose()
-              if (schedule) {
-                navigate(`/app/schedules/${schedule.id}/edit`)
-              }
-            }}
-              className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--edit"
-            >
-              ✏️ 수정
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
-            >
-              🗑️ 삭제
-            </button>
-          </footer>
-        </div>
+        <footer className="schedule-detail-modal__actions">
+          <button
+            type="button"
+          onClick={() => {
+            onClose()
+            if (schedule) {
+              navigate(`/app/schedules/${schedule.id}/edit`)
+            }
+          }}
+            className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--edit"
+          >
+            ✏️ 수정
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
+          >
+            🗑️ 삭제
+          </button>
+        </footer>
       </div>
-    </div>
+      {recurrenceScope.dialog}
+    </Modal>
   )
 }
 

@@ -16,7 +16,7 @@
 }
 
 .today-page__eyebrow {
-  color: #64748b;
+  color: var(--c-slate-500);
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -28,16 +28,16 @@
 }
 
 .today-page__description {
-  color: #475569;
+  color: var(--c-slate-600);
   margin: 0;
 }
 
 .today-page__placeholder {
   padding: 16px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--c-slate-300);
   border-radius: 12px;
-  background: #f8fafc;
-  color: #64748b;
+  background: var(--c-slate-50);
+  color: var(--c-slate-500);
 }
 
 .today-page__content {
@@ -53,9 +53,9 @@
 
 .today-page__section {
   padding: 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 12px;
-  background: #fff;
+  background: var(--c-surface);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -84,14 +84,14 @@
   align-items: center;
   padding: 4px 8px;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #334155;
+  background: var(--c-slate-100);
+  color: var(--c-slate-700);
   font-size: 12px;
   font-weight: 700;
 }
 
 .today-page__pill--action {
-  background: #2563eb;
+  background: var(--c-blue-600);
   color: #fff;
   border: none;
   cursor: pointer;
@@ -122,7 +122,7 @@
   margin-top: 4px;
   padding: 8px 12px;
   border-radius: 10px;
-  background: #2563eb;
+  background: var(--c-blue-600);
   color: #fff;
   font-size: 14px;
   font-weight: 600;

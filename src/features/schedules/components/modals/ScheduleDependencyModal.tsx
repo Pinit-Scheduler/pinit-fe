@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useId } from 'react'
+import Modal from '@shared/components/common/Modal'
 import useScheduleList from '../../hooks/useScheduleList'
 import { getTodayWithOffset, toDateKey, toDisplayDayjs } from '@shared/utils/datetime'
 import type { ScheduleSummary } from '../../types/schedule'
@@ -26,6 +27,7 @@ const ScheduleDependencyModal = ({
   selectedIds,
   onApply,
 }: ScheduleDependencyModalProps) => {
+  const titleId = useId()
   const { offsetMinutes } = useTimePreferences()
   const [selectedDateKey, setSelectedDateKey] = useState(() => toDateKey(getTodayWithOffset(offsetMinutes)))
   const selectedDate = useMemo(() => toDisplayDayjs(selectedDateKey), [selectedDateKey])
@@ -47,90 +49,88 @@ const ScheduleDependencyModal = ({
   if (!isOpen) return null
 
   return (
-    <div className="schedule-modal__backdrop">
-      <div className="schedule-modal__content">
-        <header className="schedule-modal__header">
-          <div>
-            <p className="dependency-modal__eyebrow">달력에서 선택</p>
-            <h1>{modeLabels[mode]}</h1>
-          </div>
-          <button className="schedule-modal__close" onClick={onClose} aria-label="닫기">
-            ✕
-          </button>
-        </header>
-        <div className="schedule-modal__body dependency-modal__body">
-          <div className="dependency-modal__date-row">
-            <button
-              type="button"
-              onClick={() =>
-                setSelectedDateKey(selectedDate.subtract(1, 'day').format('YYYY-MM-DD'))
-              }
-            >
-              이전 날
-            </button>
-            <input
-              type="date"
-              value={selectedDate.format('YYYY-MM-DD')}
-              onChange={(event) =>
-                setSelectedDateKey(event.target.value)
-              }
-            />
-            <button
-              type="button"
-              onClick={() => setSelectedDateKey(selectedDate.add(1, 'day').format('YYYY-MM-DD'))}
-            >
-              다음 날
-            </button>
-          </div>
-
-          <div className="dependency-modal__info">
-            <span>{dateLabel} 일정</span>
-            <button type="button" onClick={refetch}>
-              새로고침
-            </button>
-          </div>
-
-          {isLoading ? (
-            <p className="dependency-modal__status">일정을 불러오는 중...</p>
-          ) : error ? (
-            <p className="dependency-modal__status dependency-modal__status--error">{error}</p>
-          ) : schedules.length === 0 ? (
-            <p className="dependency-modal__status">이 날짜에 등록된 일정이 없습니다.</p>
-          ) : (
-            <ul className="dependency-modal__list">
-              {schedules.map((schedule) => {
-                const isChecked = localSelection.includes(schedule.id)
-                return (
-                  <li key={schedule.id}>
-                    <label className={isChecked ? 'is-checked' : ''}>
-                      <input
-                        type="checkbox"
-                        checked={isChecked}
-                        onChange={() => toggleSelection(schedule.id)}
-                      />
-                      <div>
-                        <strong>{schedule.title}</strong>
-                        <small>
-                          중요도 {schedule.importance} · 난이도 {schedule.difficulty}
-                        </small>
-                      </div>
-                    </label>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} closeOnBackdrop={false} labelledBy={titleId}>
+      <header className="schedule-modal__header">
+        <div>
+          <p className="dependency-modal__eyebrow">달력에서 선택</p>
+          <h1 id={titleId}>{modeLabels[mode]}</h1>
         </div>
-        <footer className="dependency-modal__footer">
-          <button type="button" className="dependency-modal__ghost" onClick={onClose}>
-            취소
+        <button className="schedule-modal__close" onClick={onClose} aria-label="닫기">
+          ✕
+        </button>
+      </header>
+      <div className="schedule-modal__body dependency-modal__body">
+        <div className="dependency-modal__date-row">
+          <button
+            type="button"
+            onClick={() =>
+              setSelectedDateKey(selectedDate.subtract(1, 'day').format('YYYY-MM-DD'))
+            }
+          >
+            이전 날
           </button>
-          <button type="button" className="dependency-modal__primary" onClick={handleApply} disabled={localSelection.length === 0}>
-            선택 추가
+          <input
+            type="date"
+            value={selectedDate.format('YYYY-MM-DD')}
+            onChange={(event) =>
+              setSelectedDateKey(event.target.value)
+            }
+          />
+          <button
+            type="button"
+            onClick={() => setSelectedDateKey(selectedDate.add(1, 'day').format('YYYY-MM-DD'))}
+          >
+            다음 날
           </button>
-        </footer>
+        </div>
+
+        <div className="dependency-modal__info">
+          <span>{dateLabel} 일정</span>
+          <button type="button" onClick={refetch}>
+            새로고침
+          </button>
+        </div>
+
+        {isLoading ? (
+          <p className="dependency-modal__status">일정을 불러오는 중...</p>
+        ) : error ? (
+          <p className="dependency-modal__status dependency-modal__status--error">{error}</p>
+        ) : schedules.length === 0 ? (
+          <p className="dependency-modal__status">이 날짜에 등록된 일정이 없습니다.</p>
+        ) : (
+          <ul className="dependency-modal__list">
+            {schedules.map((schedule) => {
+              const isChecked = localSelection.includes(schedule.id)
+              return (
+                <li key={schedule.id}>
+                  <label className={isChecked ? 'is-checked' : ''}>
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleSelection(schedule.id)}
+                    />
+                    <div>
+                      <strong>{schedule.title}</strong>
+                      <small>
+                        중요도 {schedule.importance} · 난이도 {schedule.difficulty}
+                      </small>
+                    </div>
+                  </label>
+                </li>
+              )
+            })}
+          </ul>
+        )}
       </div>
-    </div>
+      <footer className="dependency-modal__footer">
+        <button type="button" className="dependency-modal__ghost" onClick={onClose}>
+          취소
+        </button>
+        <button type="button" className="dependency-modal__primary" onClick={handleApply} disabled={localSelection.length === 0}>
+          선택 추가
+        </button>
+      </footer>
+    </Modal>
   )
 }
 
