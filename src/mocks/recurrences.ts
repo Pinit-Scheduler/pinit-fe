@@ -79,10 +79,25 @@ const mockRecurrences: RecurrenceSeries[] = []
 const isOccurrenceOf = (seriesId: number, fromDate: string) => (item: { recurrence?: { seriesId: number; occurrenceDate: string } | null }) =>
   item.recurrence?.seriesId === seriesId && item.recurrence.occurrenceDate >= fromDate
 
+/** 아직 남아 있는(지우지 않고 지킨) 회차의 날짜들. 다시 만들 때 같은 날짜를 또 만들지 않는다. */
+const existingOccurrenceDates = (seriesId: number) =>
+  new Set(
+    [...mockSchedules, ...mockTasks]
+      .filter((item) => item.recurrence?.seriesId === seriesId)
+      .map((item) => item.recurrence?.occurrenceDate),
+  )
+
+/** fromDate부터 HORIZON_DAYS까지 새로 만들 회차 날짜. freed는 곧 지울(그래서 다시 만들어도 되는) 회차 날짜다. */
+const datesToGenerate = (series: RecurrenceSeries, fromDate: string, freed: Set<string> = new Set()) => {
+  const existing = existingOccurrenceDates(series.id as number)
+  freed.forEach((date) => existing.delete(date))
+  const from = fromDate < series.rule.startDate ? series.rule.startDate : fromDate
+  return occurrenceDates(series.rule, from, addDaysKey(todayKey(), HORIZON_DAYS)).filter((date) => !existing.has(date))
+}
+
 const generate = (series: RecurrenceSeries, fromDate: string) => {
   const seriesId = series.id as number
-  const until = addDaysKey(todayKey(), HORIZON_DAYS)
-  const dates = occurrenceDates(series.rule, fromDate < series.rule.startDate ? series.rule.startDate : fromDate, until)
+  const dates = datesToGenerate(series, fromDate)
   for (const date of dates) {
     const recurrence = { seriesId, occurrenceDate: date }
     if (series.mode === 'FIXED' && series.fixed) {
@@ -115,24 +130,33 @@ const generate = (series: RecurrenceSeries, fromDate: string) => {
       })
     }
   }
-  series.generatedUntil = until
+  series.generatedUntil = addDaysKey(todayKey(), HORIZON_DAYS)
   return dates.length
 }
 
-/** fromDate 이후 회차를 지운다. 시작했거나 끝낸 회차는 남긴다. dryRun이면 세기만 한다. */
+const linkedSchedules = (taskId: number) => mockSchedules.filter((schedule) => schedule.taskId === taskId)
+
+/**
+ * fromDate 이후 회차를 지운다. 시작했거나 끝낸 회차는 남긴다(작업 회차는 완료됐거나 거기서 배정한 일정이 시작됐으면 남긴다).
+ * 지우는 작업 회차에서 배정한 시작 전 일정도 같이 지운다. dryRun이면 세기만 한다.
+ */
 const removeOccurrences = (seriesId: number, fromDate: string, dryRun: boolean) => {
   const inScope = isOccurrenceOf(seriesId, fromDate)
   const schedules = mockSchedules.filter(inScope)
   const tasks = mockTasks.filter(inScope)
   const removableSchedules = schedules.filter((schedule) => schedule.state === 'NOT_STARTED')
-  const removableTasks = tasks.filter((task) => !(task.completed ?? task.isCompleted))
+  const removableTasks = tasks.filter(
+    (task) => !(task.completed ?? task.isCompleted) && linkedSchedules(task.id).every((schedule) => schedule.state === 'NOT_STARTED'),
+  )
   const deleted = removableSchedules.length + removableTasks.length
   const protectedCount = schedules.length + tasks.length - deleted
+  const freedDates = new Set([...removableSchedules, ...removableTasks].flatMap((item) => (item.recurrence ? [item.recurrence.occurrenceDate] : [])))
   if (!dryRun) {
-    for (const schedule of removableSchedules) mockSchedules.splice(mockSchedules.indexOf(schedule), 1)
+    const doomedSchedules = [...removableSchedules, ...removableTasks.flatMap((task) => linkedSchedules(task.id))]
+    for (const schedule of doomedSchedules) mockSchedules.splice(mockSchedules.indexOf(schedule), 1)
     for (const task of removableTasks) mockTasks.splice(mockTasks.indexOf(task), 1)
   }
-  return { deleted, protected: protectedCount }
+  return { deleted, protected: protectedCount, freedDates }
 }
 
 const now = () => new Date().toISOString()
@@ -206,7 +230,7 @@ export const handleRecurrences = async (path: string, method: string, searchPara
   if (method === 'DELETE') {
     const scope = searchParams.get('scope')
     const fromDate = scope === 'FOLLOWING' ? (searchParams.get('fromDate') ?? todayKey()) : series.rule.startDate
-    const impact = removeOccurrences(series.id as number, fromDate, dryRun)
+    const { deleted, protected: protectedCount } = removeOccurrences(series.id as number, fromDate, dryRun)
     if (!dryRun) {
       // 전체 삭제는 반복을 끝내고, 이번 및 이후 삭제는 기준 회차 전날까지로 규칙을 줄인다.
       if (scope === 'FOLLOWING') series.rule = { ...series.rule, until: addDaysKey(fromDate, -1), count: null }
@@ -214,7 +238,7 @@ export const handleRecurrences = async (path: string, method: string, searchPara
       markEndedIfDone(series)
       series.updatedAt = now()
     }
-    return json({ impact })
+    return json({ impact: { deleted, protected: protectedCount } })
   }
 
   if (method === 'PATCH') {
@@ -233,10 +257,10 @@ export const handleRecurrences = async (path: string, method: string, searchPara
       updatedAt: now(),
     }
     // 모크는 바꿀 범위의 남은 회차를 지우고 새 값으로 다시 만든다(서버는 바뀐 칸만 고칠 수 있으면 고친다).
-    const { deleted } = removeOccurrences(series.id as number, fromDate, dryRun)
+    const { deleted, freedDates } = removeOccurrences(series.id as number, fromDate, dryRun)
     let created: number
     if (dryRun) {
-      created = occurrenceDates(next.rule, fromDate, addDaysKey(todayKey(), HORIZON_DAYS)).length
+      created = datesToGenerate(next, fromDate, freedDates).length
     } else {
       Object.assign(series, next)
       created = generate(series, fromDate)
