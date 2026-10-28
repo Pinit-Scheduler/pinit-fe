@@ -1,0 +1,146 @@
+.trash {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.trash__eyebrow {
+  margin: 0;
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+
+.trash__title {
+  margin: 4px 0;
+  font-size: 22px;
+}
+
+.trash__description {
+  margin: 0;
+  font-size: 13px;
+  color: var(--c-slate-600);
+  line-height: 1.5;
+}
+
+.trash__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.trash__placeholder {
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--c-slate-50);
+  color: var(--c-slate-600);
+  font-size: 14px;
+}
+
+.trash__link {
+  border: none;
+  background: transparent;
+  color: var(--c-blue-600);
+  cursor: pointer;
+  padding: 0;
+}
+
+.trash__group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trash__group-title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--c-slate-800);
+}
+
+.trash__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trash__item {
+  border: 1px solid var(--c-slate-200);
+  border-radius: 14px;
+  background: var(--c-surface);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.trash__item-title {
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  overflow-wrap: anywhere;
+}
+
+.trash__tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-slate-600);
+  background: var(--c-slate-100);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.trash__item-meta {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+
+.trash__purge {
+  color: var(--c-amber-700);
+}
+
+.trash__sublist {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--c-slate-600);
+}
+
+.trash__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.trash__button {
+  border: 1px solid var(--c-slate-300);
+  background: var(--c-surface);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.trash__button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.trash__button.is-primary {
+  background: var(--c-blue-600);
+  border-color: var(--c-blue-600);
+  color: #fff;
+}
+
+.trash__button.is-danger {
+  color: var(--c-red-700);
+  border-color: var(--c-red-200);
+}

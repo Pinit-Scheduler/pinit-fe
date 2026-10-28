@@ -27,6 +27,7 @@ import {
 import { effectiveExpectedMinutes, handlePlans } from './planner'
 import { handleOnboarding } from './onboarding'
 import { handleRecurrences } from './recurrences'
+import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
 import { handleCalibration } from './calibration'
 import { handleStatisticsReport } from './statisticsReport'
 
@@ -478,10 +479,10 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
   }
 
   if (detailMatch && method === 'DELETE') {
-    const id = Number(detailMatch[1])
-    const index = mockTasks.findIndex((task) => task.id === id)
-    if (index === -1) return notFound('Task not found')
-    mockTasks.splice(index, 1)
+    // 서버(ADR-0024)처럼 지운 작업은 휴지통으로 간다.
+    if (!moveTaskToTrash(Number(detailMatch[1]), searchParams.get('deleteSchedules') === 'true')) {
+      return notFound('Task not found')
+    }
     return noContent(204)
   }
 
@@ -590,11 +591,7 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
   }
 
   if (detailMatch && method === 'DELETE') {
-    const id = Number(detailMatch[1])
-    const index = mockSchedules.findIndex((schedule) => schedule.id === id)
-    if (index === -1) return notFound('Schedule not found')
-    mockSchedules.splice(index, 1)
-    if (activeScheduleId === id) setActiveScheduleId(null)
+    if (!moveScheduleToTrash(Number(detailMatch[1]))) return notFound('Schedule not found')
     return noContent(204)
   }
 
@@ -683,6 +680,9 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const recurrences = await handleRecurrences(path, method, searchParams, request)
   if (recurrences) return recurrences
+
+  const trash = handleTrash(path, method)
+  if (trash) return trash
 
   const calibration = await handleCalibration(path, method, searchParams, request)
   if (calibration) return calibration

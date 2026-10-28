@@ -71,7 +71,7 @@ test('impact messages warn about overwritten one-off edits', () => {
     '회차 2개를 지워요, 회차 3개를 새로 만들어요. 하나씩 옮기거나 고친 회차 1개가 반복 규칙대로 바뀌어요.')
   assert.equal(rules.editImpactMessage({ patched: 4, deleted: 0, created: 0, overwrittenIndividualEdits: 0 }), '회차 4개를 고쳐요.')
   assert.equal(rules.editImpactMessage({ patched: 0, deleted: 0, created: 0, overwrittenIndividualEdits: 0 }), null)
-  assert.equal(rules.deleteImpactMessage({ deleted: 3, protected: 1 }), '회차 3개를 지워요. 시작했거나 끝났거나 지난 회차 1개는 남아요.')
+  assert.equal(rules.deleteImpactMessage({ deleted: 3, protected: 1 }), '회차 3개를 지워요. 시작했거나 끝났거나 지난 회차 1개는 남아요. 범위로 지운 회차는 휴지통에 남지 않아요.')
 })
 
 test('a series edit carries only what changed and never the date', () => {
@@ -101,6 +101,8 @@ test('the scope sheet says what each choice changes or deletes', () => {
   assert.ok(edit.every((option) => option.description.includes('바꿔요')))
   assert.ok(remove.every((option) => option.description.includes('지워요') && !option.description.includes('바꿔요')))
   assert.match(remove[0].description, /다시 생기지 않아요/)
+  assert.match(remove[0].description, /휴지통/)
+  assert.ok(remove.slice(1).every((option) => option.description.includes('휴지통에 남지 않음')))
   assert.match(remove[1].description, /전날 끝나요/)
   assert.match(remove[2].description, /반복을 끝내요/)
   assert.equal(rules.scopeQuestion('delete', '주간 회의'), '반복 회차 "주간 회의"를 어디까지 지울까요?')

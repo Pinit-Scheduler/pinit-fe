@@ -20,6 +20,7 @@ const TAB_TITLES: Record<string, string> = {
   '/app/settings': '설정',
   '/app/settings/routines': '생활 시간',
   '/app/settings/recurrences': '반복 관리',
+  '/app/settings/trash': '휴지통',
   '/app/settings/onboarding': '온보딩',
 }
 

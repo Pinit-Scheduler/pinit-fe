@@ -185,7 +185,7 @@ export const editImpactMessage = (impact: RecurrenceEditImpact): string | null =
 
 export const deleteImpactMessage = (impact: RecurrenceDeleteImpact): string => {
   const kept = impact.protected ? ` 시작했거나 끝났거나 지난 회차 ${impact.protected}개는 남아요.` : ''
-  return `회차 ${impact.deleted}개를 지워요.${kept}`
+  return `회차 ${impact.deleted}개를 지워요.${kept} 범위로 지운 회차는 휴지통에 남지 않아요.`
 }
 
 export type ScopeAction = 'edit' | 'delete'
@@ -204,9 +204,9 @@ export const scopeOptions = (action: ScopeAction): ScopeOption[] =>
         { scope: 'ALL', label: '전체', description: '반복 전체를 바꿔요. 시작했거나 지난 회차는 그대로 둬요.' },
       ]
     : [
-        { scope: 'THIS', label: '이번만', description: '이 회차 하나만 지워요. 지운 회차는 다시 생기지 않아요.' },
-        { scope: 'FOLLOWING', label: '이번 및 이후', description: '이 회차부터 뒤의 회차를 모두 지워요. 반복은 그 전날 끝나요.' },
-        { scope: 'ALL', label: '전체', description: '남은 회차를 모두 지워요. 시작했거나 지난 회차는 남기고 반복을 끝내요.' },
+        { scope: 'THIS', label: '이번만', description: '이 회차 하나만 지워요. 휴지통에서 30일 안에 되돌릴 수 있고, 다시 생기지 않아요.' },
+        { scope: 'FOLLOWING', label: '이번 및 이후', description: '이 회차부터 뒤의 회차를 모두 바로 지워요(휴지통에 남지 않음). 반복은 그 전날 끝나요.' },
+        { scope: 'ALL', label: '전체', description: '남은 회차를 모두 바로 지워요(휴지통에 남지 않음). 시작했거나 지난 회차는 남기고 반복을 끝내요.' },
       ]
 
 /** 받침이 있으면 "을", 없으면 "를". 한글로 끝나지 않으면 "을(를)". */

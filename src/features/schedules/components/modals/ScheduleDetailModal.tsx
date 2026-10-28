@@ -15,6 +15,7 @@ import { scheduleTypeLabel, stateLabel } from '@constants/schedules'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
 import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
 import { dispatchScheduleChanged } from '@shared/utils/events'
+import { useTrashUndo } from '@features/trash'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
 
 type ScheduleDetailModalProps = {
@@ -34,6 +35,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const { schedule, isLoading, error } = useScheduleDetail(scheduleId.toString())
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const { offerScheduleUndo } = useTrashUndo()
   const { activeScheduleId, setActiveSchedule } = useScheduleCache()
   const { offsetLabel } = useTimePreferences()
   const recurrenceScope = useRecurrenceScope()
@@ -62,7 +64,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
       }
     }
 
-    if (schedule.recurrence || window.confirm(`"${schedule.title}" 일정을 삭제하시겠습니까?`)) {
+    if (schedule.recurrence || window.confirm(`"${schedule.title}" 일정을 휴지통으로 옮길까요?\n30일 안에 되돌릴 수 있어요.`)) {
       try {
         await deleteSchedule(schedule.id)
         console.log(`✅ Schedule deleted: ${schedule.id}`)
@@ -70,7 +72,7 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
           setActiveSchedule(null)
         }
         onClose()
-        addToast('일정이 삭제되었습니다.', 'success')
+        offerScheduleUndo(schedule.id, onRefresh)
         if (onRefresh) {
           onRefresh()
         }
