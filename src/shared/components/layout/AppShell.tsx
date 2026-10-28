@@ -7,6 +7,7 @@ import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
 import { refreshAccessToken } from '@features/auth/api/auth'
 import { clearAuthTokens, getAccessToken, isLoggedOut } from '@shared/api/authTokens'
+import { useMemberZoneSync } from '@features/settings/hooks/useMemberZoneSync'
 import './AppShell.css'
 
 const TAB_TITLES: Record<string, string> = {
@@ -53,6 +54,7 @@ const AppShell = () => {
   const navigate = useNavigate()
   const pathname = location.pathname
   const didAttemptRefresh = useRef(false)
+  useMemberZoneSync()
 
   useEffect(() => {
     const ensureToken = async () => {

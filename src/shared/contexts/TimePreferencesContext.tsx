@@ -1,11 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   formatOffsetLabel,
   getDisplayOffsetMinutes,
   getDisplayZoneId,
-  setDisplayOffset,
+  setDisplayZone,
 } from '@shared/utils/datetime'
+import { readText, STORAGE_KEYS, writeText } from '@shared/utils/safeStorage'
 
 type TimePreferencesContextValue = {
   offsetMinutes: number
@@ -14,17 +15,28 @@ type TimePreferencesContextValue = {
   isLoading: boolean
   error: string | null
   refresh: () => void
+  /** 회원 시간대를 표시 시간대로 쓴다(ADR-0028). 바뀌면 캐시를 비우고 화면을 새로 그린다. */
+  applyZone: (zoneId: string) => void
 }
 
 const TimePreferencesContext = createContext<TimePreferencesContextValue | null>(null)
 
-export const TimePreferencesProvider = ({ children }: { children: ReactNode }) => {
-  const [offsetMinutes, setOffsetMinutes] = useState(() => getDisplayOffsetMinutes())
-  const zoneId = useMemo(() => getDisplayZoneId() || 'Asia/Seoul', [])
+// 마지막으로 받은 회원 시간대로 시작한다. 그래야 서버 응답 전 첫 화면도 같은 시간대로 그린다.
+const restoreZone = () => {
+  const stored = readText(STORAGE_KEYS.displayZoneId)
+  return stored ? setDisplayZone(stored) : getDisplayZoneId() || 'Asia/Seoul'
+}
 
-  useEffect(() => {
-    setDisplayOffset(offsetMinutes, zoneId)
-  }, [offsetMinutes, zoneId])
+export const TimePreferencesProvider = ({ children }: { children: ReactNode }) => {
+  const [zoneId, setZoneId] = useState(restoreZone)
+  const [offsetMinutes, setOffsetMinutes] = useState(() => getDisplayOffsetMinutes())
+
+  const applyZone = useCallback((nextZoneId: string) => {
+    const applied = setDisplayZone(nextZoneId)
+    writeText(STORAGE_KEYS.displayZoneId, applied)
+    setZoneId(applied)
+    setOffsetMinutes(getDisplayOffsetMinutes())
+  }, [])
 
   const value = useMemo(
     () => ({
@@ -34,8 +46,9 @@ export const TimePreferencesProvider = ({ children }: { children: ReactNode }) =
       isLoading: false,
       error: null,
       refresh: () => setOffsetMinutes(getDisplayOffsetMinutes()),
+      applyZone,
     }),
-    [offsetMinutes, zoneId],
+    [offsetMinutes, zoneId, applyZone],
   )
 
   return <TimePreferencesContext.Provider value={value}>{children}</TimePreferencesContext.Provider>
@@ -52,6 +65,9 @@ export const useTimePreferences = () => {
       isLoading: false,
       error: null,
       refresh: () => {},
+      applyZone: (zoneId: string) => {
+        setDisplayZone(zoneId)
+      },
     }
   }
   return ctx

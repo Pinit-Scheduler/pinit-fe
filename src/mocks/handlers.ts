@@ -275,8 +275,28 @@ const handleOAuth = async (path: string, method: string, request: Request) => {
   return null
 }
 
-const handleMember = (path: string, method: string) => {
+// ADR-0028 회원 설정. 실제 서버처럼 준 값만 바꾼다.
+const mockProfileSettings = { zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT4H' }
+
+const handleMember = async (path: string, method: string, request: Request) => {
   const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
+
+  if (normalizedPath === '/members/settings' && method === 'GET') {
+    return json(mockProfileSettings)
+  }
+
+  if (normalizedPath === '/members/settings' && method === 'PATCH') {
+    const change = await readJson<Partial<typeof mockProfileSettings>>(request)
+    if (!change || (!change.zoneId && !change.dailyObjectiveWork)) {
+      return json({ message: '바꿀 설정(zoneId, dailyObjectiveWork)이 하나 이상 있어야 합니다.' }, 400)
+    }
+    Object.assign(mockProfileSettings, change)
+    return json(mockProfileSettings)
+  }
+
+  if (method === 'GET' && normalizedPath === '/members/zone-id') {
+    return text(mockProfileSettings.zoneId)
+  }
 
   if (method === 'GET' && normalizedPath === '/members/zone-offset') {
     const offset = mockUsers[0]?.zoneOffset ?? 'UTC+00:00'
@@ -669,7 +689,7 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
   const oauth = await handleOAuth(path, method, request)
   if (oauth) return oauth
 
-  const member = handleMember(path, method)
+  const member = await handleMember(path, method, request)
   if (member) return member
 
   const onboarding = await handleOnboarding(path, method, request)

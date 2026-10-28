@@ -13,13 +13,20 @@ dayjs.extend(weekday)
 dayjs.locale('ko')
 
 const DEFAULT_ZONE = 'Asia/Seoul'
-const getTz = () => (dayjs as unknown as { tz?: { guess?: () => string; zone?: (id: string) => unknown } }).tz
+// dayjs timezone 플러그인에는 시간대 존재 여부를 묻는 API가 없다. 브라우저가 모르는 id면 Intl이 RangeError를 던진다.
+const isKnownZone = (zoneId: string) => {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zoneId })
+    return true
+  } catch {
+    return false
+  }
+}
 
 const normalizeZoneId = (zoneId?: string, fallback = DEFAULT_ZONE) => {
   if (!zoneId) return fallback
   if (zoneId.toUpperCase() === 'UTC') return 'UTC'
-  const tz = getTz()
-  return tz?.zone && tz.zone(zoneId) ? zoneId : fallback
+  return isKnownZone(zoneId) ? zoneId : fallback
 }
 
 const resolveInitialZone = () => normalizeZoneId(DEFAULT_ZONE, DEFAULT_ZONE)
@@ -40,12 +47,18 @@ let displayOffsetMinutes = getOffsetMinutesForZone(displayZoneId)
 export const getDisplayZoneId = () => displayZoneId
 export const getDisplayOffsetMinutes = () => displayOffsetMinutes
 
-export const setDisplayOffset = (offsetMinutes: number, zoneId?: string) => {
-    displayZoneId = zoneId ? normalizeZoneId(zoneId, displayZoneId || DEFAULT_ZONE) : displayZoneId || DEFAULT_ZONE
-  displayOffsetMinutes = Number.isFinite(offsetMinutes)
-    ? offsetMinutes
-    : getOffsetMinutesForZone(displayZoneId)
+/**
+ * 표시 시간대를 회원 시간대로 바꾼다(ADR-0028). 알 수 없는 id면 지금 값을 유지한다. 실제로 쓰게 된 id를 돌려준다.
+ * 날짜 계산 함수들은 호출할 때마다 이 값을 읽으므로, 바꾼 뒤 화면을 새로 그리면 새 시간대로 보인다.
+ */
+export const setDisplayZone = (zoneId: string) => {
+  displayZoneId = normalizeZoneId(zoneId, displayZoneId || DEFAULT_ZONE)
+  displayOffsetMinutes = getOffsetMinutesForZone(displayZoneId)
+  return displayZoneId
 }
+
+/** 그 시간대의 지금 UTC 오프셋(분). 시간대 선택 목록의 라벨에 쓴다. */
+export const getZoneOffsetMinutes = (zoneId: string) => getOffsetMinutesForZone(zoneId)
 
 export const formatOffsetLabel = (offsetMinutes: number) => {
   const sign = offsetMinutes >= 0 ? '+' : '-'
