@@ -82,6 +82,8 @@ export type PlanRoutineOccurrence = {
   label: string | null
   start: DateTimeWithZone
   end: DateTimeWithZone
+  /** ADR-0027: 그날 날짜 예외에서 온 구간. 이전 서버 응답에는 없다 */
+  overridden?: boolean
 }
 
 export type PlanApplyBlock = {

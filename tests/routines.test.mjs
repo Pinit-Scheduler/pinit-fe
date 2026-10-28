@@ -39,6 +39,7 @@ const draft = (overrides = {}) => ({
   startTime: '12:00',
   durationMinutes: 60,
   days: [...ALL],
+  remindAtStart: false,
   ...overrides,
 })
 const preset = (kind) => draft({ kind, startTime: rules.KIND_PRESET[kind].startTime, durationMinutes: rules.KIND_PRESET[kind].durationMinutes })
@@ -102,12 +103,20 @@ test('overlap is checked on the cyclic week, touching is fine, Sunday night wrap
 
 test('drafts convert to the PUT body and back', () => {
   const input = plain(rules.toRoutineInput(draft({ kind: 'SLEEP', label: '  ', startTime: '23:30', durationMinutes: 450, days: ['SUNDAY', 'MONDAY'] })))
-  assert.deepEqual(input, { kind: 'SLEEP', label: null, startTime: '23:30', duration: 'PT7H30M', days: ['MONDAY', 'SUNDAY'] })
+  assert.deepEqual(input, { kind: 'SLEEP', label: null, startTime: '23:30', duration: 'PT7H30M', days: ['MONDAY', 'SUNDAY'], remindAtStart: false })
   const custom = plain(rules.toRoutineInput(draft({ kind: 'CUSTOM', label: ' 운동 ' })))
   assert.equal(custom.label, '운동')
 
   const back = plain(rules.toRoutineDraft({ id: 3, kind: 'LUNCH', label: null, startTime: '12:00', duration: 'PT1H', days: ['FRIDAY', 'MONDAY'] }, 'x'))
-  assert.deepEqual(back, { key: 'x', kind: 'LUNCH', label: '', startTime: '12:00', durationMinutes: 60, days: ['MONDAY', 'FRIDAY'] })
+  assert.deepEqual(back, {
+    key: 'x',
+    kind: 'LUNCH',
+    label: '',
+    startTime: '12:00',
+    durationMinutes: 60,
+    days: ['MONDAY', 'FRIDAY'],
+    remindAtStart: false,
+  })
 })
 
 test('400 errors map back to the entry that was sent at that index', () => {
@@ -172,4 +181,76 @@ test('"요일별로 다르게" uses unused days first, otherwise splits the week
   assert.deepEqual(plain(rules.splitDaysForNewEntry([ALL])), { lastDays: WEEKDAYS, newDays: ['SATURDAY', 'SUNDAY'] })
   assert.deepEqual(plain(rules.splitDaysForNewEntry([WEEKDAYS])), { lastDays: null, newDays: ['SATURDAY', 'SUNDAY'] })
   assert.deepEqual(plain(rules.splitDaysForNewEntry([WEEKDAYS, ['SATURDAY', 'SUNDAY']])), { lastDays: null, newDays: [] })
+})
+
+// ADR-0027 시작 알림과 날짜 예외
+
+test('the start reminder flag round-trips and defaults to off', () => {
+  const on = plain(rules.toRoutineDraft({ id: 1, kind: 'LUNCH', label: null, startTime: '12:00', duration: 'PT1H', days: ['MONDAY'], remindAtStart: true }, 'a'))
+  assert.equal(on.remindAtStart, true)
+  assert.equal(plain(rules.toRoutineInput(on)).remindAtStart, true)
+  const old = plain(rules.toRoutineDraft({ id: 2, kind: 'LUNCH', label: null, startTime: '12:00', duration: 'PT1H', days: ['MONDAY'] }, 'b'))
+  assert.equal(old.remindAtStart, false, 'older responses without the field mean off')
+})
+
+test('dates: weekday, adding days and the editable range', () => {
+  assert.equal(rules.dayOfWeekOf('2026-10-27'), 'TUESDAY')
+  assert.equal(rules.dayOfWeekOf('2026-11-01'), 'SUNDAY')
+  assert.equal(rules.dayOfWeekOf('2026-02-30'), null)
+  assert.equal(rules.dayOfWeekOf('tomorrow'), null)
+  assert.equal(rules.addDays('2026-12-31', 1), '2027-01-01')
+  assert.equal(rules.addDays('2026-03-01', -1), '2026-02-28')
+  assert.equal(rules.isEditableOverrideDate('2026-10-26', '2026-10-27'), true)
+  assert.equal(rules.isEditableOverrideDate('2026-10-25', '2026-10-27'), false)
+  assert.equal(rules.isEditableOverrideDate('2027-10-27', '2026-10-27'), true)
+  assert.equal(rules.isEditableOverrideDate('2027-10-28', '2026-10-27'), false)
+})
+
+test('a new override starts from the weekly routines of that weekday, ordered by start', () => {
+  let n = 0
+  const key = () => `o${n++}`
+  const weekly = [
+    draft({ kind: 'DINNER', startTime: '18:30', days: ALL, remindAtStart: true }),
+    draft({ kind: 'LUNCH', startTime: '12:00', days: WEEKDAYS }),
+    draft({ kind: 'LUNCH', startTime: '13:00', days: ['SATURDAY', 'SUNDAY'] }),
+  ]
+  const tuesday = plain(rules.overrideItemsFromWeekly('2026-10-27', weekly, key))
+  assert.deepEqual(tuesday.map((item) => [item.kind, item.startTime, item.remindAtStart]), [
+    ['LUNCH', '12:00', false],
+    ['DINNER', '18:30', true],
+  ])
+  assert.ok(tuesday.every((item) => !('days' in item)))
+  const sunday = plain(rules.overrideItemsFromWeekly('2026-11-01', weekly, key))
+  assert.deepEqual(sunday.map((item) => item.startTime), ['13:00', '18:30'])
+})
+
+test('override items are checked on that day only, past midnight included', () => {
+  const item = (overrides) => {
+    const { days: _days, ...rest } = draft(overrides)
+    return rest
+  }
+  const ok = rules.validateOverrideItems([
+    item({ kind: 'LUNCH', startTime: '12:00', durationMinutes: 60 }),
+    item({ kind: 'CUSTOM', label: '산책', startTime: '13:00', durationMinutes: 30 }),
+    item({ kind: 'SLEEP', startTime: '22:00', durationMinutes: 240 }),
+    item({ kind: 'CUSTOM', label: '새벽', startTime: '01:00', durationMinutes: 30 }),
+  ])
+  assert.deepEqual(plain(ok), { byIndex: {}, general: [] }, 'touching and the next morning are fine')
+
+  const clash = plain(rules.validateOverrideItems([
+    item({ kind: 'SLEEP', startTime: '22:00', durationMinutes: 240 }),
+    item({ kind: 'CUSTOM', label: '야식', startTime: '23:00', durationMinutes: 30 }),
+    item({ kind: 'CUSTOM', label: '', startTime: '09:00', durationMinutes: 3 }),
+  ], '가'.repeat(21)))
+  assert.equal(clash.byIndex[0].length, 1)
+  assert.match(clash.byIndex[1][0].message, /수면/)
+  assert.deepEqual(clash.byIndex[2].map((issue) => issue.field), ['label', 'duration'])
+  assert.deepEqual(clash.general, ['메모는 20자 이하로 입력하세요.'])
+})
+
+test('override items convert to the wire format', () => {
+  const input = plain(rules.toOverrideItemInput({ key: 'k', kind: 'CUSTOM', label: ' 성묘 ', startTime: '10:00', durationMinutes: 90, remindAtStart: true }))
+  assert.deepEqual(input, { kind: 'CUSTOM', label: '성묘', startTime: '10:00', duration: 'PT1H30M', remindAtStart: true })
+  const back = plain(rules.toOverrideItemDraft({ id: 4, kind: 'LUNCH', label: null, startTime: '13:00', duration: 'PT1H', remindAtStart: false }, 'z'))
+  assert.deepEqual(back, { key: 'z', kind: 'LUNCH', label: '', startTime: '13:00', durationMinutes: 60, remindAtStart: false })
 })

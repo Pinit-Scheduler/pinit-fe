@@ -261,3 +261,66 @@
 .routines__save:disabled {
   background: var(--c-slate-400);
 }
+
+/* ADR-0027 시작 알림·날짜 예외 */
+.routines__remind {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--c-slate-600);
+}
+
+.routines__overrides {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.routines__override {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 12px;
+}
+
+.routines__override-date {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-slate-900);
+}
+
+.routines__override-note {
+  font-weight: 400;
+  color: var(--c-slate-500);
+}
+
+.routines__override-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.routines__override-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px dashed var(--c-slate-300);
+  border-radius: 12px;
+}
+
+.routines__add-select {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--c-slate-300);
+  background: var(--c-surface);
+}

@@ -229,7 +229,8 @@ const PlanPage = () => {
         const startMs = toMs(routine.start.dateTime, routine.start.zoneId)
         const endMs = toMs(routine.end.dateTime, routine.end.zoneId)
         if (startMs === null || endMs === null) return []
-        return [{ key: `routine-${routine.routineId}-${index}`, kind: routine.kind, name: routineName(routine), startMs, endMs }]
+        const name = routine.overridden ? `${routineName(routine)} · 날짜 예외` : routineName(routine)
+        return [{ key: `routine-${routine.routineId}-${index}`, kind: routine.kind, name, startMs, endMs }]
       }),
     [plan],
   )
