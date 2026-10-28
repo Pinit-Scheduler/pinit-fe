@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signup } from '../api/auth'
+import { NICKNAME_MAX_LENGTH, validateNickname, validatePassword, validateUsername } from '../utils/accountRules'
 import { useToast } from '@contexts/ToastContext'
 import './LoginPage.css'
 
@@ -62,16 +63,16 @@ const SignupPage = () => {
 
   const validate = () => {
     const nextErrors: Partial<Record<keyof SignupFormState | 'form', string>> = {}
-    if (!values.username.trim()) nextErrors.username = '아이디를 입력해 주세요.'
-    if (!values.password) nextErrors.password = '비밀번호를 입력해 주세요.'
-    if (values.password.length > 0 && values.password.length < 8) {
-      nextErrors.password = '비밀번호는 8자 이상이어야 합니다.'
-    }
+    const usernameError = validateUsername(values.username)
+    const passwordError = validatePassword(values.password)
+    const nicknameError = validateNickname(values.nickname)
+    if (usernameError) nextErrors.username = usernameError
+    if (passwordError) nextErrors.password = passwordError
     if (!values.confirmPassword) nextErrors.confirmPassword = '비밀번호를 다시 입력해 주세요.'
     if (values.password && values.confirmPassword && values.password !== values.confirmPassword) {
       nextErrors.confirmPassword = '비밀번호가 일치하지 않습니다.'
     }
-    if (!values.nickname.trim()) nextErrors.nickname = '별명을 입력해 주세요.'
+    if (nicknameError) nextErrors.nickname = nicknameError
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
@@ -117,7 +118,7 @@ const SignupPage = () => {
         <h1>아이디와 비밀번호로 새 계정을 만들어요</h1>
         <p className="login__description">
           아이디, 비밀번호, 별명만으로 간단히 가입할 수 있어요. 가입 후 로그인하면 일정 관리 기능을
-          바로 사용할 수 있습니다.
+          바로 사용할 수 있습니다. 비밀번호는 영문과 숫자를 모두 넣어 8자 이상으로 정해 주세요.
         </p>
 
         <form className="signup__form" onSubmit={handleSubmit}>
@@ -126,7 +127,8 @@ const SignupPage = () => {
             <input
               value={values.username}
               onChange={(event) => onChange('username', event.target.value)}
-              placeholder="아이디를 입력하세요"
+              placeholder="영문, 숫자, 밑줄(_) 4~20자"
+              maxLength={20}
               autoComplete="username"
               onTouchEnd={handleTouchFocus}
               onTouchStart={handleTouchFocus}
@@ -143,7 +145,8 @@ const SignupPage = () => {
               type="password"
               value={values.password}
               onChange={(event) => onChange('password', event.target.value)}
-              placeholder="8자 이상 입력하세요"
+              placeholder="영문과 숫자를 포함해 8~64자"
+              maxLength={64}
               autoComplete="new-password"
               onTouchEnd={handleTouchFocus}
               onTouchStart={handleTouchFocus}
@@ -176,7 +179,8 @@ const SignupPage = () => {
             <input
               value={values.nickname}
               onChange={(event) => onChange('nickname', event.target.value)}
-              placeholder="프로필에 표시될 별명"
+              placeholder="프로필에 표시될 별명(20자 이하)"
+              maxLength={NICKNAME_MAX_LENGTH}
               autoComplete="nickname"
               onTouchEnd={handleTouchFocus}
               onTouchStart={handleTouchFocus}
