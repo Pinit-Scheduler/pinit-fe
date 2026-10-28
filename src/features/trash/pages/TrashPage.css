@@ -10,7 +10,7 @@
 .trash__eyebrow {
   margin: 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .trash__title {
@@ -21,7 +21,7 @@
 .trash__description {
   margin: 0;
   font-size: 13px;
-  color: #475569;
+  color: var(--c-slate-600);
   line-height: 1.5;
 }
 
@@ -34,15 +34,15 @@
 .trash__placeholder {
   padding: 16px;
   border-radius: 12px;
-  background: #f8fafc;
-  color: #475569;
+  background: var(--c-slate-50);
+  color: var(--c-slate-600);
   font-size: 14px;
 }
 
 .trash__link {
   border: none;
   background: transparent;
-  color: #2563eb;
+  color: var(--c-blue-600);
   cursor: pointer;
   padding: 0;
 }
@@ -56,7 +56,7 @@
 .trash__group-title {
   margin: 0;
   font-size: 15px;
-  color: #1e293b;
+  color: var(--c-slate-800);
 }
 
 .trash__list {
@@ -69,9 +69,9 @@
 }
 
 .trash__item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--c-slate-200);
   border-radius: 14px;
-  background: #fff;
+  background: var(--c-surface);
   padding: 14px;
   display: flex;
   flex-direction: column;
@@ -91,8 +91,8 @@
 .trash__tag {
   font-size: 11px;
   font-weight: 600;
-  color: #475569;
-  background: #f1f5f9;
+  color: var(--c-slate-600);
+  background: var(--c-slate-100);
   border-radius: 999px;
   padding: 1px 8px;
 }
@@ -100,18 +100,18 @@
 .trash__item-meta {
   margin: 4px 0 0;
   font-size: 12px;
-  color: #64748b;
+  color: var(--c-slate-500);
 }
 
 .trash__purge {
-  color: #b45309;
+  color: var(--c-amber-700);
 }
 
 .trash__sublist {
   margin: 6px 0 0;
   padding-left: 16px;
   font-size: 12px;
-  color: #475569;
+  color: var(--c-slate-600);
 }
 
 .trash__actions {
@@ -121,8 +121,8 @@
 }
 
 .trash__button {
-  border: 1px solid #cbd5e1;
-  background: #fff;
+  border: 1px solid var(--c-slate-300);
+  background: var(--c-surface);
   border-radius: 8px;
   padding: 6px 12px;
   font-size: 13px;
@@ -135,12 +135,12 @@
 }
 
 .trash__button.is-primary {
-  background: #2563eb;
-  border-color: #2563eb;
+  background: var(--c-blue-600);
+  border-color: var(--c-blue-600);
   color: #fff;
 }
 
 .trash__button.is-danger {
-  color: #b91c1c;
-  border-color: #fecaca;
+  color: var(--c-red-700);
+  border-color: var(--c-red-200);
 }
