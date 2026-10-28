@@ -30,10 +30,10 @@ const EMPTY_PASSWORD_FORM: PasswordForm = { currentPassword: '', newPassword: ''
 
 // 탈퇴하면 지워지는 것(ADR-0022 §6). 사용자에게 그대로 보여 준다.
 const WITHDRAWAL_DELETES = [
-  '작업, 일정, 반복, 의존 관계, 통계',
+  '작업, 일정, 반복, 의존 관계, 태그, 통계',
   '생활 시간, 온보딩 진행, 프로필 설정',
-  '일정 알림과 푸시 알림 구독',
-  'AI 연결(MCP)과 모든 로그인 세션',
+  '일정·마감 알림, 알림 설정, 푸시 알림 구독',
+  'AI 연결(MCP)과 AI 사용 이력, 모든 로그인 세션',
 ]
 
 const SETTINGS_PATH = '/app/settings'
