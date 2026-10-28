@@ -13,6 +13,7 @@ import {
   activeScheduleId,
   makeToken,
   mockOAuthAuthorizationRequests,
+  mockMcpActivity,
   mockOAuthGrants,
   mockPushSubscriptions,
   mockSchedules,
@@ -243,6 +244,19 @@ const handleOAuth = async (path: string, method: string, request: Request) => {
     }
     target.searchParams.set('state', 'mock-state')
     return json({ redirectUri: target.toString() })
+  }
+
+  if (path === '/v2/oauth/activity' && method === 'GET') {
+    const params = new URL(request.url).searchParams
+    const size = Number(params.get('size') ?? 20)
+    const cursor = params.get('cursor')
+    const changesOnly = params.get('changesOnly') === 'true'
+    const matching = mockMcpActivity.filter(
+      (activity) =>
+        (!changesOnly || activity.access !== 'READ') && (cursor == null || activity.id < Number(cursor)),
+    )
+    const items = matching.slice(0, size)
+    return json({ items, nextCursor: matching.length > size ? items[items.length - 1].id : null })
   }
 
   if (path === '/v2/oauth/grants' && method === 'GET') {
