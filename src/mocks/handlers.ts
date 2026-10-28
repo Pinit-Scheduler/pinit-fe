@@ -332,6 +332,39 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     return json(response)
   }
 
+  // ADR-0023 검색: 개발용 목업은 검색어와 기본 상태만 흉내 낸다.
+  if (method === 'GET' && normalizedPath === '/tasks/search') {
+    const page = Number(searchParams.get('page') ?? 0)
+    const size = Number(searchParams.get('size') ?? 20)
+    const query = (searchParams.get('q') ?? '').toLowerCase()
+    const status = searchParams.get('status') ?? 'CURRENT'
+    let items = mockTasks.filter((task) => (status === 'CURRENT' ? visibleTaskFilter(task, false) : true))
+    if (status === 'OPEN' || status === 'READY') items = items.filter((task) => !isCompletedTask(task))
+    if (status === 'READY') items = items.filter((task) => (task.inboundDependencyCount ?? 0) === 0)
+    if (status === 'COMPLETED') items = items.filter(isCompletedTask)
+    if (query) items = items.filter((task) => `${task.title} ${task.description}`.toLowerCase().includes(query))
+    items = items.sort(sortAscByDeadline)
+    const start = page * size
+    const paged = items.slice(start, start + size)
+    const totalPages = Math.max(1, Math.ceil(items.length / size))
+    return json({
+      content: paged.map(toTaskResponse),
+      number: page,
+      size,
+      totalElements: items.length,
+      totalPages,
+      numberOfElements: paged.length,
+      first: page === 0,
+      last: page >= totalPages - 1,
+      empty: paged.length === 0,
+    })
+  }
+
+  if (method === 'GET' && normalizedPath === '/tasks/by-deadline') {
+    const date = searchParams.get('date')
+    return json(mockTasks.filter((task) => task.dueDate?.date === date).sort(sortAscByDeadline).map(toTaskResponse))
+  }
+
   if (method === 'GET' && normalizedPath === '/tasks/cursor') {
     const size = Number(searchParams.get('size') ?? 20)
     const cursorValue = searchParams.get('cursor')
@@ -642,6 +675,9 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
 
   const statisticsReport = handleStatisticsReport(path, method, searchParams)
   if (statisticsReport) return statisticsReport
+
+  // ADR-0023 태그: 목업은 빈 목록만 돌려준다.
+  if (path === '/v2/tags' && method === 'GET') return json([])
 
   const tasks = await handleTasks(path, method, searchParams, request)
   if (tasks) return tasks

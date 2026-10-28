@@ -210,7 +210,25 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 <p className="task-detail-modal__description">
                   이전 작업: {task.previousTaskIds?.length ?? 0}개 / 이후 작업: {task.nextTaskIds?.length ?? 0}개
                 </p>
+                {!(task.completed ?? task.isCompleted) && (task.inboundDependencyCount ?? 0) > 0 && (
+                  <p className="task-detail-modal__description">
+                    아직 끝나지 않은 이전 작업이 {task.inboundDependencyCount}개 있어요. 모두 완료하면 바로 시작할 수 있어요.
+                  </p>
+                )}
               </section>
+
+              {(task.tags ?? []).length > 0 && (
+                <section className="task-detail-modal__section">
+                  <h3>태그</h3>
+                  <div className="task-detail-modal__meta">
+                    {(task.tags ?? []).map((tag) => (
+                      <span key={tag.id} className="task-detail-modal__badge">
+                        #{tag.name}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               <footer className="task-detail-modal__actions">
                 <button

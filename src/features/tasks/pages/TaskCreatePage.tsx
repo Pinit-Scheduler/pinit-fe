@@ -65,6 +65,7 @@ const TaskCreatePage = () => {
           // 새 작업 이후에 해야 할 작업: fromId=0, toId=후행
           ...values.nextTaskIds.map((toId) => ({ fromId: 0, toId })),
         ],
+        tagIds: values.tagIds,
       }
       const created = await createTask(payload)
       setTask(created)

@@ -48,6 +48,7 @@ const normalizeTask = (task: TaskApiResponse): Task => ({
   isCompleted: task.completed ?? task.isCompleted ?? false,
   previousTaskIds: task.previousTaskIds ?? [],
   nextTaskIds: task.nextTaskIds ?? [],
+  tags: task.tags ?? [],
 })
 
 const normalizeTaskList = (tasks?: TaskApiResponse[] | null) => (tasks ?? []).map(normalizeTask)
@@ -70,6 +71,39 @@ export const fetchTasks = async ({ page = 0, size = 20, readyOnly = false }: Lis
     last: response.last,
     empty: response.empty,
   }
+}
+
+const toListResponse = (response: PageTaskApiResponse): TaskListResponse => ({
+  content: normalizeTaskList(response.content),
+  number: response.number,
+  size: response.size,
+  totalElements: response.totalElements,
+  totalPages: response.totalPages,
+  numberOfElements: response.numberOfElements,
+  first: response.first,
+  last: response.last,
+  empty: response.empty,
+})
+
+/**
+ * 작업 검색(ADR-0023 §3). `params`는 `toSearchParams`가 만든 검색 인자다(`tagIds`는 여러 번 온다).
+ */
+export const searchTasks = async (
+  { page = 0, size = 20, params = [] }: { page?: number; size?: number; params?: [string, string][] },
+): Promise<TaskListResponse> => {
+  const query = new URLSearchParams(params)
+  query.set('page', String(page))
+  query.set('size', String(size))
+  const response = await httpClient<PageTaskApiResponse>(buildApiUrl(`/tasks/search?${query.toString()}`, TASK_API_VERSION))
+  return toListResponse(response)
+}
+
+/** 그 날짜(YYYY-MM-DD)가 마감인 작업. 시간대를 주지 않으면 회원 설정 시간대로 해석한다. */
+export const fetchTasksByDeadline = async (date: string, zoneId?: string): Promise<Task[]> => {
+  const query = new URLSearchParams({ date })
+  if (zoneId) query.set('zoneId', zoneId)
+  const response = await httpClient<TaskApiResponse[]>(buildApiUrl(`/tasks/by-deadline?${query.toString()}`, TASK_API_VERSION))
+  return normalizeTaskList(response)
 }
 
 export const fetchTaskArchiveByCursor = async (

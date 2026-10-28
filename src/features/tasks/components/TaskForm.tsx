@@ -6,6 +6,7 @@ import type { DifficultyValue } from '@constants/difficulty'
 import { parseDurationInput } from '@shared/utils/isoDuration'
 import './TaskForm.css'
 import TaskDependencyModal from './modals/TaskDependencyModal'
+import TagPicker from './TagPicker'
 import RecurrenceRuleFields from '@features/recurrence/components/RecurrenceRuleFields'
 import {
   defaultRuleDraft,
@@ -24,6 +25,8 @@ export type TaskFormValues = {
   expectedDurationMinutes: string
   previousTaskIds: number[]
   nextTaskIds: number[]
+  /** 붙일 태그 ID(ADR-0023 §2) */
+  tagIds: number[]
 }
 
 type TaskFormProps = {
@@ -37,6 +40,8 @@ type TaskFormProps = {
   hideDependencies?: boolean
   /** 서버가 돌려준 유효 예상 소요시간 라벨(수정 화면). 예: "45분 · 난이도 기준" */
   effectiveExpectedDurationLabel?: string
+  /** 수정 중인 작업 ID. 이전·이후 작업 목록에서 자신을 뺀다 */
+  taskId?: number
 }
 
 const buildDefaultValues = (initial?: Partial<TaskFormValues>): TaskFormValues => {
@@ -50,6 +55,7 @@ const buildDefaultValues = (initial?: Partial<TaskFormValues>): TaskFormValues =
     expectedDurationMinutes: initial?.expectedDurationMinutes ?? '',
     previousTaskIds: initial?.previousTaskIds ?? [],
     nextTaskIds: initial?.nextTaskIds ?? [],
+    tagIds: initial?.tagIds ?? [],
     ...initial,
   }
 }
@@ -61,6 +67,7 @@ const TaskForm = ({
   effectiveExpectedDurationLabel,
   allowRecurrence,
   hideDependencies,
+  taskId,
 }: TaskFormProps) => {
   const [values, setValues] = useState<TaskFormValues>(() => buildDefaultValues(initialValues))
   const [rule, setRule] = useState<RuleDraft | null>(null)
@@ -197,6 +204,10 @@ const TaskForm = ({
         {errors.expectedDurationMinutes && <small>{errors.expectedDurationMinutes}</small>}
       </label>
 
+      {rule === null && (
+        <TagPicker selectedIds={values.tagIds} onChange={(tagIds) => setValues((prev) => ({ ...prev, tagIds }))} />
+      )}
+
       {allowRecurrence && (
         <div className="task-form__field">
           <label className="recurrence-toggle">
@@ -298,6 +309,7 @@ const TaskForm = ({
         onClose={() => setModalMode(null)}
         selectedIds={modalMode === 'previous' ? values.previousTaskIds : values.nextTaskIds}
         title={modalMode === 'previous' ? '이전에 해야 할 작업 선택' : '이후에 해야 할 작업 선택'}
+        excludeTaskId={taskId}
         onApply={(tasks) => {
           const ids = tasks.map((t) => t.id)
           const metas = tasks.reduce<Record<number, { title: string }>>((acc, t) => {
