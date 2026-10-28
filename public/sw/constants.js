@@ -1,7 +1,7 @@
 self.pinitSw = self.pinitSw || {}
 
 self.pinitSw.constants = {
-  CACHE_NAME: 'pinit-cache-v15', //TODO CACHE_NAME 자동으로 올릴 기법
+  CACHE_NAME: 'pinit-cache-v16', //TODO CACHE_NAME 자동으로 올릴 기법
   PRECACHE_URLS: [
     '/',
     '/index.html',
@@ -14,6 +14,7 @@ self.pinitSw.constants = {
     '/sw/time.js',
     '/sw/idempotency.js',
     '/sw/push.js',
+    '/sw/content.js',
     '/sw/clients.js',
   ],
   OFFLINE_URL: '/offline.html',

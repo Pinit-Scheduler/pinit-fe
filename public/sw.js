@@ -1,13 +1,14 @@
 importScripts(
-  '/sw/constants.js?cache=pinit-cache-v15',
+  '/sw/constants.js?cache=pinit-cache-v16',
   '/sw/cache.js',
   '/sw/time.js',
   '/sw/idempotency.js',
   '/sw/push.js',
+  '/sw/content.js',
   '/sw/clients.js',
 )
 
-const { constants, cache, time, push, clients } = self.pinitSw
+const { constants, cache, time, push, clients, content } = self.pinitSw
 const { CACHE_NAME, PRECACHE_URLS } = constants
 
 self.addEventListener('install', (event) => {
@@ -30,21 +31,6 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(cache.cacheFirst(event.request))
 })
 
-const getNotificationContent = (notificationPayload, scheduleTitle, formattedStart, scheduleStartTime) => {
-  const title = notificationPayload.title
-    ? notificationPayload.title
-    : scheduleTitle
-      ? `"${scheduleTitle}" 일정이 시작돼요`
-      : '일정 시작 알림'
-  const scheduleLabel = formattedStart || scheduleStartTime
-  const body = notificationPayload.body
-    ? notificationPayload.body
-    : scheduleLabel
-      ? `${scheduleLabel} 시작 예정이에요.`
-      : '일정이 곧 시작돼요.'
-  return { title, body }
-}
-
 self.addEventListener('push', (event) => {
   const payload = push.readPushPayload(event)
   if (!payload) return
@@ -52,14 +38,9 @@ self.addEventListener('push', (event) => {
   const notificationPayload = payload.notification || {}
   const dataPayload = payload.data || payload
 
-  const { scheduleId, scheduleTitle, scheduleStartTime, idempotentKey } = dataPayload
+  const { scheduleId, scheduleStartTime, idempotentKey } = dataPayload
   const formattedStart = time.formatStartTime(scheduleStartTime)
-  const { title, body } = getNotificationContent(
-    notificationPayload,
-    scheduleTitle,
-    formattedStart,
-    scheduleStartTime,
-  )
+  const { title, body } = content.getNotificationContent(notificationPayload, dataPayload, formattedStart)
   const notificationOptions = push.buildNotificationOptions(
     notificationPayload,
     dataPayload,

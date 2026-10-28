@@ -231,3 +231,28 @@
   font-weight: 700;
   vertical-align: middle;
 }
+
+/* ADR-0021 알림 설정: 사전 알림 선택과 마감일 알림 시각 */
+.settings__select,
+.settings__time {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background-color: #fff;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.settings__select:disabled,
+.settings__time:disabled,
+.settings__toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings__description--error {
+  color: #b91c1c;
+  margin-bottom: 8px;
+}

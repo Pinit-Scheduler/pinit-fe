@@ -8,19 +8,36 @@ import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import AiConnectionSection from '../components/AiConnectionSection'
 import ThemeSection from '../components/ThemeSection'
+import useNotificationPreferences from '../hooks/useNotificationPreferences'
+import {
+  REMINDER_MINUTE_OPTIONS,
+  normalizeDeadlineTime,
+  parseReminderOption,
+  reminderOptionLabel,
+  type NotificationPreferences,
+} from '../utils/notificationPreferences'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
-  const [isNotificationEnabled, setIsNotificationEnabled] = useState(true)
-  const [isDeadlineReminderEnabled, setIsDeadlineReminderEnabled] = useState(false)
-  const [isAutoStatsEnabled, setIsAutoStatsEnabled] = useState(true)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   // 처음 한 번만 "새 기능"을 단다. 생활 시간 화면에 들어가면 확인한 것으로 본다.
   const [showRoutinesNew] = useState(() => !readFlag(NUDGE_KEYS.routinesNewBadgeSeen))
   const [showRecurrencesNew] = useState(() => !readFlag(NUDGE_KEYS.recurrencesNewBadgeSeen))
   const navigate = useNavigate()
   const { addToast } = useToast()
-  const { offsetLabel, isLoading: isTimeLoading } = useTimePreferences()
+  const { offsetLabel, zoneId, isLoading: isTimeLoading } = useTimePreferences()
+  const {
+    preferences,
+    isLoading: isPreferencesLoading,
+    isSaving: isPreferencesSaving,
+    loadError: preferencesLoadError,
+    update: updatePreferences,
+  } = useNotificationPreferences(zoneId)
+  const isPreferencesUnavailable = isPreferencesLoading || preferencesLoadError !== null
+  // 토글은 저장 중 한 번 더 눌리지 않게 막는다. select·시각 입력은 막으면 키보드 편집 중 포커스를 잃는다.
+  const isPreferencesDisabled = isPreferencesUnavailable || isPreferencesSaving
+  // 시각은 입력하는 동안 화면에만 두고, 입력을 마치면(blur) 저장한다.
+  const [deadlineTimeDraft, setDeadlineTimeDraft] = useState<string | null>(null)
   const {
     state: pushState,
     isProcessing: isPushProcessing,
@@ -82,6 +99,23 @@ const SettingsPage = () => {
 
   const isPushEnabled = pushState.status === 'subscribed'
 
+  const savePreferences = async (patch: Partial<NotificationPreferences>) => {
+    try {
+      await updatePreferences(patch)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '알림 설정을 저장하지 못했어요.'
+      addToast(message, 'error')
+    }
+  }
+
+  const commitDeadlineTime = () => {
+    const time = deadlineTimeDraft === null ? null : normalizeDeadlineTime(deadlineTimeDraft)
+    setDeadlineTimeDraft(null)
+    if (time && time !== preferences.taskDeadlineTime) {
+      savePreferences({ taskDeadlineTime: time })
+    }
+  }
+
   const handlePushToggle = async () => {
     try {
       if (isPushEnabled) {
@@ -142,31 +176,75 @@ const SettingsPage = () => {
 
       <section className="settings__card" aria-label="알림 설정">
         <h2>알림 설정</h2>
+        {preferencesLoadError && (
+          <p className="settings__description settings__description--error" role="alert">
+            알림 설정을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.
+          </p>
+        )}
         <div className="settings__row">
           <div>
-            <p className="settings__label">앱 알림</p>
-            <p className="settings__description">일정 시작/종료/마감 알림을 받아요.</p>
+            <p className="settings__label">일정 시작 알림</p>
+            <p className="settings__description">일정이 시작하는 시각에 알려 드려요.</p>
           </div>
           <button
-            className={['settings__toggle', isNotificationEnabled && 'is-active'].filter(Boolean).join(' ')}
-            onClick={() => setIsNotificationEnabled((prev) => !prev)}
-            aria-pressed={isNotificationEnabled}
+            type="button"
+            className={['settings__toggle', preferences.scheduleStartEnabled && 'is-active'].filter(Boolean).join(' ')}
+            disabled={isPreferencesDisabled}
+            onClick={() => savePreferences({ scheduleStartEnabled: !preferences.scheduleStartEnabled })}
+            aria-pressed={preferences.scheduleStartEnabled}
+            aria-label="일정 시작 알림"
           >
             <span />
           </button>
         </div>
         <div className="settings__row">
           <div>
-            <p className="settings__label">마감 30분 전 알림</p>
-            <p className="settings__description">난이도가 높은 일정에 우선 적용됩니다.</p>
+            <p className="settings__label">일정 시작 전 알림</p>
+            <p className="settings__description">시작 전에 한 번 더 알려 드려요.</p>
           </div>
-          <button
-            className={['settings__toggle', isDeadlineReminderEnabled && 'is-active'].filter(Boolean).join(' ')}
-            onClick={() => setIsDeadlineReminderEnabled((prev) => !prev)}
-            aria-pressed={isDeadlineReminderEnabled}
+          <select
+            className="settings__select"
+            value={preferences.scheduleReminderMinutes === null ? 'off' : String(preferences.scheduleReminderMinutes)}
+            disabled={isPreferencesUnavailable}
+            onChange={(event) => savePreferences({ scheduleReminderMinutes: parseReminderOption(event.target.value) })}
+            aria-label="일정 시작 전 알림"
           >
-            <span />
-          </button>
+            <option value="off">{reminderOptionLabel(null)}</option>
+            {REMINDER_MINUTE_OPTIONS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {reminderOptionLabel(minutes)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="settings__row">
+          <div>
+            <p className="settings__label">작업 마감일 알림</p>
+            <p className="settings__description">마감일 당일, 정한 시각에 아직 끝내지 않은 작업을 한 번에 알려 드려요.</p>
+          </div>
+          <div className="settings__actions">
+            {preferences.taskDeadlineEnabled && (
+              <input
+                type="time"
+                className="settings__time"
+                value={deadlineTimeDraft ?? preferences.taskDeadlineTime}
+                disabled={isPreferencesUnavailable}
+                onChange={(event) => setDeadlineTimeDraft(event.target.value)}
+                onBlur={commitDeadlineTime}
+                aria-label="작업 마감일 알림 시각"
+              />
+            )}
+            <button
+              type="button"
+              className={['settings__toggle', preferences.taskDeadlineEnabled && 'is-active'].filter(Boolean).join(' ')}
+              disabled={isPreferencesDisabled}
+              onClick={() => savePreferences({ taskDeadlineEnabled: !preferences.taskDeadlineEnabled })}
+              aria-pressed={preferences.taskDeadlineEnabled}
+              aria-label="작업 마감일 알림"
+            >
+              <span />
+            </button>
+          </div>
         </div>
         <div className="settings__row settings__row--stack" data-onboarding-anchor="settings.push">
           <div>
@@ -200,19 +278,6 @@ const SettingsPage = () => {
             <p className="settings__label">주간 기준</p>
             <p className="settings__value">월요일 시작 · 7일 고정</p>
           </li>
-          <li>
-            <p className="settings__label">통계 자동 업데이트</p>
-            <div className="settings__row settings__row--tight">
-              <p className="settings__description">매일 00:00 기준 자동 계산</p>
-              <button
-                className={['settings__toggle', isAutoStatsEnabled && 'is-active'].filter(Boolean).join(' ')}
-                onClick={() => setIsAutoStatsEnabled((prev) => !prev)}
-                aria-pressed={isAutoStatsEnabled}
-              >
-                <span />
-              </button>
-            </div>
-          </li>
         </ul>
       </section>
 
@@ -235,13 +300,6 @@ const SettingsPage = () => {
             ›
           </span>
         </Link>
-      </section>
-
-      <section className="settings__card" aria-label="향후 추가 예정">
-        <h2>향후 추가 예정</h2>
-        <p className="settings__description">
-          작업 타입 라벨, 알림 방식 지정, GPT 추천 설정 등은 추후 이 영역에 확장됩니다.
-        </p>
       </section>
 
       <section className="settings__card settings__card--danger" aria-label="계정">
