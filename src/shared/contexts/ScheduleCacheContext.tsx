@@ -1,6 +1,16 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
-import type { ScheduleResponse, ScheduleState } from '@features/schedules/types/schedule'
+import type {
+  ScheduleResponse,
+  ScheduleState,
+} from '@features/schedules/types/schedule'
 
 export type ScheduleCacheValue = {
   schedulesById: Record<number, ScheduleResponse>
@@ -9,18 +19,44 @@ export type ScheduleCacheValue = {
   setSchedule: (schedule: ScheduleResponse) => void
   upsertSchedule: (schedule: ScheduleResponse) => void
   setActiveSchedule: (scheduleId: number | null) => void
+  pendingScheduleId: number | null
+  beginMutation: (scheduleId: number) => boolean
+  endMutation: (scheduleId: number) => void
   updateScheduleState: (
     scheduleId: number,
     nextState: ScheduleState,
-    extras?: Partial<Pick<ScheduleResponse, 'scheduleType' | 'taskId' | 'duration'>>,
+    extras?: Partial<
+      Pick<ScheduleResponse, 'scheduleType' | 'taskId' | 'duration'>
+    >,
   ) => void
 }
 
 const ScheduleCacheContext = createContext<ScheduleCacheValue | null>(null)
 
-export const ScheduleCacheProvider = ({ children }: { children: ReactNode }) => {
-  const [schedulesById, setSchedulesById] = useState<Record<number, ScheduleResponse>>({})
+export const ScheduleCacheProvider = ({
+  children,
+}: {
+  children: ReactNode
+}) => {
+  const [schedulesById, setSchedulesById] = useState<
+    Record<number, ScheduleResponse>
+  >({})
   const [activeScheduleId, setActiveScheduleId] = useState<number | null>(null)
+  const [pendingScheduleId, setPendingScheduleId] = useState<number | null>(
+    null,
+  )
+  const pendingRef = useRef<number | null>(null)
+  const beginMutation = useCallback((id: number) => {
+    if (pendingRef.current !== null) return false
+    pendingRef.current = id
+    setPendingScheduleId(id)
+    return true
+  }, [])
+  const endMutation = useCallback((id: number) => {
+    if (pendingRef.current !== id) return
+    pendingRef.current = null
+    setPendingScheduleId(null)
+  }, [])
 
   const upsertSchedule = useCallback((schedule: ScheduleResponse) => {
     setSchedulesById((prev) => ({
@@ -40,7 +76,9 @@ export const ScheduleCacheProvider = ({ children }: { children: ReactNode }) => 
     (
       scheduleId: number,
       nextState: ScheduleState,
-      extras?: Partial<Pick<ScheduleResponse, 'scheduleType' | 'taskId' | 'duration'>>,
+      extras?: Partial<
+        Pick<ScheduleResponse, 'scheduleType' | 'taskId' | 'duration'>
+      >,
     ) => {
       setSchedulesById((prev) => {
         const current = prev[scheduleId]
@@ -65,16 +103,35 @@ export const ScheduleCacheProvider = ({ children }: { children: ReactNode }) => 
     () => ({
       schedulesById,
       activeScheduleId,
-      activeSchedule: activeScheduleId ? schedulesById[activeScheduleId] ?? null : null,
+      pendingScheduleId,
+      beginMutation,
+      endMutation,
+      activeSchedule: activeScheduleId
+        ? (schedulesById[activeScheduleId] ?? null)
+        : null,
       setSchedule,
       upsertSchedule,
       setActiveSchedule,
       updateScheduleState,
     }),
-    [activeScheduleId, schedulesById, setActiveSchedule, setSchedule, upsertSchedule, updateScheduleState],
+    [
+      activeScheduleId,
+      pendingScheduleId,
+      beginMutation,
+      endMutation,
+      schedulesById,
+      setActiveSchedule,
+      setSchedule,
+      upsertSchedule,
+      updateScheduleState,
+    ],
   )
 
-  return <ScheduleCacheContext.Provider value={value}>{children}</ScheduleCacheContext.Provider>
+  return (
+    <ScheduleCacheContext.Provider value={value}>
+      {children}
+    </ScheduleCacheContext.Provider>
+  )
 }
 
 // eslint-disable-next-line react-refresh/only-export-components

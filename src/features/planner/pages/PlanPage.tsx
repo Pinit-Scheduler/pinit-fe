@@ -1,22 +1,42 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
 import { getTodayWithOffset } from '@shared/utils/datetime'
-import { dispatchScheduleChanged, dispatchTaskChanged } from '@shared/utils/events'
-import { formatIsoDurationLabel, formatMinutesLabel, parseIsoDurationMinutes } from '@shared/utils/isoDuration'
+import {
+  dispatchScheduleChanged,
+  dispatchTaskChanged,
+} from '@shared/utils/events'
+import {
+  formatIsoDurationLabel,
+  formatMinutesLabel,
+  parseIsoDurationMinutes,
+} from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, readFlag, writeFlag } from '@shared/utils/safeStorage'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { scheduleTypeLabel } from '@constants/schedules'
-import type { ScheduleResponse, ScheduleTaskType } from '@features/schedules/types/schedule'
+import type {
+  ScheduleResponse,
+  ScheduleTaskType,
+} from '@features/schedules/types/schedule'
 import { fetchRoutines } from '@features/routines/api/routines'
 import type { RoutineKind } from '@features/routines/types/routine'
-import { KIND_LABEL, mealHintFor, routineName } from '@features/routines/utils/routineRules'
-import { fetchTimeCalibration, updateTimeCalibration } from '@features/calibration/api/calibration'
+import {
+  KIND_LABEL,
+  mealHintFor,
+  routineName,
+} from '@features/routines/utils/routineRules'
+import {
+  fetchTimeCalibration,
+  updateTimeCalibration,
+} from '@features/calibration/api/calibration'
 import type { TimeCalibrationResponse } from '@features/calibration/types/calibration'
-import { blockCalibrationNote, hasUsableFactor } from '@features/calibration/utils/calibrationView'
+import {
+  blockCalibrationNote,
+  hasUsableFactor,
+} from '@features/calibration/utils/calibrationView'
 import { applyDayPlan } from '../api/plans'
 import useDayPlan from '../hooks/useDayPlan'
 import PlanTimeline from '../components/PlanTimeline'
@@ -30,7 +50,11 @@ import {
   unplacedReasonLabel,
   validatePlanSelection,
 } from '../utils/planMapping'
-import type { BlockIssue, RoutineSpan, SelectionObstacle } from '../utils/planMapping'
+import type {
+  BlockIssue,
+  RoutineSpan,
+  SelectionObstacle,
+} from '../utils/planMapping'
 import './PlanPage.css'
 
 type DraftBlock = {
@@ -74,7 +98,9 @@ const toDraft = (block: PlannedBlock, zoneId: string): DraftBlock => {
   return {
     taskId: block.taskId,
     title: block.title,
-    durationMinutes: parseIsoDurationMinutes(block.duration) ?? Math.round((endMs - startMs) / 60000),
+    durationMinutes:
+      parseIsoDurationMinutes(block.duration) ??
+      Math.round((endMs - startMs) / 60000),
     mustTier: block.mustTier,
     selected: true,
     startLocal,
@@ -99,26 +125,51 @@ const PlanPage = () => {
   const { addToast } = useToast()
   const { upsertSchedule } = useScheduleCache()
   const [searchParams, setSearchParams] = useSearchParams()
-  const today = useMemo(() => getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD'), [offsetMinutes])
+  const today = useMemo(
+    () => getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD'),
+    [offsetMinutes],
+  )
 
   const requestedDate = searchParams.get('date')
-  const date = requestedDate && DATE_PATTERN.test(requestedDate) && requestedDate >= today ? requestedDate : today
+  const date =
+    requestedDate && DATE_PATTERN.test(requestedDate) && requestedDate >= today
+      ? requestedDate
+      : today
   const [horizonDays, setHorizonDays] = useState(DEFAULT_HORIZON_DAYS)
   const [refreshKey, setRefreshKey] = useState(0)
-  const { plan, schedules, isLoading, error } = useDayPlan({ date, zoneId, horizonDays, refreshKey })
+  const { plan, schedules, isLoading, error } = useDayPlan({
+    date,
+    zoneId,
+    horizonDays,
+    refreshKey,
+  })
 
   const [drafts, setDrafts] = useState<DraftBlock[]>([])
-  const [serverIssues, setServerIssues] = useState<Record<number, BlockIssue[]>>({})
+  const [serverIssues, setServerIssues] = useState<
+    Record<number, BlockIssue[]>
+  >({})
   const [applyError, setApplyError] = useState<string | null>(null)
   const [isApplying, setIsApplying] = useState(false)
   /** 승인으로 만든 일정과 그 계획일 */
-  const [created, setCreated] = useState<{ date: string; schedules: ScheduleResponse[] } | null>(null)
+  const [created, setCreated] = useState<{
+    date: string
+    schedules: ScheduleResponse[]
+  } | null>(null)
   const [now, setNow] = useState(() => Date.now())
   /** 등록한 생활 시간 수. 모르면(불러오기 실패) null이고 안내 카드를 띄우지 않는다 */
   const [routineCount, setRoutineCount] = useState<number | null>(null)
-  /** ADR-0018 보정 설정과 계수. 모르면(불러오기 실패) null이고 보정 안내 카드를 띄우지 않는다 */
-  const [calibration, setCalibration] = useState<TimeCalibrationResponse | null>(null)
-  const [isEnablingCalibration, setIsEnablingCalibration] = useState(false)
+  /** ADR-0018: the persisted server setting is authoritative; no automatic opt-in. */
+  const [calibration, setCalibration] =
+    useState<TimeCalibrationResponse | null>(null)
+  const [isUpdatingCalibration, setIsUpdatingCalibration] = useState(false)
+  const [isLoadingCalibration, setIsLoadingCalibration] = useState(true)
+  const [calibrationError, setCalibrationError] = useState<string | null>(null)
+  const [calibrationRetryValue, setCalibrationRetryValue] = useState<
+    boolean | null
+  >(null)
+  const [calibrationRefresh, setCalibrationRefresh] = useState(0)
+  const calibrationRequest = useRef(0)
+  const calibrationMutation = useRef(false)
   const [dismissed, setDismissed] = useState(() => ({
     calibrationCard: readFlag(NUDGE_KEYS.planCalibrationCardDismissed),
     routinesCard: readFlag(NUDGE_KEYS.planRoutinesCardDismissed),
@@ -147,34 +198,73 @@ const PlanPage = () => {
 
   useEffect(() => {
     let cancelled = false
-    fetchTimeCalibration()
-      .then((response) => {
-        if (!cancelled) setCalibration(response ?? null)
-      })
-      .catch(() => {
-        if (!cancelled) setCalibration(null)
-      })
+    const requestId = ++calibrationRequest.current
+    const load = async () => {
+      setIsLoadingCalibration(true)
+      setCalibrationError(null)
+      setCalibrationRetryValue(null)
+      try {
+        const response = await fetchTimeCalibration()
+        if (!cancelled && requestId === calibrationRequest.current)
+          setCalibration(response ?? null)
+      } catch (err) {
+        if (!cancelled && requestId === calibrationRequest.current) {
+          setCalibration(null)
+          setCalibrationError(
+            err instanceof Error
+              ? err.message
+              : '보정 설정을 불러오지 못했어요.',
+          )
+        }
+      } finally {
+        if (!cancelled && requestId === calibrationRequest.current)
+          setIsLoadingCalibration(false)
+      }
+    }
+    void load()
     return () => {
       cancelled = true
     }
-  }, [refreshKey])
+  }, [refreshKey, calibrationRefresh])
 
-  const enableCalibration = async () => {
-    setIsEnablingCalibration(true)
+  const changeCalibration = async (enabled: boolean) => {
+    if (
+      calibrationMutation.current ||
+      isLoadingCalibration ||
+      isApplying ||
+      isLoading
+    )
+      return
+    calibrationMutation.current = true
+    ++calibrationRequest.current
+    setIsUpdatingCalibration(true)
+    setCalibrationError(null)
+    setCalibrationRetryValue(null)
     try {
-      setCalibration(await updateTimeCalibration(true))
-      addToast('보정을 켰어요. 기록에 맞춰 다시 제안해요.', 'success')
+      setCalibration(await updateTimeCalibration(enabled))
+      addToast(
+        enabled
+          ? '기록 기반 보정을 켰어요. 다시 제안해요.'
+          : '기록 기반 보정을 껐어요. 기본 예상 시간으로 다시 제안해요.',
+        'success',
+      )
       setRefreshKey((key) => key + 1)
     } catch (err) {
-      addToast(err instanceof Error ? `보정을 켜지 못했어요. ${err.message}` : '보정을 켜지 못했어요.', 'error')
+      setCalibrationError(
+        err instanceof Error ? err.message : '보정 설정을 저장하지 못했어요.',
+      )
+      setCalibrationRetryValue(enabled)
     } finally {
-      setIsEnablingCalibration(false)
+      calibrationMutation.current = false
+      setIsUpdatingCalibration(false)
     }
   }
 
   // 새 제안을 받으면 편집 상태를 제안 그대로 되돌린다.
   useEffect(() => {
-    setDrafts(plan ? plan.blocks.map((block) => toDraft(block, plan.zoneId)) : [])
+    setDrafts(
+      plan ? plan.blocks.map((block) => toDraft(block, plan.zoneId)) : [],
+    )
     setServerIssues({})
     setApplyError(null)
   }, [plan])
@@ -205,17 +295,30 @@ const PlanPage = () => {
     () =>
       drafts.map((draft) => {
         const startMs = toMs(draft.startLocal, planZoneId)
-        return { draft, startMs, endMs: startMs === null ? null : startMs + draft.durationMinutes * 60000 }
+        return {
+          draft,
+          startMs,
+          endMs:
+            startMs === null ? null : startMs + draft.durationMinutes * 60000,
+        }
       }),
     [drafts, planZoneId],
   )
 
-  const selectedSpans = useMemo(() => draftSpans.filter(({ draft }) => draft.selected), [draftSpans])
+  const selectedSpans = useMemo(
+    () => draftSpans.filter(({ draft }) => draft.selected),
+    [draftSpans],
+  )
 
   const clientIssues = useMemo(
     () =>
       validatePlanSelection(
-        selectedSpans.map(({ draft, startMs, endMs }) => ({ taskId: draft.taskId, title: draft.title, startMs, endMs })),
+        selectedSpans.map(({ draft, startMs, endMs }) => ({
+          taskId: draft.taskId,
+          title: draft.title,
+          startMs,
+          endMs,
+        })),
         obstacles,
         now,
       ),
@@ -223,14 +326,26 @@ const PlanPage = () => {
   )
 
   // ADR-0016: 생활 시간 구간. 서버는 승인 때 검사하지 않으므로 겹치면 경고만 한다.
-  const routineSpans = useMemo<(RoutineSpan & { key: string; kind: RoutineKind })[]>(
+  const routineSpans = useMemo<
+    (RoutineSpan & { key: string; kind: RoutineKind })[]
+  >(
     () =>
       (plan?.routines ?? []).flatMap((routine, index) => {
         const startMs = toMs(routine.start.dateTime, routine.start.zoneId)
         const endMs = toMs(routine.end.dateTime, routine.end.zoneId)
         if (startMs === null || endMs === null) return []
-        const name = routine.overridden ? `${routineName(routine)} · 날짜 예외` : routineName(routine)
-        return [{ key: `routine-${routine.routineId}-${index}`, kind: routine.kind, name, startMs, endMs }]
+        const name = routine.overridden
+          ? `${routineName(routine)} · 날짜 예외`
+          : routineName(routine)
+        return [
+          {
+            key: `routine-${routine.routineId}-${index}`,
+            kind: routine.kind,
+            name,
+            startMs,
+            endMs,
+          },
+        ]
       }),
     [plan],
   )
@@ -238,23 +353,43 @@ const PlanPage = () => {
   const routineWarnings = useMemo(
     () =>
       findRoutineConflicts(
-        selectedSpans.map(({ draft, startMs, endMs }) => ({ taskId: draft.taskId, title: draft.title, startMs, endMs })),
+        selectedSpans.map(({ draft, startMs, endMs }) => ({
+          taskId: draft.taskId,
+          title: draft.title,
+          startMs,
+          endMs,
+        })),
         routineSpans,
       ),
     [selectedSpans, routineSpans],
   )
 
-  const registeredKinds = useMemo(() => new Set(routineSpans.map((routine) => routine.kind)), [routineSpans])
-  const planDayStartMs = plan ? toMs(`${plan.date}T00:00:00`, plan.zoneId) : null
+  const registeredKinds = useMemo(
+    () => new Set(routineSpans.map((routine) => routine.kind)),
+    [routineSpans],
+  )
+  const planDayStartMs = plan
+    ? toMs(`${plan.date}T00:00:00`, plan.zoneId)
+    : null
 
   const selectedCount = selectedSpans.length
-  const selectedMinutes = selectedSpans.reduce((sum, { draft }) => sum + draft.durationMinutes, 0)
-  const hasClientIssues = selectedSpans.some(({ draft }) => (clientIssues[draft.taskId]?.length ?? 0) > 0)
+  const selectedMinutes = selectedSpans.reduce(
+    (sum, { draft }) => sum + draft.durationMinutes,
+    0,
+  )
+  const hasClientIssues = selectedSpans.some(
+    ({ draft }) => (clientIssues[draft.taskId]?.length ?? 0) > 0,
+  )
   const tooMany = selectedCount > MAX_APPLY_BLOCKS
-  const canApply = selectedCount > 0 && !hasClientIssues && !tooMany && !isApplying
+  const canApply =
+    selectedCount > 0 && !hasClientIssues && !tooMany && !isApplying
 
   const updateDraft = (taskId: number, patch: Partial<DraftBlock>) => {
-    setDrafts((prev) => prev.map((draft) => (draft.taskId === taskId ? { ...draft, ...patch } : draft)))
+    setDrafts((prev) =>
+      prev.map((draft) =>
+        draft.taskId === taskId ? { ...draft, ...patch } : draft,
+      ),
+    )
     // 고친 블록의 지난 거부 사유는 지운다. 다시 승인하면 서버가 새로 판단한다.
     setServerIssues((prev) => {
       if (!prev[taskId]) return prev
@@ -289,24 +424,41 @@ const PlanPage = () => {
     setApplyError(null)
     setServerIssues({})
     try {
-      const response = await applyDayPlan({ date: plan.date, zoneId: plan.zoneId, blocks })
+      const response = await applyDayPlan({
+        date: plan.date,
+        zoneId: plan.zoneId,
+        blocks,
+      })
       const schedulesCreated = response?.schedules ?? []
       schedulesCreated.forEach((schedule) => {
         upsertSchedule(schedule)
         dispatchScheduleChanged({ schedule, reason: 'plan-applied' })
       })
-      submitted.forEach((draft) => dispatchTaskChanged({ taskId: draft.taskId, reason: 'plan-applied' }))
+      submitted.forEach((draft) =>
+        dispatchTaskChanged({ taskId: draft.taskId, reason: 'plan-applied' }),
+      )
       setCreated({ date: plan.date, schedules: schedulesCreated })
       addToast(`${schedulesCreated.length}개 일정을 만들었어요.`, 'success')
       setRefreshKey((key) => key + 1)
     } catch (err) {
-      const rejections = err instanceof ApiError && err.status === 409 ? parsePlanRejections(err.data) : null
+      const rejections =
+        err instanceof ApiError && err.status === 409
+          ? parsePlanRejections(err.data)
+          : null
       if (rejections) {
-        setServerIssues(mapRejectionsToBlocks(rejections, submitted.map((draft) => draft.taskId)))
-        setApplyError('일정은 하나도 만들어지지 않았어요. 표시된 블록을 고치거나 선택을 빼고 다시 승인해 주세요.')
+        setServerIssues(
+          mapRejectionsToBlocks(
+            rejections,
+            submitted.map((draft) => draft.taskId),
+          ),
+        )
+        setApplyError(
+          '일정은 하나도 만들어지지 않았어요. 표시된 블록을 고치거나 선택을 빼고 다시 승인해 주세요.',
+        )
         addToast('승인하지 못했어요. 표시된 블록을 확인해 주세요.', 'error')
       } else {
-        const message = err instanceof Error ? err.message : '계획을 승인하지 못했어요.'
+        const message =
+          err instanceof Error ? err.message : '계획을 승인하지 못했어요.'
         setApplyError(`승인하지 못했어요. ${message}`)
         addToast('계획을 승인하지 못했어요.', 'error')
       }
@@ -316,32 +468,53 @@ const PlanPage = () => {
   }
 
   const scrollToBlock = (key: string) => {
-    document.getElementById(`plan-block-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    document
+      .getElementById(`plan-block-${key}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  const windowStartMs = plan ? toMs(plan.window.start.dateTime, plan.window.start.zoneId) : null
-  const windowEndMs = plan ? toMs(plan.window.end.dateTime, plan.window.end.zoneId) : null
-  const isWindowEmpty = windowStartMs !== null && windowEndMs !== null && windowEndMs <= windowStartMs
+  const windowStartMs = plan
+    ? toMs(plan.window.start.dateTime, plan.window.start.zoneId)
+    : null
+  const windowEndMs = plan
+    ? toMs(plan.window.end.dateTime, plan.window.end.zoneId)
+    : null
+  const isWindowEmpty =
+    windowStartMs !== null &&
+    windowEndMs !== null &&
+    windowEndMs <= windowStartMs
 
   const timelineItems: PlanTimelineItem[] = [
     ...schedules.flatMap((schedule) => {
       const span = scheduleSpan(schedule)
-      return span ? [{ key: `schedule-${schedule.id}`, kind: 'schedule' as const, title: schedule.title, ...span }] : []
+      return span
+        ? [
+            {
+              key: `schedule-${schedule.id}`,
+              kind: 'schedule' as const,
+              title: schedule.title,
+              ...span,
+            },
+          ]
+        : []
     }),
     ...draftSpans.flatMap(({ draft, startMs, endMs }) =>
       startMs === null || endMs === null
         ? []
-        : [{
-            key: String(draft.taskId),
-            kind: 'block' as const,
-            title: draft.title,
-            startMs,
-            endMs,
-            selected: draft.selected,
-            hasIssue:
-              draft.selected &&
-              ((clientIssues[draft.taskId]?.length ?? 0) > 0 || (serverIssues[draft.taskId]?.length ?? 0) > 0),
-          }],
+        : [
+            {
+              key: String(draft.taskId),
+              kind: 'block' as const,
+              title: draft.title,
+              startMs,
+              endMs,
+              selected: draft.selected,
+              hasIssue:
+                draft.selected &&
+                ((clientIssues[draft.taskId]?.length ?? 0) > 0 ||
+                  (serverIssues[draft.taskId]?.length ?? 0) > 0),
+            },
+          ],
     ),
     ...routineSpans.map((routine) => ({
       key: routine.key,
@@ -356,10 +529,14 @@ const PlanPage = () => {
   // 시간창 끝이 다음 날이면(수면 기준 하루 전체, 자정을 넘는 취침) 00:00 대신 24:00 또는 "다음 날"로 적는다.
   const formatWindowEnd = (ms: number) => {
     const end = dayjs(ms).tz(planZoneId)
-    if (!plan || end.format('YYYY-MM-DD') <= plan.date) return end.format('HH:mm')
-    return end.format('HH:mm') === '00:00' ? '24:00' : `다음 날 ${end.format('HH:mm')}`
+    if (!plan || end.format('YYYY-MM-DD') <= plan.date)
+      return end.format('HH:mm')
+    return end.format('HH:mm') === '00:00'
+      ? '24:00'
+      : `다음 날 ${end.format('HH:mm')}`
   }
-  const formatDuration = (value: string) => formatIsoDurationLabel(value) ?? value
+  const formatDuration = (value: string) =>
+    formatIsoDurationLabel(value) ?? value
 
   return (
     <section className="plan-page">
@@ -367,19 +544,30 @@ const PlanPage = () => {
         <p className="plan-page__eyebrow">하루 계획</p>
         <h1 className="plan-page__title">자동으로 하루 시간표 제안받기</h1>
         <p className="plan-page__description">
-          마감·중요도·난이도·선후관계로 배치한 제안이에요. 고른 블록만 승인하면 일정이 되고, 그 전에는 아무것도 저장되지
-          않아요.
+          마감·중요도·난이도·선후관계로 배치한 제안이에요. 고른 블록만 승인하면
+          일정이 되고, 그 전에는 아무것도 저장되지 않아요.
         </p>
       </header>
 
-      <div className="plan-page__controls" data-onboarding-anchor="plan.controls">
+      <div
+        className="plan-page__controls"
+        data-onboarding-anchor="plan.controls"
+      >
         <label className="plan-page__control">
           <span>계획일</span>
-          <input type="date" value={date} min={today} onChange={(event) => handleDateChange(event.target.value)} />
+          <input
+            type="date"
+            value={date}
+            min={today}
+            onChange={(event) => handleDateChange(event.target.value)}
+          />
         </label>
         <label className="plan-page__control">
           <span>마감 범위</span>
-          <select value={horizonDays} onChange={(event) => setHorizonDays(Number(event.target.value))}>
+          <select
+            value={horizonDays}
+            onChange={(event) => setHorizonDays(Number(event.target.value))}
+          >
             {HORIZON_OPTIONS.map((days) => (
               <option key={days} value={days}>
                 {days === 0 ? '계획일 마감까지' : `${days}일 안 마감`}
@@ -391,46 +579,139 @@ const PlanPage = () => {
           type="button"
           className="plan-page__refresh"
           onClick={() => setRefreshKey((key) => key + 1)}
-          disabled={isLoading || isApplying}
+          disabled={isLoading || isApplying || isUpdatingCalibration}
         >
           다시 제안받기
         </button>
       </div>
 
-      <div className="plan-page__content">
-        {plan && plan.calibrationApplied === false && hasUsableFactor(calibration) && !dismissed.calibrationCard && (
-          <div className="plan-page__nudge" role="note">
-            <p>
-              <span aria-hidden>⏱️ </span>지난 기록으로 보면 예상과 실제 걸린 시간이 달라요. 보정하면 블록 길이를 기록에
-              맞춰요.
+      <section
+        className="plan-page__calibration-option"
+        aria-busy={isLoadingCalibration || isUpdatingCalibration}
+      >
+        <div className="plan-page__calibration-option-head">
+          <label htmlFor="plan-calibration-enabled">
+            <input
+              id="plan-calibration-enabled"
+              type="checkbox"
+              checked={calibration?.enabled ?? false}
+              disabled={
+                !calibration ||
+                isLoadingCalibration ||
+                isUpdatingCalibration ||
+                isApplying ||
+                isLoading
+              }
+              aria-describedby="plan-calibration-description"
+              onChange={(event) => void changeCalibration(event.target.checked)}
+            />
+            <span>기록 기반 보정</span>
+          </label>
+          <span className="plan-page__calibration-state" role="status">
+            {isUpdatingCalibration
+              ? '저장 중…'
+              : isLoadingCalibration
+                ? '설정 확인 중…'
+                : calibration
+                  ? calibration.enabled
+                    ? '켜짐'
+                    : '꺼짐 · 기본값'
+                  : '설정 확인 필요'}
+          </span>
+        </div>
+        <p id="plan-calibration-description">
+          최근 {calibration?.windowDays ?? 90}일의 유효한 실행 기록이{' '}
+          {calibration?.minSamples ?? 5}개 이상 쌓이면 제안 블록의 길이를
+          보정합니다. 작업에 입력한 예상 시간 자체는 바꾸지 않습니다.
+        </p>
+        {calibration?.enabled &&
+          !hasUsableFactor(calibration) &&
+          !isLoadingCalibration && (
+            <p className="plan-page__hint">
+              아직 기록이 부족해 현재는 기본 예상 시간을 사용해요.
             </p>
-            <div className="plan-page__nudge-actions">
-              <button type="button" onClick={enableCalibration} disabled={isEnablingCalibration}>
-                {isEnablingCalibration ? '켜는 중...' : '보정 적용하기'}
-              </button>
-              <Link to="/app/statistics">주간 리뷰 보기</Link>
-              <button
-                type="button"
-                aria-label="보정 안내 닫기"
-                onClick={() => dismiss('calibrationCard', NUDGE_KEYS.planCalibrationCardDismissed)}
-              >
-                ✕
-              </button>
-            </div>
+          )}
+        <p className="plan-page__hint">
+          설정을 바꾸면 현재 편집 중인 제안이 새 제안으로 바뀝니다.
+        </p>
+        {calibrationError && (
+          <div className="plan-page__calibration-error" role="alert">
+            <span>{calibrationError}</span>
+            <button
+              type="button"
+              disabled={
+                isLoadingCalibration ||
+                isUpdatingCalibration ||
+                isApplying ||
+                isLoading
+              }
+              onClick={() => {
+                if (calibrationRetryValue === null)
+                  setCalibrationRefresh((value) => value + 1)
+                else void changeCalibration(calibrationRetryValue)
+              }}
+            >
+              다시 시도
+            </button>
           </div>
         )}
+      </section>
+
+      <div className="plan-page__content">
+        {plan &&
+          plan.calibrationApplied === false &&
+          calibration?.enabled === false &&
+          hasUsableFactor(calibration) &&
+          !dismissed.calibrationCard && (
+            <div className="plan-page__nudge" role="note">
+              <p>
+                <span aria-hidden>⏱️ </span>지난 기록으로 보면 예상과 실제 걸린
+                시간이 달라요. 보정하면 블록 길이를 기록에 맞춰요.
+              </p>
+              <div className="plan-page__nudge-actions">
+                <button
+                  type="button"
+                  onClick={() => void changeCalibration(true)}
+                  disabled={
+                    isUpdatingCalibration ||
+                    isLoadingCalibration ||
+                    isApplying ||
+                    isLoading
+                  }
+                >
+                  {isUpdatingCalibration ? '저장 중...' : '보정 적용하기'}
+                </button>
+                <Link to="/app/statistics">주간 리뷰 보기</Link>
+                <button
+                  type="button"
+                  aria-label="보정 안내 닫기"
+                  onClick={() =>
+                    dismiss(
+                      'calibrationCard',
+                      NUDGE_KEYS.planCalibrationCardDismissed,
+                    )
+                  }
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
 
         {routineCount === 0 && !dismissed.routinesCard && (
           <div className="plan-page__nudge" role="note">
             <p>
-              <span aria-hidden>🍚🌙 </span>식사·수면 시간을 알려 주시면 그 시간은 비워 두고 계획해요.
+              <span aria-hidden>🍚🌙 </span>식사·수면 시간을 알려 주시면 그
+              시간은 비워 두고 계획해요.
             </p>
             <div className="plan-page__nudge-actions">
               <Link to="/app/settings/routines">생활 시간 설정하기</Link>
               <button
                 type="button"
                 aria-label="생활 시간 안내 닫기"
-                onClick={() => dismiss('routinesCard', NUDGE_KEYS.planRoutinesCardDismissed)}
+                onClick={() =>
+                  dismiss('routinesCard', NUDGE_KEYS.planRoutinesCardDismissed)
+                }
               >
                 ✕
               </button>
@@ -439,7 +720,10 @@ const PlanPage = () => {
         )}
 
         {created && (
-          <div className="plan-page__banner plan-page__banner--success" role="status">
+          <div
+            className="plan-page__banner plan-page__banner--success"
+            role="status"
+          >
             <p>
               <strong>{created.schedules.length}개 일정을 만들었어요.</strong>
             </p>
@@ -449,12 +733,15 @@ const PlanPage = () => {
                 return (
                   <li key={schedule.id}>
                     {schedule.title}
-                    {span && ` · ${formatTime(span.startMs)}–${formatTime(span.endMs)}`}
+                    {span &&
+                      ` · ${formatTime(span.startMs)}–${formatTime(span.endMs)}`}
                   </li>
                 )
               })}
             </ul>
-            <Link to={`/app/schedules?date=${created.date}`}>일정 탭에서 보기</Link>
+            <Link to={`/app/schedules?date=${created.date}`}>
+              일정 탭에서 보기
+            </Link>
           </div>
         )}
 
@@ -472,8 +759,9 @@ const PlanPage = () => {
             <section className="plan-page__section">
               <h2>하루 목표</h2>
               <p className="plan-page__objective">
-                목표 {formatDuration(plan.objective.dailyObjectiveWork)} · 기존 일정{' '}
-                {formatDuration(plan.objective.existingTaskWork)} + 제안 {formatDuration(plan.objective.plannedWork)} ={' '}
+                목표 {formatDuration(plan.objective.dailyObjectiveWork)} · 기존
+                일정 {formatDuration(plan.objective.existingTaskWork)} + 제안{' '}
+                {formatDuration(plan.objective.plannedWork)} ={' '}
                 <strong>{formatDuration(plan.objective.used)}</strong>
               </p>
               {windowStartMs !== null && windowEndMs !== null && (
@@ -488,17 +776,21 @@ const PlanPage = () => {
               )}
               {plan.calibrationApplied && (
                 <p className="plan-page__hint">
-                  블록 길이에 내 예상 대비 실제 기록을 반영했어요 · <Link to="/app/statistics">주간 리뷰에서 끄기</Link>
+                  블록 길이에 내 예상 대비 실제 기록을 반영했어요 ·{' '}
+                  <Link to="/app/statistics">주간 리뷰에서 끄기</Link>
                 </p>
               )}
               {plan.windowSource === 'PROFILE' && !dismissed.windowHint && (
                 <p className="plan-page__hint plan-page__hint--nudge">
-                  기본값 07:00–23:00 · <Link to="/app/settings/routines">수면 시간 설정하기</Link>
+                  기본값 07:00–23:00 ·{' '}
+                  <Link to="/app/settings/routines">수면 시간 설정하기</Link>
                   <button
                     type="button"
                     className="plan-page__dismiss"
                     aria-label="시간창 안내 닫기"
-                    onClick={() => dismiss('windowHint', NUDGE_KEYS.planWindowHintDismissed)}
+                    onClick={() =>
+                      dismiss('windowHint', NUDGE_KEYS.planWindowHintDismissed)
+                    }
                   >
                     ✕
                   </button>
@@ -506,18 +798,20 @@ const PlanPage = () => {
               )}
             </section>
 
-            {(timelineItems.length > 0 || !isWindowEmpty) && windowStartMs !== null && windowEndMs !== null && (
-              <section className="plan-page__section">
-                <h2>타임라인</h2>
-                <PlanTimeline
-                  zoneId={planZoneId}
-                  items={timelineItems}
-                  windowStartMs={windowStartMs}
-                  windowEndMs={windowEndMs}
-                  onSelectBlock={scrollToBlock}
-                />
-              </section>
-            )}
+            {(timelineItems.length > 0 || !isWindowEmpty) &&
+              windowStartMs !== null &&
+              windowEndMs !== null && (
+                <section className="plan-page__section">
+                  <h2>타임라인</h2>
+                  <PlanTimeline
+                    zoneId={planZoneId}
+                    items={timelineItems}
+                    windowStartMs={windowStartMs}
+                    windowEndMs={windowEndMs}
+                    onSelectBlock={scrollToBlock}
+                  />
+                </section>
+              )}
 
             <section className="plan-page__section">
               <div className="plan-page__section-head">
@@ -535,21 +829,35 @@ const PlanPage = () => {
               </div>
               {drafts.length === 0 ? (
                 <p className="plan-page__placeholder">
-                  제안할 블록이 없어요. 아직 일정이 없는 미완료 작업 중 마감이 범위 안에 있는 작업만 후보가 돼요.
+                  제안할 블록이 없어요. 아직 일정이 없는 미완료 작업 중 마감이
+                  범위 안에 있는 작업만 후보가 돼요.
                 </p>
               ) : (
                 <ul className="plan-page__blocks">
                   {draftSpans.map(({ draft, startMs, endMs }) => {
                     const issues = draft.selected
-                      ? [...(clientIssues[draft.taskId] ?? []), ...(serverIssues[draft.taskId] ?? [])]
-                      : serverIssues[draft.taskId] ?? []
-                    const warnings = draft.selected ? routineWarnings[draft.taskId] ?? [] : []
+                      ? [
+                          ...(clientIssues[draft.taskId] ?? []),
+                          ...(serverIssues[draft.taskId] ?? []),
+                        ]
+                      : (serverIssues[draft.taskId] ?? [])
+                    const warnings = draft.selected
+                      ? (routineWarnings[draft.taskId] ?? [])
+                      : []
                     const mealHint =
-                      !dismissed.mealHint && startMs !== null && endMs !== null && planDayStartMs !== null
-                        ? mealHintFor((startMs - planDayStartMs) / 60000, (endMs - planDayStartMs) / 60000, registeredKinds)
+                      !dismissed.mealHint &&
+                      startMs !== null &&
+                      endMs !== null &&
+                      planDayStartMs !== null
+                        ? mealHintFor(
+                            (startMs - planDayStartMs) / 60000,
+                            (endMs - planDayStartMs) / 60000,
+                            registeredKinds,
+                          )
                         : null
                     const isEdited =
-                      draft.startLocal !== draft.suggestedStartLocal || draft.scheduleType !== draft.suggestedType
+                      draft.startLocal !== draft.suggestedStartLocal ||
+                      draft.scheduleType !== draft.suggestedType
                     return (
                       <li
                         key={draft.taskId}
@@ -567,16 +875,28 @@ const PlanPage = () => {
                             type="checkbox"
                             aria-label={`${draft.title} 승인에 포함`}
                             checked={draft.selected}
-                            onChange={(event) => updateDraft(draft.taskId, { selected: event.target.checked })}
+                            onChange={(event) =>
+                              updateDraft(draft.taskId, {
+                                selected: event.target.checked,
+                              })
+                            }
                           />
-                          <span className="plan-page__block-title">{draft.title}</span>
+                          <span className="plan-page__block-title">
+                            {draft.title}
+                          </span>
                           {draft.recurring && (
-                            <span className="plan-page__badge" title="반복 작업의 오늘 회차예요. 그날이 마감이에요">
+                            <span
+                              className="plan-page__badge"
+                              title="반복 작업의 오늘 회차예요. 그날이 마감이에요"
+                            >
                               🔁 반복
                             </span>
                           )}
                           {draft.mustTier && (
-                            <span className="plan-page__badge plan-page__badge--must" title="마감이 지났거나 계획일이 마감이에요">
+                            <span
+                              className="plan-page__badge plan-page__badge--must"
+                              title="마감이 지났거나 계획일이 마감이에요"
+                            >
                               필수
                             </span>
                           )}
@@ -588,7 +908,11 @@ const PlanPage = () => {
                           · {formatMinutesLabel(draft.durationMinutes)}
                           {isEdited && ' · 수정함'}
                         </p>
-                        {draft.calibrationNote && <p className="plan-page__calibration">{draft.calibrationNote}</p>}
+                        {draft.calibrationNote && (
+                          <p className="plan-page__calibration">
+                            {draft.calibrationNote}
+                          </p>
+                        )}
                         <div className="plan-page__block-fields">
                           <label>
                             <span>시작</span>
@@ -596,7 +920,11 @@ const PlanPage = () => {
                               type="datetime-local"
                               aria-label={`${draft.title} 시작 시각`}
                               value={draft.startLocal}
-                              onChange={(event) => updateDraft(draft.taskId, { startLocal: event.target.value })}
+                              onChange={(event) =>
+                                updateDraft(draft.taskId, {
+                                  startLocal: event.target.value,
+                                })
+                              }
                             />
                           </label>
                           <label>
@@ -605,13 +933,18 @@ const PlanPage = () => {
                               aria-label={`${draft.title} 일정 유형`}
                               value={draft.scheduleType}
                               onChange={(event) =>
-                                updateDraft(draft.taskId, { scheduleType: event.target.value as ScheduleTaskType })
+                                updateDraft(draft.taskId, {
+                                  scheduleType: event.target
+                                    .value as ScheduleTaskType,
+                                })
                               }
                             >
                               {SCHEDULE_TYPES.map((type) => (
                                 <option key={type} value={type}>
                                   {scheduleTypeLabel[type]}
-                                  {type === draft.suggestedType ? ' (제안)' : ''}
+                                  {type === draft.suggestedType
+                                    ? ' (제안)'
+                                    : ''}
                                 </option>
                               ))}
                             </select>
@@ -634,19 +967,27 @@ const PlanPage = () => {
                         {warnings.length > 0 && (
                           <ul className="plan-page__issues plan-page__issues--warning">
                             {warnings.map((warning, index) => (
-                              <li key={`warning-${index}`}>{warning.message}</li>
+                              <li key={`warning-${index}`}>
+                                {warning.message}
+                              </li>
                             ))}
                           </ul>
                         )}
                         {mealHint && (
                           <p className="plan-page__meal-hint">
-                            {KIND_LABEL[mealHint]}시간이에요. {KIND_LABEL[mealHint]}을 등록하면 피해서 배치해요.{' '}
+                            {KIND_LABEL[mealHint]}시간이에요.{' '}
+                            {KIND_LABEL[mealHint]}을 등록하면 피해서 배치해요.{' '}
                             <Link to="/app/settings/routines">등록하기</Link>
                             <button
                               type="button"
                               className="plan-page__dismiss"
                               aria-label="식사 시간 안내 그만 보기"
-                              onClick={() => dismiss('mealHint', NUDGE_KEYS.planMealHintDismissed)}
+                              onClick={() =>
+                                dismiss(
+                                  'mealHint',
+                                  NUDGE_KEYS.planMealHintDismissed,
+                                )
+                              }
                             >
                               ✕
                             </button>
@@ -678,11 +1019,17 @@ const PlanPage = () => {
                   {plan.unplaced.map((task) => (
                     <li key={task.taskId}>
                       <div>
-                        <Link to={`/app/tasks/${task.taskId}`} className="plan-page__unplaced-title">
+                        <Link
+                          to={`/app/tasks/${task.taskId}`}
+                          className="plan-page__unplaced-title"
+                        >
                           {task.title}
                         </Link>
                         {task.mustTier && (
-                          <span className="plan-page__badge plan-page__badge--must" title="마감이 지났거나 계획일이 마감이에요">
+                          <span
+                            className="plan-page__badge plan-page__badge--must"
+                            title="마감이 지났거나 계획일이 마감이에요"
+                          >
                             필수
                           </span>
                         )}
@@ -704,15 +1051,26 @@ const PlanPage = () => {
               {applyError}
             </p>
           )}
-          {tooMany && <p className="plan-page__apply-error">한 번에 {MAX_APPLY_BLOCKS}개까지 승인할 수 있어요.</p>}
+          {tooMany && (
+            <p className="plan-page__apply-error">
+              한 번에 {MAX_APPLY_BLOCKS}개까지 승인할 수 있어요.
+            </p>
+          )}
           {hasClientIssues && (
-            <p className="plan-page__apply-error">표시된 블록의 시각을 고치거나 선택을 빼면 승인할 수 있어요.</p>
+            <p className="plan-page__apply-error">
+              표시된 블록의 시각을 고치거나 선택을 빼면 승인할 수 있어요.
+            </p>
           )}
           <div className="plan-page__footer-row">
             <span>
               {selectedCount}개 선택 · {formatMinutesLabel(selectedMinutes)}
             </span>
-            <button type="button" className="plan-page__apply" onClick={handleApply} disabled={!canApply}>
+            <button
+              type="button"
+              className="plan-page__apply"
+              onClick={handleApply}
+              disabled={!canApply}
+            >
               {isApplying ? '승인하는 중...' : '선택한 블록으로 일정 만들기'}
             </button>
           </div>

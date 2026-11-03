@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 type DonutChartProps = {
   deepWorkRatio: number
   adminWorkRatio: number
+  totalMinutes?: number
 }
 
 /**
@@ -12,10 +13,20 @@ type DonutChartProps = {
  * @param adminWorkRatio - 행정 작업 비율
  * @constructor
  */
-const DonutChart = ({ deepWorkRatio, adminWorkRatio }: DonutChartProps) => {
+const DonutChart = ({
+  deepWorkRatio,
+  adminWorkRatio,
+  totalMinutes,
+}: DonutChartProps) => {
   const deepPercentage = Math.round(deepWorkRatio * 100)
   const adminPercentage = Math.round(adminWorkRatio * 100)
   const other = Math.max(0, 100 - deepPercentage - adminPercentage)
+  if (totalMinutes === 0)
+    return (
+      <section className="donut-chart">
+        <p>이 기간에 완료한 일정의 실행 기록이 없어요.</p>
+      </section>
+    )
 
   return (
     <section className="donut-chart">
@@ -23,11 +34,11 @@ const DonutChart = ({ deepWorkRatio, adminWorkRatio }: DonutChartProps) => {
         className="donut-chart__circle"
         aria-hidden
         style={{
-          ...( {
+          ...({
             '--deep': `${deepPercentage}%`,
             '--admin': `${deepPercentage + adminPercentage}%`,
             '--other': '100%',
-          } as CSSProperties ),
+          } as CSSProperties),
         }}
       >
         <div className="donut-chart__label">

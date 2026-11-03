@@ -3,14 +3,16 @@ import './ScheduleCard.css'
 import { scheduleTypeLabel, stateIcon, stateLabel } from '@constants/schedules'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
+import useScheduleActions from '../hooks/useScheduleActions'
+import { CategoryBadge } from '@features/categories'
 
 type ScheduleCardProps = {
   schedule: ScheduleSummary
   onOpenDetail: (scheduleId: number) => void
-  onDelete: (scheduleId: number) => void
-  onStart: (scheduleId: number) => void
-  onComplete: (scheduleId: number) => void
-  onCancel: (scheduleId: number) => void
+  onDelete?: (scheduleId: number) => void
+  onStart?: (scheduleId: number) => void
+  onComplete?: (scheduleId: number) => void
+  onCancel?: (scheduleId: number) => void
 }
 
 /**
@@ -26,10 +28,8 @@ const ScheduleCard = ({
   schedule,
   onOpenDetail,
   onDelete,
-  onStart,
-  onComplete,
-  onCancel,
 }: ScheduleCardProps) => {
+  const actions = useScheduleActions(schedule.id, schedule.state)
   const { id, title, description, scheduleType, state } = schedule
   const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
 
@@ -40,8 +40,13 @@ const ScheduleCard = ({
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation() // 카드 클릭 이벤트 방지
     // 반복 회차는 화면이 범위(이번만·이번 및 이후·전체)를 묻는다.
-    if (schedule.recurrence || window.confirm(`"${title}" 일정을 휴지통으로 옮길까요?\n30일 안에 되돌릴 수 있어요.`)) {
-      onDelete(id)
+    if (
+      schedule.recurrence ||
+      window.confirm(
+        `"${title}" 일정을 휴지통으로 옮길까요?\n30일 안에 되돌릴 수 있어요.`,
+      )
+    ) {
+      onDelete?.(id)
     }
   }
 
@@ -50,10 +55,10 @@ const ScheduleCard = ({
 
     if (state === 'NOT_STARTED') {
       // 미시작 → 시작
-      onStart(id)
+      void actions.start()
     } else if (state === 'COMPLETED') {
       // 완료 → 즉시 미시작으로 전이
-      onCancel(id)
+      void actions.cancel()
     }
   }
 
@@ -63,7 +68,7 @@ const ScheduleCard = ({
   const handleQuickComplete = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (state === 'COMPLETED') return
-    onComplete(id)
+    void actions.complete()
   }
 
   return (
@@ -71,14 +76,7 @@ const ScheduleCard = ({
       className="schedule-card"
       aria-label={title}
       onClick={handleClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          handleClick()
-        }
-      }}
+      aria-busy={actions.isMutating}
     >
       <div className="schedule-card__main">
         <button
@@ -90,7 +88,7 @@ const ScheduleCard = ({
             .filter(Boolean)
             .join(' ')}
           onClick={handleStateIconClick}
-          disabled={!isStateClickable}
+          disabled={!isStateClickable || actions.isMutating}
           title={stateLabel[state]}
           aria-label={`${stateLabel[state]} 상태`}
         >
@@ -98,16 +96,38 @@ const ScheduleCard = ({
         </button>
         <div className="schedule-card__text">
           <div className="schedule-card__title-row">
-            <p className="schedule-card__title">{title}</p>
+            <button
+              type="button"
+              className="schedule-card__title"
+              onClick={(event) => {
+                event.stopPropagation()
+                handleClick()
+              }}
+            >
+              {title}
+            </button>
             {schedule.recurrence && (
-              <span className="recurrence-badge" title="반복 일정" aria-label="반복 일정">
+              <span
+                className="recurrence-badge"
+                title="반복 일정"
+                aria-label="반복 일정"
+              >
                 🔁 반복
               </span>
             )}
-            {scheduleType && <p className="schedule-card__subtitle">{scheduleTypeLabel[scheduleType]}</p>}
-            {plannedDurationLabel && <p className="schedule-card__subtitle">{plannedDurationLabel}</p>}
+            {scheduleType && (
+              <p className="schedule-card__subtitle">
+                {scheduleTypeLabel[scheduleType]}
+              </p>
+            )}
+            {plannedDurationLabel && (
+              <p className="schedule-card__subtitle">{plannedDurationLabel}</p>
+            )}
+            <CategoryBadge kind="schedule" itemId={id} />
           </div>
-          {description && <p className="schedule-card__description">{description}</p>}
+          {description && (
+            <p className="schedule-card__description">{description}</p>
+          )}
         </div>
         <div className="schedule-card__actions">
           {state === 'NOT_STARTED' && (
@@ -116,20 +136,40 @@ const ScheduleCard = ({
               className="schedule-card__quick-complete"
               onClick={handleQuickComplete}
               aria-label="즉시 완료"
+              disabled={actions.isMutating}
             >
               ✓ 즉시 완료
             </button>
           )}
-          <button
-            className="schedule-card__delete-btn"
-            onClick={handleDeleteClick}
-            title="삭제"
-            aria-label="일정 삭제"
-          >
-            🗑️
-          </button>
+          {onDelete && (
+            <button
+              className="schedule-card__delete-btn"
+              onClick={handleDeleteClick}
+              title="삭제"
+              aria-label="일정 삭제"
+              disabled={actions.isMutating}
+            >
+              🗑️
+            </button>
+          )}
         </div>
       </div>
+      {actions.lastError && (
+        <div
+          className="schedule-card__error"
+          role="alert"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <span>{actions.lastError}</span>
+          <button
+            type="button"
+            onClick={actions.retry}
+            disabled={actions.isMutating}
+          >
+            다시 시도
+          </button>
+        </div>
+      )}
     </article>
   )
 }

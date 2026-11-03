@@ -3,8 +3,15 @@ import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
 import type { DateTimeWithZone, DateWithOffset } from '../shared/types/datetime'
 import type { Task } from '../features/tasks/types/task'
-import type { ScheduleResponse, ScheduleState } from '../features/schedules/types/schedule'
-import type { McpActivity, OAuthAuthorizationRequest, OAuthGrant } from '../features/oauth/types/oauth'
+import type {
+  ScheduleResponse,
+  ScheduleState,
+} from '../features/schedules/types/schedule'
+import type {
+  McpActivity,
+  OAuthAuthorizationRequest,
+  OAuthGrant,
+} from '../features/oauth/types/oauth'
 import type { Routine } from '../features/routines/types/routine'
 
 dayjs.extend(utc)
@@ -18,16 +25,34 @@ export type MockUser = {
   zoneOffset: string
 }
 
-const makeDateTime = (offsetDays: number, hour: number, minute = 0, zoneId = 'Asia/Seoul'): DateTimeWithZone => {
-  const base = dayjs().tz(zoneId).add(offsetDays, 'day').hour(hour).minute(minute).second(0)
+const makeDateTime = (
+  offsetDays: number,
+  hour: number,
+  minute = 0,
+  zoneId = 'Asia/Seoul',
+): DateTimeWithZone => {
+  const base = dayjs()
+    .tz(zoneId)
+    .add(offsetDays, 'day')
+    .hour(hour)
+    .minute(minute)
+    .second(0)
   return {
     dateTime: base.format('YYYY-MM-DDTHH:mm:ss'),
     zoneId,
   }
 }
 
-const makeDateWithOffset = (offsetDays: number, zoneId = 'Asia/Seoul'): DateWithOffset => {
-  const base = dayjs().tz(zoneId).add(offsetDays, 'day').hour(0).minute(0).second(0)
+const makeDateWithOffset = (
+  offsetDays: number,
+  zoneId = 'Asia/Seoul',
+): DateWithOffset => {
+  const base = dayjs()
+    .tz(zoneId)
+    .add(offsetDays, 'day')
+    .hour(0)
+    .minute(0)
+    .second(0)
   return {
     date: base.format('YYYY-MM-DD'),
     zoneId,
@@ -39,14 +64,27 @@ let taskSeq = 6
 let scheduleSeq = 4
 
 export const mockUsers: MockUser[] = [
-  { id: 1, username: 'demo', password: 'demo1234', nickname: '데모 유저', zoneOffset: '+09:00' },
-  { id: 2, username: 'pinit', password: 'pinit', nickname: 'Pinit 팀', zoneOffset: '+09:00' },
+  {
+    id: 1,
+    username: 'demo',
+    password: 'demo1234',
+    nickname: '데모 유저',
+    zoneOffset: '+09:00',
+  },
+  {
+    id: 2,
+    username: 'pinit',
+    password: 'pinit',
+    nickname: 'Pinit 팀',
+    zoneOffset: '+09:00',
+  },
 ]
 
 export const mockTasks: Task[] = [
   {
     id: 1,
     title: 'UI 리서치 정리',
+    nextTaskIds: [2],
     description: '다음 스프린트 준비용',
     dueDate: makeDateWithOffset(0, 'Asia/Seoul'),
     importance: 7,
@@ -58,6 +96,7 @@ export const mockTasks: Task[] = [
   {
     id: 2,
     title: '푸시 알림 세팅',
+    previousTaskIds: [1],
     description: '웹 푸시 키/토큰 확인',
     dueDate: makeDateWithOffset(1, 'Asia/Seoul'),
     importance: 6,
@@ -179,16 +218,20 @@ export const vapidPublicKey = 'MOCK_VAPID_PUBLIC_KEY'
 
 const daysFromNow = (days: number) => dayjs().add(days, 'day').toISOString()
 
-
-export let activeScheduleId: number | null = mockSchedules.find((item) => item.state === 'IN_PROGRESS')?.id ?? null
+export let activeScheduleId: number | null =
+  mockSchedules.find((item) => item.state === 'IN_PROGRESS')?.id ?? null
 
 export const nextTaskId = () => ++taskSeq
 export const nextScheduleId = () => ++scheduleSeq
 
-const minutesFromNow = (minutes: number) => dayjs().add(minutes, 'minute').toISOString()
+const minutesFromNow = (minutes: number) =>
+  dayjs().add(minutes, 'minute').toISOString()
 
 // /oauth/consent?request=demo-local | demo-web | demo-delete | demo-read 로 동의 화면을 확인할 수 있다. 그 외 id는 404(만료)다.
-export const mockOAuthAuthorizationRequests: Record<string, OAuthAuthorizationRequest & { redirectUri: string }> = {
+export const mockOAuthAuthorizationRequests: Record<
+  string,
+  OAuthAuthorizationRequest & { redirectUri: string }
+> = {
   'demo-local': {
     requestId: 'demo-local',
     clientName: 'Claude Code',
@@ -256,28 +299,107 @@ export const mockOAuthGrants: OAuthGrant[] = [
 
 // AI 사용 이력(ADR-0026) 예시: 최신순, 값 없이 인자 이름과 대상 id만 있다.
 const ACTIVITY_SAMPLES: Omit<McpActivity, 'id' | 'calledAt'>[] = [
-  { clientName: 'Claude', grantId: 2, tool: 'apply_plan', access: 'WRITE', outcome: 'OK', argumentNames: ['blocks', 'date', 'zoneId'], targets: [{ type: 'task', id: 3 }, { type: 'schedule', id: 41 }, { type: 'task', id: 5 }, { type: 'schedule', id: 42 }], durationMs: 84 },
-  { clientName: 'Claude', grantId: 2, tool: 'plan_day', access: 'READ', outcome: 'OK', argumentNames: ['date', 'zoneId'], targets: [], durationMs: 61 },
-  { clientName: 'Claude', grantId: 2, tool: 'delete_task', access: 'DELETE', outcome: 'OK', argumentNames: ['confirmationToken', 'taskId'], targets: [{ type: 'task', id: 9 }], durationMs: 22 },
-  { clientName: 'Claude', grantId: 2, tool: 'delete_task', access: 'DELETE', outcome: 'OK', argumentNames: ['taskId'], targets: [{ type: 'task', id: 9 }], durationMs: 18 },
-  { clientName: 'Claude Code', grantId: 1, tool: 'update_task', access: 'WRITE', outcome: 'DENIED', argumentNames: ['importance', 'taskId'], targets: [{ type: 'task', id: 3 }], durationMs: 0 },
-  { clientName: 'Claude', grantId: 2, tool: 'replace_routines', access: 'WRITE', outcome: 'ERROR', argumentNames: ['routines'], targets: [], durationMs: 15 },
-  { clientName: 'Claude', grantId: 2, tool: 'get_statistics', access: 'READ', outcome: 'OK', argumentNames: [], targets: [], durationMs: 9 },
+  {
+    clientName: 'Claude',
+    grantId: 2,
+    tool: 'apply_plan',
+    access: 'WRITE',
+    outcome: 'OK',
+    argumentNames: ['blocks', 'date', 'zoneId'],
+    targets: [
+      { type: 'task', id: 3 },
+      { type: 'schedule', id: 41 },
+      { type: 'task', id: 5 },
+      { type: 'schedule', id: 42 },
+    ],
+    durationMs: 84,
+  },
+  {
+    clientName: 'Claude',
+    grantId: 2,
+    tool: 'plan_day',
+    access: 'READ',
+    outcome: 'OK',
+    argumentNames: ['date', 'zoneId'],
+    targets: [],
+    durationMs: 61,
+  },
+  {
+    clientName: 'Claude',
+    grantId: 2,
+    tool: 'delete_task',
+    access: 'DELETE',
+    outcome: 'OK',
+    argumentNames: ['confirmationToken', 'taskId'],
+    targets: [{ type: 'task', id: 9 }],
+    durationMs: 22,
+  },
+  {
+    clientName: 'Claude',
+    grantId: 2,
+    tool: 'delete_task',
+    access: 'DELETE',
+    outcome: 'OK',
+    argumentNames: ['taskId'],
+    targets: [{ type: 'task', id: 9 }],
+    durationMs: 18,
+  },
+  {
+    clientName: 'Claude Code',
+    grantId: 1,
+    tool: 'update_task',
+    access: 'WRITE',
+    outcome: 'DENIED',
+    argumentNames: ['importance', 'taskId'],
+    targets: [{ type: 'task', id: 3 }],
+    durationMs: 0,
+  },
+  {
+    clientName: 'Claude',
+    grantId: 2,
+    tool: 'replace_routines',
+    access: 'WRITE',
+    outcome: 'ERROR',
+    argumentNames: ['routines'],
+    targets: [],
+    durationMs: 15,
+  },
+  {
+    clientName: 'Claude',
+    grantId: 2,
+    tool: 'get_statistics',
+    access: 'READ',
+    outcome: 'OK',
+    argumentNames: [],
+    targets: [],
+    durationMs: 9,
+  },
 ]
 
-export const mockMcpActivity: McpActivity[] = Array.from({ length: 25 }, (_, index) => ({
-  ...ACTIVITY_SAMPLES[index % ACTIVITY_SAMPLES.length],
-  id: 100 - index,
-  calledAt: dayjs().subtract(index * 37, 'minute').toISOString(),
-}))
+export const mockMcpActivity: McpActivity[] = Array.from(
+  { length: 25 },
+  (_, index) => ({
+    ...ACTIVITY_SAMPLES[index % ACTIVITY_SAMPLES.length],
+    id: 100 - index,
+    calledAt: dayjs()
+      .subtract(index * 37, 'minute')
+      .toISOString(),
+  }),
+)
 
-export const setActiveScheduleId = (id: number | null, nextState?: ScheduleState) => {
+export const setActiveScheduleId = (
+  id: number | null,
+  nextState?: ScheduleState,
+) => {
   activeScheduleId = id
   if (id == null || nextState == null) return
   mockSchedules.forEach((schedule) => {
     if (schedule.id === id) {
       schedule.state = nextState
-    } else if (nextState === 'IN_PROGRESS' && schedule.state === 'IN_PROGRESS') {
+    } else if (
+      nextState === 'IN_PROGRESS' &&
+      schedule.state === 'IN_PROGRESS'
+    ) {
       schedule.state = 'SUSPENDED'
     }
   })

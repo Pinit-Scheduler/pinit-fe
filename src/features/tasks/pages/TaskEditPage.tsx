@@ -1,9 +1,18 @@
-import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import {
+  useCategories,
+  assignTaskCategory,
+  assignSeriesCategory,
+} from '@features/categories'
 import TaskForm from '../components/TaskForm'
 import type { TaskFormValues } from '../components/TaskForm'
 import { fetchTaskDetail, updateTask } from '../api/tasks'
-import { toApiDateWithOffset, toDayjsFromDateWithOffset } from '@shared/utils/datetime'
+import {
+  toApiDateWithOffset,
+  toDayjsFromDateWithOffset,
+} from '@shared/utils/datetime'
 import type { Task } from '../types/task'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
@@ -16,12 +25,22 @@ import {
 } from '@shared/utils/isoDuration'
 import './TaskPages.css'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
-import { confirmAndUpdateSeries } from '@features/recurrence/utils/seriesMutations'
+import {
+  confirmAndUpdateSeries,
+  previewSeriesUpdate,
+} from '@features/recurrence/utils/seriesMutations'
 import { flexibleChanges } from '@features/recurrence/utils/recurrenceRules'
 
 const TaskEditPage = () => {
   const { taskId } = useParams()
-  const navigate = useNavigate()
+  const { complete } = useRouteSurfaceNavigation()
+  const {
+    taskCategory,
+    isLoading: categoryLoading,
+    hasLoaded: categoryLoaded,
+    error: categoryLoadError,
+    reload: reloadCategories,
+  } = useCategories()
   const numericId = taskId ? Number(taskId) : null
   const [task, setTask] = useState<Task | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +50,13 @@ const TaskEditPage = () => {
   const { setTask: cacheSetTask } = useTaskCache()
   const { addToast } = useToast()
   const recurrenceScope = useRecurrenceScope()
+  const savedCategory = useRef<{ itemId: number; value: number | null } | null>(
+    null,
+  )
+  const categoryChanged = (values: TaskFormValues) =>
+    values.categoryChanged === true ||
+    (savedCategory.current?.itemId === numericId &&
+      savedCategory.current.value !== values.categoryId)
 
   useEffect(() => {
     if (!numericId) return
@@ -46,7 +72,9 @@ const TaskEditPage = () => {
         setInitialNextIds(data.nextTaskIds ?? [])
       } catch (err) {
         if (!mounted) return
-        setError(err instanceof Error ? err.message : '작업을 불러오지 못했습니다.')
+        setError(
+          err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
+        )
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -58,53 +86,126 @@ const TaskEditPage = () => {
   }, [numericId])
 
   /** ADR-0019 "이번 및 이후"·"전체": 바꾼 값만 시리즈에 보낸다. 날짜 이동은 "이번만"에서만 된다. */
-  const updateSeries = async (values: TaskFormValues, scope: 'FOLLOWING' | 'ALL') => {
+  const updateSeries = async (
+    values: TaskFormValues,
+    scope: 'FOLLOWING' | 'ALL',
+  ) => {
     if (!task?.recurrence) return
-    if (values.dueDate !== toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD')) {
-      addToast('날짜를 옮기는 것은 "이번만"으로 해 주세요. 반복 요일은 반복 관리에서 바꿔요.', 'error')
+    if (
+      values.dueDate !==
+      toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD')
+    ) {
+      addToast(
+        '날짜를 옮기는 것은 "이번만"으로 해 주세요. 반복 요일은 반복 관리에서 바꿔요.',
+        'error',
+      )
       return
     }
-    const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
+    const expectedDuration = parseDurationInput(
+      values.expectedDurationMinutes,
+      { zeroIsEmpty: true },
+    )
     const before = {
       title: task.title,
       description: task.description,
       importance: task.importance,
       difficulty: task.difficulty,
-      expectedDurationMinutes: parseIsoDurationMinutes(task.expectedDuration) ?? 0,
+      expectedDurationMinutes:
+        parseIsoDurationMinutes(task.expectedDuration) ?? 0,
     }
     const after = {
       title: values.title,
       description: values.description,
       importance: values.importance,
       difficulty: values.difficulty,
-      expectedDurationMinutes: expectedDuration.kind === 'value' ? expectedDuration.minutes : 0,
+      expectedDurationMinutes:
+        expectedDuration.kind === 'value' ? expectedDuration.minutes : 0,
     }
+    let categorySaved = false
     try {
-      const outcome = await confirmAndUpdateSeries(task.recurrence, scope, flexibleChanges(before, after))
+      if (categoryChanged(values)) {
+        await assignSeriesCategory(
+          task.recurrence.seriesId,
+          values.categoryId,
+          scope,
+          task.recurrence.occurrenceDate,
+        )
+        savedCategory.current = { itemId: task.id, value: values.categoryId }
+        categorySaved = true
+        dispatchTaskChanged({ reason: 'category' })
+      }
+      const outcome = await confirmAndUpdateSeries(
+        task.recurrence,
+        scope,
+        flexibleChanges(before, after),
+        true,
+      )
       if (outcome === 'cancelled') return
       if (outcome === 'updated') {
         dispatchTaskChanged({ reason: 'recurrence' })
         addToast('반복 작업을 바꿨어요.', 'success')
       }
-      navigate('/app/tasks')
+      complete('/app/tasks')
     } catch (err) {
       console.error('반복 작업 수정 실패', err)
-      addToast('반복 작업을 바꾸지 못했어요.', 'error')
+      addToast(
+        categorySaved
+          ? '카테고리는 저장됐지만 반복 작업 내용은 저장하지 못했어요. 입력한 내용은 유지됩니다. 다시 저장해 주세요.'
+          : '반복 작업을 바꾸지 못했어요. 입력한 내용은 유지됩니다.',
+        'error',
+      )
     }
   }
 
   const handleSubmit = async (values: TaskFormValues) => {
     if (!numericId) return
     if (task?.recurrence) {
-      const scope = await recurrenceScope.ask('edit', task.title)
+      const scope = await recurrenceScope.ask('edit', task.title, {
+        preview: async (scope) => {
+          if (scope === 'THIS') return '이번 작업만 수정합니다.'
+          const duration = parseDurationInput(values.expectedDurationMinutes, {
+            zeroIsEmpty: true,
+          })
+          const before = {
+            title: task.title,
+            description: task.description,
+            importance: task.importance,
+            difficulty: task.difficulty,
+            expectedDurationMinutes:
+              parseIsoDurationMinutes(task.expectedDuration) ?? 0,
+          }
+          const after = {
+            title: values.title,
+            description: values.description,
+            importance: values.importance,
+            difficulty: values.difficulty,
+            expectedDurationMinutes:
+              duration.kind === 'value' ? duration.minutes : 0,
+          }
+          const changes = flexibleChanges(before, after)
+          const changesCategory = categoryChanged(values)
+          if (changesCategory && !Object.keys(changes).length)
+            return '카테고리를 선택한 회차 범위와 이후 새 회차에 적용합니다.'
+          return (
+            (await previewSeriesUpdate(task.recurrence!, scope, changes)) +
+            (changesCategory
+              ? ' 카테고리도 선택한 범위와 이후 새 회차에 적용됩니다.'
+              : '')
+          )
+        },
+      })
       if (scope === null) return
       if (scope !== 'THIS') {
         await updateSeries(values, scope)
         return
       }
     }
+    let contentSaved = false
     try {
-      const expectedDuration = parseDurationInput(values.expectedDurationMinutes, { zeroIsEmpty: true })
+      const expectedDuration = parseDurationInput(
+        values.expectedDurationMinutes,
+        { zeroIsEmpty: true },
+      )
       // 입력값을 비우면 "PT0S"로 해제해 난이도 환산값으로 돌린다. 원래 입력이 없었으면 보내지 않는다(유지).
       const expectedDurationField =
         expectedDuration.kind === 'value'
@@ -138,13 +239,27 @@ const TaskEditPage = () => {
         tagIds: values.tagIds,
       }
       const updated = await updateTask(numericId, payload)
+      setTask(updated)
+      setInitialPrevIds(values.previousTaskIds)
+      setInitialNextIds(values.nextTaskIds)
       cacheSetTask(updated)
+      contentSaved = true
       dispatchTaskChanged(numericId, 'update')
+      if (categoryChanged(values)) {
+        await assignTaskCategory(numericId, values.categoryId)
+        savedCategory.current = { itemId: numericId, value: values.categoryId }
+        dispatchTaskChanged(numericId, 'category')
+      }
       addToast('작업을 수정했어요.', 'success')
-      navigate('/app/tasks')
+      complete('/app/tasks')
     } catch (err) {
       console.error('작업 수정 실패', err)
-      addToast('작업을 수정하지 못했습니다.', 'error')
+      addToast(
+        contentSaved
+          ? '작업 내용은 저장됐지만 카테고리는 저장하지 못했어요. 입력한 내용은 유지됩니다. 다시 저장해 주세요.'
+          : '작업을 수정하지 못했습니다. 입력한 내용은 유지됩니다.',
+        'error',
+      )
     }
   }
 
@@ -163,44 +278,73 @@ const TaskEditPage = () => {
       <header className="task-page__header">
         <p className="task-page__eyebrow">작업 수정</p>
         <h1 className="task-page__title">작업 업데이트</h1>
-        <p className="task-page__description">Task 상세를 불러와 폼에 채워 수정합니다.</p>
+        <p className="task-page__description">
+          작업 정보와 카테고리, 이전·다음 연결을 수정하세요.
+        </p>
       </header>
       <div className="task-page__content">
-        {isLoading ? (
+        {isLoading || (categoryLoading && !categoryLoaded) ? (
           <div className="task-page__placeholder">
             <p>작업 정보를 불러오는 중...</p>
           </div>
-        ) : error || !task ? (
+        ) : error || (categoryLoadError && !categoryLoaded) || !task ? (
           <div className="task-page__placeholder">
             <p>작업 정보를 불러오지 못했습니다.</p>
-            <p>{error}</p>
+            <p>{error ?? categoryLoadError}</p>
+            <button
+              type="button"
+              onClick={() => void reloadCategories().catch(() => {})}
+            >
+              카테고리 다시 불러오기
+            </button>
           </div>
         ) : (
-          <TaskForm
-            initialValues={{
-              title: task.title,
-              description: task.description,
-              dueDate: toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD'),
-              importance: task.importance,
-              difficulty: task.difficulty as TaskFormValues['difficulty'],
-              expectedDurationMinutes: (() => {
-                const entered = parseIsoDurationMinutes(task.expectedDuration)
-                return entered ? String(entered) : ''
-              })(),
-              previousTaskIds: initialPrevIds,
-              nextTaskIds: initialNextIds,
-              tagIds: (task.tags ?? []).map((tag) => tag.id),
-            }}
-            taskId={task.id}
-            onSubmit={handleSubmit}
-            submitLabel="작업 수정"
-            hideDependencies={Boolean(task.recurrence)}
-            effectiveExpectedDurationLabel={(() => {
-              const label = formatIsoDurationLabel(task.effectiveExpectedDuration)
-              if (!label) return undefined
-              return `${label} · ${task.expectedDuration ? '직접 입력' : '난이도 기준'}`
-            })()}
-          />
+          <>
+            {categoryLoadError && (
+              <div role="alert">
+                <p>
+                  카테고리를 새로 확인하지 못했어요.작성 중인 내용은 유지됩니다.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void reloadCategories().catch(() => {})}
+                >
+                  카테고리 다시 확인
+                </button>
+              </div>
+            )}
+            <TaskForm
+              key={task.id}
+              initialValues={{
+                title: task.title,
+                description: task.description,
+                dueDate: toDayjsFromDateWithOffset(task.dueDate).format(
+                  'YYYY-MM-DD',
+                ),
+                importance: task.importance,
+                difficulty: task.difficulty as TaskFormValues['difficulty'],
+                expectedDurationMinutes: (() => {
+                  const entered = parseIsoDurationMinutes(task.expectedDuration)
+                  return entered ? String(entered) : ''
+                })(),
+                previousTaskIds: initialPrevIds,
+                nextTaskIds: initialNextIds,
+                tagIds: (task.tags ?? []).map((tag) => tag.id),
+                categoryId: taskCategory(task.id)?.id ?? null,
+              }}
+              taskId={task.id}
+              onSubmit={handleSubmit}
+              submitLabel="작업 수정"
+              hideDependencies={Boolean(task.recurrence)}
+              effectiveExpectedDurationLabel={(() => {
+                const label = formatIsoDurationLabel(
+                  task.effectiveExpectedDuration,
+                )
+                if (!label) return undefined
+                return `${label} · ${task.expectedDuration ? '직접 입력' : '난이도 기준'}`
+              })()}
+            />
+          </>
         )}
       </div>
       {recurrenceScope.dialog}

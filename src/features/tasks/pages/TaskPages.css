@@ -155,7 +155,9 @@
   height: 12px;
   border-radius: 4px;
   background: transparent;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
 }
 
 .task-page__checkbox input:checked + .task-page__checkbox-mark {
@@ -426,4 +428,65 @@
 
 .tag-manager__delete {
   color: var(--c-red-700);
+}
+
+.app-shell .task-page {
+  padding: 0;
+  gap: 22px;
+}
+.app-shell .task-page__header h1 {
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+.app-shell .task-page__content {
+  background: var(--c-surface);
+  border: 1px solid var(--c-slate-200);
+  border-radius: 13px;
+  padding: 10px 20px;
+}
+.app-shell .task-page__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24px;
+  list-style: none;
+}
+.app-shell .task-page__item {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--c-slate-200);
+}
+.app-shell .task-page__item-head strong {
+  font-size: 17px;
+  line-height: 1.7;
+}
+.app-shell .task-page__pill {
+  background: var(--c-slate-100);
+  border-radius: 5px;
+  font-weight: 400;
+  font-size: 13px;
+}
+.app-shell .task-filter {
+  background: var(--c-surface);
+  border-color: var(--c-slate-200);
+}
+.app-shell .task-page__primary {
+  border-radius: 8px;
+  font-weight: 500;
+  background: var(--c-blue-600);
+}
+@media (max-width: 1200px) {
+  .app-shell .task-page__list {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .app-shell .task-page__content {
+    padding: 8px 14px;
+  }
+  .app-shell .task-page__header h1 {
+    font-size: 26px;
+  }
 }

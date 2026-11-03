@@ -1,33 +1,54 @@
+import { CategoryBadge } from '@features/categories'
 import { useEffect, useState, useId } from 'react'
 import Modal from '@shared/components/common/Modal'
-import { useNavigate } from 'react-router-dom'
-import { completeTask, createScheduleFromTask, deleteTask, fetchTaskDetail, reopenTask } from '../api/tasks'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import {
+  completeTask,
+  createScheduleFromTask,
+  deleteTask,
+  fetchTaskDetail,
+  reopenTask,
+} from '../api/tasks'
 import type { Task } from '../types/task'
-import { getDifficultyStyle, getImportanceStyle } from '@shared/utils/priorityStyles'
+import {
+  getDifficultyStyle,
+  getImportanceStyle,
+} from '@shared/utils/priorityStyles'
 import TaskScheduleModal from './TaskScheduleModal'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
-import { dispatchScheduleChanged, dispatchTaskChanged } from '@shared/utils/events'
+import {
+  dispatchScheduleChanged,
+  dispatchTaskChanged,
+} from '@shared/utils/events'
 import { getDeadlineStyle } from '@shared/utils/deadlineStyles'
 import { formatDateWithOffset } from '@shared/utils/datetime'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import './TaskDetailModal.css'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
-import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
+import {
+  confirmAndDeleteSeries,
+  previewSeriesDelete,
+} from '@features/recurrence/utils/seriesMutations'
 import { useTrashUndo } from '@features/trash'
 
 type TaskDetailModalProps = {
   taskId: number
   onClose: () => void
+  embedded?: boolean
 }
 
-const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
+const TaskDetailModal = ({
+  taskId,
+  onClose,
+  embedded = false,
+}: TaskDetailModalProps) => {
   const titleId = useId()
   const { tasksById, setTask, removeTask } = useTaskCache()
   const { addToast } = useToast()
   const { offerTaskUndo } = useTrashUndo()
-  const navigate = useNavigate()
+  const { open } = useRouteSurfaceNavigation()
   const [task, setTaskState] = useState<Task | null>(tasksById[taskId] ?? null)
   const [isLoading, setIsLoading] = useState(!tasksById[taskId])
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +76,9 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         setTask(data)
       } catch (err) {
         if (!mounted) return
-        setError(err instanceof Error ? err.message : '작업을 불러오지 못했습니다.')
+        setError(
+          err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
+        )
       } finally {
         if (mounted) setIsLoading(false)
       }
@@ -78,11 +101,18 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         await completeTask(task.id)
       }
       const nextCompleted = !(task.completed ?? task.isCompleted ?? false)
-      const next = { ...task, completed: nextCompleted, isCompleted: nextCompleted }
+      const next = {
+        ...task,
+        completed: nextCompleted,
+        isCompleted: nextCompleted,
+      }
       setTaskState(next)
       setTask(next)
       dispatchTaskChanged(task.id, nextCompleted ? 'complete' : 'reopen')
-      addToast(nextCompleted ? '작업을 완료했어요.' : '작업을 미완료로 전환했어요.', 'success')
+      addToast(
+        nextCompleted ? '작업을 완료했어요.' : '작업을 미완료로 전환했어요.',
+        'success',
+      )
     } catch (err) {
       console.error('작업 상태 변경 실패', err)
       addToast('완료 상태를 변경하지 못했습니다.', 'error')
@@ -94,11 +124,18 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
   const handleDelete = async () => {
     if (!task) return
     if (task.recurrence) {
-      const scope = await recurrenceScope.ask('delete', task.title)
+      const scope = await recurrenceScope.ask('delete', task.title, {
+        preview: (selected) =>
+          selected === 'THIS'
+            ? Promise.resolve(
+                '이번 회차만 휴지통으로 옮겨요. 30일 안에 되돌릴 수 있어요.',
+              )
+            : previewSeriesDelete(task.recurrence!, selected),
+      })
       if (scope === null) return
       if (scope !== 'THIS') {
         try {
-          if (await confirmAndDeleteSeries(task.recurrence, scope)) {
+          if (await confirmAndDeleteSeries(task.recurrence, scope, true)) {
             dispatchTaskChanged({ reason: 'recurrence' })
             dispatchScheduleChanged({ reason: 'recurrence' })
             addToast('반복 작업을 지웠어요.', 'success')
@@ -110,7 +147,11 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
         }
         return
       }
-    } else if (!window.confirm('작업을 휴지통으로 옮길까요?\n선후관계는 끊기고, 30일 안에 되돌리면 다시 이어져요.')) {
+    } else if (
+      !window.confirm(
+        '작업을 휴지통으로 옮길까요?\n선후관계는 끊기고, 30일 안에 되돌리면 다시 이어져요.',
+      )
+    ) {
       return
     }
     try {
@@ -126,11 +167,16 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
     }
   }
 
-  const handleAssignSchedule = async (payload: Parameters<typeof createScheduleFromTask>[1]) => {
+  const handleAssignSchedule = async (
+    payload: Parameters<typeof createScheduleFromTask>[1],
+  ) => {
     if (!task) return
     try {
       await createScheduleFromTask(task.id, payload)
-      dispatchScheduleChanged({ reason: 'task-assigned', scheduleId: undefined })
+      dispatchScheduleChanged({
+        reason: 'task-assigned',
+        scheduleId: undefined,
+      })
       addToast('일정으로 배정했어요.', 'success')
       setShowScheduleModal(false)
     } catch (err) {
@@ -141,12 +187,23 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
 
   return (
     <>
-      <Modal backdropClassName="task-detail-modal__backdrop" className="task-detail-modal__content" onClose={onClose} labelledBy={titleId} ariaLabel="작업 상세">
+      <Modal
+        embedded={embedded}
+        backdropClassName="task-detail-modal__backdrop"
+        className="task-detail-modal__content"
+        onClose={onClose}
+        labelledBy={titleId}
+        ariaLabel="작업 상세"
+      >
         {isLoading ? (
-          <p className="task-detail-modal__loading">작업 정보를 불러오는 중...</p>
+          <p className="task-detail-modal__loading">
+            작업 정보를 불러오는 중...
+          </p>
         ) : error || !task ? (
           <div className="task-detail-modal__body">
-            <p className="task-detail-modal__loading">작업 정보를 불러오지 못했습니다.</p>
+            <p className="task-detail-modal__loading">
+              작업 정보를 불러오지 못했습니다.
+            </p>
             <p className="task-detail-modal__description">{error}</p>
             <button
               type="button"
@@ -177,30 +234,48 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
                 {task.recurrence && (
                   <p className="task-detail-modal__description">
                     <span className="recurrence-badge">🔁 반복</span>{' '}
-                    {task.recurrence.occurrenceDate} 회차{task.missed ? ' · 놓친 회차예요' : ''}
+                    {task.recurrence.occurrenceDate} 회차
+                    {task.missed ? ' · 놓친 회차예요' : ''}
                   </p>
                 )}
-                <p className="task-detail-modal__description">{task.description}</p>
+                <p className="task-detail-modal__description">
+                  {task.description}
+                </p>
                 <div className="task-detail-modal__meta">
+                  <CategoryBadge kind="task" itemId={task.id} />
                   <span className="task-detail-modal__badge task-detail-modal__badge--state">
                     {(task.completed ?? task.isCompleted) ? '완료' : '미완료'}
                   </span>
-                  <span className="task-detail-modal__badge" style={getImportanceStyle(task.importance)}>
+                  <span
+                    className="task-detail-modal__badge"
+                    style={getImportanceStyle(task.importance)}
+                  >
                     중요도 {task.importance}
                   </span>
-                  <span className="task-detail-modal__badge" style={getDifficultyStyle(task.difficulty)}>
+                  <span
+                    className="task-detail-modal__badge"
+                    style={getDifficultyStyle(task.difficulty)}
+                  >
                     난이도 {task.difficulty}
                   </span>
                   {formatIsoDurationLabel(task.effectiveExpectedDuration) && (
                     <span
                       className="task-detail-modal__badge"
-                      title={task.expectedDuration ? '직접 입력한 예상 소요시간' : '난이도 기준 예상 소요시간'}
+                      title={
+                        task.expectedDuration
+                          ? '직접 입력한 예상 소요시간'
+                          : '난이도 기준 예상 소요시간'
+                      }
                     >
-                      예상 {formatIsoDurationLabel(task.effectiveExpectedDuration)}
+                      예상{' '}
+                      {formatIsoDurationLabel(task.effectiveExpectedDuration)}
                     </span>
                   )}
                   {task.dueDate && (
-                    <span className="task-detail-modal__badge" style={getDeadlineStyle(task.dueDate)}>
+                    <span
+                      className="task-detail-modal__badge"
+                      style={getDeadlineStyle(task.dueDate)}
+                    >
                       마감 {formatDateWithOffset(task.dueDate, 'M/D')}
                     </span>
                   )}
@@ -210,34 +285,23 @@ const TaskDetailModal = ({ taskId, onClose }: TaskDetailModalProps) => {
               <section className="task-detail-modal__section">
                 <h3>의존성</h3>
                 <p className="task-detail-modal__description">
-                  이전 작업: {task.previousTaskIds?.length ?? 0}개 / 이후 작업: {task.nextTaskIds?.length ?? 0}개
+                  이전 작업: {task.previousTaskIds?.length ?? 0}개 / 이후 작업:{' '}
+                  {task.nextTaskIds?.length ?? 0}개
                 </p>
-                {!(task.completed ?? task.isCompleted) && (task.inboundDependencyCount ?? 0) > 0 && (
-                  <p className="task-detail-modal__description">
-                    아직 끝나지 않은 이전 작업이 {task.inboundDependencyCount}개 있어요. 모두 완료하면 바로 시작할 수 있어요.
-                  </p>
-                )}
+                {!(task.completed ?? task.isCompleted) &&
+                  (task.inboundDependencyCount ?? 0) > 0 && (
+                    <p className="task-detail-modal__description">
+                      아직 끝나지 않은 이전 작업이 {task.inboundDependencyCount}
+                      개 있어요. 모두 완료하면 바로 시작할 수 있어요.
+                    </p>
+                  )}
               </section>
-
-              {(task.tags ?? []).length > 0 && (
-                <section className="task-detail-modal__section">
-                  <h3>태그</h3>
-                  <div className="task-detail-modal__meta">
-                    {(task.tags ?? []).map((tag) => (
-                      <span key={tag.id} className="task-detail-modal__badge">
-                        #{tag.name}
-                      </span>
-                    ))}
-                  </div>
-                </section>
-              )}
 
               <footer className="task-detail-modal__actions">
                 <button
                   type="button"
                   onClick={() => {
-                    onClose()
-                    navigate(`/app/tasks/${task.id}/edit`)
+                    open(`/app/tasks/${task.id}/edit`)
                   }}
                   className="task-detail-modal__action-btn task-detail-modal__action-btn--edit"
                 >

@@ -1,4 +1,4 @@
-import type {DateTimeWithZone, DateWithOffset} from '../types/datetime'
+import type { DateTimeWithZone, DateWithOffset } from '../types/datetime'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
 import timezone from 'dayjs/plugin/timezone'
@@ -58,7 +58,8 @@ export const setDisplayZone = (zoneId: string) => {
 }
 
 /** 그 시간대의 지금 UTC 오프셋(분). 시간대 선택 목록의 라벨에 쓴다. */
-export const getZoneOffsetMinutes = (zoneId: string) => getOffsetMinutesForZone(zoneId)
+export const getZoneOffsetMinutes = (zoneId: string) =>
+  getOffsetMinutesForZone(zoneId)
 
 export const formatOffsetLabel = (offsetMinutes: number) => {
   const sign = offsetMinutes >= 0 ? '+' : '-'
@@ -82,7 +83,10 @@ const isDateTimeWithZone = (value: unknown): value is DateTimeWithZone => {
   return 'dateTime' in value && 'zoneId' in value
 }
 
-const toZonedDayjs = (value: dayjs.Dayjs | Date | string | DateTimeWithZone, zoneId: string) => {
+const toZonedDayjs = (
+  value: dayjs.Dayjs | Date | string | DateTimeWithZone,
+  zoneId: string,
+) => {
   const safeZone = normalizeZoneId(zoneId, DEFAULT_ZONE)
   if (isDateTimeWithZone(value)) {
     const sourceZone = normalizeZoneId(value.zoneId, safeZone)
@@ -96,7 +100,9 @@ const toZonedDayjs = (value: dayjs.Dayjs | Date | string | DateTimeWithZone, zon
   return parsed.tz(safeZone)
 }
 
-export const toDisplayDayjs = (value: dayjs.Dayjs | Date | string | DateTimeWithZone) => {
+export const toDisplayDayjs = (
+  value: dayjs.Dayjs | Date | string | DateTimeWithZone,
+) => {
   const zoneId = getDisplayZoneId() || DEFAULT_ZONE
   return toZonedDayjs(value, zoneId)
 }
@@ -109,17 +115,19 @@ export const getTodayWithOffset = (offsetOverride?: number) => {
   return dayjs().tz(zoneId)
 }
 
-export const getWeekStart = (date: dayjs.Dayjs) => date.isoWeekday(1).startOf('day')
+export const getWeekStart = (date: dayjs.Dayjs) =>
+  date.isoWeekday(1).startOf('day')
 
 export const getWeekDays = (weekStart: dayjs.Dayjs) =>
   Array.from({ length: 7 }, (_, index) => weekStart.add(index, 'day'))
 
-export const toDateKey = (date: dayjs.Dayjs | Date | string | DateTimeWithZone) =>
-  toDisplayDayjs(date).format('YYYY-MM-DD')
+export const toDateKey = (
+  date: dayjs.Dayjs | Date | string | DateTimeWithZone,
+) => toDisplayDayjs(date).format('YYYY-MM-DD')
 
-
-export const formatDisplayDate = (date: dayjs.Dayjs | Date | string | DateTimeWithZone) =>
-  toDisplayDayjs(date).format('M월 D일 (dd)')
+export const formatDisplayDate = (
+  date: dayjs.Dayjs | Date | string | DateTimeWithZone,
+) => toDisplayDayjs(date).format('M월 D일 (dd)')
 
 export const formatDateTimeWithZone = (
   value: dayjs.Dayjs | Date | string | DateTimeWithZone,
@@ -130,7 +138,10 @@ export const toApiDateTimeWithZone = (
   value: dayjs.Dayjs | Date | string | DateTimeWithZone,
 ): DateTimeWithZone => {
   if (isDateTimeWithZone(value)) {
-    const zoneId = normalizeZoneId(value.zoneId, getDisplayZoneId() || DEFAULT_ZONE)
+    const zoneId = normalizeZoneId(
+      value.zoneId,
+      getDisplayZoneId() || DEFAULT_ZONE,
+    )
     const zoned = dayjs.tz(value.dateTime, zoneId)
     const safe = zoned.isValid() ? zoned : dayjs().tz(zoneId)
     return {
@@ -148,17 +159,23 @@ export const toApiDateTimeWithZone = (
   }
 }
 
-export const toDateFromApi = (value: dayjs.Dayjs | Date | string | DateTimeWithZone) =>
-  toDisplayDayjs(value).toDate()
+export const toDateFromApi = (
+  value: dayjs.Dayjs | Date | string | DateTimeWithZone,
+) => toDisplayDayjs(value).toDate()
 
-export const addDays = (date: dayjs.Dayjs | Date | string | DateTimeWithZone, offset: number) =>
-  toDisplayDayjs(date).add(offset, 'day')
+export const addDays = (
+  date: dayjs.Dayjs | Date | string | DateTimeWithZone,
+  offset: number,
+) => toDisplayDayjs(date).add(offset, 'day')
 
 export const toApiDateWithOffset = (
   value: dayjs.Dayjs | Date | string,
   zoneIdOverride?: string,
 ): DateWithOffset => {
-  const zoneId = normalizeZoneId(zoneIdOverride ?? getDisplayZoneId(), DEFAULT_ZONE)
+  const zoneId = normalizeZoneId(
+    zoneIdOverride ?? getDisplayZoneId(),
+    DEFAULT_ZONE,
+  )
   const normalized = dayjs(value)
   const safe = normalized.isValid() ? normalized : dayjs()
   const date = safe.format('YYYY-MM-DD')
@@ -173,14 +190,20 @@ export const toApiDateWithOffset = (
   }
 }
 
-export const toDayjsFromDateWithOffset = (value: DateWithOffset, zoneIdOverride?: string) => {
-  const zoneId = normalizeZoneId(value.zoneId ?? zoneIdOverride, getDisplayZoneId() || DEFAULT_ZONE)
-  if (value.offset) {
-    const normalizedOffset = value.offset.startsWith('UTC') ? value.offset.replace(/^UTC/, '') : value.offset
-    return dayjs(`${value.date}T00:00:00${normalizedOffset}`)
-  }
+export const toDayjsFromDateWithOffset = (
+  value: DateWithOffset,
+  zoneIdOverride?: string,
+) => {
+  const zoneId = normalizeZoneId(
+    value.zoneId ?? zoneIdOverride,
+    getDisplayZoneId() || DEFAULT_ZONE,
+  )
+  // The date is the user's calendar date. The offset describes its zone and must
+  // not convert it into the browser's calendar when opening an edit form.
   return dayjs.tz(`${value.date}T00:00:00`, zoneId)
 }
 
+// A task deadline is a calendar date, not an instant. Parsing its midnight offset in
+// the browser zone can move the label to the previous/next day.
 export const formatDateWithOffset = (value: DateWithOffset, format = 'M/D') =>
   toDayjsFromDateWithOffset(value).format(format)

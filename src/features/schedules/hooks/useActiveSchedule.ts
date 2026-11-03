@@ -7,14 +7,20 @@ import { dispatchTaskChanged } from '@shared/utils/events'
 
 const useActiveSchedule = (): ScheduleSummary | null => {
   const [active, setActive] = useState<ScheduleSummary | null>(null)
-  const { activeSchedule, setActiveSchedule, schedulesById, setSchedule } = useScheduleCache()
+  const { activeSchedule, setActiveSchedule, setSchedule, pendingScheduleId } =
+    useScheduleCache()
 
   useEffect(() => {
     let isMounted = true
+    let request = 0
 
     const loadActive = async () => {
+      if (pendingScheduleId !== null || document.visibilityState === 'hidden')
+        return
+      const currentRequest = ++request
       try {
         const activeId = await fetchActiveScheduleId()
+        if (!isMounted || currentRequest !== request) return
         if (!activeId) {
           if (isMounted) {
             setActive(null)
@@ -22,9 +28,8 @@ const useActiveSchedule = (): ScheduleSummary | null => {
           }
           return
         }
-        const cached = schedulesById[activeId]
-        const detail = cached ?? (await fetchScheduleDetail(activeId))
-        if (isMounted) {
+        const detail = await fetchScheduleDetail(activeId)
+        if (isMounted && currentRequest === request) {
           setActive({
             id: detail.id,
             ownerId: detail.ownerId,
@@ -49,13 +54,15 @@ const useActiveSchedule = (): ScheduleSummary | null => {
     }
 
     loadActive()
+    window.addEventListener('focus', loadActive)
+    document.addEventListener('visibilitychange', loadActive)
 
     return () => {
       isMounted = false
+      window.removeEventListener('focus', loadActive)
+      document.removeEventListener('visibilitychange', loadActive)
     }
-    // schedulesById를 의존성에 넣으면 캐시 변경 시마다 재호출하므로 제외
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActiveSchedule, setSchedule])
+  }, [setActiveSchedule, setSchedule, pendingScheduleId])
 
   return activeSchedule ?? active
 }
