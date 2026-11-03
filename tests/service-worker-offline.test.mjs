@@ -154,6 +154,34 @@ test('a successful non-HTML navigation response is returned without replacing th
   assert.equal(worker.writes.length, 0)
 })
 
+test('manual navigation redirects pass through without replacing or falling back to the shell', async () => {
+  // Node cannot construct the browser-only opaque redirect type directly.
+  const redirect = Object.defineProperty(Response.error(), 'type', { value: 'opaqueredirect' })
+  const worker = loadWorker({ cached: usableShell(), fetchResponse: async () => redirect })
+  assert.equal(await worker.respond(navigate('/redirect')), redirect)
+  assert.equal(await worker.cachedText('/index.html'), SHELL)
+  assert.equal(worker.writes.length, 0)
+})
+
+test('online static HTML documents never replace the app shell for offline deep links', async () => {
+  for (const path of ['/offline.html', '/static-document.html', '/index.html']) {
+    let online = true
+    const worker = loadWorker({ cached: usableShell(), fetchResponse: async () => {
+      if (!online) throw new TypeError('Failed to fetch')
+      return html(OFFLINE)
+    } })
+    assert.equal(await (await worker.respond(navigate(path))).text(), OFFLINE)
+    assert.equal(await worker.cachedText('/index.html'), SHELL)
+    online = false
+    assert.equal(await (await worker.respond(navigate('/app/tasks/123'))).text(), SHELL)
+  }
+})
+
+test('a static HTML document without app assets is not a usable offline app shell', async () => {
+  const worker = loadWorker({ cached: { '/index.html': '<h1>Static document</h1>', '/offline.html': OFFLINE } })
+  assert.equal(await (await worker.respond(navigate('/app/today'))).text(), OFFLINE)
+})
+
 test('a cache write failure does not hide a successful online navigation', async () => {
   const worker = loadWorker({ cached: usableShell(), failCacheWrite: true, fetchResponse: async () => html(NEW_SHELL) })
   assert.equal(await (await worker.respond(navigate('/app/today'))).text(), NEW_SHELL)

@@ -13,7 +13,7 @@ const isShellUsable = async (shell) => {
   const html = await shell.clone().text()
   const assets = [...html.matchAll(SHELL_ASSET_PATTERN)].map((match) => match[1])
   const cached = await Promise.all(assets.map((asset) => caches.match(asset)))
-  return cached.every((response) => response?.ok)
+  return assets.length > 0 && cached.every((response) => response?.ok)
 }
 
 // 오프라인에서 처음 여는 화면 주소는 캐시에 없다. 앱 껍데기(index.html)와 그 산출물이 모두 캐시에 있으면
@@ -41,9 +41,16 @@ const saveResponse = async (request, response, updateShell = false) => {
 const networkFirstNavigation = async (request) => {
   try {
     const response = await fetch(request)
+    // navigation의 정상 리다이렉트는 status=0이므로 HTTP 오류와 구분한다.
+    if (response.type === 'opaqueredirect') return response
     if (!response.ok) return offlineNavigationFallback()
     if (response.headers.get('content-type')?.includes('text/html')) {
-      await saveResponse(request, response, true)
+      const html = await response.clone().text()
+      const isAppShell = new URL(request.url).pathname !== OFFLINE_URL
+        && [...html.matchAll(SHELL_ASSET_PATTERN)].length > 0
+      if (new URL(request.url).pathname !== '/index.html' || isAppShell) {
+        await saveResponse(request, response, isAppShell)
+      }
     }
     return response
   } catch {
