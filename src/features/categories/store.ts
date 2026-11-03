@@ -87,6 +87,11 @@ const sessionKey = () => {
 const url = (suffix = '') => buildApiUrl('/categories' + suffix, 'v2')
 export const reloadCategories = (): Promise<void> => {
   const key = sessionKey()
+  // A refresh is not a new anonymous category session. Never fetch without a member token.
+  if (!key) {
+    if (actor) resetCategories()
+    return Promise.resolve()
+  }
   if (pending && actor === key) return pending
   if (actor !== key) {
     actor = key
@@ -215,7 +220,7 @@ export function useCategories() {
     }
   }, [])
   useEffect(() => {
-    if (actor !== key || (state.isLoading && !pending))
+    if (key && (actor !== key || (state.isLoading && !pending)))
       void reloadCategories().catch(() => {})
   }, [key])
   const visible =
