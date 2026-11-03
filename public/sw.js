@@ -1,5 +1,5 @@
 importScripts(
-  '/sw/constants.js?cache=pinit-cache-v21',
+  '/sw/constants.js?cache=pinit-cache-v22',
   '/sw/cache.js',
   '/sw/time.js',
   '/sw/idempotency.js',
@@ -28,7 +28,11 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (!cache.isSameOriginGet(event.request)) return
-  event.respondWith(cache.cacheFirst(event.request))
+  event.respondWith(
+    event.request.mode === 'navigate'
+      ? cache.networkFirstNavigation(event.request)
+      : cache.cacheFirst(event.request),
+  )
 })
 
 self.addEventListener('push', (event) => {
