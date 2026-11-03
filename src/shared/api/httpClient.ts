@@ -1,6 +1,7 @@
-import { API_BASE_URL, AUTH_BASE_URL, buildAuthUrl, buildUrl } from './config'
-import { getAccessToken, isAccessTokenExpired, setAuthTokens } from './authTokens'
-import { createCookieTokenRefresher, debugLog } from './httpClientHelpers'
+import { API_BASE_URL, AUTH_BASE_URL, buildUrl } from './config'
+import { getAccessToken, getTokenSubject, isAccessTokenExpired, setAuthTokens } from './authTokens'
+import { debugLog } from './httpClientHelpers'
+import { refreshAccessTokenFromCookie } from './authSession'
 import { getApiErrorMessage } from './errorMessage'
 
 // 앱 시작 시 설정 확인
@@ -36,10 +37,9 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
   let accessToken = getAccessToken()
   const body = json ? JSON.stringify(json) : undefined
 
-  const tryRefreshToken = createCookieTokenRefresher(buildAuthUrl, (token) => {
-    setAuthTokens({ accessToken: token })
-    accessToken = token
-  })
+  let refreshAttempted = false
+  const sameActor = (next: string) => !accessToken || next === accessToken ||
+    (getTokenSubject(accessToken) !== null && getTokenSubject(accessToken) === getTokenSubject(next))
 
   const performFetch = async (token?: string) => {
     const nextToken = token ?? accessToken
@@ -60,9 +60,12 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
     if (!accessToken) return null
     if (!isAccessTokenExpired(accessToken)) return accessToken
     debugLog('⌛ Access token expired, refreshing via cookie')
-    setAuthTokens({ accessToken: null })
-    accessToken = null
-    const refreshed = await tryRefreshToken()
+    refreshAttempted = true
+    const refreshed = await refreshAccessTokenFromCookie()
+    if (!refreshed || !sameActor(refreshed)) {
+      if (getAccessToken() === accessToken) setAuthTokens({ accessToken: null })
+      throw new ApiError('로그인이 필요합니다. 다시 로그인해 주세요.', 401, null, url)
+    }
     return refreshed
   }
 
@@ -84,13 +87,22 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
 
     // 401일 때 refresh 토큰이 있으면 /refresh 요청 후 한 번만 재시도
     if (response.status === 401) {
-      // 서버에서 거부한 액세스 토큰은 바로 제거
-      setAuthTokens({ accessToken: null })
-      accessToken = null
-      const refreshed = await tryRefreshToken()
+      const current = getAccessToken()
+      // A delayed 401 must not erase or refresh a token already renewed by another request.
+      let refreshed: string | null = null
+      if (current && current !== accessToken && !isAccessTokenExpired(current)) {
+        if (sameActor(current)) refreshed = current
+      } else if (!refreshAttempted && current === accessToken) {
+        refreshAttempted = true
+        refreshed = await refreshAccessTokenFromCookie()
+        if (refreshed && !sameActor(refreshed)) refreshed = null
+      }
       if (refreshed) {
         accessToken = refreshed
         response = await performFetch(refreshed)
+      }
+      if (response.status === 401 && accessToken && getAccessToken() === accessToken) {
+        setAuthTokens({ accessToken: null })
       }
     }
 

@@ -31,7 +31,8 @@ const createClient = (response) => loadModule('../src/shared/api/httpClient.ts',
     buildUrl: (base, path) => `${base}${path}`,
   },
   './authTokens': { getAccessToken: () => null, isAccessTokenExpired: () => false, setAuthTokens: () => {} },
-  './httpClientHelpers': { debugLog: () => {}, createCookieTokenRefresher: () => async () => null },
+  './httpClientHelpers': { debugLog: () => {} },
+  './authSession': { refreshAccessTokenFromCookie: async () => null },
   './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
 }, { fetch: async () => response })
 
@@ -90,8 +91,8 @@ test('sensitive responses stay out of debug logs and are not sent as fetch optio
     './authTokens': { getAccessToken: () => 'access-jwt', isAccessTokenExpired: () => false, setAuthTokens: () => {} },
     './httpClientHelpers': {
       debugLog: (...args) => logs.push(JSON.stringify(args)),
-      createCookieTokenRefresher: () => async () => null,
     },
+    './authSession': { refreshAccessTokenFromCookie: async () => null },
     './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
   }, {
     fetch: async (_url, init) => {

@@ -1,6 +1,7 @@
 import { ensureDeviceId, setAuthTokens } from '@shared/api/authTokens'
 import { buildAuthUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import { refreshAccessTokenFromCookie } from '@shared/api/authSession'
 
 export type AuthProvider = 'naver'
 
@@ -88,17 +89,7 @@ export const logout = async () => {
 }
 
 export const refreshAccessToken = async () => {
-  const url = buildAuthUrl('/refresh')
-  const response = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-  })
-  if (!response.ok) {
-    throw new Error(`토큰 재발급 실패: ${response.status}`)
-  }
-  const data: LoginResponse = await response.json()
-  setAuthTokens({
-    accessToken: data?.token ?? null,
-  })
-  return data
+  const token = await refreshAccessTokenFromCookie()
+  if (!token) throw new Error('토큰 재발급에 실패했습니다.')
+  return { token } satisfies LoginResponse
 }

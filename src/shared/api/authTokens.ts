@@ -49,7 +49,7 @@ const parseJwtPayload = (token: string) => {
     if (!base64) return null
     const normalized = base64.replace(/-/g, '+').replace(/_/g, '/')
     const json = atob(normalized)
-    return JSON.parse(json) as { exp?: number }
+    return JSON.parse(json) as { exp?: number; sub?: string | number; memberId?: string | number }
   } catch {
     return null
   }
@@ -61,6 +61,12 @@ export const isAccessTokenExpired = (token: string, skewMs = 60_000) => {
   const now = Date.now()
   const exp = payload.exp * 1000
   return exp - skewMs <= now
+}
+
+export const getTokenSubject = (token: string) => {
+  const payload = parseJwtPayload(token)
+  const subject = payload?.sub ?? payload?.memberId
+  return subject == null ? null : String(subject)
 }
 
 export const clearAuthTokens = () => {
