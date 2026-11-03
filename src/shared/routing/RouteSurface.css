@@ -145,6 +145,12 @@
   .route-surface__footer {
     padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
   }
+  .route-surface__header,
+  .route-surface__body,
+  .route-surface__footer {
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+  }
 }
 
 .route-surface__body > .task-detail-modal__content,
