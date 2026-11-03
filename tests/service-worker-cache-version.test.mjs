@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
-// 서비스 워커는 같은 출처 GET을 cache-first로 준다. 배포한 화면이 사용자에게 가려면 CACHE_NAME을 올려야 하고,
-// sw.js가 불러오는 constants.js 주소의 버전도 같이 바뀌어야 새 sw.js로 인식된다.
+// 배포 시 이전 shell/asset 캐시를 정리한다. sw.js가 불러오는 constants.js 주소의 버전도
+// CACHE_NAME과 같이 바뀌어야 새 sw.js로 인식된다.
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8')
 
 test('sw.js loads constants.js with the same cache version as CACHE_NAME', () => {
