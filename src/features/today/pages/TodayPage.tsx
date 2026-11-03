@@ -122,7 +122,7 @@ export default function TodayPage() {
             하루 계획
           </Link>
           <button
-            className="workspace-button"
+            className="workspace-button workspace-button--primary"
             onClick={() =>
               open('/app/schedules/new', {
                 state: { initialDateKey: today.format('YYYY-MM-DD') },
