@@ -1,4 +1,5 @@
 import './App.css'
+import '@shared/styles/workspacePalette.css'
 import {
   createBrowserRouter,
   Navigate,
@@ -80,7 +81,7 @@ const WorkspaceRoutes = () => {
     </RouteSurface>
   )
   return (
-    <>
+    <div className="workspace-theme">
       <Routes location={base}>
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/app/today" replace />} />
@@ -130,7 +131,7 @@ const WorkspaceRoutes = () => {
           />
         </Routes>
       )}
-    </>
+    </div>
   )
 }
 
