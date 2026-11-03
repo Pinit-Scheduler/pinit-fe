@@ -391,6 +391,17 @@ const SchedulesTabPage = () => {
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
         <div className="schedules-tab__header-actions">
+          <button
+            type="button"
+            className="schedules-tab__create"
+            onClick={() =>
+              open('/app/schedules/new', {
+                state: { initialDateKey: selectedDateKey },
+              })
+            }
+          >
+            + 일정 추가
+          </button>
           <Link
             to={`/app/plan?date=${selectedDateKey}`}
             className="schedules-tab__refresh"

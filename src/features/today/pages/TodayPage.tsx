@@ -122,6 +122,17 @@ export default function TodayPage() {
             하루 계획
           </Link>
           <button
+            className="workspace-button"
+            onClick={() =>
+              open('/app/schedules/new', {
+                state: { initialDateKey: today.format('YYYY-MM-DD') },
+              })
+            }
+          >
+            <WorkspaceIcon name="plus" />
+            일정 추가
+          </button>
+          <button
             className="workspace-button workspace-button--primary"
             onClick={() => open('/app/tasks/new')}
           >
@@ -218,17 +229,6 @@ export default function TodayPage() {
               </p>
             )}
           </div>
-          <button
-            className="today-page__all"
-            onClick={() =>
-              open('/app/schedules/new', {
-                state: { initialDateKey: today.format('YYYY-MM-DD') },
-              })
-            }
-          >
-            <WorkspaceIcon name="plus" />
-            일정 추가
-          </button>
         </section>
       </div>
       <TaskScheduleModal
