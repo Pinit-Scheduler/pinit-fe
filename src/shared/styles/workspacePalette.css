@@ -191,6 +191,17 @@
   color: var(--workspace-ink);
 }
 
+/* Calendar selections need a surface and ink pair in both themes. Chart tints
+ * intentionally stay pale in dark mode and are unsuitable for selected days. */
+.workspace-theme :is(.weekly-date-strip__day.is-selected, .month-calendar__day.is-selected) {
+  background: var(--workspace-blue-soft);
+  color: var(--workspace-ink);
+}
+.workspace-theme .month-calendar__count:not(.is-done) {
+  background: var(--workspace-blue-soft);
+  color: var(--workspace-blue);
+}
+
 .workspace-theme :focus-visible {
   outline-color: var(--workspace-blue);
 }

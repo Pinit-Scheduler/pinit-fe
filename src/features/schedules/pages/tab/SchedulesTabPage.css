@@ -10,6 +10,8 @@
 
 .schedules-tab__header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
 }
@@ -21,6 +23,7 @@
 
 .schedules-tab__header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
 }
@@ -265,6 +268,13 @@
   border: 1px solid var(--c-slate-200);
   background: var(--c-surface);
   color: var(--c-slate-600);
+}
+.schedules-tab__header-actions .schedules-tab__create {
+  min-height: 44px;
+  background: var(--workspace-blue);
+  border-color: var(--workspace-blue);
+  color: var(--workspace-on-accent);
+  font-weight: 600;
 }
 @media (max-width: 1100px) {
   .schedules-tab__list {
