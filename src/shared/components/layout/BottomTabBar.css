@@ -4,7 +4,9 @@
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   height: calc(var(--workspace-nav-height) + env(safe-area-inset-bottom, 0px));
-  padding: 22px 8px env(safe-area-inset-bottom, 0px);
+  padding: 22px max(8px, env(safe-area-inset-right, 0px))
+    calc(8px + env(safe-area-inset-bottom, 0px))
+    max(8px, env(safe-area-inset-left, 0px));
   background: var(--c-surface);
   border-top: 1px solid var(--c-slate-200);
   z-index: var(--z-bottom-tab);

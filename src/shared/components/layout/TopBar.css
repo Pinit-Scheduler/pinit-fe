@@ -48,8 +48,10 @@
 }
 @media (max-width: 899px) {
   .top-bar {
-    padding-inline: 18px;
-    min-height: 60px;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
+    min-height: calc(60px + env(safe-area-inset-top, 0px));
   }
   .top-bar__workspace {
     display: none;

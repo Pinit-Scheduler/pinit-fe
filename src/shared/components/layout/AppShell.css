@@ -250,8 +250,11 @@
         var(--workspace-nav-height) + var(--workspace-player-height) + 64px +
           env(safe-area-inset-bottom, 0px)
       );
+    padding-left: max(18px, env(safe-area-inset-left, 0px));
+    padding-right: max(18px, env(safe-area-inset-right, 0px));
     scroll-padding-bottom: calc(
-      var(--workspace-nav-height) + var(--workspace-player-height) + 64px
+      var(--workspace-nav-height) + var(--workspace-player-height) + 64px +
+        env(safe-area-inset-bottom, 0px)
     );
   }
   .workspace-page-header {
