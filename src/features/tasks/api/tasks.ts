@@ -16,6 +16,7 @@ type ListParams = {
   page?: number
   size?: number
   readyOnly?: boolean
+  signal?: AbortSignal
 }
 
 type TaskApiResponse = Omit<Task, 'isCompleted'> & {
@@ -43,7 +44,8 @@ type TaskCursorApiResponse = {
 
 const normalizeTask = (task: TaskApiResponse): Task => ({
   ...task,
-  inboundDependencyCount: task.inboundDependencyCount ?? 0,
+  // Do not turn a missing server readiness fact into "ready" for graph consumers.
+  inboundDependencyCount: task.inboundDependencyCount ?? undefined,
   completed: task.completed ?? task.isCompleted ?? false,
   isCompleted: task.completed ?? task.isCompleted ?? false,
   previousTaskIds: task.previousTaskIds ?? [],
@@ -51,15 +53,24 @@ const normalizeTask = (task: TaskApiResponse): Task => ({
   tags: task.tags ?? [],
 })
 
-const normalizeTaskList = (tasks?: TaskApiResponse[] | null) => (tasks ?? []).map(normalizeTask)
+const normalizeTaskList = (tasks?: TaskApiResponse[] | null) =>
+  (tasks ?? []).map(normalizeTask)
 
-export const fetchTasks = async ({ page = 0, size = 20, readyOnly = false }: ListParams): Promise<TaskListResponse> => {
+export const fetchTasks = async ({
+  page = 0,
+  size = 20,
+  readyOnly = false,
+  signal,
+}: ListParams): Promise<TaskListResponse> => {
   const query = new URLSearchParams({
     page: String(page),
     size: String(size),
     readyOnly: String(readyOnly),
   })
-  const response = await httpClient<PageTaskApiResponse>(buildApiUrl(`/tasks?${query.toString()}`, TASK_API_VERSION))
+  const response = await httpClient<PageTaskApiResponse>(
+    buildApiUrl(`/tasks?${query.toString()}`, TASK_API_VERSION),
+    { signal },
+  )
   return {
     content: normalizeTaskList(response.content),
     number: response.number,
@@ -88,33 +99,56 @@ const toListResponse = (response: PageTaskApiResponse): TaskListResponse => ({
 /**
  * 작업 검색(ADR-0023 §3). `params`는 `toSearchParams`가 만든 검색 인자다(`tagIds`는 여러 번 온다).
  */
-export const searchTasks = async (
-  { page = 0, size = 20, params = [] }: { page?: number; size?: number; params?: [string, string][] },
-): Promise<TaskListResponse> => {
+export const searchTasks = async ({
+  page = 0,
+  size = 20,
+  params = [],
+  signal,
+}: {
+  page?: number
+  size?: number
+  params?: [string, string][]
+  signal?: AbortSignal
+}): Promise<TaskListResponse> => {
   const query = new URLSearchParams(params)
   query.set('page', String(page))
   query.set('size', String(size))
-  const response = await httpClient<PageTaskApiResponse>(buildApiUrl(`/tasks/search?${query.toString()}`, TASK_API_VERSION))
+  const response = await httpClient<PageTaskApiResponse>(
+    buildApiUrl(`/tasks/search?${query.toString()}`, TASK_API_VERSION),
+    { signal },
+  )
   return toListResponse(response)
 }
 
 /** 그 날짜(YYYY-MM-DD)가 마감인 작업. 시간대를 주지 않으면 회원 설정 시간대로 해석한다. */
-export const fetchTasksByDeadline = async (date: string, zoneId?: string): Promise<Task[]> => {
+export const fetchTasksByDeadline = async (
+  date: string,
+  zoneId?: string,
+): Promise<Task[]> => {
   const query = new URLSearchParams({ date })
   if (zoneId) query.set('zoneId', zoneId)
-  const response = await httpClient<TaskApiResponse[]>(buildApiUrl(`/tasks/by-deadline?${query.toString()}`, TASK_API_VERSION))
+  const response = await httpClient<TaskApiResponse[]>(
+    buildApiUrl(`/tasks/by-deadline?${query.toString()}`, TASK_API_VERSION),
+  )
   return normalizeTaskList(response)
 }
 
-export const fetchTaskArchiveByCursor = async (
-  { size = 20, cursor }: { size?: number; cursor?: string | null },
-): Promise<TaskArchiveCursorResponse> => {
+export const fetchTaskArchiveByCursor = async ({
+  size = 20,
+  cursor,
+  signal,
+}: {
+  size?: number
+  cursor?: string | null
+  signal?: AbortSignal
+}): Promise<TaskArchiveCursorResponse> => {
   const query = new URLSearchParams({
     size: String(size),
   })
   if (cursor) query.set('cursor', cursor)
   const response = await httpClient<TaskCursorApiResponse>(
     buildApiUrl(`/tasks/completed?${query.toString()}`, TASK_API_VERSION),
+    { signal },
   )
   return {
     items: normalizeTaskList(response.data),
@@ -123,28 +157,43 @@ export const fetchTaskArchiveByCursor = async (
   }
 }
 
-export const fetchTaskDetail = async (taskId: number) =>
-  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION)))
+export const fetchTaskDetail = async (taskId: number, signal?: AbortSignal) =>
+  normalizeTask(
+    await httpClient<TaskApiResponse>(
+      buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION),
+      { signal },
+    ),
+  )
 
 export const createTask = async (payload: TaskRequest) =>
-  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl('/tasks', TASK_API_VERSION), {
-    method: 'POST',
-    json: payload,
-  }))
+  normalizeTask(
+    await httpClient<TaskApiResponse>(buildApiUrl('/tasks', TASK_API_VERSION), {
+      method: 'POST',
+      json: payload,
+    }),
+  )
 
 export const updateTask = async (taskId: number, payload: TaskRequest) =>
-  normalizeTask(await httpClient<TaskApiResponse>(buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION), {
-    method: 'PATCH',
-    json: payload,
-  }))
+  normalizeTask(
+    await httpClient<TaskApiResponse>(
+      buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION),
+      {
+        method: 'PATCH',
+        json: payload,
+      },
+    ),
+  )
 
 export const deleteTask = (taskId: number, deleteSchedules = false) => {
   const query = new URLSearchParams({
     deleteSchedules: String(deleteSchedules),
   })
-  return httpClient<void>(buildApiUrl(`/tasks/${taskId}?${query.toString()}`, TASK_API_VERSION), {
-    method: 'DELETE',
-  })
+  return httpClient<void>(
+    buildApiUrl(`/tasks/${taskId}?${query.toString()}`, TASK_API_VERSION),
+    {
+      method: 'DELETE',
+    },
+  )
 }
 
 export const completeTask = (taskId: number) =>
@@ -157,11 +206,24 @@ export const reopenTask = (taskId: number) =>
     method: 'POST',
   })
 
-export const createScheduleFromTask = (taskId: number, payload: TaskScheduleRequest | { date: DateTimeWithZone; scheduleType: TaskScheduleRequest['scheduleType']; title?: string; description?: string }) =>
-  httpClient<void>(buildApiUrl(`/tasks/${taskId}/schedules`, TASK_API_VERSION), {
-    method: 'POST',
-    json: {
-      ...payload,
-      date: toApiDateTimeWithZone(payload.date),
+export const createScheduleFromTask = (
+  taskId: number,
+  payload:
+    | TaskScheduleRequest
+    | {
+        date: DateTimeWithZone
+        scheduleType: TaskScheduleRequest['scheduleType']
+        title?: string
+        description?: string
+      },
+) =>
+  httpClient<void>(
+    buildApiUrl(`/tasks/${taskId}/schedules`, TASK_API_VERSION),
+    {
+      method: 'POST',
+      json: {
+        ...payload,
+        date: toApiDateTimeWithZone(payload.date),
+      },
     },
-  })
+  )

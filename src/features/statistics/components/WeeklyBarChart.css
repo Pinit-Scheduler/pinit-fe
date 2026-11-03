@@ -39,3 +39,25 @@
   flex-direction: column;
   gap: 4px;
 }
+
+.weekly-bar {
+  padding: 24px;
+}
+.weekly-bar__bar {
+  height: 12px;
+  gap: 2px;
+  border-radius: 5px;
+}
+.weekly-bar__segment--admin {
+  background: var(--c-blue-300);
+}
+.weekly-bar__segment--quick {
+  background: var(--c-blue-200);
+}
+.weekly-bar__legend {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  color: var(--c-slate-500);
+  font-size: 13px;
+}

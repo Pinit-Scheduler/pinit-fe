@@ -1,8 +1,9 @@
+import { CategoryBadge } from '@features/categories'
 import { useId } from 'react'
 import Modal from '@shared/components/common/Modal'
 import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { deleteSchedule } from '../../api/schedules'
-import { useNavigate } from 'react-router-dom'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { useToast } from '@contexts/ToastContext'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import { formatDurationLabel } from '@shared/utils/duration'
@@ -13,7 +14,10 @@ import './ScheduleDetailModal.css'
 import '../ScheduleForm.css'
 import { scheduleTypeLabel, stateLabel } from '@constants/schedules'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
-import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
+import {
+  confirmAndDeleteSeries,
+  previewSeriesDelete,
+} from '@features/recurrence/utils/seriesMutations'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import { useTrashUndo } from '@features/trash'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
@@ -21,6 +25,7 @@ import '@features/recurrence/components/RecurrenceRuleFields.css'
 type ScheduleDetailModalProps = {
   scheduleId: number
   onClose: () => void
+  embedded?: boolean
   onRefresh?: () => void
 }
 
@@ -31,9 +36,16 @@ type ScheduleDetailModalProps = {
  * @param onRefresh - 일정 목록 새로고침 콜백 (선택적)
  * @constructor
  */
-const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailModalProps) => {
-  const { schedule, isLoading, error } = useScheduleDetail(scheduleId.toString())
-  const navigate = useNavigate()
+const ScheduleDetailModal = ({
+  scheduleId,
+  onClose,
+  onRefresh,
+  embedded = false,
+}: ScheduleDetailModalProps) => {
+  const { schedule, isLoading, error } = useScheduleDetail(
+    scheduleId.toString(),
+  )
+  const { open } = useRouteSurfaceNavigation()
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
   const { activeScheduleId, setActiveSchedule } = useScheduleCache()
@@ -45,11 +57,18 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
     if (!schedule) return
 
     if (schedule.recurrence) {
-      const scope = await recurrenceScope.ask('delete', schedule.title)
+      const scope = await recurrenceScope.ask('delete', schedule.title, {
+        preview: (selected) =>
+          selected === 'THIS'
+            ? Promise.resolve(
+                '이번 회차만 휴지통으로 옮겨요. 30일 안에 되돌릴 수 있어요.',
+              )
+            : previewSeriesDelete(schedule.recurrence!, selected),
+      })
       if (scope === null) return
       if (scope !== 'THIS') {
         try {
-          if (await confirmAndDeleteSeries(schedule.recurrence, scope)) {
+          if (await confirmAndDeleteSeries(schedule.recurrence, scope, true)) {
             if (activeScheduleId === schedule.id) setActiveSchedule(null)
             dispatchScheduleChanged({ reason: 'recurrence' })
             onClose()
@@ -64,7 +83,12 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
       }
     }
 
-    if (schedule.recurrence || window.confirm(`"${schedule.title}" 일정을 휴지통으로 옮길까요?\n30일 안에 되돌릴 수 있어요.`)) {
+    if (
+      schedule.recurrence ||
+      window.confirm(
+        `"${schedule.title}" 일정을 휴지통으로 옮길까요?\n30일 안에 되돌릴 수 있어요.`,
+      )
+    ) {
       try {
         await deleteSchedule(schedule.id)
         console.log(`✅ Schedule deleted: ${schedule.id}`)
@@ -85,16 +109,32 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
 
   if (isLoading) {
     return (
-      <Modal backdropClassName="schedule-detail-modal__backdrop" className="schedule-detail-modal__content" onClose={onClose} ariaLabel="일정 상세">
-        <p className="schedule-detail-modal__loading">일정 정보를 불러오는 중...</p>
+      <Modal
+        embedded={embedded}
+        backdropClassName="schedule-detail-modal__backdrop"
+        className="schedule-detail-modal__content"
+        onClose={onClose}
+        ariaLabel="일정 상세"
+      >
+        <p className="schedule-detail-modal__loading">
+          일정 정보를 불러오는 중...
+        </p>
       </Modal>
     )
   }
 
   if (error || !schedule) {
     return (
-      <Modal backdropClassName="schedule-detail-modal__backdrop" className="schedule-detail-modal__content" onClose={onClose} ariaLabel="일정 상세">
-        <p className="schedule-detail-modal__loading">일정 정보를 불러오지 못했어요.</p>
+      <Modal
+        embedded={embedded}
+        backdropClassName="schedule-detail-modal__backdrop"
+        className="schedule-detail-modal__content"
+        onClose={onClose}
+        ariaLabel="일정 상세"
+      >
+        <p className="schedule-detail-modal__loading">
+          일정 정보를 불러오지 못했어요.
+        </p>
         <p className="schedule-detail-modal__description">{error}</p>
         <button
           type="button"
@@ -115,7 +155,14 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
   const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
 
   return (
-    <Modal backdropClassName="schedule-detail-modal__backdrop" className="schedule-detail-modal__content" onClose={onClose} labelledBy={titleId} ariaLabel="일정 상세">
+    <Modal
+      embedded={embedded}
+      backdropClassName="schedule-detail-modal__backdrop"
+      className="schedule-detail-modal__content"
+      onClose={onClose}
+      labelledBy={titleId}
+      ariaLabel="일정 상세"
+    >
       <header className="schedule-detail-modal__header">
         <h1 id={titleId}>일정 상세</h1>
         <button
@@ -133,14 +180,17 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
       <div className="schedule-detail-modal__body">
         <section className="schedule-detail-modal__section">
           <h2>{schedule.title}</h2>
-          <p className="schedule-detail-modal__description">{schedule.description}</p>
+          <p className="schedule-detail-modal__description">
+            {schedule.description}
+          </p>
           <div className="schedule-detail-modal__meta">
+            <CategoryBadge kind="schedule" itemId={schedule.id} />
             <span className="schedule-detail-modal__badge schedule-detail-modal__badge--state">
               {stateLabel[schedule.state]}
             </span>
             {scheduleTypeLabel[schedule.scheduleType] && (
               <span className="schedule-detail-modal__badge">
-                {schedule.scheduleType}
+                {scheduleTypeLabel[schedule.scheduleType]}
               </span>
             )}
             {typeof schedule.taskId === 'number' && (
@@ -169,12 +219,11 @@ const ScheduleDetailModal = ({ scheduleId, onClose, onRefresh }: ScheduleDetailM
         <footer className="schedule-detail-modal__actions">
           <button
             type="button"
-          onClick={() => {
-            onClose()
-            if (schedule) {
-              navigate(`/app/schedules/${schedule.id}/edit`)
-            }
-          }}
+            onClick={() => {
+              if (schedule) {
+                open(`/app/schedules/${schedule.id}/edit`)
+              }
+            }}
             className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--edit"
           >
             ✏️ 수정

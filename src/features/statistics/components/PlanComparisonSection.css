@@ -1,0 +1,133 @@
+.plan-comparison {
+  padding: 24px;
+}
+.plan-comparison h2 {
+  font-size: 19px;
+  font-weight: 600;
+}
+.plan-comparison > p {
+  font-size: 14px;
+  color: var(--c-slate-500);
+  line-height: 1.8;
+  margin-top: 8px;
+}
+.plan-comparison__rows {
+  display: grid;
+  gap: 20px;
+  margin: 24px 0;
+}
+.plan-comparison__rows > div {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+}
+.plan-comparison__rows > div > div {
+  height: 12px;
+  background: var(--c-slate-100);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.plan-comparison__rows i {
+  display: block;
+  height: 100%;
+  background: var(--c-blue-600);
+  border-radius: 5px;
+}
+.plan-comparison__rows i.is-planned {
+  background: var(--c-blue-200);
+}
+.plan-comparison__rows strong {
+  text-align: right;
+  font-size: 15px;
+  font-weight: 600;
+}
+.plan-comparison > small {
+  font-size: 13px;
+  color: var(--c-slate-500);
+}
+.workspace-stat-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 20px;
+}
+.plan-daily-bars {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  min-height: 210px;
+  overflow-x: auto;
+  padding-top: 20px;
+}
+.plan-daily-bars > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 30px;
+  gap: 8px;
+  flex: 1;
+}
+.plan-daily-bars strong {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--c-slate-500);
+}
+.plan-daily-bars i {
+  display: block;
+  max-width: 22px;
+  width: 100%;
+  background: var(--c-blue-400);
+  border-radius: 4px 4px 0 0;
+}
+.plan-daily-bars span {
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+.plan-comparison details {
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--c-slate-500);
+}
+.plan-comparison details ul {
+  list-style: none;
+  line-height: 1.9;
+  margin-top: 10px;
+}
+.plan-state-list {
+  display: grid;
+  gap: 22px;
+  margin-top: 25px;
+}
+.plan-state-list > div {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  font-size: 14px;
+}
+.plan-state-list i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-blue-600);
+}
+.plan-state-list strong {
+  margin-left: auto;
+  font-weight: 500;
+}
+@media (max-width: 800px) {
+  .workspace-stat-grid {
+    grid-template-columns: 1fr;
+  }
+  .plan-comparison {
+    padding: 18px;
+  }
+  .plan-comparison__rows > div {
+    grid-template-columns: 95px 1fr 85px;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .plan-comparison__rows strong {
+    font-size: 13px;
+  }
+}

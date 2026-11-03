@@ -14,6 +14,7 @@ type ModalProps = {
   /** 바깥 클릭으로 닫을지. 기본 true. */
   closeOnBackdrop?: boolean
   children: ReactNode
+  embedded?: boolean
 }
 
 const FOCUSABLE =
@@ -21,9 +22,12 @@ const FOCUSABLE =
 
 // 열린 모달 순서. Esc와 포커스 트랩은 맨 위 모달만 처리한다(상세 모달 위에 일정 모달이 뜨는 경우).
 const stack: symbol[] = []
+let previousBodyOverflow = ''
 
 const focusableIn = (root: HTMLElement) =>
-  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.offsetParent !== null || el === document.activeElement)
+  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+    (el) => el.offsetParent !== null || el === document.activeElement,
+  )
 
 /**
  * 공통 모달 껍데기. role="dialog"와 aria-modal을 달고, Tab 포커스를 안에 가두고,
@@ -38,6 +42,7 @@ const Modal = ({
   className,
   closeOnBackdrop = true,
   children,
+  embedded = false,
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -47,13 +52,23 @@ const Modal = ({
   }, [onClose])
 
   useEffect(() => {
+    if (embedded) return
     const id = Symbol('modal')
+    if (stack.length === 0) {
+      previousBodyOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    }
     stack.push(id)
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const previous =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
     const dialog = dialogRef.current
     if (dialog && !dialog.contains(document.activeElement)) {
       const autofocus = dialog.querySelector<HTMLElement>('[autofocus]')
-      ;(autofocus ?? focusableIn(dialog)[0] ?? dialog).focus({ preventScroll: true })
+      ;(autofocus ?? focusableIn(dialog)[0] ?? dialog).focus({
+        preventScroll: true,
+      })
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -76,11 +91,17 @@ const Modal = ({
       const last = items[items.length - 1]
       const active = document.activeElement
       // 로딩 중 조작할 요소가 없어 본체에 둔 포커스가 남아 있을 수 있다. 본체도 앞쪽 경계로 본다.
-      const atStart = active === first || active === dialogRef.current || !dialogRef.current.contains(active)
+      const atStart =
+        active === first ||
+        active === dialogRef.current ||
+        !dialogRef.current.contains(active)
       if (event.shiftKey && atStart) {
         event.preventDefault()
         last.focus()
-      } else if (!event.shiftKey && (active === last || !dialogRef.current.contains(active))) {
+      } else if (
+        !event.shiftKey &&
+        (active === last || !dialogRef.current.contains(active))
+      ) {
         event.preventDefault()
         first.focus()
       }
@@ -91,14 +112,18 @@ const Modal = ({
       document.removeEventListener('keydown', onKeyDown)
       const index = stack.indexOf(id)
       if (index >= 0) stack.splice(index, 1)
-      if (previous && previous.isConnected) previous.focus({ preventScroll: true })
+      if (stack.length === 0)
+        document.body.style.overflow = previousBodyOverflow
+      if (previous && previous.isConnected)
+        previous.focus({ preventScroll: true })
     }
-  }, [])
+  }, [embedded])
 
   const handleBackdrop = (event: MouseEvent<HTMLDivElement>) => {
     if (closeOnBackdrop && event.target === event.currentTarget) onClose?.()
   }
 
+  if (embedded) return <section className={className}>{children}</section>
   return (
     <div className={backdropClassName} onClick={handleBackdrop}>
       <div

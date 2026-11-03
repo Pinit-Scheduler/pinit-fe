@@ -1,81 +1,48 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useScheduleViewStateContext } from '@contexts/ScheduleViewStateContext'
 import { toDateKey } from '@shared/utils/datetime'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import WorkspaceIcon, { type WorkspaceIconName } from '../common/WorkspaceIcon'
 import './BottomTabBar.css'
-
-type BottomTabBarProps = {
-  activePath: string
-}
-
-const tabs = [
-  { key: 'today', label: '오늘', path: '/app/today', icon: '✨' },
-  { key: 'schedules', label: '일정', path: '/app/schedules', icon: '📅' },
-  { key: 'tasks', label: '작업', path: '/app/tasks', icon: '✅' },
-  { key: 'statistics', label: '통계', path: '/app/statistics', icon: '📊' },
+const tabs: [string, string, WorkspaceIconName][] = [
+  ['today', '오늘', 'sun'],
+  ['schedules', '일정', 'calendar'],
+  ['tasks', '작업', 'task'],
+  ['task-map', '작업 맵', 'map'],
+  ['statistics', '통계', 'chart'],
 ]
-
-/**
- * 하단 네비게이션 바 컴포넌트
- * @param activePath - 현재 활성화된 경로
- * @constructor
- */
-const BottomTabBar = ({ activePath }: BottomTabBarProps) => {
-  const navigate = useNavigate()
+export default function BottomTabBar({ activePath }: { activePath: string }) {
   const { selectedDate } = useScheduleViewStateContext()
-
-  const getActiveTab = (path: string) => {
-    if (path.startsWith('/app/today')) return '/app/today'
-    if (path.startsWith('/app/schedules')) return '/app/schedules'
-    if (path.startsWith('/app/tasks')) return '/app/tasks'
-    if (path.startsWith('/app/statistics')) return '/app/statistics'
-    return '/app/today'
-  }
-
-  const activeTab = getActiveTab(activePath)
-
-  const handleAddClick = () => {
-    if (activePath.startsWith('/app/tasks')) {
-      navigate('/app/tasks/new')
-      return
-    }
-    if (activePath.startsWith('/app/schedules')) {
-      const state = { initialDateKey: toDateKey(selectedDate) }
-      navigate('/app/schedules/new', { state })
-      return
-    }
-    // default: today → 일정 만들기로 안내
-    const state = { initialDateKey: toDateKey(selectedDate) }
-    navigate('/app/schedules/new', { state })
-  }
-
+  const { open } = useRouteSurfaceNavigation()
+  const taskMode =
+    activePath.startsWith('/app/tasks') ||
+    activePath.startsWith('/app/task-map')
   return (
-    <nav className="bottom-tab">
-      {tabs.map((tab) => (
+    <nav className="bottom-tab" aria-label="모바일 주 메뉴">
+      {tabs.map(([path, label, icon]) => (
         <NavLink
-          key={tab.key}
-          to={tab.path}
-          className={['bottom-tab__item', activeTab === tab.path ? 'is-active' : '']
-            .join(' ')
-            .trim()}
+          key={path}
+          to={'/app/' + path}
+          className={({ isActive }) =>
+            'bottom-tab__item' + (isActive ? ' is-active' : '')
+          }
         >
-          <span className="bottom-tab__icon" aria-hidden>
-            {tab.icon}
-          </span>
-          <span className="bottom-tab__label">{tab.label}</span>
+          <WorkspaceIcon name={icon} />
+          <span>{label}</span>
         </NavLink>
       ))}
       <button
         type="button"
-        aria-label="일정 추가"
-        className="bottom-tab__item bottom-tab__item--add"
-        onClick={handleAddClick}
+        aria-label={taskMode ? '작업 추가' : '일정 추가'}
+        className="bottom-tab__item--add"
+        onClick={() =>
+          open(taskMode ? '/app/tasks/new' : '/app/schedules/new', {
+            state: { initialDateKey: toDateKey(selectedDate) },
+          })
+        }
       >
-        <span className="bottom-tab__icon" aria-hidden>
-          ＋
-        </span>
+        <WorkspaceIcon name="plus" />
       </button>
     </nav>
   )
 }
-
-export default BottomTabBar

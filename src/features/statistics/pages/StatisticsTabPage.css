@@ -79,3 +79,71 @@
   color: var(--c-slate-900);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
 }
+
+.statistics-tab {
+  gap: 24px;
+}
+.statistics-tab__views {
+  display: flex;
+  align-self: flex-start;
+  background: var(--c-surface);
+  border: 1px solid var(--c-slate-200);
+  border-radius: 8px;
+  padding: 4px;
+  gap: 4px;
+}
+.statistics-tab__views button {
+  min-width: 74px;
+  min-height: 36px;
+  padding: 7px 16px;
+  font-weight: 500;
+  border-radius: 5px;
+  font-size: 14px;
+}
+.statistics-tab__views button[aria-pressed='true'] {
+  background: var(--c-blue-50);
+  color: var(--c-blue-700);
+  box-shadow: none;
+}
+.statistics-tab__header {
+  gap: 9px;
+}
+.statistics-tab__header h1 {
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+.statistics-tab__header p {
+  font-size: 14px;
+  color: var(--c-slate-500);
+}
+.statistics-tab__controls {
+  margin-top: 6px;
+  gap: 12px;
+}
+.statistics-tab__controls button {
+  border: 1px solid var(--c-slate-200);
+  border-radius: 7px;
+  background: var(--c-surface);
+  min-height: 38px;
+  font-size: 14px;
+  color: var(--c-slate-600);
+}
+.statistics-tab__cards {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.statistic-card,
+.donut-chart,
+.weekly-bar,
+.report-section,
+.weekly-review {
+  border: 1px solid var(--c-slate-200);
+  border-radius: 12px;
+  box-shadow: none;
+  background: var(--c-surface);
+}
+@media (max-width: 800px) {
+  .statistics-tab__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -175,3 +175,42 @@
   color: var(--c-slate-500);
   font-size: 12px;
 }
+
+.task-form__estimate-mode {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.task-form__estimate-mode legend {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.task-form__estimate-options {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.task-form__estimate-options label {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  font-size: 14px;
+}
+.task-form__estimate-options input {
+  accent-color: var(--c-blue-600);
+}
+.task-form__estimate-mode .task-form__field {
+  margin-top: 12px;
+}
+.task-form__cancel {
+  min-height: 42px;
+  padding: 0 18px;
+  background: var(--c-surface);
+  color: var(--c-slate-600);
+  border: 1px solid var(--c-slate-200);
+  border-radius: 8px;
+  cursor: pointer;
+}

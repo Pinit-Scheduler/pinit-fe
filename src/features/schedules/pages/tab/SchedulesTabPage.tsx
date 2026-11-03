@@ -10,39 +10,42 @@ import useOverdueSchedulesSummary from '../../hooks/useOverdueSchedulesSummary.t
 import ScheduleCard from '../../components/ScheduleCard.tsx'
 import useScheduleList from '../../hooks/useScheduleList.ts'
 import StatusPanel from '@shared/components/common/StatusPanel'
-import ScheduleDetailModal from '../../components/modals/ScheduleDetailModal.tsx'
-import {
-  deleteSchedule,
-  startSchedule,
-  cancelSchedule,
-  completeSchedule,
-  fetchScheduleDetail,
-  updateSchedule,
-} from '../../api/schedules.ts'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { deleteSchedule, updateSchedule } from '../../api/schedules.ts'
 import type { ScheduleResponse, ScheduleSummary } from '../../types/schedule'
 import useWeeklyStatistics from '@features/statistics/hooks/useWeeklyStatistics'
 import { formatMinutesToTime } from '@shared/utils/statisticsTransform'
 import './SchedulesTabPage.css'
-import { addDays, getTodayWithOffset, toApiDateTimeWithZone, toDateKey, toDisplayDayjs } from '@shared/utils/datetime'
+import {
+  addDays,
+  getTodayWithOffset,
+  toApiDateTimeWithZone,
+  toDateKey,
+  toDisplayDayjs,
+} from '@shared/utils/datetime'
 import { parseDateKey } from '@shared/utils/dateKey'
 import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
-import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import { useTrashUndo } from '@features/trash'
 import useScheduleDrag from '../../hooks/useScheduleDrag'
 import ScheduleTimeHandle from '../../components/ScheduleTimeHandle'
 import { useRecurrenceScope } from '@features/recurrence/components/RecurrenceScopeDialog'
-import { confirmAndDeleteSeries } from '@features/recurrence/utils/seriesMutations'
+import {
+  confirmAndDeleteSeries,
+  previewSeriesDelete,
+} from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
 
 const SchedulesTabPage = () => {
   const listRef = useRef<HTMLDivElement | null>(null)
   const [movingScheduleId, setMovingScheduleId] = useState<number | null>(null)
   const recurrenceScope = useRecurrenceScope()
-  const [detailScheduleId, setDetailScheduleId] = useState<number | null>(null)
-  const [weekDirection, setWeekDirection] = useState<'forward' | 'backward'>('forward')
+  const { open } = useRouteSurfaceNavigation()
+  const [weekDirection, setWeekDirection] = useState<'forward' | 'backward'>(
+    'forward',
+  )
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('week')
   const {
     currentWeekStart,
@@ -88,8 +91,15 @@ const SchedulesTabPage = () => {
   }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
-  const { presenceMap, isLoading: isPresenceLoading, error: presenceError, refetch: refetchPresence } =
-    useWeeklySchedulePresence({ weekStart: currentWeekStart, anchorDate: selectedDate })
+  const {
+    presenceMap,
+    isLoading: isPresenceLoading,
+    error: presenceError,
+    refetch: refetchPresence,
+  } = useWeeklySchedulePresence({
+    weekStart: currentWeekStart,
+    anchorDate: selectedDate,
+  })
   const monthly = useMonthlySchedules(selectedDate, calendarView === 'month')
   const {
     schedules: schedulesByDate,
@@ -97,23 +107,23 @@ const SchedulesTabPage = () => {
     error: scheduleErrorRaw,
     refetch: refetchSchedulesRaw,
   } = useScheduleList(selectedDate)
-  const { summary: overdueSummary, isLoading: isOverdueLoading, refetch: refetchOverdue } =
-    useOverdueSchedulesSummary()
-  const statsWeekStart = useMemo(() => currentWeekStart.add(1, 'day'), [currentWeekStart])
+  const {
+    summary: overdueSummary,
+    isLoading: isOverdueLoading,
+    refetch: refetchOverdue,
+  } = useOverdueSchedulesSummary()
+  const statsWeekStart = useMemo(
+    () => currentWeekStart.add(1, 'day'),
+    [currentWeekStart],
+  )
   const {
     current: weeklyStats,
     isLoading: isWeeklyStatsLoading,
     error: weeklyStatsError,
     refetch: refetchWeeklyStats,
   } = useWeeklyStatistics({ weekStart: statsWeekStart })
-  const {
-    setSchedule,
-    setActiveSchedule,
-    updateScheduleState,
-    activeScheduleId,
-    schedulesById,
-  } = useScheduleCache()
-  const { syncTaskStateWithSchedule } = useScheduleTaskSync()
+  const { setSchedule, setActiveSchedule, activeScheduleId, schedulesById } =
+    useScheduleCache()
 
   const schedules = useMemo(
     () =>
@@ -132,31 +142,14 @@ const SchedulesTabPage = () => {
     monthly.refetch()
   }
 
-  const refreshScheduleDetail = async (
-    scheduleId: number,
-    syncState?: ScheduleResponse['state'],
-  ): Promise<ScheduleResponse | null> => {
-    try {
-      const detail = await fetchScheduleDetail(scheduleId)
-      setSchedule(detail)
-      updateScheduleState(scheduleId, detail.state)
-      if (detail.taskId != null) {
-        await syncTaskStateWithSchedule(detail.taskId, syncState ?? detail.state)
-      }
-      return detail
-    } catch (error) {
-      console.error('Failed to refresh schedule detail:', error)
-      return null
-    }
-  }
-
   const handleChangeWeek = (offset: 1 | -1) => {
     setWeekDirection(offset > 0 ? 'forward' : 'backward')
     goToWeek(offset)
   }
 
   // 달을 넘기면 주간 이동처럼 선택 날짜도 같은 날로 옮긴다(없는 날은 그 달 말일).
-  const handleChangeMonth = (offset: 1 | -1) => selectDate(selectedDate.add(offset, 'month'))
+  const handleChangeMonth = (offset: 1 | -1) =>
+    selectDate(selectedDate.add(offset, 'month'))
 
   const presenceMapWithSelected = useMemo(() => {
     const hasSchedule = schedules.length > 0
@@ -174,7 +167,9 @@ const SchedulesTabPage = () => {
   }, [addToast, scheduleError])
 
   useEffect(() => {
-    schedulesByDate.forEach((schedule) => setSchedule(schedule as unknown as ScheduleResponse))
+    schedulesByDate.forEach((schedule) =>
+      setSchedule(schedule as unknown as ScheduleResponse),
+    )
   }, [schedulesByDate, setSchedule])
 
   const handleRefresh = () => {
@@ -187,17 +182,27 @@ const SchedulesTabPage = () => {
     // 반복 회차(ADR-0019)면 범위를 먼저 묻는다. 카드는 반복 회차의 삭제 확인을 이 화면에 맡긴다.
     const target = schedules.find((schedule) => schedule.id === scheduleId)
     if (target?.recurrence) {
-      const scope = await recurrenceScope.ask('delete', target.title)
+      const scope = await recurrenceScope.ask('delete', target.title, {
+        preview: (selected) =>
+          selected === 'THIS'
+            ? Promise.resolve(
+                '이번 회차만 휴지통으로 옮겨요. 30일 안에 되돌릴 수 있어요.',
+              )
+            : previewSeriesDelete(target.recurrence!, selected),
+      })
       if (scope === null) return
       if (scope !== 'THIS') {
         try {
-          if (await confirmAndDeleteSeries(target.recurrence, scope)) {
+          if (await confirmAndDeleteSeries(target.recurrence, scope, true)) {
             if (activeScheduleId === scheduleId) setActiveSchedule(null)
             dispatchScheduleChanged({ reason: 'recurrence' })
             refetchOverdue()
           }
         } catch (error) {
-          console.error(`❌ Recurrence delete failed for schedule ${scheduleId}:`, error)
+          console.error(
+            `❌ Recurrence delete failed for schedule ${scheduleId}:`,
+            error,
+          )
           addToast('반복 일정을 지우지 못했어요.', 'error')
         }
         return
@@ -220,53 +225,10 @@ const SchedulesTabPage = () => {
     }
   }
 
-  const handleStart = async (scheduleId: number) => {
-    try {
-      await startSchedule(scheduleId)
-      updateScheduleState(scheduleId, 'IN_PROGRESS')
-      const detail = await refreshScheduleDetail(scheduleId, 'IN_PROGRESS')
-      if (detail) {
-        setActiveSchedule(scheduleId)
-      }
-      refetchSchedules()
-    } catch (error) {
-      console.error(`❌ Start failed for schedule ${scheduleId}:`, error)
-      addToast('일정 시작에 실패했습니다.', 'error')
-    }
-  }
-
-  const handleCancel = async (scheduleId: number) => {
-    try {
-      await cancelSchedule(scheduleId)
-      updateScheduleState(scheduleId, 'NOT_STARTED')
-      if (activeScheduleId === scheduleId) {
-        setActiveSchedule(null)
-      }
-      await refreshScheduleDetail(scheduleId, 'NOT_STARTED')
-      refetchSchedules()
-    } catch (error) {
-      console.error(`❌ Cancel failed for schedule ${scheduleId}:`, error)
-      addToast('일정 취소에 실패했습니다.', 'error')
-    }
-  }
-
-  const handleComplete = async (scheduleId: number) => {
-    try {
-      await completeSchedule(scheduleId)
-      updateScheduleState(scheduleId, 'COMPLETED')
-      if (activeScheduleId === scheduleId) {
-        setActiveSchedule(null)
-      }
-      await refreshScheduleDetail(scheduleId, 'COMPLETED')
-      refetchSchedules()
-      refetchOverdue()
-    } catch (error) {
-      console.error(`❌ Complete failed for schedule ${scheduleId}:`, error)
-      addToast('일정 완료에 실패했습니다.', 'error')
-    }
-  }
-
-  const handleMoveSchedule = async (schedule: ScheduleSummary, offset: 1 | -1) => {
+  const handleMoveSchedule = async (
+    schedule: ScheduleSummary,
+    offset: 1 | -1,
+  ) => {
     if (movingScheduleId === schedule.id) return
     const previousDateKey = toDateKey(schedule.date)
     setMovingScheduleId(schedule.id)
@@ -276,7 +238,11 @@ const SchedulesTabPage = () => {
         date: toApiDateTimeWithZone(nextDate),
       })
       setSchedule(updated)
-      dispatchScheduleChanged({ schedule: updated, previousDateKey, reason: 'moved' })
+      dispatchScheduleChanged({
+        schedule: updated,
+        previousDateKey,
+        reason: 'moved',
+      })
       refetchSchedules()
       refetchOverdue()
       refetchWeeklyStats()
@@ -292,7 +258,10 @@ const SchedulesTabPage = () => {
     }
   }
 
-  const handleShiftScheduleTime = async (schedule: ScheduleSummary, minutes: number) => {
+  const handleShiftScheduleTime = async (
+    schedule: ScheduleSummary,
+    minutes: number,
+  ) => {
     if (movingScheduleId === schedule.id) return
     const previousDateKey = toDateKey(schedule.date)
     setMovingScheduleId(schedule.id)
@@ -302,9 +271,16 @@ const SchedulesTabPage = () => {
         date: toApiDateTimeWithZone(nextDate),
       })
       setSchedule(updated)
-      dispatchScheduleChanged({ schedule: updated, previousDateKey, reason: 'moved' })
+      dispatchScheduleChanged({
+        schedule: updated,
+        previousDateKey,
+        reason: 'moved',
+      })
       refetchSchedules()
-      addToast(`"${schedule.title}" 일정을 ${nextDate.format('HH:mm')}로 옮겼어요.`, 'success')
+      addToast(
+        `"${schedule.title}" 일정을 ${nextDate.format('HH:mm')}로 옮겼어요.`,
+        'success',
+      )
     } catch (error) {
       console.error('❌ Failed to shift schedule time:', error)
       addToast('일정 시간을 옮기지 못했어요.', 'error')
@@ -338,7 +314,11 @@ const SchedulesTabPage = () => {
           }}
         />
       ) : null}
-      <div className="schedules-tab__view-toggle" role="group" aria-label="달력 보기">
+      <div
+        className="schedules-tab__view-toggle"
+        role="group"
+        aria-label="달력 보기"
+      >
         {(['week', 'month'] as const).map((view) => (
           <button
             key={view}
@@ -364,7 +344,10 @@ const SchedulesTabPage = () => {
         />
       ) : (
         <div
-          className={['week-transition', `week-transition--${weekDirection}`].join(' ')}
+          className={[
+            'week-transition',
+            `week-transition--${weekDirection}`,
+          ].join(' ')}
           key={currentWeekStart.format('YYYY-MM-DD')}
         >
           <WeeklyDateStrip
@@ -389,30 +372,47 @@ const SchedulesTabPage = () => {
         ) : weeklyStatsError ? (
           <span>총 작업 시간을 표시할 수 없어요</span>
         ) : weeklyStats ? (
-          <span>이번 주 총 작업 {formatMinutesToTime(weeklyStats.totalMinutes)}</span>
+          <span>
+            이번 주 총 작업 {formatMinutesToTime(weeklyStats.totalMinutes)}
+          </span>
         ) : (
           <span>이번 주 총 작업 0시간 0분</span>
         )}
       </div>
-      {isBeyondGeneration(selectedDateKey, getTodayWithOffset().format('YYYY-MM-DD')) && (
+      {isBeyondGeneration(
+        selectedDateKey,
+        getTodayWithOffset().format('YYYY-MM-DD'),
+      ) && (
         <p className="schedules-tab__notice" role="note">
-          🔁 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가 가까워지면 생겨요.
+          🔁 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가
+          가까워지면 생겨요.
         </p>
       )}
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
         <div className="schedules-tab__header-actions">
-          <Link to={`/app/plan?date=${selectedDateKey}`} className="schedules-tab__refresh">
+          <Link
+            to={`/app/plan?date=${selectedDateKey}`}
+            className="schedules-tab__refresh"
+          >
             자동 계획
           </Link>
-          <button type="button" className="schedules-tab__refresh" onClick={handleRefresh}>
+          <button
+            type="button"
+            className="schedules-tab__refresh"
+            onClick={handleRefresh}
+          >
             새로고침
           </button>
         </div>
       </header>
       <div
         ref={listRef}
-        className={['schedules-tab__list', 'fade-slide', `week-transition--${weekDirection}`].join(' ')}
+        className={[
+          'schedules-tab__list',
+          'fade-slide',
+          `week-transition--${weekDirection}`,
+        ].join(' ')}
         data-onboarding-anchor="schedules.list"
         onTouchStart={containerTouchHandlers.onTouchStart}
         onTouchMove={containerTouchHandlers.onTouchMove}
@@ -470,15 +470,14 @@ const SchedulesTabPage = () => {
                 start={toDisplayDayjs(schedule.date)}
                 title={schedule.title}
                 disabled={movingScheduleId === schedule.id}
-                onCommit={(minutes) => void handleShiftScheduleTime(schedule, minutes)}
+                onCommit={(minutes) =>
+                  void handleShiftScheduleTime(schedule, minutes)
+                }
               />
               <ScheduleCard
                 schedule={schedule}
-                onOpenDetail={setDetailScheduleId}
+                onOpenDetail={(id) => open(`/app/schedules/${id}`)}
                 onDelete={handleDelete}
-                onStart={handleStart}
-                onComplete={handleComplete}
-                onCancel={handleCancel}
               />
             </div>
           ))
@@ -492,16 +491,6 @@ const SchedulesTabPage = () => {
       </div>
 
       {recurrenceScope.dialog}
-      {detailScheduleId && (
-        <ScheduleDetailModal
-          scheduleId={detailScheduleId}
-          onClose={() => setDetailScheduleId(null)}
-          onRefresh={() => {
-            refetchSchedules()
-            refetchOverdue()
-          }}
-        />
-      )}
     </section>
   )
 }

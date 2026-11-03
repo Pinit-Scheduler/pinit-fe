@@ -1,5 +1,10 @@
+import { CategoryPicker } from '@features/categories'
 import dayjs from 'dayjs'
-import { useState } from 'react'
+import { useState, useId } from 'react'
+import {
+  useRouteSurfaceNavigation,
+  RouteSurfaceActions,
+} from '@shared/routing/RouteSurface'
 import useScheduleForm from '../hooks/useScheduleForm'
 import RecurrenceRuleFields from '@features/recurrence/components/RecurrenceRuleFields'
 import {
@@ -16,7 +21,10 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 type ScheduleFormProps = {
   initialValues?: Partial<ScheduleFormValues>
   /** rule은 "반복"을 켰을 때만 있다. 시작일은 시작 시간의 날짜다 */
-  onSubmit: (values: ScheduleFormValues, rule?: RuleDraft | null) => Promise<void>
+  onSubmit: (
+    values: ScheduleFormValues,
+    rule?: RuleDraft | null,
+  ) => Promise<void | boolean>
   submitLabel?: string
   /** 계획 길이 입력칸 아래 안내. 예: 새 일정은 "비워 두면 30분" */
   plannedDurationHint?: string
@@ -43,22 +51,48 @@ const parseDateTimeLocalValue = (value: string, offsetMinutes: number) =>
  * @param submitLabel - 제출 버튼 라벨
  * @constructor
  */
-const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', plannedDurationHint, allowRecurrence }: ScheduleFormProps) => {
+const ScheduleForm = ({
+  initialValues,
+  onSubmit,
+  submitLabel = '일정 저장',
+  plannedDurationHint,
+  allowRecurrence,
+}: ScheduleFormProps) => {
+  const formId = useId()
+  const { close } = useRouteSurfaceNavigation()
   const form = useScheduleForm({ initialValues })
+  const [initialCategoryId] = useState(initialValues?.categoryId ?? null)
   const { offsetMinutes } = useTimePreferences()
   const [rule, setRule] = useState<RuleDraft | null>(null)
-  const [ruleErrors, setRuleErrors] = useState<Partial<Record<RuleDraftField, string>>>({})
+  const [ruleErrors, setRuleErrors] = useState<
+    Partial<Record<RuleDraftField, string>>
+  >({})
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     const valid = form.validate()
-    const ruleWithStart = rule ? { ...rule, startDate: toDateKey(form.values.date) } : null
-    const nextRuleErrors = ruleWithStart ? validateRuleDraft(ruleWithStart, getTodayWithOffset().format('YYYY-MM-DD')) : {}
+    const ruleWithStart = rule
+      ? { ...rule, startDate: toDateKey(form.values.date) }
+      : null
+    const nextRuleErrors = ruleWithStart
+      ? validateRuleDraft(
+          ruleWithStart,
+          getTodayWithOffset().format('YYYY-MM-DD'),
+        )
+      : {}
     setRuleErrors(nextRuleErrors)
     if (!valid || Object.keys(nextRuleErrors).length) return
     form.setSubmitting(true)
     try {
-      await onSubmit(form.values, ruleWithStart)
+      const saved = await onSubmit(
+        {
+          ...form.values,
+          categoryChanged:
+            (form.values.categoryId ?? null) !== initialCategoryId,
+        },
+        ruleWithStart,
+      )
+      if (saved === false) return
       form.reset(initialValues)
       setRule(null)
     } catch (error) {
@@ -69,10 +103,7 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', 
   }
 
   return (
-    <form
-      className="schedule-form"
-      onSubmit={handleSubmit}
-    >
+    <form id={formId} className="schedule-form" onSubmit={handleSubmit}>
       <label className="schedule-form__field">
         <span>일정 제목</span>
         <input
@@ -94,12 +125,22 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', 
         {form.errors.description && <small>{form.errors.description}</small>}
       </label>
 
+      <CategoryPicker
+        value={form.values.categoryId ?? null}
+        onChange={(value) => form.onChange('categoryId', value)}
+      />
+
       <label className="schedule-form__field">
         <span>일정 타입</span>
         <select
-        value={form.values.scheduleType}
-        onChange={(event) => form.onChange('scheduleType', event.target.value as ScheduleTaskType)}
-      >
+          value={form.values.scheduleType}
+          onChange={(event) =>
+            form.onChange(
+              'scheduleType',
+              event.target.value as ScheduleTaskType,
+            )
+          }
+        >
           {scheduleTypeOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -114,7 +155,10 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', 
           type="datetime-local"
           value={formatDateTimeLocalValue(form.values.date, offsetMinutes)}
           onChange={(event) =>
-            form.onChange('date', parseDateTimeLocalValue(event.target.value, offsetMinutes))
+            form.onChange(
+              'date',
+              parseDateTimeLocalValue(event.target.value, offsetMinutes),
+            )
           }
         />
       </label>
@@ -127,11 +171,17 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', 
           min={5}
           max={1440}
           value={form.values.plannedDurationMinutes ?? ''}
-          onChange={(event) => form.onChange('plannedDurationMinutes', event.target.value)}
+          onChange={(event) =>
+            form.onChange('plannedDurationMinutes', event.target.value)
+          }
           placeholder="예: 45"
         />
-        {plannedDurationHint && <p className="schedule-form__hint">{plannedDurationHint}</p>}
-        {form.errors.plannedDurationMinutes && <small>{form.errors.plannedDurationMinutes}</small>}
+        {plannedDurationHint && (
+          <p className="schedule-form__hint">{plannedDurationHint}</p>
+        )}
+        {form.errors.plannedDurationMinutes && (
+          <small>{form.errors.plannedDurationMinutes}</small>
+        )}
       </label>
 
       {allowRecurrence && (
@@ -140,29 +190,50 @@ const ScheduleForm = ({ initialValues, onSubmit, submitLabel = '일정 저장', 
             <input
               type="checkbox"
               checked={rule !== null}
-              onChange={(event) => setRule(event.target.checked ? defaultRuleDraft(toDateKey(form.values.date)) : null)}
+              onChange={(event) =>
+                setRule(
+                  event.target.checked
+                    ? defaultRuleDraft(toDateKey(form.values.date))
+                    : null,
+                )
+              }
             />
             <span>🔁 반복</span>
           </label>
           {rule && (
             <>
-              <RecurrenceRuleFields draft={rule} onChange={setRule} errors={ruleErrors} hideStartDate />
+              <RecurrenceRuleFields
+                draft={rule}
+                onChange={setRule}
+                errors={ruleErrors}
+                hideStartDate
+              />
               <p className="schedule-form__hint">
-                시작 시간의 날짜부터 정한 시각에 일정이 생겨요. 오늘부터 28일 치를 먼저 만들고 이어서 만들어요.
+                시작 시간의 날짜부터 정한 시각에 일정이 생겨요. 오늘부터 28일
+                치를 먼저 만들고 이어서 만들어요.
               </p>
             </>
           )}
         </div>
       )}
 
-      <div className="schedule-form__actions">
-        <button type="button" onClick={() => form.reset(initialValues)} disabled={form.isSubmitting}>
-          초기화
+      <RouteSurfaceActions className="schedule-form__actions">
+        <button
+          type="button"
+          onClick={() => close('/app/schedules')}
+          disabled={form.isSubmitting}
+        >
+          취소
         </button>
-        <button type="submit" className="is-primary" disabled={form.isSubmitting}>
+        <button
+          type="submit"
+          form={formId}
+          className="is-primary"
+          disabled={form.isSubmitting}
+        >
           {form.isSubmitting ? '저장 중...' : submitLabel}
         </button>
-      </div>
+      </RouteSurfaceActions>
     </form>
   )
 }

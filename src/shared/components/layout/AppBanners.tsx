@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import useOnlineStatus from '@shared/hooks/useOnlineStatus'
 import {
   hasInstallPrompt,
@@ -11,6 +11,30 @@ import {
 import { NUDGE_KEYS, readFlag, writeFlag } from '@shared/utils/safeStorage'
 import './AppBanners.css'
 
+export const UpdateBanner = () => {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const notify = () => setReady(true)
+    window.addEventListener('pinit:update-ready', notify)
+    return () => window.removeEventListener('pinit:update-ready', notify)
+  }, [])
+  if (!ready) return null
+  return (
+    <div className="app-banner app-banner--install" role="status">
+      <p>새 버전이 준비됐어요. 작성 중인 내용을 저장한 뒤 업데이트해 주세요.</p>
+      <button
+        className="workspace-button"
+        onClick={() => window.location.reload()}
+      >
+        업데이트
+      </button>
+      <button aria-label="업데이트 안내 닫기" onClick={() => setReady(false)}>
+        ×
+      </button>
+    </div>
+  )
+}
+
 /** 연결이 끊기면 상단에 알린다. 캐시된 화면은 보이지만 새로 불러오거나 저장하지 못한다. */
 export const OfflineBanner = () => {
   const isOnline = useOnlineStatus()
@@ -18,15 +42,24 @@ export const OfflineBanner = () => {
   return (
     <div className="app-banner app-banner--offline" role="status">
       <span aria-hidden>📡</span>
-      <p>오프라인이에요. 저장된 화면만 보이고, 바꾼 내용은 연결된 뒤에 다시 시도해 주세요.</p>
+      <p>
+        오프라인이에요. 저장된 화면만 보이고, 바꾼 내용은 연결된 뒤에 다시
+        시도해 주세요.
+      </p>
     </div>
   )
 }
 
 /** 홈 화면에 설치하라는 안내. 설치했거나, 브라우저가 설치를 못 하거나, 닫았으면 보이지 않는다. */
 export const InstallBanner = () => {
-  const hasPrompt = useSyncExternalStore(subscribeInstallPrompt, hasInstallPrompt, () => false)
-  const [dismissed, setDismissed] = useState(() => readFlag(NUDGE_KEYS.installBannerDismissed))
+  const hasPrompt = useSyncExternalStore(
+    subscribeInstallPrompt,
+    hasInstallPrompt,
+    () => false,
+  )
+  const [dismissed, setDismissed] = useState(() =>
+    readFlag(NUDGE_KEYS.installBannerDismissed),
+  )
   const availability = installAvailability({
     standalone: isStandalone(),
     hasPrompt,
@@ -46,7 +79,11 @@ export const InstallBanner = () => {
   }
 
   return (
-    <div className="app-banner app-banner--install" role="region" aria-label="앱 설치 안내">
+    <div
+      className="app-banner app-banner--install"
+      role="region"
+      aria-label="앱 설치 안내"
+    >
       <span aria-hidden>📲</span>
       <p>
         {availability === 'prompt'
@@ -55,11 +92,20 @@ export const InstallBanner = () => {
       </p>
       <div className="app-banner__actions">
         {availability === 'prompt' && (
-          <button type="button" className="app-banner__primary" onClick={() => void install()}>
+          <button
+            type="button"
+            className="app-banner__primary"
+            onClick={() => void install()}
+          >
             설치
           </button>
         )}
-        <button type="button" className="app-banner__close" onClick={dismiss} aria-label="설치 안내 닫기">
+        <button
+          type="button"
+          className="app-banner__close"
+          onClick={dismiss}
+          aria-label="설치 안내 닫기"
+        >
           ✕
         </button>
       </div>

@@ -67,3 +67,81 @@
   padding: 8px;
   cursor: pointer;
 }
+
+.recurrence-scope__backdrop {
+  z-index: calc(var(--z-modal-backdrop) + 2);
+  align-items: center;
+  padding: 20px;
+}
+.recurrence-scope__sheet {
+  border-radius: 14px;
+  max-height: calc(var(--workspace-viewport-height, 100dvh) - 40px);
+  overflow: auto;
+}
+.recurrence-scope__options {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.recurrence-scope__options legend {
+  font-size: 13px;
+  color: var(--c-slate-500);
+  margin-bottom: 8px;
+}
+.recurrence-scope__option {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 58px;
+}
+.recurrence-scope__option input {
+  margin-top: 4px;
+  accent-color: var(--c-blue-600);
+}
+.recurrence-scope__option > span {
+  display: grid;
+  gap: 3px;
+}
+.recurrence-scope__option strong {
+  font-size: 15px;
+  color: var(--c-slate-900);
+}
+.recurrence-scope__option:has(input:checked) {
+  background: var(--c-blue-50);
+  border-color: var(--c-blue-600);
+}
+.recurrence-scope__impact {
+  padding: 12px;
+  background: var(--c-page);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+.recurrence-scope__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.recurrence-scope__actions button {
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 8px;
+}
+.recurrence-scope__confirm {
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-blue-50);
+  color: var(--c-blue-600);
+}
+.recurrence-scope__confirm:disabled {
+  opacity: 0.45;
+}
+@media (max-width: 899px) {
+  .recurrence-scope__backdrop {
+    align-items: flex-end;
+    padding: 12px;
+  }
+  .recurrence-scope__sheet {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+}

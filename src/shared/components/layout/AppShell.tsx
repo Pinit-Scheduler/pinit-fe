@@ -1,12 +1,17 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useRef } from 'react'
+import WorkspaceSidebar from './WorkspaceSidebar'
 import TopBar from './TopBar'
 import BottomTabBar from './BottomTabBar'
-import { InstallBanner, OfflineBanner } from './AppBanners'
+import { InstallBanner, OfflineBanner, UpdateBanner } from './AppBanners'
 import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
 import { refreshAccessToken } from '@features/auth/api/auth'
-import { clearAuthTokens, getAccessToken, isLoggedOut } from '@shared/api/authTokens'
+import {
+  clearAuthTokens,
+  getAccessToken,
+  isLoggedOut,
+} from '@shared/api/authTokens'
 import { useMemberZoneSync } from '@features/settings/hooks/useMemberZoneSync'
 import './AppShell.css'
 
@@ -17,6 +22,7 @@ const TAB_TITLES: Record<string, string> = {
   '/app/schedules/new': '일정 추가',
   '/app/new': '일정 추가',
   '/app/tasks': '작업',
+  '/app/task-map': '작업 맵',
   '/app/statistics': '통계',
   '/app/settings': '설정',
   '/app/settings/routines': '생활 시간',
@@ -57,6 +63,40 @@ const AppShell = () => {
   useMemberZoneSync()
 
   useEffect(() => {
+    const shell = document.querySelector<HTMLElement>('.app-shell')
+    if (!shell) return
+    const measure = () => {
+      const player = document.querySelector('.mini-player-wrapper')
+      shell.style.setProperty(
+        '--workspace-player-height',
+        `${player?.getBoundingClientRect().height ?? 0}px`,
+      )
+      shell.style.setProperty(
+        '--workspace-viewport-height',
+        `${window.visualViewport?.height ?? window.innerHeight}px`,
+      )
+    }
+    const resize = new ResizeObserver(measure)
+    const observe = () => {
+      resize.disconnect()
+      const player = document.querySelector('.mini-player-wrapper')
+      if (player) resize.observe(player)
+      measure()
+    }
+    const mutation = new MutationObserver(observe)
+    mutation.observe(shell, { childList: true, subtree: true })
+    window.visualViewport?.addEventListener('resize', measure)
+    window.addEventListener('resize', measure)
+    observe()
+    return () => {
+      resize.disconnect()
+      mutation.disconnect()
+      window.visualViewport?.removeEventListener('resize', measure)
+      window.removeEventListener('resize', measure)
+    }
+  }, [])
+
+  useEffect(() => {
     const ensureToken = async () => {
       if (didAttemptRefresh.current) return
       didAttemptRefresh.current = true
@@ -80,18 +120,30 @@ const AppShell = () => {
 
   const title = getPageTitle(pathname)
   const showSettingsButton = !pathname.startsWith('/app/settings')
-  const isScheduleDetail = pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3
-  const isTaskDetail = pathname.startsWith('/app/tasks/') && pathname.split('/').length > 3
-  const isNewPage = pathname === '/app/new' || pathname === '/app/schedules/new' || pathname === '/app/tasks/new'
+  const isScheduleDetail =
+    pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3
+  const isTaskDetail =
+    pathname.startsWith('/app/tasks/') && pathname.split('/').length > 3
+  const isNewPage =
+    pathname === '/app/new' ||
+    pathname === '/app/schedules/new' ||
+    pathname === '/app/tasks/new'
   const isSettingsPage = pathname.startsWith('/app/settings')
   const isPlanPage = pathname === '/app/plan'
   const isOnboardingGuide = pathname === '/app/settings/onboarding'
-  const showBackButton = isScheduleDetail || isTaskDetail || isSettingsPage || isNewPage || isPlanPage || isOnboardingGuide
+  const showBackButton =
+    isScheduleDetail ||
+    isTaskDetail ||
+    isSettingsPage ||
+    isNewPage ||
+    isPlanPage ||
+    isOnboardingGuide
 
   const handleBack = () => {
     // 온보딩 가이드는 딥링크로 열 수 있다. 앱 안에서 쌓인 history가 없으면 설정으로 간다.
     if (isOnboardingGuide) {
-      const historyIndex = (window.history.state as { idx?: number } | null)?.idx
+      const historyIndex = (window.history.state as { idx?: number } | null)
+        ?.idx
       if (historyIndex === undefined || historyIndex <= 0) {
         navigate('/app/settings', { replace: true })
         return
@@ -101,8 +153,11 @@ const AppShell = () => {
   }
 
   return (
-    <div className="app-shell">
+    <div
+      className={`app-shell${isNewPage || /\/edit$/.test(pathname) ? ' app-shell--editing' : ''}`}
+    >
       <OnboardingTourProvider>
+        <WorkspaceSidebar />
         <TopBar
           title={title}
           showBackButton={showBackButton}
@@ -110,10 +165,11 @@ const AppShell = () => {
           onSettings={() => navigate('/app/settings')}
           showSettingsButton={showSettingsButton}
         />
-        <OfflineBanner />
-        {pathname === '/app/today' && <InstallBanner />}
         {/*  리액트 라우터 호출: app-shell__content */}
         <main className="app-shell__content">
+          <OfflineBanner />
+          <UpdateBanner />
+          {pathname === '/app/today' && <InstallBanner />}
           <Outlet />
         </main>
         <MiniPlayerBar />

@@ -4,11 +4,18 @@ import timezone from 'dayjs/plugin/timezone'
 import duration from 'dayjs/plugin/duration'
 import type { DateTimeWithZone } from '../shared/types/datetime'
 import type { Task, TaskRequest } from '../features/tasks/types/task'
-import type { ScheduleRequest, ScheduleResponse } from '../features/schedules/types/schedule'
+import type {
+  ScheduleRequest,
+  ScheduleResponse,
+} from '../features/schedules/types/schedule'
 import type { StatisticsResponse } from '../features/statistics/types/statistics'
 import type { PushTokenRequest } from '../features/settings/api/notifications'
 import type { OAuthDecisionRequest } from '../features/oauth/types/oauth'
-import type { LoginPayload, SignupPayload, SocialLoginPayload } from '../features/auth/api/auth'
+import type {
+  LoginPayload,
+  SignupPayload,
+  SocialLoginPayload,
+} from '../features/auth/api/auth'
 import {
   activeScheduleId,
   makeToken,
@@ -30,6 +37,15 @@ import { handleRecurrences } from './recurrences'
 import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
 import { handleCalibration } from './calibration'
 import { handleStatisticsReport } from './statisticsReport'
+import {
+  handleCategories,
+  inheritMockTaskScheduleCategory,
+  mockCategoryOwnerId,
+} from './categories'
+import {
+  applyMockTaskDependencies,
+  recomputeMockTaskReadiness,
+} from './taskDependencies'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -84,7 +100,9 @@ const formatIsoMinutes = (minutes: number) => {
   return `PT${h}H${m}M`
 }
 
-const getTargetDateFromQuery = (searchParams: URLSearchParams): DateTimeWithZone => {
+const getTargetDateFromQuery = (
+  searchParams: URLSearchParams,
+): DateTimeWithZone => {
   const dateTime = searchParams.get('time')
   const zoneId = searchParams.get('zoneId') || 'Asia/Seoul'
   if (dateTime) {
@@ -103,7 +121,10 @@ const toTaskResponse = (task: Task) => ({
   dueDate: task.dueDate,
   importance: task.importance,
   difficulty: task.difficulty,
-  expectedDuration: task.expectedDuration && task.expectedDuration !== 'PT0S' ? task.expectedDuration : null,
+  expectedDuration:
+    task.expectedDuration && task.expectedDuration !== 'PT0S'
+      ? task.expectedDuration
+      : null,
   effectiveExpectedDuration: formatIsoMinutes(effectiveExpectedMinutes(task)),
   completed: task.completed ?? task.isCompleted ?? false,
   inboundDependencyCount: task.inboundDependencyCount ?? 0,
@@ -114,23 +135,31 @@ const toTaskResponse = (task: Task) => ({
   updatedAt: task.updatedAt ?? new Date().toISOString(),
   recurrence: task.recurrence ?? null,
   missed: task.missed ?? false,
+  tags: task.tags ?? [],
 })
-const findSchedule = (id: number) => mockSchedules.find((schedule) => schedule.id === id)
+const findSchedule = (id: number) =>
+  mockSchedules.find((schedule) => schedule.id === id)
 
 const handleAuth = async (path: string, method: string, request: Request) => {
   if (method === 'POST' && path === '/v0/login') {
     const body = await readJson<LoginPayload>(request)
     const user = mockUsers.find(
-      (candidate) => candidate.username === body?.username && candidate.password === body?.password,
+      (candidate) =>
+        candidate.username === body?.username &&
+        candidate.password === body?.password,
     )
-    if (!user) return json({ message: '아이디 또는 비밀번호가 잘못되었습니다.' }, 401)
+    if (!user)
+      return json({ message: '아이디 또는 비밀번호가 잘못되었습니다.' }, 401)
     return json({ token: makeToken(user.id), refreshToken: 'mock-refresh' })
   }
 
   if (method === 'POST' && path === '/v0/signup') {
     const body = await readJson<SignupPayload>(request)
     if (!body?.username || !body.password || !body.nickname) {
-      return json({ message: 'username, password, nickname이 필요합니다.' }, 400)
+      return json(
+        { message: 'username, password, nickname이 필요합니다.' },
+        400,
+      )
     }
     if (mockUsers.some((user) => user.username === body.username)) {
       return json({ message: '이미 존재하는 아이디입니다.' }, 409)
@@ -166,7 +195,12 @@ const handleAuth = async (path: string, method: string, request: Request) => {
   return null
 }
 
-const handleNotifications = async (path: string, method: string, request: Request, searchParams: URLSearchParams) => {
+const handleNotifications = async (
+  path: string,
+  method: string,
+  request: Request,
+  searchParams: URLSearchParams,
+) => {
   if (method === 'GET' && path === '/v0/push/vapid') {
     return text(vapidPublicKey)
   }
@@ -176,7 +210,8 @@ const handleNotifications = async (path: string, method: string, request: Reques
     if (!body?.deviceId || !body.token) {
       return json({ message: 'deviceId와 token이 필요합니다.' }, 400)
     }
-    const existing = mockPushSubscriptions.get(body.deviceId) ?? new Set<string>()
+    const existing =
+      mockPushSubscriptions.get(body.deviceId) ?? new Set<string>()
     existing.add(body.token)
     mockPushSubscriptions.set(body.deviceId, existing)
     return noContent(204)
@@ -204,7 +239,8 @@ const handleNotifications = async (path: string, method: string, request: Reques
 const handleOAuth = async (path: string, method: string, request: Request) => {
   const requestMatch = path.match(/^\/oauth\/authorize\/requests\/([^/]+)$/)
   if (requestMatch && method === 'GET') {
-    const pending = mockOAuthAuthorizationRequests[decodeURIComponent(requestMatch[1])]
+    const pending =
+      mockOAuthAuthorizationRequests[decodeURIComponent(requestMatch[1])]
     if (!pending) return notFound('인가 요청을 찾을 수 없습니다.')
     // redirectUri는 서버 내부 값이라 동의 화면 응답에는 넣지 않는다.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -214,7 +250,9 @@ const handleOAuth = async (path: string, method: string, request: Request) => {
 
   if (path === '/oauth/authorize/decision' && method === 'POST') {
     const body = await readJson<OAuthDecisionRequest>(request)
-    const pending = body ? mockOAuthAuthorizationRequests[body.requestId] : undefined
+    const pending = body
+      ? mockOAuthAuthorizationRequests[body.requestId]
+      : undefined
     if (!body || !pending) return notFound('인가 요청을 찾을 수 없습니다.')
     // pending authorization은 1회용이다.
     delete mockOAuthAuthorizationRequests[body.requestId]
@@ -222,9 +260,13 @@ const handleOAuth = async (path: string, method: string, request: Request) => {
     if (body.approve) {
       target.searchParams.set('code', `mock-code-${Date.now()}`)
       const scopes = [...new Set(['mcp:read', ...body.scopes])]
-      const grantId = Math.max(0, ...mockOAuthGrants.map((grant) => Number(grant.grantId))) + 1
+      const grantId =
+        Math.max(0, ...mockOAuthGrants.map((grant) => Number(grant.grantId))) +
+        1
       // 백엔드처럼 같은 client의 grant는 한 항목으로 묶고 연결(기기) 수만 늘린다.
-      const existing = mockOAuthGrants.find((grant) => grant.clientId === pending.clientId)
+      const existing = mockOAuthGrants.find(
+        (grant) => grant.clientId === pending.clientId,
+      )
       if (existing) {
         existing.grantId = grantId
         existing.scopes = [...new Set([...existing.scopes, ...scopes])]
@@ -254,10 +296,14 @@ const handleOAuth = async (path: string, method: string, request: Request) => {
     const changesOnly = params.get('changesOnly') === 'true'
     const matching = mockMcpActivity.filter(
       (activity) =>
-        (!changesOnly || activity.access !== 'READ') && (cursor == null || activity.id < Number(cursor)),
+        (!changesOnly || activity.access !== 'READ') &&
+        (cursor == null || activity.id < Number(cursor)),
     )
     const items = matching.slice(0, size)
-    return json({ items, nextCursor: matching.length > size ? items[items.length - 1].id : null })
+    return json({
+      items,
+      nextCursor: matching.length > size ? items[items.length - 1].id : null,
+    })
   }
 
   if (path === '/v2/oauth/grants' && method === 'GET') {
@@ -266,7 +312,9 @@ const handleOAuth = async (path: string, method: string, request: Request) => {
 
   const grantMatch = path.match(/^\/v2\/oauth\/grants\/([^/]+)$/)
   if (grantMatch && method === 'DELETE') {
-    const index = mockOAuthGrants.findIndex((grant) => String(grant.grantId) === decodeURIComponent(grantMatch[1]))
+    const index = mockOAuthGrants.findIndex(
+      (grant) => String(grant.grantId) === decodeURIComponent(grantMatch[1]),
+    )
     if (index < 0) return notFound('연결된 앱을 찾을 수 없습니다.')
     mockOAuthGrants.splice(index, 1)
     return noContent()
@@ -288,7 +336,13 @@ const handleMember = async (path: string, method: string, request: Request) => {
   if (normalizedPath === '/members/settings' && method === 'PATCH') {
     const change = await readJson<Partial<typeof mockProfileSettings>>(request)
     if (!change || (!change.zoneId && !change.dailyObjectiveWork)) {
-      return json({ message: '바꿀 설정(zoneId, dailyObjectiveWork)이 하나 이상 있어야 합니다.' }, 400)
+      return json(
+        {
+          message:
+            '바꿀 설정(zoneId, dailyObjectiveWork)이 하나 이상 있어야 합니다.',
+        },
+        400,
+      )
     }
     Object.assign(mockProfileSettings, change)
     return json(mockProfileSettings)
@@ -310,11 +364,17 @@ const handleMember = async (path: string, method: string, request: Request) => {
   return null
 }
 
-const handleTasks = async (path: string, method: string, searchParams: URLSearchParams, request: Request) => {
+const handleTasks = async (
+  path: string,
+  method: string,
+  searchParams: URLSearchParams,
+  request: Request,
+) => {
   const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
   const today = dayjs().format('YYYY-MM-DD')
 
-  const isCompletedTask = (task: Task) => task.completed ?? task.isCompleted ?? false
+  const isCompletedTask = (task: Task) =>
+    task.completed ?? task.isCompleted ?? false
   const isOverdue = (task: Task) => {
     const due = task.dueDate?.date
     if (!due) return false
@@ -322,7 +382,12 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
   }
 
   const visibleTaskFilter = (task: Task, readyOnly: boolean) => {
-    if (readyOnly && ((task.completed ?? task.isCompleted) === true || (task.inboundDependencyCount ?? 0) > 0)) return false
+    if (
+      readyOnly &&
+      ((task.completed ?? task.isCompleted) === true ||
+        (task.inboundDependencyCount ?? 0) > 0)
+    )
+      return false
     const completed = isCompletedTask(task)
     const overdue = isOverdue(task)
     // Show: not overdue OR not completed; i.e., hide completed+overdue
@@ -373,11 +438,18 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const size = Number(searchParams.get('size') ?? 20)
     const query = (searchParams.get('q') ?? '').toLowerCase()
     const status = searchParams.get('status') ?? 'CURRENT'
-    let items = mockTasks.filter((task) => (status === 'CURRENT' ? visibleTaskFilter(task, false) : true))
-    if (status === 'OPEN' || status === 'READY') items = items.filter((task) => !isCompletedTask(task))
-    if (status === 'READY') items = items.filter((task) => (task.inboundDependencyCount ?? 0) === 0)
+    let items = mockTasks.filter((task) =>
+      status === 'CURRENT' ? visibleTaskFilter(task, false) : true,
+    )
+    if (status === 'OPEN' || status === 'READY')
+      items = items.filter((task) => !isCompletedTask(task))
+    if (status === 'READY')
+      items = items.filter((task) => (task.inboundDependencyCount ?? 0) === 0)
     if (status === 'COMPLETED') items = items.filter(isCompletedTask)
-    if (query) items = items.filter((task) => `${task.title} ${task.description}`.toLowerCase().includes(query))
+    if (query)
+      items = items.filter((task) =>
+        `${task.title} ${task.description}`.toLowerCase().includes(query),
+      )
     items = items.sort(sortAscByDeadline)
     const start = page * size
     const paged = items.slice(start, start + size)
@@ -397,14 +469,21 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
 
   if (method === 'GET' && normalizedPath === '/tasks/by-deadline') {
     const date = searchParams.get('date')
-    return json(mockTasks.filter((task) => task.dueDate?.date === date).sort(sortAscByDeadline).map(toTaskResponse))
+    return json(
+      mockTasks
+        .filter((task) => task.dueDate?.date === date)
+        .sort(sortAscByDeadline)
+        .map(toTaskResponse),
+    )
   }
 
   if (method === 'GET' && normalizedPath === '/tasks/cursor') {
     const size = Number(searchParams.get('size') ?? 20)
     const cursorValue = searchParams.get('cursor')
     const readyOnly = searchParams.get('readyOnly') === 'true'
-    const items = mockTasks.filter((task) => visibleTaskFilter(task, readyOnly)).sort(sortAscByDeadline)
+    const items = mockTasks
+      .filter((task) => visibleTaskFilter(task, readyOnly))
+      .sort(sortAscByDeadline)
     const start = cursorValue ? Number(cursorValue) || 0 : 0
     const slice = items.slice(start, start + size)
     const nextCursor = start + size < items.length ? String(start + size) : null
@@ -417,14 +496,21 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
   }
 
   if (method === 'GET' && normalizedPath === '/tasks/completed') {
-    const size = Math.max(1, Math.min(100, Number(searchParams.get('size') ?? 20)))
+    const size = Math.max(
+      1,
+      Math.min(100, Number(searchParams.get('size') ?? 20)),
+    )
     const cursorValue = searchParams.get('cursor')
-    const archived = mockTasks.filter((task) => isCompletedTask(task) && isOverdue(task)).sort(sortArchiveDesc)
+    const archived = mockTasks
+      .filter((task) => isCompletedTask(task) && isOverdue(task))
+      .sort(sortArchiveDesc)
     let startIndex = 0
     if (cursorValue) {
       const [datePart, idPart] = cursorValue.split('|')
       const cursorId = Number(idPart)
-      const idx = archived.findIndex((task) => task.dueDate?.date === datePart && task.id === cursorId)
+      const idx = archived.findIndex(
+        (task) => task.dueDate?.date === datePart && task.id === cursorId,
+      )
       startIndex = idx >= 0 ? idx + 1 : 0
     }
     const slice = archived.slice(startIndex, startIndex + size)
@@ -445,6 +531,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     if (!task) return notFound('Task not found')
     task.isCompleted = true
     task.completed = true
+    recomputeMockTaskReadiness(mockTasks)
     return noContent(204)
   }
 
@@ -455,28 +542,38 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     if (!task) return notFound('Task not found')
     task.isCompleted = false
     task.completed = false
+    recomputeMockTaskReadiness(mockTasks)
     return noContent(204)
   }
 
   const assignMatch = normalizedPath.match(/^\/tasks\/(\d+)\/schedules$/)
   if (method === 'POST' && assignMatch) {
     const id = Number(assignMatch[1])
-    const body = await readJson<{ date: DateTimeWithZone; scheduleType: ScheduleResponse['scheduleType']; title?: string; description?: string }>(request)
+    const body = await readJson<{
+      date: DateTimeWithZone
+      scheduleType: ScheduleResponse['scheduleType']
+      title?: string
+      description?: string
+    }>(request)
     const task = findTask(id)
     if (!task) return notFound('Task not found')
     const newId = nextScheduleId()
     mockSchedules.push({
       id: newId,
-      ownerId: 1,
+      ownerId: task.ownerId ?? 1,
       title: body?.title ?? task.title,
       description: body?.description ?? task.description,
-      date: body?.date ?? { dateTime: dayjs().utc().format('YYYY-MM-DDTHH:mm:ss'), zoneId: 'UTC' },
+      date: body?.date ?? {
+        dateTime: dayjs().utc().format('YYYY-MM-DDTHH:mm:ss'),
+        zoneId: 'UTC',
+      },
       scheduleType: body?.scheduleType ?? 'DEEP_WORK',
       state: 'NOT_STARTED',
       taskId: id,
       duration: '01:00:00',
       plannedDuration: formatIsoMinutes(effectiveExpectedMinutes(task)),
     })
+    inheritMockTaskScheduleCategory(task.id, newId)
     return noContent(201)
   }
 
@@ -493,14 +590,32 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     const task = findTask(id)
     if (!task) return notFound('Task not found')
     const body = await readJson<Partial<TaskRequest>>(request)
-    Object.assign(task, body ?? {})
+    const dependencyResult = applyMockTaskDependencies(
+      mockTasks,
+      task.id,
+      body ?? {},
+    )
+    if (!dependencyResult.ok)
+      return json(
+        { message: dependencyResult.message },
+        dependencyResult.status,
+      )
+    const fields = { ...body }
+    delete fields.addDependencies
+    delete fields.removeDependencies
+    Object.assign(task, fields)
     task.updatedAt = new Date().toISOString()
     return json(toTaskResponse(task))
   }
 
   if (detailMatch && method === 'DELETE') {
     // 서버(ADR-0024)처럼 지운 작업은 휴지통으로 간다.
-    if (!moveTaskToTrash(Number(detailMatch[1]), searchParams.get('deleteSchedules') === 'true')) {
+    if (
+      !moveTaskToTrash(
+        Number(detailMatch[1]),
+        searchParams.get('deleteSchedules') === 'true',
+      )
+    ) {
       return notFound('Task not found')
     }
     return noContent(204)
@@ -513,6 +628,7 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
     }
     const newTask: Task = {
       id: nextTaskId(),
+      ownerId: mockCategoryOwnerId(request) ?? 1,
       title: body.title,
       description: body.description,
       dueDate: body.dueDate,
@@ -525,6 +641,16 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
+    const dependencyResult = applyMockTaskDependencies(
+      [...mockTasks, newTask],
+      newTask.id,
+      body,
+    )
+    if (!dependencyResult.ok)
+      return json(
+        { message: dependencyResult.message },
+        dependencyResult.status,
+      )
     mockTasks.push(newTask)
     return json(toTaskResponse(newTask), 201)
   }
@@ -532,7 +658,12 @@ const handleTasks = async (path: string, method: string, searchParams: URLSearch
   return null
 }
 
-const handleSchedules = async (path: string, method: string, searchParams: URLSearchParams, request: Request) => {
+const handleSchedules = async (
+  path: string,
+  method: string,
+  searchParams: URLSearchParams,
+  request: Request,
+) => {
   const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
 
   if (method === 'GET' && normalizedPath === '/schedules/week') {
@@ -541,8 +672,14 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     const start = base.startOf('week')
     const end = start.add(7, 'day')
     const list = mockSchedules.filter((schedule) => {
-      const date = dayjs.tz(schedule.date.dateTime, schedule.date.zoneId || 'UTC')
-      return date.isSame(start, 'week') || (date.isAfter(start) && date.isBefore(end))
+      const date = dayjs.tz(
+        schedule.date.dateTime,
+        schedule.date.zoneId || 'UTC',
+      )
+      return (
+        date.isSame(start, 'week') ||
+        (date.isAfter(start) && date.isBefore(end))
+      )
     })
     return json(list)
   }
@@ -550,7 +687,9 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
   if (method === 'GET' && normalizedPath === '/schedules') {
     const target = getTargetDateFromQuery(searchParams)
     const key = toDayKey(target)
-    const list = mockSchedules.filter((schedule) => toDayKey(schedule.date) === key)
+    const list = mockSchedules.filter(
+      (schedule) => toDayKey(schedule.date) === key,
+    )
     return json(list)
   }
 
@@ -559,6 +698,13 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     const id = Number(startMatch[1])
     const schedule = findSchedule(id)
     if (!schedule) return notFound('Schedule not found')
+    if (schedule.state !== 'NOT_STARTED' && schedule.state !== 'SUSPENDED')
+      return json({ message: '이 상태에서는 시작할 수 없습니다.' }, 409)
+    if (activeScheduleId !== null && activeScheduleId !== id)
+      return json({ message: '이미 실행 중인 일정이 존재합니다.' }, 409)
+    const task = schedule.taskId == null ? undefined : findTask(schedule.taskId)
+    if (task && (task.inboundDependencyCount ?? 0) > 0)
+      return json({ message: '이전 작업을 먼저 완료해 주세요.' }, 409)
     setActiveScheduleId(id, 'IN_PROGRESS')
     return noContent(204)
   }
@@ -568,8 +714,9 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     const id = Number(suspendMatch[1])
     const schedule = findSchedule(id)
     if (!schedule) return notFound('Schedule not found')
+    if (schedule.state !== 'IN_PROGRESS')
+      return json({ message: '진행 중인 일정만 일시정지할 수 있습니다.' }, 409)
     schedule.state = 'SUSPENDED'
-    setActiveScheduleId(schedule.id === activeScheduleId ? null : activeScheduleId)
     return noContent(204)
   }
 
@@ -580,6 +727,12 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     if (!schedule) return notFound('Schedule not found')
     schedule.state = 'COMPLETED'
     if (activeScheduleId === id) setActiveScheduleId(null)
+    const task = schedule.taskId == null ? undefined : findTask(schedule.taskId)
+    if (task) {
+      task.completed = true
+      task.isCompleted = true
+      recomputeMockTaskReadiness(mockTasks)
+    }
     return noContent(204)
   }
 
@@ -590,6 +743,12 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
     if (!schedule) return notFound('Schedule not found')
     schedule.state = 'NOT_STARTED'
     if (activeScheduleId === id) setActiveScheduleId(null)
+    const task = schedule.taskId == null ? undefined : findTask(schedule.taskId)
+    if (task) {
+      task.completed = false
+      task.isCompleted = false
+      recomputeMockTaskReadiness(mockTasks)
+    }
     return noContent(204)
   }
 
@@ -611,18 +770,22 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
   }
 
   if (detailMatch && method === 'DELETE') {
-    if (!moveScheduleToTrash(Number(detailMatch[1]))) return notFound('Schedule not found')
+    if (!moveScheduleToTrash(Number(detailMatch[1])))
+      return notFound('Schedule not found')
     return noContent(204)
   }
 
   if (method === 'POST' && normalizedPath === '/schedules') {
     const body = await readJson<ScheduleRequest>(request)
     if (!body?.title || !body.description || !body.date || !body.scheduleType) {
-      return json({ message: 'title, description, date, scheduleType가 필요합니다.' }, 400)
+      return json(
+        { message: 'title, description, date, scheduleType가 필요합니다.' },
+        400,
+      )
     }
     const newSchedule: ScheduleResponse = {
       id: nextScheduleId(),
-      ownerId: 1,
+      ownerId: mockCategoryOwnerId(request) ?? 1,
       title: body.title,
       description: body.description,
       date: body.date,
@@ -630,16 +793,23 @@ const handleSchedules = async (path: string, method: string, searchParams: URLSe
       state: 'NOT_STARTED',
       taskId: body.taskId,
       duration: '01:00:00',
-      plannedDuration: (body as { plannedDuration?: string }).plannedDuration ?? 'PT30M',
+      plannedDuration:
+        (body as { plannedDuration?: string }).plannedDuration ?? 'PT30M',
     }
     mockSchedules.push(newSchedule)
+    if (newSchedule.taskId != null)
+      inheritMockTaskScheduleCategory(newSchedule.taskId, newSchedule.id)
     return json(newSchedule, 201)
   }
 
   return null
 }
 
-const handleStatistics = (path: string, method: string, searchParams: URLSearchParams) => {
+const handleStatistics = (
+  path: string,
+  method: string,
+  searchParams: URLSearchParams,
+) => {
   const normalizedPath = path.replace(/^\/v[0-9]+\//, '/')
   if (method !== 'GET' || normalizedPath !== '/statistics') return null
   const target = getTargetDateFromQuery(searchParams)
@@ -654,7 +824,10 @@ const handleStatistics = (path: string, method: string, searchParams: URLSearchP
     .filter((item) => item.scheduleType === 'ADMIN_TASK')
     .reduce((sum, item) => sum + parseDurationMinutes(item.duration), 0)
 
-  const totalMinutes = mockSchedules.reduce((sum, item) => sum + parseDurationMinutes(item.duration), 0)
+  const totalMinutes = mockSchedules.reduce(
+    (sum, item) => sum + parseDurationMinutes(item.duration),
+    0,
+  )
 
   const response: StatisticsResponse = {
     memberId: 1,
@@ -670,20 +843,35 @@ const handleStatistics = (path: string, method: string, searchParams: URLSearchP
   return json(response)
 }
 
-export const handleMockRequest = async (request: Request): Promise<Response | null> => {
+export const handleMockRequest = async (
+  request: Request,
+): Promise<Response | null> => {
   const url = new URL(request.url)
   const searchParams = url.searchParams
   const method = request.method.toUpperCase()
   const path = url.pathname.replace(/\/+$/, '') || '/'
 
-  if (!path.startsWith('/v0/') && !path.startsWith('/v1/') && !path.startsWith('/v2/') && !path.startsWith('/oauth/')) {
+  if (
+    !path.startsWith('/v0/') &&
+    !path.startsWith('/v1/') &&
+    !path.startsWith('/v2/') &&
+    !path.startsWith('/oauth/')
+  ) {
     return null
   }
 
   const auth = await handleAuth(path, method, request)
   if (auth) return auth
 
-  const notification = await handleNotifications(path, method, request, searchParams)
+  const categories = await handleCategories(path, method, request)
+  if (categories) return categories
+
+  const notification = await handleNotifications(
+    path,
+    method,
+    request,
+    searchParams,
+  )
   if (notification) return notification
 
   const oauth = await handleOAuth(path, method, request)
@@ -698,13 +886,23 @@ export const handleMockRequest = async (request: Request): Promise<Response | nu
   const plans = await handlePlans(path, method, searchParams, request)
   if (plans) return plans
 
-  const recurrences = await handleRecurrences(path, method, searchParams, request)
+  const recurrences = await handleRecurrences(
+    path,
+    method,
+    searchParams,
+    request,
+  )
   if (recurrences) return recurrences
 
   const trash = handleTrash(path, method)
   if (trash) return trash
 
-  const calibration = await handleCalibration(path, method, searchParams, request)
+  const calibration = await handleCalibration(
+    path,
+    method,
+    searchParams,
+    request,
+  )
   if (calibration) return calibration
 
   const statisticsReport = handleStatisticsReport(path, method, searchParams)

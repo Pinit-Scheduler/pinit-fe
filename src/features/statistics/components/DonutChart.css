@@ -31,3 +31,43 @@
   font-size: 14px;
   color: var(--c-slate-600);
 }
+
+.donut-chart {
+  display: flex;
+  align-items: center;
+  gap: 35px;
+  padding: 24px;
+}
+.donut-chart__circle {
+  margin: 0;
+  flex-shrink: 0;
+  position: relative;
+  background: conic-gradient(
+    var(--c-blue-600) var(--deep, 0%),
+    var(--c-blue-300) var(--deep, 0%) var(--admin, 0%),
+    var(--c-slate-200) var(--admin, 0%)
+  );
+}
+.donut-chart__circle:before {
+  content: '';
+  position: absolute;
+  inset: 18px;
+  background: var(--c-surface);
+  border-radius: 50%;
+}
+.donut-chart__label {
+  position: relative;
+}
+.donut-chart__legend {
+  gap: 12px;
+}
+@media (max-width: 600px) {
+  .donut-chart {
+    padding: 18px;
+    gap: 22px;
+  }
+  .donut-chart__circle {
+    width: 130px;
+    height: 130px;
+  }
+}

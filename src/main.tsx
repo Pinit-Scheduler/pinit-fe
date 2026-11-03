@@ -7,7 +7,8 @@ import App from '@app/App.tsx'
 import { watchSystemTheme } from '@shared/theme/theme'
 import { listenForInstallPrompt } from '@shared/pwa/installPrompt'
 
-const enableMockApi = import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API === 'true'
+const enableMockApi =
+  import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API === 'true'
 
 if (enableMockApi) {
   const { setupMockServer } = await import('./mocks/mockServer')
@@ -25,7 +26,7 @@ createRoot(document.getElementById('root')!).render(
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    let hasRefreshedForUpdate = false
+    let hasNotifiedForUpdate = false
 
     navigator.serviceWorker
       .register('/sw.js', { updateViaCache: 'none' })
@@ -38,16 +39,21 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
           if (!installingWorker) return
 
           installingWorker.addEventListener('statechange', () => {
-            if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // A new service worker is ready; refresh once to activate it on clients.
-              if (!hasRefreshedForUpdate) {
-                hasRefreshedForUpdate = true
-                window.location.reload()
+            if (
+              installingWorker.state === 'installed' &&
+              navigator.serviceWorker.controller
+            ) {
+              // Preserve in-progress forms. The shell offers an explicit reload action.
+              if (!hasNotifiedForUpdate) {
+                hasNotifiedForUpdate = true
+                window.dispatchEvent(new Event('pinit:update-ready'))
               }
             }
           })
         }
       })
-      .catch((error) => console.error('Service worker registration failed:', error))
+      .catch((error) =>
+        console.error('Service worker registration failed:', error),
+      )
   })
 }

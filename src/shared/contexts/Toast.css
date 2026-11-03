@@ -50,3 +50,43 @@
 .toast--info {
   background: var(--c-surface-inverse);
 }
+
+.toast-container {
+  top: calc(16px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+}
+.toast {
+  background: var(--c-surface);
+  color: var(--c-slate-800);
+  border: 1px solid var(--c-slate-200);
+  box-shadow: 0 6px 22px #203b6514;
+  min-width: 260px;
+  max-width: 460px;
+  border-radius: 9px;
+  font-weight: 400;
+}
+.toast--success,
+.toast--info {
+  background: var(--c-surface);
+  color: var(--c-slate-800);
+}
+.toast--error {
+  background: var(--c-red-50);
+  border-color: var(--c-red-200);
+  color: var(--c-red-800);
+}
+.toast__action {
+  color: var(--c-blue-700);
+  border-color: var(--c-slate-300);
+  font-weight: 500;
+}
+.toast__dismiss {
+  color: inherit;
+  min-width: 32px;
+  min-height: 32px;
+  font-size: 23px;
+  cursor: pointer;
+}

@@ -20,7 +20,10 @@ export const ensureDeviceId = () => {
   return next
 }
 
-export const setAuthTokens = (tokens: { accessToken?: string | null; refreshToken?: string | null }) => {
+export const setAuthTokens = (tokens: {
+  accessToken?: string | null
+  refreshToken?: string | null
+}) => {
   if (!hasWindow()) return
   // 로그인 성공 시 로그아웃 마커 제거
   window.localStorage.removeItem(LOGOUT_MARKER_KEY)
@@ -32,6 +35,7 @@ export const setAuthTokens = (tokens: { accessToken?: string | null; refreshToke
   }
   // refresh 토큰은 httpOnly 쿠키로만 관리하며, 로컬스토리지에 남아있을 경우 제거
   window.localStorage.removeItem(REFRESH_TOKEN_KEY)
+  window.dispatchEvent(new Event('auth:changed'))
 }
 
 export const getAccessToken = () => {
@@ -63,11 +67,13 @@ export const clearAuthTokens = () => {
   if (!hasWindow()) return
   window.localStorage.removeItem(ACCESS_TOKEN_KEY)
   window.localStorage.removeItem(REFRESH_TOKEN_KEY)
+  window.dispatchEvent(new Event('auth:changed'))
 }
 
 export const markLoggedOut = () => {
   if (!hasWindow()) return
   window.localStorage.setItem(LOGOUT_MARKER_KEY, '1')
+  window.dispatchEvent(new Event('auth:changed'))
 }
 
 export const isLoggedOut = () => {

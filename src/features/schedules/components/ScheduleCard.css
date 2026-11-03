@@ -4,7 +4,9 @@
   padding: 16px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
   cursor: pointer;
-  transition: box-shadow 0.2s, transform 0.2s;
+  transition:
+    box-shadow 0.2s,
+    transform 0.2s;
 }
 
 .schedule-card:hover {
@@ -197,7 +199,10 @@
   align-items: center;
   gap: 6px;
   box-shadow: 0 6px 12px rgba(52, 211, 153, 0.24);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
   white-space: nowrap;
 }
 
@@ -280,4 +285,81 @@
 
 .schedule-card__action-btn--cancel:hover:not(:disabled) {
   background-color: var(--c-red-200);
+}
+
+/* Workspace cards share a neutral surface; state is an accent rather than a competing palette. */
+.schedule-card {
+  border: 1px solid var(--c-slate-200);
+  border-radius: 9px;
+  box-shadow: none;
+  padding: 14px;
+  background: var(--c-surface);
+}
+.schedule-card:hover {
+  box-shadow: 0 2px 8px #203b6508;
+  transform: none;
+  border-color: var(--c-slate-300);
+}
+.schedule-card__main {
+  column-gap: 10px;
+}
+.schedule-card__title {
+  font-size: 16px;
+  line-height: 1.6;
+}
+.schedule-card__subtitle,
+.schedule-card__description {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--c-slate-500);
+}
+.schedule-card__state-icon {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border: 0;
+  box-shadow: none;
+  background: var(--c-slate-100);
+  color: var(--c-slate-500);
+  font-size: 17px;
+}
+.schedule-card__state-icon--in_progress {
+  background: var(--c-blue-50);
+  color: var(--c-blue-600);
+}
+.schedule-card__state-icon--suspended,
+.schedule-card__state-icon--completed {
+  background: var(--c-slate-100);
+  color: var(--c-slate-500);
+}
+.schedule-card__state-icon--clickable:hover {
+  box-shadow: none;
+  transform: none;
+}
+.schedule-card__quick-complete {
+  background: var(--c-blue-50);
+  color: var(--c-blue-700);
+  box-shadow: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 8px;
+}
+.schedule-card__quick-complete:hover {
+  box-shadow: none;
+  transform: none;
+}
+.schedule-card__delete-btn {
+  font-size: 14px;
+  color: var(--c-slate-400);
+  width: 28px;
+  height: 30px;
+}
+.schedule-card__actions {
+  flex-wrap: wrap;
+  max-width: 105px;
+  gap: 4px;
+}
+.schedule-card__state-icon:disabled {
+  opacity: 1;
 }

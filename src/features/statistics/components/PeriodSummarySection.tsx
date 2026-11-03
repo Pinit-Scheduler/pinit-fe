@@ -1,10 +1,16 @@
 import { fetchPeriodStatistics } from '../api/report'
 import useReport from '../hooks/useReport'
 import type { StatisticsUnit } from '../types/report'
-import { SCHEDULE_TYPE_LABEL, completionLine, formatRate } from '../utils/reportView'
+import {
+  SCHEDULE_TYPE_LABEL,
+  completionLine,
+  formatRate,
+} from '../utils/reportView'
 import StatisticCard from './StatisticCard'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import './ReportSections.css'
+import DonutChart from './DonutChart'
+import { parseIsoDurationMinutes } from '@shared/utils/isoDuration'
 
 type Props = {
   unit: StatisticsUnit
@@ -14,7 +20,10 @@ type Props = {
 
 /** ADR-0025 §3·§11 기간 통계. 유형별 실행 시간·완료율과 마감 작업 완료율. */
 const PeriodSummarySection = ({ unit, start }: Props) => {
-  const { data, error, isLoading, reload } = useReport(() => fetchPeriodStatistics(unit, start), `${unit}:${start}`)
+  const { data, error, isLoading, reload } = useReport(
+    () => fetchPeriodStatistics(unit, start),
+    `${unit}:${start}`,
+  )
 
   if (isLoading && !data) {
     return (
@@ -38,28 +47,52 @@ const PeriodSummarySection = ({ unit, start }: Props) => {
   }
 
   const { schedules, byType, tasksDue } = data
+  const elapsedMinutes = parseIsoDurationMinutes(schedules.elapsed) ?? 0
+  const deepMinutes =
+    parseIsoDurationMinutes(
+      byType.find((type) => type.scheduleType === 'DEEP_WORK')?.elapsed,
+    ) ?? 0
+  const adminMinutes =
+    parseIsoDurationMinutes(
+      byType.find((type) => type.scheduleType === 'ADMIN_TASK')?.elapsed,
+    ) ?? 0
 
   return (
     <>
       <div className="statistics-tab__cards stats-transition" key={data.start}>
         <StatisticCard
-          label="총 작업 시간"
+          label="총 실제 실행 시간"
           value={formatIsoDurationLabel(schedules.elapsed) ?? '-'}
-          description={completionLine(schedules.completedCount, schedules.count, schedules.completionRate)}
+          description={completionLine(
+            schedules.completedCount,
+            schedules.count,
+            schedules.completionRate,
+          )}
         />
         {byType.map((type) => (
           <StatisticCard
             key={type.scheduleType}
             label={SCHEDULE_TYPE_LABEL[type.scheduleType]}
             value={formatIsoDurationLabel(type.elapsed) ?? '-'}
-            description={completionLine(type.completedCount, type.count, type.completionRate)}
+            description={completionLine(
+              type.completedCount,
+              type.count,
+              type.completionRate,
+            )}
           />
         ))}
       </div>
+      <DonutChart
+        deepWorkRatio={elapsedMinutes ? deepMinutes / elapsedMinutes : 0}
+        adminWorkRatio={elapsedMinutes ? adminMinutes / elapsedMinutes : 0}
+        totalMinutes={elapsedMinutes}
+      />
       <section className="report-section">
         <div className="report-section__head">
           <h2>마감 작업</h2>
-          <p className="report-section__hint">이 기간이 마감인 작업 중 완료한 비율이에요.</p>
+          <p className="report-section__hint">
+            이 기간이 마감인 작업 중 완료한 비율이에요.
+          </p>
         </div>
         <p className="report-section__big">
           {tasksDue.count === 0

@@ -3,10 +3,10 @@ import type { DifficultyValue } from '@constants/difficulty'
 import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
 
 export type ScheduleState =
-  | 'NOT_STARTED'   // 미시작 - 시작 버튼만
-  | 'IN_PROGRESS'   // 진행 중 - 일시정지, 취소, 완료 버튼
-  | 'COMPLETED'     // 완료 - 취소 버튼만
-  | 'SUSPENDED'     // 일시정지 - 시작, 취소 버튼
+  | 'NOT_STARTED' // 미시작 - 시작 버튼만
+  | 'IN_PROGRESS' // 진행 중 - 일시정지, 취소, 완료 버튼
+  | 'COMPLETED' // 완료 - 취소 버튼만
+  | 'SUSPENDED' // 일시정지 - 시작, 취소 버튼
 
 export type ScheduleTaskType = 'DEEP_WORK' | 'QUICK_TASK' | 'ADMIN_TASK'
 
@@ -39,6 +39,9 @@ export type ScheduleRequest = {
 }
 
 export type ScheduleFormValues = {
+  categoryId?: number | null
+  /** 폼을 열었을 때와 비교한 사용자 분류 변경 여부 */
+  categoryChanged?: boolean
   title: string
   description: string
   date: Date

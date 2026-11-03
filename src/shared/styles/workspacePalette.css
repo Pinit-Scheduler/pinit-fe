@@ -1,0 +1,414 @@
+/*
+ * Authenticated workspace palette from pinit-ui-design c7e37cf.
+ * Keep the public/auth palette in theme.css independent. Route surfaces live
+ * inside this wrapper; the two body portals receive the same scoped tokens.
+ */
+:is(
+  .workspace-theme,
+  body:has(.workspace-theme) .toast-container,
+  body:has(.workspace-theme) > .spotlight-tour
+) {
+  color-scheme: light;
+  --workspace-bg: #f4f6fa;
+  --workspace-surface: #fff;
+  --workspace-ink: #202a3c;
+  --workspace-muted: #727c8d;
+  --workspace-line: #e9edf3;
+  --workspace-blue: #345ce5;
+  --workspace-blue-soft: #edf2ff;
+  --workspace-pink: #cd758d;
+  --workspace-sidebar: #fbfcfe;
+  --workspace-on-accent: #fff;
+  --workspace-meter-blue: #a7bcfa;
+  --workspace-meter-pink: #e6a9bc;
+  --workspace-meter-track: #edf0f5;
+  --workspace-meter-ink: var(--workspace-ink);
+  --workspace-meter-pink-ink: var(--workspace-ink);
+  --workspace-control-line: #cfd8e5;
+  --workspace-completed: #8c9bb5;
+  --workspace-map-bg: #f8faff;
+  --workspace-map-dot: #d9e1ee;
+  --workspace-map-group: #edf3ff88;
+  --workspace-map-group-line: #dfe6f3;
+  --workspace-chart-main: var(--workspace-blue);
+  --workspace-chart-light: color-mix(
+    in srgb,
+    var(--workspace-blue),
+    var(--workspace-surface) 75%
+  );
+  --workspace-chart-mid: color-mix(
+    in srgb,
+    var(--workspace-blue),
+    var(--workspace-surface) 42%
+  );
+  --workspace-chart-strong: color-mix(
+    in srgb,
+    var(--workspace-blue),
+    var(--workspace-ink) 30%
+  );
+  --workspace-chart-muted: color-mix(
+    in srgb,
+    var(--workspace-blue),
+    var(--workspace-surface) 88%
+  );
+  --workspace-quadrant-0-bg: #fff8f4;
+  --workspace-quadrant-1-bg: #f2f6ff;
+  --workspace-quadrant-2-bg: #fcf9f0;
+  --workspace-quadrant-3-bg: #f2f7f4;
+
+  /* Existing components consume these aliases without a global theme change. */
+  --c-page: var(--workspace-bg);
+  --c-page-outer: var(--workspace-bg);
+  --c-surface: var(--workspace-surface);
+  --c-surface-inverse: var(--workspace-ink);
+  --c-surface-inverse-soft: var(--workspace-muted);
+  --c-slate-50: var(--workspace-bg);
+  --c-slate-100: var(--workspace-bg);
+  --c-slate-200: var(--workspace-line);
+  --c-slate-300: var(--workspace-control-line);
+  --c-slate-400: var(--workspace-muted);
+  --c-slate-500: var(--workspace-muted);
+  --c-slate-600: var(--workspace-muted);
+  --c-slate-700: var(--workspace-ink);
+  --c-slate-800: var(--workspace-ink);
+  --c-slate-900: var(--workspace-ink);
+  --c-blue-50: var(--workspace-blue-soft);
+  --c-blue-100: var(--workspace-chart-muted);
+  --c-blue-200: var(--workspace-chart-light);
+  --c-blue-300: var(--workspace-chart-mid);
+  --c-blue-400: var(--workspace-blue);
+  --c-blue-500: var(--workspace-blue);
+  --c-blue-600: var(--workspace-blue);
+  --c-blue-700: var(--workspace-blue);
+  --c-blue-800: var(--workspace-blue);
+  --c-blue-900: var(--workspace-blue);
+  --c-indigo-50: var(--c-blue-50);
+  --c-indigo-100: var(--c-blue-100);
+  --c-indigo-200: var(--c-blue-200);
+  --c-indigo-300: var(--c-blue-300);
+  --c-indigo-400: var(--c-blue-400);
+  --c-indigo-500: var(--c-blue-500);
+  --c-indigo-600: var(--c-blue-600);
+  --c-indigo-700: var(--c-blue-700);
+  --c-indigo-800: var(--c-blue-800);
+  --c-indigo-900: var(--c-blue-900);
+}
+
+:root[data-theme='dark']
+  :is(
+    .workspace-theme,
+    body:has(.workspace-theme) .toast-container,
+    body:has(.workspace-theme) > .spotlight-tour
+  ) {
+  color-scheme: dark;
+  --workspace-bg: #151c2a;
+  --workspace-surface: #202a3c;
+  --workspace-ink: #e3e9f4;
+  --workspace-muted: #a3b0c5;
+  --workspace-line: #354258;
+  --workspace-blue: #9bb4ff;
+  --workspace-blue-soft: #2a3d65;
+  --workspace-pink: #df97b2;
+  --workspace-sidebar: #1a2334;
+  --workspace-on-accent: #142547;
+  --workspace-meter-ink: var(--workspace-on-accent);
+  --workspace-meter-pink-ink: var(--workspace-on-accent);
+  --workspace-control-line: #52617a;
+  --workspace-map-bg: #1d283c;
+  --workspace-map-dot: #3c4c66;
+  --workspace-map-group: #25375888;
+  --workspace-map-group-line: #3d5072;
+  --workspace-chart-light: color-mix(in srgb, var(--workspace-blue), white 50%);
+  --workspace-chart-mid: color-mix(in srgb, var(--workspace-blue), white 28%);
+  --workspace-chart-strong: color-mix(in srgb, var(--workspace-blue), white 8%);
+  --workspace-chart-muted: color-mix(in srgb, var(--workspace-blue), white 72%);
+  --workspace-quadrant-0-bg: var(--workspace-surface);
+  --workspace-quadrant-1-bg: var(--workspace-surface);
+  --workspace-quadrant-2-bg: var(--workspace-surface);
+  --workspace-quadrant-3-bg: var(--workspace-surface);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light'])
+    :is(
+      .workspace-theme,
+      body:has(.workspace-theme) .toast-container,
+      body:has(.workspace-theme) > .spotlight-tour
+    ) {
+    color-scheme: dark;
+    --workspace-bg: #151c2a;
+    --workspace-surface: #202a3c;
+    --workspace-ink: #e3e9f4;
+    --workspace-muted: #a3b0c5;
+    --workspace-line: #354258;
+    --workspace-blue: #9bb4ff;
+    --workspace-blue-soft: #2a3d65;
+    --workspace-pink: #df97b2;
+    --workspace-sidebar: #1a2334;
+    --workspace-on-accent: #142547;
+    --workspace-meter-ink: var(--workspace-on-accent);
+    --workspace-meter-pink-ink: var(--workspace-on-accent);
+    --workspace-control-line: #52617a;
+    --workspace-map-bg: #1d283c;
+    --workspace-map-dot: #3c4c66;
+    --workspace-map-group: #25375888;
+    --workspace-map-group-line: #3d5072;
+    --workspace-chart-light: color-mix(
+      in srgb,
+      var(--workspace-blue),
+      white 50%
+    );
+    --workspace-chart-mid: color-mix(in srgb, var(--workspace-blue), white 28%);
+    --workspace-chart-strong: color-mix(
+      in srgb,
+      var(--workspace-blue),
+      white 8%
+    );
+    --workspace-chart-muted: color-mix(
+      in srgb,
+      var(--workspace-blue),
+      white 72%
+    );
+    --workspace-quadrant-0-bg: var(--workspace-surface);
+    --workspace-quadrant-1-bg: var(--workspace-surface);
+    --workspace-quadrant-2-bg: var(--workspace-surface);
+    --workspace-quadrant-3-bg: var(--workspace-surface);
+  }
+}
+
+.workspace-theme {
+  height: 100%;
+  color: var(--workspace-ink);
+  background: var(--workspace-bg);
+}
+
+.workspace-theme .workspace-sidebar {
+  background: var(--workspace-sidebar);
+}
+
+.workspace-theme .category-badge {
+  background: transparent;
+  color: var(--workspace-ink);
+}
+
+.workspace-theme :focus-visible {
+  outline-color: var(--workspace-blue);
+}
+
+/* Accent buttons need dark ink on the prototype's pale blue in dark mode. */
+.workspace-theme
+  :is(
+    .workspace-button--primary,
+    .tm-primary-link,
+    .bottom-tab__item--add,
+    .task-page__primary,
+    .task-form__primary,
+    .task-form__chip.is-active,
+    .tag-chip.is-active,
+    .task-sched-modal__chip.is-active,
+    .task-sched-modal__primary,
+    .dependency-modal__primary,
+    .schedule-form__actions button.is-primary,
+    .plan-page__apply,
+    .app-banner__primary,
+    .routines__day.is-active,
+    .routines__save,
+    .recurrences__actions button.is-primary,
+    .recurrence-fields__day.is-active,
+    .trash__button.is-primary,
+    .onboarding-guide__replay,
+    .onboarding-guide__retry,
+    .profile-setting__button:not(.profile-setting__button--ghost),
+    .account__primary-btn,
+    .task-detail-modal__action-btn--primary
+  ),
+body:has(.workspace-theme) > .spotlight-tour .spotlight-tour__next {
+  color: var(--workspace-on-accent);
+}
+
+.workspace-theme
+  :is(.account__primary-btn, .task-detail-modal__action-btn--primary) {
+  border-color: var(--workspace-blue);
+  background: var(--workspace-blue);
+}
+.workspace-theme .settings__action-btn {
+  color: var(--workspace-surface);
+}
+.workspace-theme .recurrences__tab.is-active {
+  background: var(--workspace-blue-soft);
+  border-color: var(--workspace-blue);
+  color: var(--workspace-blue);
+}
+.workspace-theme .account__field {
+  color: var(--workspace-ink);
+}
+.workspace-theme
+  :is(
+    .settings__select,
+    .settings__time,
+    .account__field input,
+    .account__secondary-btn,
+    .account__danger-outline-btn
+  ) {
+  background: var(--workspace-surface);
+  border-color: var(--workspace-line);
+  color: var(--workspace-ink);
+}
+.workspace-theme .account__field input:focus {
+  outline-color: var(--workspace-blue);
+  border-color: var(--workspace-blue);
+}
+.workspace-theme .account__danger-outline-btn,
+.workspace-theme .account__error {
+  color: var(--c-red-700);
+}
+.workspace-theme .account__notice {
+  background: var(--c-red-50);
+  color: var(--c-red-800);
+}
+
+.workspace-theme .workspace-task__check:checked {
+  border-color: var(--workspace-completed);
+  background: var(--workspace-completed);
+}
+.workspace-theme .workspace-task__check:checked::after {
+  border-color: #fff;
+}
+.workspace-theme .workspace-meter {
+  --meter-color: var(--workspace-meter-blue);
+  color: var(--workspace-meter-ink);
+  background: conic-gradient(
+    var(--meter-color) var(--fill),
+    var(--workspace-meter-track) 0
+  );
+}
+.workspace-theme .workspace-meter--1 {
+  --meter-color: var(--workspace-meter-pink);
+  color: var(--workspace-meter-pink-ink);
+}
+.workspace-theme .today-page__legend i {
+  background: var(--workspace-blue);
+}
+.workspace-theme .today-page__legend i:last-of-type {
+  background: var(--workspace-pink);
+}
+.workspace-theme .task-form__slider {
+  /* TaskForm currently supplies a literal legacy blue inline. */
+  --range-color: var(--workspace-blue) !important;
+}
+.workspace-theme
+  :is(
+    .task-form__difficulty-pill.is-active,
+    .schedule-form__difficulty-option.is-active
+  ) {
+  border-color: var(--workspace-pink);
+  background: color-mix(
+    in srgb,
+    var(--workspace-pink),
+    var(--workspace-surface) 85%
+  );
+  color: var(--workspace-ink);
+  box-shadow: none;
+}
+
+/* c7's statistics use a single blue family, including planned/actual bars. */
+.workspace-theme
+  :is(
+    .weekly-bar__segment--deep,
+    .plan-comparison__rows i,
+    .plan-state-list i
+  ) {
+  background: var(--workspace-chart-main);
+}
+.workspace-theme .weekly-bar__segment--admin,
+.workspace-theme .plan-daily-bars i {
+  background: var(--workspace-chart-mid);
+}
+.workspace-theme .weekly-bar__segment--quick,
+.workspace-theme .plan-comparison__rows i.is-planned {
+  background: var(--workspace-chart-light);
+}
+.workspace-theme :is(.weekly-bar__bar, .plan-comparison__rows > div > div) {
+  background: var(--workspace-blue-soft);
+}
+.workspace-theme .donut-chart__circle {
+  background: conic-gradient(
+    var(--workspace-chart-main) var(--deep, 0%),
+    var(--workspace-chart-mid) var(--deep, 0%) var(--admin, 0%),
+    var(--workspace-chart-muted) var(--admin, 0%)
+  );
+}
+
+.workspace-theme .tm-viewport {
+  background-color: var(--workspace-map-bg);
+  background-image: radial-gradient(
+    var(--workspace-map-dot) 0.8px,
+    transparent 0.8px
+  );
+  background-size: 18px 18px;
+}
+.workspace-theme .tm-flow-group {
+  border-color: var(--workspace-map-group-line);
+  background: var(--workspace-map-group);
+}
+.workspace-theme .tm-node {
+  border-left: 3px solid #83a4ed;
+}
+.workspace-theme .tm-node:has(.tm-readiness--blocked),
+.workspace-theme .tm-node:has(.tm-readiness--unknown) {
+  border-left-color: #c8a76c;
+}
+.workspace-theme .tm-metrics strong {
+  color: var(--workspace-ink);
+}
+.workspace-theme .tm-metrics > span::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--workspace-blue);
+  vertical-align: 1px;
+}
+.workspace-theme .tm-metrics > span:last-child::before {
+  background: var(--workspace-pink);
+}
+.workspace-theme .tm-quadrant--0 {
+  --quadrant: #a96a53;
+  background: var(--workspace-quadrant-0-bg);
+}
+.workspace-theme .tm-quadrant--1 {
+  --quadrant: #5678b4;
+  background: var(--workspace-quadrant-1-bg);
+}
+.workspace-theme .tm-quadrant--2 {
+  --quadrant: #a4874d;
+  background: var(--workspace-quadrant-2-bg);
+}
+.workspace-theme .tm-quadrant--3 {
+  --quadrant: #6f8d7d;
+  background: var(--workspace-quadrant-3-bg);
+}
+.workspace-theme .tm-quadrant {
+  border-color: color-mix(in srgb, var(--quadrant), transparent 76%);
+  border-top-color: var(--quadrant);
+}
+.workspace-theme .tm-matrix-task {
+  background: var(--workspace-surface);
+}
+
+/* Keep the floating controls on c7's neutral card/button palette. */
+.workspace-theme .mini-player {
+  box-shadow: 0 4px 18px
+    color-mix(in srgb, var(--workspace-ink), transparent 93%);
+}
+.workspace-theme .mini-player__button:hover:not(:disabled) {
+  background: var(--workspace-blue-soft);
+  color: var(--workspace-blue);
+  border-color: color-mix(
+    in srgb,
+    var(--workspace-blue),
+    var(--workspace-line) 75%
+  );
+}

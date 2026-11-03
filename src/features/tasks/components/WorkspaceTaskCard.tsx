@@ -1,0 +1,157 @@
+import { useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import type { Task } from '../types/task'
+import { completeTask, reopenTask, fetchTaskDetail } from '../api/tasks'
+import { useTaskCache } from '@contexts/TaskCacheContext'
+import {
+  dispatchTaskChanged,
+  dispatchScheduleChanged,
+} from '@shared/utils/events'
+import { formatDateWithOffset } from '@shared/utils/datetime'
+import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
+import { CategoryBadge } from '@features/categories'
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
+import './WorkspaceTaskCard.css'
+import { saveTaskCompletion } from '../utils/taskCompletion'
+export default function WorkspaceTaskCard({
+  task,
+  onOpen,
+  onAssign,
+}: {
+  task: Task
+  onOpen: () => void
+  onAssign?: () => void
+}) {
+  const { tasksById, setTask } = useTaskCache()
+  const item = tasksById[task.id] ?? task
+  const done = item.completed ?? item.isCompleted ?? false
+  const [pending, setPending] = useState(false),
+    [error, setError] = useState<string | null>(null)
+  const [refreshOnly, setRefreshOnly] = useState(false)
+  const lock = useRef(false)
+  const toggle = async () => {
+    if (lock.current) return
+    lock.current = true
+    setPending(true)
+    setError(null)
+    setRefreshOnly(false)
+    try {
+      const result = await saveTaskCompletion(item, !done, {
+        mutate: done ? reopenTask : completeTask,
+        refresh: fetchTaskDetail,
+        onSaved: (saved) => {
+          setTask(saved)
+          dispatchTaskChanged({ taskId: item.id, reason: 'state-mutated' })
+          dispatchScheduleChanged({ reason: 'task-state-mutated' })
+        },
+      })
+      setTask(result.task)
+      setError(result.refreshError)
+      setRefreshOnly(result.refreshError !== null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '작업 상태를 바꾸지 못했어요.')
+    } finally {
+      lock.current = false
+      setPending(false)
+    }
+  }
+  const refreshDetail = async () => {
+    if (lock.current) return
+    lock.current = true
+    setPending(true)
+    try {
+      setTask(await fetchTaskDetail(item.id))
+      setError(null)
+      setRefreshOnly(false)
+    } catch {
+      setError('상태는 저장되었지만 최신 정보를 불러오지 못했어요.')
+    } finally {
+      lock.current = false
+      setPending(false)
+    }
+  }
+  return (
+    <article className={'workspace-task' + (done ? ' is-completed' : '')}>
+      <input
+        className="workspace-task__check"
+        type="checkbox"
+        checked={done}
+        disabled={pending}
+        onChange={() => void toggle()}
+        aria-label={item.title + (done ? ' 완료 취소' : ' 완료')}
+      />
+      <div className="workspace-task__copy">
+        <button className="workspace-task__title" onClick={onOpen}>
+          {item.title}
+        </button>
+        <div className="workspace-task__meta">
+          <CategoryBadge kind="task" itemId={item.id} />
+          {item.recurrence && <span>반복</span>}
+          {!done && (item.inboundDependencyCount ?? 0) > 0 && (
+            <span>이전 작업 {item.inboundDependencyCount}개 남음</span>
+          )}
+        </div>
+        {(item.previousTaskIds?.length ?? 0) + (item.nextTaskIds?.length ?? 0) >
+          0 && (
+          <button className="workspace-task__connection" onClick={onOpen}>
+            <WorkspaceIcon name="map" />
+            이전 {item.previousTaskIds?.length ?? 0} · 다음{' '}
+            {item.nextTaskIds?.length ?? 0}
+          </button>
+        )}
+        <details className="workspace-task__description">
+          <summary>
+            설명 · 예상{' '}
+            {formatIsoDurationLabel(item.effectiveExpectedDuration) ??
+              '시간 미입력'}
+          </summary>
+          <p>{item.description || '등록된 설명이 없어요.'}</p>
+          {onAssign && !done && (
+            <button className="workspace-button" onClick={onAssign}>
+              일정 배정
+            </button>
+          )}
+        </details>
+      </div>
+      <div className="workspace-task__side">
+        <span>
+          {done ? '완료' : formatDateWithOffset(item.dueDate, 'M/D') + ' 마감'}
+        </span>
+        <div className="workspace-task__meters">
+          {[
+            [item.importance, 9, '중요도'],
+            [item.difficulty, 21, '난이도'],
+          ].map(([value, max, label], i) => (
+            <span
+              key={label}
+              className={'workspace-meter workspace-meter--' + i}
+              style={
+                {
+                  '--fill':
+                    Math.min(100, (Number(value) / Number(max)) * 100) + '%',
+                } as CSSProperties
+              }
+              aria-label={label + ' ' + value + ' / ' + max}
+            >
+              {value}
+            </span>
+          ))}
+        </div>
+      </div>
+      {error && (
+        <div
+          className="workspace-inline-error workspace-task__error"
+          role="alert"
+        >
+          <span>{error}</span>
+          <button
+            disabled={pending}
+            onClick={() => void (refreshOnly ? refreshDetail() : toggle())}
+          >
+            {refreshOnly ? '정보 다시 불러오기' : '다시 시도'}
+          </button>
+        </div>
+      )}
+    </article>
+  )
+}

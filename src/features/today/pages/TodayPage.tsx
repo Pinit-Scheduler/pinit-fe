@@ -1,204 +1,244 @@
-import { useEffect, useMemo, useState } from 'react'
-import dayjs from 'dayjs'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchSchedules } from '@features/schedules/api/schedules'
-import { fetchTasks, fetchTasksByDeadline, createScheduleFromTask } from '@features/tasks/api/tasks'
-import { formatDateWithOffset, getTodayWithOffset, toApiDateTimeWithZone } from '@shared/utils/datetime'
-import { useTimePreferences } from '@contexts/TimePreferencesContext'
+import {
+  fetchTasks,
+  fetchTasksByDeadline,
+  createScheduleFromTask,
+} from '@features/tasks/api/tasks'
+import {
+  formatDateTimeWithZone,
+  toApiDateTimeWithZone,
+} from '@shared/utils/datetime'
+import useCurrentDay from '@shared/hooks/useCurrentDay'
 import type { ScheduleResponse } from '@features/schedules/types/schedule'
 import type { Task } from '@features/tasks/types/task'
 import TaskScheduleModal from '@features/tasks/components/TaskScheduleModal'
+import WorkspaceTaskCard from '@features/tasks/components/WorkspaceTaskCard'
+import ScheduleCard from '@features/schedules/components/ScheduleCard'
 import { useTaskCache } from '@contexts/TaskCacheContext'
-import { getDeadlineStyle } from '@shared/utils/deadlineStyles'
+import {
+  dispatchScheduleChanged,
+  dispatchTaskChanged,
+  onScheduleChanged,
+  onTaskChanged,
+} from '@shared/utils/events'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import './TodayPage.css'
-import { scheduleTypeLabelCompressed } from '@constants/schedules'
-import { dispatchScheduleChanged, dispatchTaskChanged, onScheduleChanged, onTaskChanged } from '@shared/utils/events'
-
-const TodayPage = () => {
-  const { offsetMinutes } = useTimePreferences()
-  const today = useMemo(() => getTodayWithOffset(offsetMinutes), [offsetMinutes])
-  const [schedules, setSchedules] = useState<ScheduleResponse[]>([])
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [dueToday, setDueToday] = useState<Task[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
-  const [refreshKey, setRefreshKey] = useState(() => Date.now())
-  const { tasksById, setTask } = useTaskCache()
-
+export default function TodayPage() {
+  const today = useCurrentDay(),
+    { open } = useRouteSurfaceNavigation()
+  const [schedules, setSchedules] = useState<ScheduleResponse[]>([]),
+    [ready, setReady] = useState<Task[]>([]),
+    [due, setDue] = useState<Task[]>([])
+  const [loadedKey, setLoadedKey] = useState(''),
+    [errors, setErrors] = useState<{ tasks?: string; schedules?: string }>({})
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null),
+    [refresh, setRefresh] = useState(0)
+  const { setTask, tasksById } = useTaskCache()
+  const requestKey = today.format('YYYY-MM-DDZ') + ':' + refresh
+  const loading = loadedKey !== requestKey
   useEffect(() => {
-    let mounted = true
-    const load = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const timeParam = toApiDateTimeWithZone(today.hour(12))
-        const [scheduleList, taskList, dueList] = await Promise.all([
-          fetchSchedules(timeParam),
-          fetchTasks({ page: 0, size: 10, readyOnly: true }),
-          // ADR-0023 §4: 오늘(회원 시간대) 마감인 작업. 완료한 것도 함께 보여 준다.
-          fetchTasksByDeadline(today.format('YYYY-MM-DD')),
-        ])
-        if (!mounted) return
-        setSchedules(scheduleList)
-        setTasks(taskList.content ?? [])
-        setDueToday(dueList)
-        ;(taskList.content ?? []).forEach(setTask)
-        dueList.forEach(setTask)
-      } catch (err) {
-        if (!mounted) return
-        setError(err instanceof Error ? err.message : '데이터를 불러오지 못했습니다.')
-      } finally {
-        if (mounted) setLoading(false)
-      }
-    }
-    load()
+    let cancelled = false
+    Promise.allSettled([
+      fetchSchedules(toApiDateTimeWithZone(today)),
+      fetchTasks({ page: 0, size: 10, readyOnly: true }),
+      fetchTasksByDeadline(today.format('YYYY-MM-DD')),
+    ]).then(([s, r, d]) => {
+      if (cancelled) return
+      const next: { tasks?: string; schedules?: string } = {}
+      if (s.status === 'fulfilled') setSchedules(s.value)
+      else
+        next.schedules =
+          s.reason instanceof Error
+            ? s.reason.message
+            : '일정을 불러오지 못했어요.'
+      if (r.status === 'fulfilled' && d.status === 'fulfilled') {
+        setReady(r.value.content ?? [])
+        setDue(d.value)
+        ;[...(r.value.content ?? []), ...d.value].forEach(setTask)
+      } else next.tasks = '작업을 불러오지 못했어요. 다시 시도해 주세요.'
+      setErrors(next)
+      setLoadedKey(requestKey)
+    })
     return () => {
-      mounted = false
+      cancelled = true
     }
-  }, [today, setTask, refreshKey])
-
+  }, [today, setTask, refresh, requestKey])
   useEffect(() => {
-    const triggerRefresh = () => setRefreshKey(Date.now())
-    const offSchedule = onScheduleChanged(triggerRefresh)
-    const offTask = onTaskChanged(triggerRefresh)
+    const reload = () => setRefresh((x) => x + 1)
+    const a = onScheduleChanged(reload),
+      b = onTaskChanged(reload)
     return () => {
-      offSchedule()
-      offTask()
+      a()
+      b()
     }
   }, [])
-
-  const handleAssign = async (payload: Parameters<typeof createScheduleFromTask>[1]) => {
-    if (selectedTaskId == null) return
+  const assign = async (
+    payload: Parameters<typeof createScheduleFromTask>[1],
+  ) => {
+    if (selectedTaskId === null) return
     await createScheduleFromTask(selectedTaskId, payload)
     dispatchScheduleChanged({ reason: 'task-assigned' })
     dispatchTaskChanged({ taskId: selectedTaskId, reason: 'assigned' })
     setSelectedTaskId(null)
   }
-
+  const selected =
+    selectedTaskId === null
+      ? undefined
+      : (tasksById[selectedTaskId] ??
+        [...ready, ...due].find((t) => t.id === selectedTaskId))
+  const error = (message: string) => (
+    <div className="workspace-inline-error" role="alert">
+      <span>{message}</span>
+      <button onClick={() => setRefresh((x) => x + 1)}>다시 시도</button>
+    </div>
+  )
+  const taskCard = (t: Task) => (
+    <WorkspaceTaskCard
+      key={t.id}
+      task={t}
+      onOpen={() => open('/app/tasks/' + t.id)}
+      onAssign={() => setSelectedTaskId(t.id)}
+    />
+  )
   return (
     <section className="today-page">
-      <header className="today-page__header" data-onboarding-anchor="today.header">
-        <p className="today-page__eyebrow">오늘 할당된 일</p>
-        <h1 className="today-page__title">오늘 추천 작업 & 일정</h1>
-        <p className="today-page__description">
-          오늘 날짜의 일정, 오늘 마감인 작업, 이전 작업을 모두 끝내 바로 시작할 수 있는 작업을 모아 보여줍니다.
-        </p>
-        <Link to="/app/plan" className="today-page__plan-cta">
-          🗓️ 오늘 하루 계획 자동으로 세우기
-        </Link>
+      <header
+        className="workspace-page-header"
+        data-onboarding-anchor="today.header"
+      >
+        <div>
+          <div className="today-page__date">
+            {today.format('YYYY년 M월 D일 dddd')}
+          </div>
+          <h1>오늘 할당된 일</h1>
+          <p>오늘 일정과 마감 작업, 바로 시작할 수 있는 작업을 확인하세요.</p>
+        </div>
+        <div className="workspace-page-actions">
+          <Link className="workspace-button" to="/app/plan">
+            <WorkspaceIcon name="sun" />
+            하루 계획
+          </Link>
+          <button
+            className="workspace-button workspace-button--primary"
+            onClick={() => open('/app/tasks/new')}
+          >
+            <WorkspaceIcon name="plus" />
+            작업 추가
+          </button>
+        </div>
       </header>
-
-      <div className="today-page__content">
-        {loading ? (
-          <div className="today-page__placeholder">
-            <p>불러오는 중...</p>
+      <div className="today-workspace">
+        <section
+          className="workspace-panel today-workspace__tasks"
+          aria-busy={loading}
+        >
+          <div className="workspace-panel__head">
+            <h2>오늘의 작업</h2>
+            <span className="today-page__legend">
+              <i />
+              중요도 <i />
+              난이도
+            </span>
           </div>
-        ) : error ? (
-          <div className="today-page__placeholder">
-            <p>데이터를 불러오지 못했습니다.</p>
-            <p>{error}</p>
+          <div className="today-workspace__task-body">
+            {loading ? (
+              <p className="today-page__empty" role="status">
+                작업을 불러오는 중…
+              </p>
+            ) : errors.tasks ? (
+              error(errors.tasks)
+            ) : (
+              <>
+                <h3 className="today-page__section-title">
+                  오늘 마감 <span>{due.length}</span>
+                </h3>
+                {due.length ? (
+                  due.map(taskCard)
+                ) : (
+                  <p className="today-page__empty">
+                    오늘 마감인 작업이 없어요.
+                  </p>
+                )}
+                <h3 className="today-page__section-title">
+                  바로 시작할 수 있는 작업
+                </h3>
+                {ready.length ? (
+                  ready.map(taskCard)
+                ) : (
+                  <p className="today-page__empty">
+                    바로 시작할 수 있는 작업이 없어요.
+                  </p>
+                )}
+              </>
+            )}
           </div>
-        ) : (
-          <>
-            <section className="today-page__section">
-              <h2>📅 오늘 일정 ({schedules.length}건)</h2>
-              {schedules.length === 0 ? (
-                <p className="today-page__placeholder">오늘 일정이 없습니다.</p>
-              ) : (
-                <ul className="today-page__list">
-                  {schedules.map((item) => (
-                    <li key={item.id}>
-                      <strong>{item.title}</strong>
-                      <span>{dayjs(item.date.dateTime).format('HH:mm')}</span>
-                      {item.scheduleType && (
-                        <span className="today-page__pill">{scheduleTypeLabelCompressed[item.scheduleType]}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section className="today-page__section">
-              <h2>⏰ 오늘 마감 ({dueToday.length}건)</h2>
-              {dueToday.length === 0 ? (
-                <p className="today-page__placeholder">오늘 마감인 작업이 없습니다.</p>
-              ) : (
-                <ul className="today-page__list">
-                  {dueToday.map((task) => {
-                    const cached = tasksById[task.id] ?? task
-                    const done = cached.completed ?? cached.isCompleted ?? false
-                    return (
-                      <li key={task.id}>
-                        <strong>{cached.title}</strong>
-                        <span className="today-page__pill">{done ? '완료' : '미완료'}</span>
-                        {!done && (cached.inboundDependencyCount ?? 0) > 0 && (
-                          <span className="today-page__pill">이전 작업 {cached.inboundDependencyCount}개 남음</span>
-                        )}
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </section>
-
-            <section className="today-page__section">
-              <h2>✅ 준비된 작업 ({tasks.length}건)</h2>
-              {tasks.length === 0 ? (
-                <p className="today-page__placeholder">바로 시작할 수 있는 작업이 없습니다.</p>
-              ) : (
-                <ul className="today-page__list">
-                  {tasks.map((task) => (
-                    <li key={task.id}>
-                      {(() => {
-                        const cached = tasksById[task.id] ?? task
-                        return (
-                          <>
-                            <strong>{cached.title}</strong>
-                            <span className="today-page__pill" style={getDeadlineStyle(cached.dueDate)}>
-                              {formatDateWithOffset(cached.dueDate, 'M/D')}
-                            </span>
-                            <span className="today-page__pill">
-                              {(cached.completed ?? cached.isCompleted) ? '완료' : '미완료'}
-                            </span>
-                          </>
-                        )
-                      })()}
-                      <button
-                        type="button"
-                        className="today-page__pill today-page__pill--action"
-                        onClick={() => setSelectedTaskId(task.id)}
-                      >
-                        일정 배정
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </>
-        )}
+          <Link className="today-page__all" to="/app/tasks">
+            <WorkspaceIcon name="task" />
+            전체 작업 보기
+          </Link>
+        </section>
+        <section
+          className="workspace-panel today-workspace__schedules"
+          aria-busy={loading}
+        >
+          <div className="workspace-panel__head">
+            <h2>오늘의 일정</h2>
+            <Link to="/app/schedules">달력 보기 →</Link>
+          </div>
+          <div className="today-page__schedule-date">
+            <WorkspaceIcon name="calendar" />
+            {today.format('M월 D일 (dd)')}
+            <span>{schedules.length}개</span>
+          </div>
+          <div className="today-page__schedule-list">
+            {loading ? (
+              <p className="today-page__empty" role="status">
+                일정을 불러오는 중…
+              </p>
+            ) : errors.schedules ? (
+              error(errors.schedules)
+            ) : schedules.length ? (
+              [...schedules]
+                .sort((a, b) => a.date.dateTime.localeCompare(b.date.dateTime))
+                .map((s) => (
+                  <div className="today-page__schedule-row" key={s.id}>
+                    <time>{formatDateTimeWithZone(s.date, 'HH:mm')}</time>
+                    <ScheduleCard
+                      schedule={s}
+                      onOpenDetail={(id) => open('/app/schedules/' + id)}
+                    />
+                  </div>
+                ))
+            ) : (
+              <p className="today-page__empty">
+                오늘 일정이 없어요. 새로운 일정을 추가해 보세요.
+              </p>
+            )}
+          </div>
+          <button
+            className="today-page__all"
+            onClick={() =>
+              open('/app/schedules/new', {
+                state: { initialDateKey: today.format('YYYY-MM-DD') },
+              })
+            }
+          >
+            <WorkspaceIcon name="plus" />
+            일정 추가
+          </button>
+        </section>
       </div>
-
       <TaskScheduleModal
         isOpen={selectedTaskId !== null}
         onClose={() => setSelectedTaskId(null)}
-        onSubmit={handleAssign}
-        defaultTitle={(() => {
-          if (selectedTaskId == null) return undefined
-          const t = tasksById[selectedTaskId] ?? tasks.find((task) => task.id === selectedTaskId)
-          return t?.title
-        })()}
-        defaultDescription={(() => {
-          if (selectedTaskId == null) return undefined
-          const t = tasksById[selectedTaskId] ?? tasks.find((task) => task.id === selectedTaskId)
-          return t?.description
-        })()}
-        taskLabel={selectedTaskId ? `작업 #${selectedTaskId}` : undefined}
+        onSubmit={assign}
+        defaultTitle={selected?.title}
+        defaultDescription={selected?.description}
+        taskLabel={selected?.title}
       />
     </section>
   )
 }
-
-export default TodayPage
