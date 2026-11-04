@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import useOnlineStatus from '@shared/hooks/useOnlineStatus'
 import {
@@ -29,7 +30,7 @@ export const UpdateBanner = () => {
         업데이트
       </button>
       <button aria-label="업데이트 안내 닫기" onClick={() => setReady(false)}>
-        ×
+        <WorkspaceIcon name="close" />
       </button>
     </div>
   )
@@ -41,7 +42,7 @@ export const OfflineBanner = () => {
   if (isOnline) return null
   return (
     <div className="app-banner app-banner--offline" role="status">
-      <span aria-hidden>📡</span>
+      <span aria-hidden><WorkspaceIcon name="wifiOff" /></span>
       <p>
         오프라인이에요. 저장된 화면만 보이고, 바꾼 내용은 연결된 뒤에 다시
         시도해 주세요.
@@ -84,7 +85,7 @@ export const InstallBanner = () => {
       role="region"
       aria-label="앱 설치 안내"
     >
-      <span aria-hidden>📲</span>
+      <span aria-hidden><WorkspaceIcon name="download" /></span>
       <p>
         {availability === 'prompt'
           ? '홈 화면에 Pinit을 추가하면 앱처럼 바로 열 수 있어요.'
@@ -106,7 +107,7 @@ export const InstallBanner = () => {
           onClick={dismiss}
           aria-label="설치 안내 닫기"
         >
-          ✕
+          <WorkspaceIcon name="close" />
         </button>
       </div>
     </div>

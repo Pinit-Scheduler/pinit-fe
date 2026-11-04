@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useRef, useState } from 'react'
 import type { KeyboardEvent, PointerEvent } from 'react'
 import type dayjs from 'dayjs'
@@ -90,7 +91,7 @@ const ScheduleTimeHandle = ({ start, title, disabled = false, onCommit }: Schedu
         onTouchMove={(event) => event.stopPropagation()}
         onTouchEnd={(event) => event.stopPropagation()}
       >
-        <span aria-hidden>🕒</span>
+        <span aria-hidden><WorkspaceIcon name="clock" /></span>
         <span className="schedule-time-handle__time">{preview.format('HH:mm')}</span>
         <span className="schedule-time-handle__icon" aria-hidden>
           ⇅

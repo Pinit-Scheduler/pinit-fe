@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import type { RecurrenceFrequency } from '../types/recurrence'
 import {
   DAY_SHORT,
@@ -152,7 +153,7 @@ const RecurrenceRuleFields = ({ draft, onChange, errors = {}, hideStartDate }: R
       {errors.count && <small className="recurrence-fields__error">{errors.count}</small>}
 
       <p className="recurrence-fields__summary" aria-live="polite">
-        🔁 {describeRule(toRule(draft))}
+        <WorkspaceIcon name="repeat" /> {describeRule(toRule(draft))}
       </p>
     </div>
   )

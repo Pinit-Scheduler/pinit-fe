@@ -1,3 +1,4 @@
+import WorkspaceIcon, { type WorkspaceIconName } from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ApiError } from '@shared/api/httpClient'
@@ -27,12 +28,12 @@ import {
 import type { RoutineDraft, RoutineIssue } from '../utils/routineRules'
 import './RoutinesPage.css'
 
-const KIND_ICON: Record<RoutineKind, string> = {
-  BREAKFAST: '🍳',
-  LUNCH: '🍚',
-  DINNER: '🍲',
-  SLEEP: '🌙',
-  CUSTOM: '✏️',
+const KIND_ICON: Record<RoutineKind, WorkspaceIconName> = {
+  BREAKFAST: 'meal',
+  LUNCH: 'meal',
+  DINNER: 'meal',
+  SLEEP: 'moon',
+  CUSTOM: 'edit',
 }
 
 const HOUR_OPTIONS = Array.from({ length: 17 }, (_, hours) => hours)
@@ -299,7 +300,7 @@ const RoutinesPage = () => {
           </div>
           {removable && (
             <button type="button" className="routines__remove" onClick={() => removeDraft(draft.key)} aria-label={`${name} 항목 삭제`}>
-              ✕
+              <WorkspaceIcon name="close" />
             </button>
           )}
         </div>
@@ -377,7 +378,7 @@ const RoutinesPage = () => {
                 <div className="routines__card-head">
                   <div>
                     <p className="routines__card-title">
-                      <span aria-hidden>{KIND_ICON[kind]}</span> {KIND_LABEL[kind]}
+                      <span aria-hidden><WorkspaceIcon name={KIND_ICON[kind]} /></span> {KIND_LABEL[kind]}
                     </p>
                     <p className="routines__card-sub">
                       {enabled
@@ -412,7 +413,7 @@ const RoutinesPage = () => {
             <div className="routines__card-head">
               <div>
                 <p className="routines__card-title">
-                  <span aria-hidden>{KIND_ICON.CUSTOM}</span> 직접 추가
+                  <span aria-hidden><WorkspaceIcon name={KIND_ICON.CUSTOM} /></span> 직접 추가
                 </p>
                 <p className="routines__card-sub">운동·출퇴근처럼 이름을 붙여 비워 둘 시간을 더할 수 있어요.</p>
               </div>

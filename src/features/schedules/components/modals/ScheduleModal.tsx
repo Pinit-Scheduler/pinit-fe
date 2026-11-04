@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId } from 'react'
 import Modal from '@shared/components/common/Modal'
 import ScheduleForm from '../ScheduleForm'
@@ -82,7 +83,7 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
           type="button"
           aria-label="닫기"
         >
-          ✕
+          <WorkspaceIcon name="close" />
         </button>
       </header>
       <div className="schedule-modal__body">

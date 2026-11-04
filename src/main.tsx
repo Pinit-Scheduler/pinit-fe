@@ -4,6 +4,7 @@ import '@shared/styles/theme.css'
 import '@app/App.css'
 import './index.css'
 import App from '@app/App.tsx'
+import '@shared/styles/information.css'
 import { watchSystemTheme } from '@shared/theme/theme'
 import { listenForInstallPrompt } from '@shared/pwa/installPrompt'
 

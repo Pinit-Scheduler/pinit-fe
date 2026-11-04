@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -665,7 +666,7 @@ const PlanPage = () => {
           !dismissed.calibrationCard && (
             <div className="plan-page__nudge" role="note">
               <p>
-                <span aria-hidden>⏱️ </span>지난 기록으로 보면 예상과 실제 걸린
+                <WorkspaceIcon name="clock" /> 지난 기록으로 보면 예상과 실제 걸린
                 시간이 달라요. 보정하면 블록 길이를 기록에 맞춰요.
               </p>
               <div className="plan-page__nudge-actions">
@@ -692,7 +693,7 @@ const PlanPage = () => {
                     )
                   }
                 >
-                  ✕
+                  <WorkspaceIcon name="close" />
                 </button>
               </div>
             </div>
@@ -701,7 +702,7 @@ const PlanPage = () => {
         {routineCount === 0 && !dismissed.routinesCard && (
           <div className="plan-page__nudge" role="note">
             <p>
-              <span aria-hidden>🍚🌙 </span>식사·수면 시간을 알려 주시면 그
+              <span aria-hidden><WorkspaceIcon name="meal" /><WorkspaceIcon name="moon" /> </span>식사·수면 시간을 알려 주시면 그
               시간은 비워 두고 계획해요.
             </p>
             <div className="plan-page__nudge-actions">
@@ -713,7 +714,7 @@ const PlanPage = () => {
                   dismiss('routinesCard', NUDGE_KEYS.planRoutinesCardDismissed)
                 }
               >
-                ✕
+                <WorkspaceIcon name="close" />
               </button>
             </div>
           </div>
@@ -792,7 +793,7 @@ const PlanPage = () => {
                       dismiss('windowHint', NUDGE_KEYS.planWindowHintDismissed)
                     }
                   >
-                    ✕
+                    <WorkspaceIcon name="close" />
                   </button>
                 </p>
               )}
@@ -889,7 +890,7 @@ const PlanPage = () => {
                               className="plan-page__badge"
                               title="반복 작업의 오늘 회차예요. 그날이 마감이에요"
                             >
-                              🔁 반복
+                              <WorkspaceIcon name="repeat" /> 반복
                             </span>
                           )}
                           {draft.mustTier && (
@@ -989,7 +990,7 @@ const PlanPage = () => {
                                 )
                               }
                             >
-                              ✕
+                              <WorkspaceIcon name="close" />
                             </button>
                           </p>
                         )}

@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useState } from 'react'
 import dayjs from 'dayjs'
 import { useToast } from '@contexts/ToastContext'
@@ -152,7 +153,7 @@ const TrashPage = () => {
                 <li key={key} className="trash__item">
                   <div className="trash__item-head">
                     <p className="trash__item-title">
-                      {task.recurrence && '🔁 '}
+                      {task.recurrence && <WorkspaceIcon name="repeat" />}
                       {task.title}
                       {task.completed && <span className="trash__tag">완료</span>}
                     </p>
@@ -195,7 +196,7 @@ const TrashPage = () => {
                 <li key={key} className="trash__item">
                   <div className="trash__item-head">
                     <p className="trash__item-title">
-                      {schedule.recurrence && '🔁 '}
+                      {schedule.recurrence && <WorkspaceIcon name="repeat" />}
                       {schedule.title}
                       <span className="trash__tag">{STATE_LABEL[schedule.state] ?? schedule.state}</span>
                     </p>

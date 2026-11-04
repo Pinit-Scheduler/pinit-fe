@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
@@ -58,7 +59,7 @@ const dateLabel = (date: string) => {
 const itemSummary = (item: RoutineOverride['routines'][number]) => {
   const minutes = parseIsoDurationMinutes(item.duration)
   return `${routineName(item)} ${item.startTime.slice(0, 5)}${minutes ? ` · ${formatMinutesLabel(minutes)}` : ''}${
-    item.remindAtStart ? ' 🔔' : ''
+    item.remindAtStart ? ' · 시작 알림' : ''
   }`
 }
 
@@ -281,7 +282,7 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
             onClick={() => editor && patchEditor({ items: editor.items.filter((other) => other.key !== item.key) })}
             aria-label={`${name} 이날 빼기`}
           >
-            ✕
+            <WorkspaceIcon name="close" />
           </button>
         </div>
         {item.kind === 'CUSTOM' && (
@@ -322,7 +323,7 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
       <div className="routines__card-head">
         <div>
           <p className="routines__card-title">
-            <span aria-hidden>📅</span> 날짜 예외
+            <span aria-hidden><WorkspaceIcon name="calendar" /></span> 날짜 예외
           </p>
           <p className="routines__card-sub">
             휴일·여행처럼 하루만 다른 날을 등록하면 그날 계획과 알림이 예외를 따라요. 공휴일은 자동으로 넣지 않아요.
@@ -353,7 +354,12 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
                     <p className="routines__card-sub">
                       {override.routines.length === 0
                         ? '생활 시간 없음'
-                        : override.routines.map(itemSummary).join(' / ')}
+                        : override.routines.map((item, index) => (
+                            <span key={index}>
+                              {index > 0 && ' / '}{itemSummary(item)}
+                              {item.remindAtStart && <WorkspaceIcon name="bell" />}
+                            </span>
+                          ))}
                     </p>
                   </div>
                   <div className="routines__override-actions">

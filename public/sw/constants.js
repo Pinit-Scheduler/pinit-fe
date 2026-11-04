@@ -1,11 +1,12 @@
 self.pinitSw = self.pinitSw || {}
 
 self.pinitSw.constants = {
-  CACHE_NAME: 'pinit-cache-v23', //TODO CACHE_NAME 자동으로 올릴 기법
+  CACHE_NAME: 'pinit-cache-v24', //TODO CACHE_NAME 자동으로 올릴 기법
   PRECACHE_URLS: [
     '/',
     '/index.html',
     '/offline.html',
+    '/fonts/pretendard/PretendardVariable-1.3.9.woff2',
     '/manifest.webmanifest',
     '/icons/icon.svg',
     '/vite.svg',

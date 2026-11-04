@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import useScheduleViewState from '../../hooks/useScheduleViewState.ts'
@@ -384,7 +385,7 @@ const SchedulesTabPage = () => {
         getTodayWithOffset().format('YYYY-MM-DD'),
       ) && (
         <p className="schedules-tab__notice" role="note">
-          🔁 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가
+          <WorkspaceIcon name="repeat" /> 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가
           가까워지면 생겨요.
         </p>
       )}

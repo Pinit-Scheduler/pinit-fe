@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
 import {
@@ -192,7 +193,7 @@ export function CategoryManager({ onClose }: { onClose: () => void }) {
           disabled={busy}
           onClick={onClose}
         >
-          ✕
+          <WorkspaceIcon name="close" />
         </button>
       </header>
       <p>기본 카테고리 6개와 나만의 카테고리를 사용해요.</p>

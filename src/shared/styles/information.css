@@ -1,0 +1,63 @@
+/* Non-interactive metadata uses colored ink, without a button-like container.
+ * Keep this explicit: selectable chips, radios, buttons and charts retain their
+ * own surfaces and selected states. */
+.workspace-theme :is(
+  .category-badge,
+  .recurrence-badge,
+  .plan-page__badge,
+  .settings__badge,
+  .task-page__pill,
+  .tag-chip--static,
+  .task-detail-modal__badge,
+  .task-archive-modal__pill,
+  .schedule-detail-modal__badge,
+  .mini-player__pill--state,
+  .trash__tag,
+  .month-calendar__count
+) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  font-weight: 500;
+  line-height: 1.6;
+}
+.workspace-theme .category-badge {
+  color: var(--c-blue-700);
+}
+.workspace-theme :is(.recurrence-badge, .plan-page__badge) {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--c-blue-700);
+  font-size: 12px;
+}
+.workspace-theme :is(.recurrence-badge--missed, .plan-page__badge--must) {
+  color: var(--c-red-700);
+}
+.workspace-theme :is(.recurrence-badge, .plan-page__badge) .workspace-icon {
+  width: 14px;
+  height: 14px;
+}
+.workspace-theme .task-detail-modal__badge--state {
+  color: var(--c-blue-700);
+}
+.workspace-theme .settings__badge--new {
+  color: var(--c-blue-700);
+}
+.workspace-theme .month-calendar__day .month-calendar__count {
+  background: transparent;
+}
+.workspace-theme .schedule-card__state-icon:disabled {
+  background: transparent;
+}
+
+/* Public/auth labels are information too. */
+:is(.landing__badge, .login__badge) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: var(--c-blue-700);
+}

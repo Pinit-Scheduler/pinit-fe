@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useState, useId } from 'react'
 import {
   useRouteSurfaceNavigation,
@@ -329,7 +330,7 @@ const TaskForm = ({
                   }))
               }}
             />
-            <span>🔁 반복</span>
+            <span><WorkspaceIcon name="repeat" /> 반복</span>
           </label>
           {rule && (
             <>
@@ -381,7 +382,7 @@ const TaskForm = ({
                       }}
                       aria-label="이전 작업 제거"
                     >
-                      ✕
+                      <WorkspaceIcon name="close" />
                     </button>
                   </span>
                 ))}
@@ -414,7 +415,7 @@ const TaskForm = ({
                       }}
                       aria-label="이후 작업 제거"
                     >
-                      ✕
+                      <WorkspaceIcon name="close" />
                     </button>
                   </span>
                 ))}

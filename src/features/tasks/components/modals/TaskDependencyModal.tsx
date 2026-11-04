@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useRef, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
 import './TaskDependencyModal.css'
@@ -111,7 +112,7 @@ const TaskDependencyModal = ({ isOpen, onClose, selectedIds, onApply, title, exc
     <Modal backdropClassName="task-dep-modal__backdrop" className="task-dep-modal__content" onClose={onClose} labelledBy={titleId}>
         <header className="task-dep-modal__header">
           <h1 id={titleId}>{title}</h1>
-          <button type="button" onClick={onClose} aria-label="닫기">✕</button>
+          <button type="button" onClick={onClose} aria-label="닫기"><WorkspaceIcon name="close" /></button>
         </header>
         <input
           type="search"

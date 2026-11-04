@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useState, useId } from 'react'
 import Modal from '@shared/components/common/Modal'
 import dayjs from 'dayjs'
@@ -62,7 +63,7 @@ const TaskScheduleModal = ({
           <p className="task-sched-modal__eyebrow">일정으로 배정</p>
           <h1 id={titleId}>{taskLabel ?? '작업'}</h1>
         </div>
-        <button onClick={onClose} aria-label="닫기" className="task-sched-modal__close">✕</button>
+        <button onClick={onClose} aria-label="닫기" className="task-sched-modal__close"><WorkspaceIcon name="close" /></button>
       </header>
       <form className="task-sched-modal__body" onSubmit={handleSubmit}>
         <label className="task-sched-modal__field">

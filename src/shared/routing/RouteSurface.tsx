@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import {
   createContext,
   useCallback,
@@ -159,7 +160,7 @@ export const RouteSurface = ({
             onClick={() => close()}
             aria-label="닫기"
           >
-            ×
+            <WorkspaceIcon name="close" />
           </button>
         </header>
         <div

@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import type { ScheduleSummary } from '../types/schedule'
 import './ScheduleCard.css'
 import { scheduleTypeLabel, stateIcon, stateLabel } from '@constants/schedules'
@@ -92,7 +93,7 @@ const ScheduleCard = ({
           title={stateLabel[state]}
           aria-label={`${stateLabel[state]} 상태`}
         >
-          {stateIcon[state]}
+          <WorkspaceIcon name={stateIcon[state]} />
         </button>
         <div className="schedule-card__text">
           <div className="schedule-card__title-row">
@@ -112,7 +113,7 @@ const ScheduleCard = ({
                 title="반복 일정"
                 aria-label="반복 일정"
               >
-                🔁 반복
+                <WorkspaceIcon name="repeat" /> 반복
               </span>
             )}
             {scheduleType && (
@@ -138,7 +139,7 @@ const ScheduleCard = ({
               aria-label="즉시 완료"
               disabled={actions.isMutating}
             >
-              ✓ 즉시 완료
+              <WorkspaceIcon name="check" /> 즉시 완료
             </button>
           )}
           {onDelete && (
@@ -149,7 +150,7 @@ const ScheduleCard = ({
               aria-label="일정 삭제"
               disabled={actions.isMutating}
             >
-              🗑️
+              <WorkspaceIcon name="trash" />
             </button>
           )}
         </div>
