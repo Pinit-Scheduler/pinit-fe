@@ -4,6 +4,8 @@ import useScheduleActions from '../hooks/useScheduleActions.ts'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import type { ScheduleState } from '../types/schedule'
 import './MiniPlayerBar.css'
+import './ScheduleState.css'
+import { stateIcon, stateLabel } from '@constants/schedules'
 import { useEffect, useRef } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 
@@ -17,12 +19,6 @@ const MiniPlayerBar = () => {
     (activeSchedule?.state ?? 'NOT_STARTED') as ScheduleState,
   )
 
-  const stateLabel: Record<ScheduleState, string> = {
-    NOT_STARTED: '미시작',
-    IN_PROGRESS: '진행중',
-    COMPLETED: '완료',
-    SUSPENDED: '일시정지',
-  }
   const visible = Boolean(
     activeSchedule &&
       activeSchedule.id === activeScheduleId &&
@@ -62,26 +58,30 @@ const MiniPlayerBar = () => {
   ) {
     return null
   }
+  const isRunning = activeSchedule.state === 'IN_PROGRESS'
 
   return (
     <div className="mini-player-wrapper" ref={wrapperRef}>
       <aside
-        className="mini-player"
+        className={`mini-player schedule-state--${activeSchedule.state.toLowerCase()}`}
         aria-label="일정 컨트롤 바"
         aria-busy={scheduleActions.isMutating}
       >
         <button
           className="mini-player__summary"
           type="button"
+          aria-label={`${activeSchedule.title}, ${stateLabel[activeSchedule.state]}, 상세 보기`}
           onClick={() => open(`/app/schedules/${activeSchedule.id}`)}
         >
-          <p className="mini-player__title">진행 중인 일정</p>
-          <p className="mini-player__description">{activeSchedule.title}</p>
-          <p className="mini-player__meta">
-            <span className="mini-player__pill mini-player__pill--state">
+          <span className="mini-player__state-icon" aria-hidden="true">
+            <WorkspaceIcon name={stateIcon[activeSchedule.state]} />
+          </span>
+          <span className="mini-player__copy">
+            <span className="mini-player__description">{activeSchedule.title}</span>
+            <span className="mini-player__state-text">
               {stateLabel[activeSchedule.state]}
             </span>
-          </p>
+          </span>
         </button>
         <div
           className="mini-player__buttons"
@@ -89,22 +89,16 @@ const MiniPlayerBar = () => {
           aria-label="일정 조작"
         >
           <button
-            className="mini-player__button mini-player__button--start"
-            onClick={scheduleActions.start}
-            disabled={!scheduleActions.canStart || scheduleActions.isMutating}
-            aria-label="시작 또는 재개"
-            title="시작 또는 재개"
+            className="mini-player__button mini-player__button--toggle"
+            onClick={isRunning ? scheduleActions.pause : scheduleActions.start}
+            disabled={
+              scheduleActions.isMutating ||
+              (isRunning ? !scheduleActions.canPause : !scheduleActions.canStart)
+            }
+            aria-label={isRunning ? '일시정지' : '재개'}
+            title={isRunning ? '일시정지' : '재개'}
           >
-            <WorkspaceIcon name="play" />
-          </button>
-          <button
-            className="mini-player__button mini-player__button--pause"
-            onClick={scheduleActions.pause}
-            disabled={!scheduleActions.canPause || scheduleActions.isMutating}
-            aria-label="일시정지"
-            title="일시정지"
-          >
-            <WorkspaceIcon name="pause" />
+            <WorkspaceIcon name={isRunning ? 'pause' : 'play'} />
           </button>
           <button
             className="mini-player__button mini-player__button--complete"

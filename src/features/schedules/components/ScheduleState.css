@@ -1,0 +1,12 @@
+.schedule-state--not_started {
+  --schedule-state-ink: var(--c-slate-600);
+}
+.schedule-state--in_progress {
+  --schedule-state-ink: var(--c-blue-700);
+}
+.schedule-state--suspended {
+  --schedule-state-ink: var(--c-amber-800);
+}
+.schedule-state--completed {
+  --schedule-state-ink: var(--c-green-800);
+}
