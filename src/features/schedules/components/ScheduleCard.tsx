@@ -1,6 +1,7 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import type { ScheduleSummary } from '../types/schedule'
 import './ScheduleCard.css'
+import './ScheduleState.css'
 import { scheduleTypeLabel, stateIcon, stateLabel } from '@constants/schedules'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
@@ -74,7 +75,7 @@ const ScheduleCard = ({
 
   return (
     <article
-      className="schedule-card"
+      className={`schedule-card schedule-state--${state.toLowerCase()}`}
       aria-label={title}
       onClick={handleClick}
       aria-busy={actions.isMutating}
@@ -96,6 +97,7 @@ const ScheduleCard = ({
           <WorkspaceIcon name={stateIcon[state]} />
         </button>
         <div className="schedule-card__text">
+          <span className="schedule-card__status">{stateLabel[state]}</span>
           <div className="schedule-card__title-row">
             <button
               type="button"

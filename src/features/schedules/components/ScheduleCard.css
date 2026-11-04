@@ -363,3 +363,29 @@
 .schedule-card__state-icon:disabled {
   opacity: 1;
 }
+
+/* The same shape and accent identify the state in cards and the player. */
+.schedule-card {
+  border-inline-start-width: 3px;
+}
+.schedule-card:is(.schedule-state--in_progress, .schedule-state--suspended) {
+  border-inline-start-color: var(--schedule-state-ink);
+}
+.schedule-card .schedule-card__state-icon {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  color: var(--schedule-state-ink);
+  background: transparent;
+}
+.schedule-card__state-icon .workspace-icon {
+  width: 26px;
+  height: 26px;
+  stroke-width: 1.9;
+}
+.schedule-card__status {
+  color: var(--schedule-state-ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+}
