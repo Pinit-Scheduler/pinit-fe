@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PointerEvent, TouchEvent, RefObject, SyntheticEvent } from 'react'
 import type { ScheduleSummary } from '../types/schedule'
 
@@ -10,6 +10,8 @@ type Direction = 'prev' | 'next'
 
 type DragState = {
   id: number
+  pointerId: number
+  element: HTMLDivElement
   startX: number
   startY: number
   moved: boolean
@@ -18,6 +20,8 @@ type DragState = {
 type UseScheduleDragOptions = {
   containerRef: RefObject<HTMLDivElement | null>
   hasItems: boolean
+  resetKey?: string
+  disabled?: boolean
   onMove: (schedule: ScheduleSummary, offset: 1 | -1) => void | Promise<void>
   onRefresh: () => void
 }
@@ -30,7 +34,8 @@ type UseScheduleDragReturn = {
     onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
     onPointerUp: (event: PointerEvent<HTMLDivElement>) => void
     onPointerCancel: () => void
-    onPointerLeave: () => void
+    onLostPointerCapture: () => void
+    onDragStart: (event: SyntheticEvent) => void
     onClickCapture: (event: SyntheticEvent) => void
   }
   containerTouchHandlers: {
@@ -40,7 +45,7 @@ type UseScheduleDragReturn = {
   }
 }
 
-export const useScheduleDrag = ({ containerRef, hasItems, onMove, onRefresh }: UseScheduleDragOptions): UseScheduleDragReturn => {
+export const useScheduleDrag = ({ containerRef, hasItems, resetKey, disabled = false, onMove, onRefresh }: UseScheduleDragOptions): UseScheduleDragReturn => {
   const dragStateRef = useRef<DragState | null>(null)
   const suppressClickRef = useRef(false)
   const pullStartY = useRef<number | null>(null)
@@ -49,61 +54,85 @@ export const useScheduleDrag = ({ containerRef, hasItems, onMove, onRefresh }: U
   const [draggingScheduleId, setDraggingScheduleId] = useState<number | null>(null)
 
   const resetDragState = useCallback(() => {
+    const state = dragStateRef.current
     dragStateRef.current = null
+    if (state?.element.hasPointerCapture(state.pointerId)) {
+      state.element.releasePointerCapture(state.pointerId)
+    }
     setDraggingScheduleId(null)
     setEdgeTarget(null)
   }, [])
 
+  useEffect(() => () => {
+    resetDragState()
+    suppressClickRef.current = false
+  }, [resetKey, disabled, resetDragState])
+
+  const targetAt = useCallback((clientX: number): Direction | null => {
+    const bounds = containerRef.current?.getBoundingClientRect()
+    if (!bounds) return null
+    const gutter = Math.min(EDGE_GUTTER, bounds.width / 4)
+    return clientX < bounds.left + gutter ? 'prev'
+      : clientX > bounds.right - gutter ? 'next' : null
+  }, [containerRef])
+
   const handleDragStart = useCallback((event: PointerEvent<HTMLDivElement>, scheduleId: number) => {
+    if (disabled || event.button !== 0 || !event.isPrimary) return
+    // A title can be clicked or dragged. State/delete/time controls keep their
+    // normal interactions and never become a date drag.
+    const control = (event.target as Element).closest('button, a, input, select, textarea, [contenteditable="true"]')
+    if (control && !control.classList.contains('schedule-card__title')) return
     dragStateRef.current = {
       id: scheduleId,
+      pointerId: event.pointerId,
+      element: event.currentTarget,
       startX: event.clientX,
       startY: event.clientY,
       moved: false,
     }
     suppressClickRef.current = false
-    setDraggingScheduleId(scheduleId)
-    setEdgeTarget(null)
-  }, [])
+  }, [disabled])
 
   const handleDragMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
     const state = dragStateRef.current
-    if (!state) return
-    const deltaX = event.clientX - state.startX
-    const deltaY = event.clientY - state.startY
-    if (!state.moved && Math.abs(deltaX) + Math.abs(deltaY) > DRAG_ACTIVATE_DISTANCE) {
-      state.moved = true
+    if (!state || state.pointerId !== event.pointerId) return
+    if (event.pointerType === 'mouse' && !(event.buttons & 1)) {
+      resetDragState()
+      return
     }
-    const viewportWidth = window.innerWidth
-    const nextTarget: Direction | null = event.clientX < EDGE_GUTTER
-      ? 'prev'
-      : event.clientX > viewportWidth - EDGE_GUTTER
-        ? 'next'
-        : null
-    setEdgeTarget(nextTarget)
-  }, [])
+    const deltaX = Math.abs(event.clientX - state.startX)
+    const deltaY = Math.abs(event.clientY - state.startY)
+    if (!state.moved) {
+      if (deltaX + deltaY <= DRAG_ACTIVATE_DISTANCE) return
+      // Vertical movement belongs to page scrolling, not date movement.
+      if (deltaY >= deltaX) {
+        resetDragState()
+        return
+      }
+      state.moved = true
+      state.element.setPointerCapture(event.pointerId)
+      setDraggingScheduleId(state.id)
+      pullActivated.current = false
+      pullStartY.current = null
+    }
+    event.preventDefault()
+    setEdgeTarget(targetAt(event.clientX))
+  }, [resetDragState, targetAt])
 
   const handleDragEnd = useCallback(
     (event: PointerEvent<HTMLDivElement>, schedule: ScheduleSummary) => {
       const state = dragStateRef.current
-      if (!state || state.id !== schedule.id) {
-        resetDragState()
-        return
-      }
-      const target = edgeTarget
+      if (!state || state.id !== schedule.id || state.pointerId !== event.pointerId) return
+      // Read the release position directly; React's last move state may lag.
+      const target = state.moved ? targetAt(event.clientX) : null
       if (state.moved) {
         event.preventDefault()
         suppressClickRef.current = true
-        window.setTimeout(() => {
-          suppressClickRef.current = false
-        }, 300)
       }
       resetDragState()
-      if (target) {
-        void onMove(schedule, target === 'prev' ? -1 : 1)
-      }
+      if (target && !disabled) void onMove(schedule, target === 'prev' ? -1 : 1)
     },
-    [edgeTarget, onMove, resetDragState],
+    [disabled, targetAt, onMove, resetDragState],
   )
 
   const getItemHandlers = useCallback(
@@ -112,7 +141,9 @@ export const useScheduleDrag = ({ containerRef, hasItems, onMove, onRefresh }: U
       onPointerMove: handleDragMove,
       onPointerUp: (event: PointerEvent<HTMLDivElement>) => handleDragEnd(event, schedule),
       onPointerCancel: resetDragState,
-      onPointerLeave: resetDragState,
+      onLostPointerCapture: resetDragState,
+      // Prevent native text/link dragging from taking ownership of the mouse.
+      onDragStart: (event: SyntheticEvent) => event.preventDefault(),
       onClickCapture: (event: SyntheticEvent) => {
         if (suppressClickRef.current) {
           event.stopPropagation()
@@ -126,15 +157,19 @@ export const useScheduleDrag = ({ containerRef, hasItems, onMove, onRefresh }: U
 
   const containerTouchHandlers = {
     onTouchStart: (e: TouchEvent<HTMLDivElement>) => {
-      if (!hasItems) return
+      if (!hasItems || disabled) return
       pullStartY.current = e.touches[0].clientY
       pullActivated.current = false
     },
     onTouchMove: (e: TouchEvent<HTMLDivElement>) => {
-      if (!hasItems) return
+      if (!hasItems || disabled) return
       const container = containerRef.current
       if (!container) return
-      if (container.scrollTop > 0) {
+      let scroller: HTMLElement | null = container
+      while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) {
+        scroller = scroller.parentElement
+      }
+      if ((scroller?.scrollTop ?? 0) > 0 || dragStateRef.current?.moved) {
         pullStartY.current = null
         pullActivated.current = false
         return
@@ -147,7 +182,7 @@ export const useScheduleDrag = ({ containerRef, hasItems, onMove, onRefresh }: U
       }
     },
     onTouchEnd: () => {
-      if (pullActivated.current) {
+      if (pullActivated.current && !suppressClickRef.current && !disabled) {
         onRefresh()
       }
       pullStartY.current = null
@@ -156,8 +191,8 @@ export const useScheduleDrag = ({ containerRef, hasItems, onMove, onRefresh }: U
   }
 
   return {
-    edgeTarget,
-    draggingScheduleId,
+    edgeTarget: disabled ? null : edgeTarget,
+    draggingScheduleId: disabled ? null : draggingScheduleId,
     getItemHandlers,
     containerTouchHandlers,
   }

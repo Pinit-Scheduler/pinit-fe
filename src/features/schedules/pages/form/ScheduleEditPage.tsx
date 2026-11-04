@@ -112,7 +112,11 @@ const ScheduleEditPage = () => {
       )
       if (result) {
         contentSaved = true
-        dispatchScheduleChanged({ schedule: result, reason: 'updated' })
+        dispatchScheduleChanged({
+          schedule: result,
+          previousDateKey: schedule ? toDateKey(schedule.date) : undefined,
+          reason: 'updated',
+        })
         if (categoryChanged(values)) {
           await assignScheduleCategory(result.id, values.categoryId ?? null)
           savedCategory.current = {

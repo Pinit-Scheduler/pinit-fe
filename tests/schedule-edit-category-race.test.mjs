@@ -44,7 +44,7 @@ const createHarness = ({ recurring = false } = {}) => {
     '@shared/utils/datetime': {
       toDateFromApi: () => new Date('2026-11-03T01:00:00Z'),
       toApiDateTimeWithZone: (date) => date,
-      toDateKey: () => '2026-11-03',
+      toDateKey: (date) => new Date(date.dateTime ?? date).toISOString().slice(0, 10),
       toDisplayDayjs: () => ({ format: () => '10:00' }),
     },
     '../../hooks/useScheduleDetail': {
@@ -198,6 +198,17 @@ test('confirmed uncategorized schedules remain editable with an explicit None va
     title: 'changed title',
   })
   assert.deepEqual(h.assigned, [])
+})
+
+test('moving a schedule publishes both the old date and the saved new date', async () => {
+  const h = createHarness()
+  h.setCategory({ isLoading: false, error: null, id: null })
+  const form = h.render()
+  const nextDate = new Date('2026-11-04T01:00:00Z')
+  await form.props.onSubmit({ ...form.props.initialValues, date: nextDate })
+  assert.equal(h.events[0].reason, 'updated')
+  assert.equal(h.events[0].previousDateKey, '2026-11-03')
+  assert.equal(h.events[0].schedule.date.toISOString(), nextDate.toISOString())
 })
 
 test('title-only ALL recurrence edit never rewrites category overrides on other occurrences', async () => {

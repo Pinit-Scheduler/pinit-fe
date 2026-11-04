@@ -298,6 +298,8 @@ const SchedulesTabPage = () => {
   } = useScheduleDrag({
     containerRef: listRef,
     hasItems: schedules.length > 0,
+    resetKey: selectedDateKey,
+    disabled: movingScheduleId !== null || isScheduleLoading || !!scheduleError,
     onMove: handleMoveSchedule,
     onRefresh: handleRefresh,
   })
@@ -418,6 +420,9 @@ const SchedulesTabPage = () => {
           </button>
         </div>
       </header>
+      <p className="schedules-tab__drag-hint">
+        카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로 끌어 시간을 바꿔요.
+      </p>
       <div
         ref={listRef}
         className={[
