@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { Link } from 'react-router-dom'
 import { fetchRecurrenceStatistics } from '../api/report'
 import useReport from '../hooks/useReport'
@@ -55,7 +56,7 @@ const RecurrenceStatsSection = () => {
           return (
             <li key={series.seriesId} className="recurrence-stats__item">
               <div className="recurrence-stats__head">
-                <span className="recurrence-stats__title">🔁 {series.title}</span>
+                <span className="recurrence-stats__title"><WorkspaceIcon name="repeat" /> {series.title}</span>
                 <span className="recurrence-stats__rate">{formatRate(series.completionRate)}</span>
               </div>
               <p className="recurrence-stats__line">{streakLine(series)}</p>

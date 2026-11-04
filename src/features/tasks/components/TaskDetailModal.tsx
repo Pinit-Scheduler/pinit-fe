@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { CategoryBadge } from '@features/categories'
 import { useEffect, useState, useId } from 'react'
 import Modal from '@shared/components/common/Modal'
@@ -225,7 +226,7 @@ const TaskDetailModal = ({
                 }}
                 aria-label="닫기"
               >
-                ✕
+                <WorkspaceIcon name="close" />
               </button>
             </header>
             <div className="task-detail-modal__body">
@@ -233,7 +234,7 @@ const TaskDetailModal = ({
                 <h2>{task.title}</h2>
                 {task.recurrence && (
                   <p className="task-detail-modal__description">
-                    <span className="recurrence-badge">🔁 반복</span>{' '}
+                    <span className="recurrence-badge"><WorkspaceIcon name="repeat" /> 반복</span>{' '}
                     {task.recurrence.occurrenceDate} 회차
                     {task.missed ? ' · 놓친 회차예요' : ''}
                   </p>
@@ -248,13 +249,13 @@ const TaskDetailModal = ({
                   </span>
                   <span
                     className="task-detail-modal__badge"
-                    style={getImportanceStyle(task.importance)}
+                    style={getImportanceStyle()}
                   >
                     중요도 {task.importance}
                   </span>
                   <span
                     className="task-detail-modal__badge"
-                    style={getDifficultyStyle(task.difficulty)}
+                    style={getDifficultyStyle()}
                   >
                     난이도 {task.difficulty}
                   </span>
@@ -305,7 +306,7 @@ const TaskDetailModal = ({
                   }}
                   className="task-detail-modal__action-btn task-detail-modal__action-btn--edit"
                 >
-                  ✏️ 수정
+                  <WorkspaceIcon name="edit" /> 수정
                 </button>
                 <button
                   type="button"
@@ -320,14 +321,14 @@ const TaskDetailModal = ({
                   onClick={() => setShowScheduleModal(true)}
                   className="task-detail-modal__action-btn"
                 >
-                  📅 일정으로 배정
+                  <WorkspaceIcon name="calendar" /> 일정으로 배정
                 </button>
                 <button
                   type="button"
                   onClick={handleDelete}
                   className="task-detail-modal__action-btn task-detail-modal__action-btn--delete"
                 >
-                  🗑️ 삭제
+                  <WorkspaceIcon name="trash" /> 삭제
                 </button>
               </footer>
             </div>

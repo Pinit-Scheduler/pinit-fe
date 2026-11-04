@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import useActiveSchedule from '../hooks/useActiveSchedule.ts'
 import useScheduleActions from '../hooks/useScheduleActions.ts'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
@@ -94,7 +95,7 @@ const MiniPlayerBar = () => {
             aria-label="시작 또는 재개"
             title="시작 또는 재개"
           >
-            ▶
+            <WorkspaceIcon name="play" />
           </button>
           <button
             className="mini-player__button mini-player__button--pause"
@@ -103,7 +104,7 @@ const MiniPlayerBar = () => {
             aria-label="일시정지"
             title="일시정지"
           >
-            Ⅱ
+            <WorkspaceIcon name="pause" />
           </button>
           <button
             className="mini-player__button mini-player__button--complete"
@@ -114,7 +115,7 @@ const MiniPlayerBar = () => {
             aria-label="완료"
             title="완료"
           >
-            ✓
+            <WorkspaceIcon name="check" />
           </button>
           <button
             className="mini-player__button mini-player__button--cancel"
@@ -123,7 +124,7 @@ const MiniPlayerBar = () => {
             aria-label="취소하고 미시작으로"
             title="취소 · 미시작으로 되돌리기"
           >
-            ✕
+            <WorkspaceIcon name="close" />
           </button>
         </div>
         {scheduleActions.lastError && (

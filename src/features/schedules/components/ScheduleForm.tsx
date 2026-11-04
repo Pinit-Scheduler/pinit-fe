@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { CategoryPicker } from '@features/categories'
 import dayjs from 'dayjs'
 import { useState, useId } from 'react'
@@ -198,7 +199,7 @@ const ScheduleForm = ({
                 )
               }
             />
-            <span>🔁 반복</span>
+            <span><WorkspaceIcon name="repeat" /> 반복</span>
           </label>
           {rule && (
             <>

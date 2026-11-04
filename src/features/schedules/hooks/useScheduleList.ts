@@ -1,93 +1,73 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import type dayjs from 'dayjs'
 import type { ScheduleSummary } from '../types/schedule'
-import { toDateKey } from '@shared/utils/datetime'
+import { toApiDateTimeWithZone, toDateKey } from '@shared/utils/datetime'
 import { fetchSchedules } from '../api/schedules'
 import { onScheduleChanged } from '@shared/utils/events'
 
-type UseScheduleListReturn = {
+type ListSnapshot = {
+  key: string
   schedules: ScheduleSummary[]
   isLoading: boolean
   error: string | null
-  refetch: () => void
 }
 
-const useScheduleList = (selectedDate: dayjs.Dayjs): UseScheduleListReturn => {
+const useScheduleList = (selectedDate: dayjs.Dayjs) => {
+  const { dateTime, zoneId } = toApiDateTimeWithZone(selectedDate.hour(12))
+  const dateKey = toDateKey(selectedDate)
+  const queryKey = `${dateKey}@${zoneId}`
   const cacheRef = useRef<Record<string, ScheduleSummary[]>>({})
-  const [schedules, setSchedules] = useState<ScheduleSummary[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [timestamp, setTimestamp] = useState(() => Date.now())
+  const sequence = useRef(0)
+  const [version, setVersion] = useState(0)
+  const [snapshot, setSnapshot] = useState<ListSnapshot>({
+    key: '', schedules: [], isLoading: true, error: null,
+  })
 
-  const displayDateKey = useMemo(() => toDateKey(selectedDate), [selectedDate])
-  const apiDateTime = useMemo(() => selectedDate.hour(12), [selectedDate])
+  const refetch = useCallback(() => {
+    // A mutation can affect both dates (or a whole recurrence). Invalidate all
+    // day snapshots, including days currently off screen. In-flight reads from
+    // before the mutation must not be allowed to repopulate them.
+    cacheRef.current = {}
+    sequence.current += 1
+    setSnapshot({ key: queryKey, schedules: [], isLoading: true, error: null })
+    setVersion((value) => value + 1)
+  }, [queryKey])
 
-  const applySchedules = useCallback((next: ScheduleSummary[]) => {
-    setSchedules(next)
-    cacheRef.current[displayDateKey] = next
-  }, [displayDateKey])
-
-  useEffect(() => {
-    let isCancelled = false
-
-    const cached = cacheRef.current[displayDateKey]
-    if (cached) {
-      setSchedules(cached)
-      setIsLoading(false)
-    } else {
-      setSchedules([]) // 새 날짜에서는 기존 목록을 비워 일관성 유지
-      setIsLoading(true)
-    }
-
-    const fetchList = async () => {
-      setError(null)
-
-      try {
-        const response = await fetchSchedules(apiDateTime)
-        if (isCancelled) return
-        applySchedules(response)
-      } catch (error) {
-        if (isCancelled) return
-        const message = error instanceof Error ? error.message : '일정을 불러오지 못했습니다.'
-        setError(message)
-      } finally {
-        if (!isCancelled) {
-          setIsLoading(false)
-        }
-      }
-    }
-
-    fetchList()
-
-    return () => {
-      isCancelled = true
-    }
-  }, [apiDateTime, applySchedules, displayDateKey, timestamp])
+  useEffect(() => onScheduleChanged(refetch), [refetch])
 
   useEffect(() => {
-    const unsubscribe = onScheduleChanged((detail) => {
-      // 반복 시리즈 변경(ADR-0019)은 여러 날짜의 회차를 바꾼다. 캐시를 비우고 다시 읽는다.
-      // 휴지통에서 되돌린 일정(ADR-0024)도 어느 날짜인지 모르므로 같이 다시 읽는다.
-      if (detail.reason === 'recurrence' || detail.reason === 'restore') {
-        cacheRef.current = {}
-        setTimestamp(Date.now())
-        return
-      }
-      const nextKey = detail.schedule ? toDateKey((detail.schedule as ScheduleSummary).date) : null
-      const affectedKeys = [detail.previousDateKey, nextKey].filter(Boolean)
-      if (affectedKeys.includes(displayDateKey)) {
-        setTimestamp(Date.now())
-      }
-    })
-    return unsubscribe
-  }, [displayDateKey])
+    let cancelled = false
+    const request = ++sequence.current
+    const cached = cacheRef.current[queryKey]
+    setSnapshot({ key: queryKey, schedules: cached ?? [], isLoading: !cached, error: null })
 
-  return {
-    schedules,
-    isLoading,
-    error,
-    refetch: () => setTimestamp(Date.now()),
+    void fetchSchedules({ dateTime, zoneId }).then(
+      (schedules) => {
+        if (cancelled || request !== sequence.current) return
+        cacheRef.current[queryKey] = schedules
+        setSnapshot({ key: queryKey, schedules, isLoading: false, error: null })
+      },
+      (error: unknown) => {
+        if (cancelled || request !== sequence.current) return
+        setSnapshot({
+          key: queryKey,
+          schedules: cached ?? [],
+          isLoading: false,
+          error: error instanceof Error ? error.message : '일정을 불러오지 못했습니다.',
+        })
+      },
+    )
+    return () => { cancelled = true }
+  }, [dateTime, zoneId, queryKey, version])
+
+  // Date changes render before effects run. Never label the previous date's
+  // rows with the new date, even for that first render.
+  const current = snapshot.key === queryKey ? snapshot : {
+    schedules: [],
+    isLoading: true,
+    error: null,
   }
+  return { schedules: current.schedules, isLoading: current.isLoading, error: current.error, refetch }
 }
 
 export default useScheduleList

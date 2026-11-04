@@ -61,6 +61,19 @@
   padding-bottom: 16px;
   border-bottom: 1px solid var(--c-slate-200);
   touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.schedules-tab__item.is-dragging,
+.schedules-tab__item.is-dragging * {
+  cursor: grabbing;
+}
+.schedules-tab__drag-hint {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-slate-600);
 }
 
 .schedules-tab__item:last-child {

@@ -1,3 +1,4 @@
+import type { WorkspaceIconName } from '@shared/components/common/WorkspaceIcon'
 import type { ScheduleSummary } from '@features/schedules/types/schedule'
 
 export const scheduleTypeLabel: Record<NonNullable<ScheduleSummary['scheduleType']>, string> = {
@@ -19,9 +20,9 @@ export const stateLabel: Record<ScheduleSummary['state'], string> = {
     SUSPENDED: '일시정지',
 }
 
-export const stateIcon: Record<ScheduleSummary['state'], string> = {
-    NOT_STARTED: '☐',  // 빈 박스
-    IN_PROGRESS: '▶',  // >>
-    COMPLETED: '✓',     // 체크
-    SUSPENDED: '⏸',     // 일시정지
+export const stateIcon: Record<ScheduleSummary['state'], WorkspaceIconName> = {
+    NOT_STARTED: 'square',
+    IN_PROGRESS: 'play',
+    COMPLETED: 'check',
+    SUSPENDED: 'pause',
 }

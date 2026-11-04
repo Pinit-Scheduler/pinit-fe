@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { CategoryBadge } from '@features/categories'
 import { useId } from 'react'
 import Modal from '@shared/components/common/Modal'
@@ -173,7 +174,7 @@ const ScheduleDetailModal = ({
           }}
           aria-label="닫기"
         >
-          ✕
+          <WorkspaceIcon name="close" />
         </button>
       </header>
 
@@ -226,14 +227,14 @@ const ScheduleDetailModal = ({
             }}
             className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--edit"
           >
-            ✏️ 수정
+            <WorkspaceIcon name="edit" /> 수정
           </button>
           <button
             type="button"
             onClick={handleDelete}
             className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
           >
-            🗑️ 삭제
+            <WorkspaceIcon name="trash" /> 삭제
           </button>
         </footer>
       </div>

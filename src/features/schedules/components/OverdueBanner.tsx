@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import type { OverdueSummary } from '../types/schedule'
 import './OverdueBanner.css'
 
@@ -29,7 +30,7 @@ const OverdueBanner = ({ summary, onNavigateToDate }: OverdueBannerProps) => {
   return (
     <button type="button" className="overdue-banner" onClick={handleClick}>
       <span className="overdue-banner__icon" aria-hidden>
-        ⚠️
+        <WorkspaceIcon name="warning" />
       </span>
       <span className="overdue-banner__text">{message}</span>
     </button>

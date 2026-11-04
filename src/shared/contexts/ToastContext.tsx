@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 /* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
@@ -111,7 +112,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
               aria-label="알림 닫기"
               onClick={() => dismiss(toast.id)}
             >
-              ×
+              <WorkspaceIcon name="close" />
             </button>
           </div>
         ))}

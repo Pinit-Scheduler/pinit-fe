@@ -16,6 +16,19 @@ const paths = {
   back: 'm14 5-7 7 7 7',
   search: 'm16 16 5 5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',
   pin: 'm8 11 3 3 5-6M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z',
+  edit: 'm15 4 5 5M4 20l5-1L21 7a2.1 2.1 0 0 0-4-4L5 15l-1 5Z',
+  close: 'm6 6 12 12M6 18 18 6',
+  check: 'm5 12 4 4L19 6',
+  play: 'm8 4 12 8-12 8V4Z',
+  pause: 'M8 5v14M16 5v14',
+  square: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z',
+  warning: 'M12 3 2 21h20L12 3Zm0 6v5m0 3h.01',
+  inbox: 'M4 4h16l2 12v4H2v-4L4 4Zm-2 12h6l2 2h4l2-2h6',
+  wifiOff: 'm3 3 18 18M2 8a16 16 0 0 1 3-2m5-1a16 16 0 0 1 12 3M5 12a11 11 0 0 1 4-2m5 0a11 11 0 0 1 5 2m-11 4a6 6 0 0 1 8 0m-4 4h.01',
+  download: 'M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5',
+  moon: 'M20 15a9 9 0 0 1-11-11 9 9 0 1 0 11 11Z',
+  meal: 'M4 3v5a3 3 0 0 0 6 0V3M7 3v18M17 3v18m0-10h4V3a4 4 0 0 0-4 4v4Z',
+  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9ZM10 21h4',
 } as const
 export type WorkspaceIconName = keyof typeof paths
 export default function WorkspaceIcon({
@@ -33,6 +46,8 @@ export default function WorkspaceIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      focusable="false"
+      className="workspace-icon"
       {...props}
     >
       <path d={paths[name]} />

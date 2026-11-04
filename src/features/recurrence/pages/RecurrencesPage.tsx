@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useRecurrenceScope } from '../components/RecurrenceScopeDialog'
@@ -242,7 +243,7 @@ const RecurrencesPage = () => {
           <li key={series.id ?? series.title} className="recurrences__item">
             <div className="recurrences__item-head">
               <p className="recurrences__item-title">
-                🔁 {series.title}
+                <WorkspaceIcon name="repeat" /> {series.title}
                 <span className="recurrences__mode">
                   {MODE_LABEL[series.mode]}
                 </span>

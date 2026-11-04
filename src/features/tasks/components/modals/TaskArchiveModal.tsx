@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useRef, useState, useId } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { fetchTaskArchiveByCursor } from '../../api/tasks'
@@ -84,7 +85,7 @@ const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
           <h1 id={titleId}>작업 아카이브</h1>
           <p className="task-archive-modal__hint">완료되었고 마감이 지난 작업이 최신순으로 표시됩니다.</p>
         </div>
-        <button type="button" className="task-archive-modal__close" onClick={onClose} aria-label="닫기">✕</button>
+        <button type="button" className="task-archive-modal__close" onClick={onClose} aria-label="닫기"><WorkspaceIcon name="close" /></button>
       </header>
       <div className="task-archive-modal__body" ref={scrollRef}>
         {error ? (
@@ -112,10 +113,10 @@ const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
                     </span>
                   )}
                   <span className="task-archive-modal__pill task-archive-modal__pill--state">완료</span>
-                  <span className="task-archive-modal__pill" style={getImportanceStyle(task.importance)}>
+                  <span className="task-archive-modal__pill" style={getImportanceStyle()}>
                     중요도 {task.importance}
                   </span>
-                  <span className="task-archive-modal__pill" style={getDifficultyStyle(task.difficulty)}>
+                  <span className="task-archive-modal__pill" style={getDifficultyStyle()}>
                     난이도 {task.difficulty}
                   </span>
                 </div>

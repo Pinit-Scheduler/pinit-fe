@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
 import './TaskDependencyModal.css'
@@ -76,7 +77,7 @@ const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
     <Modal backdropClassName="task-dep-modal__backdrop" className="task-dep-modal__content" onClose={onClose} labelledBy={titleId}>
         <header className="task-dep-modal__header">
           <h1 id={titleId}>태그 관리</h1>
-          <button type="button" onClick={onClose} aria-label="닫기">✕</button>
+          <button type="button" onClick={onClose} aria-label="닫기"><WorkspaceIcon name="close" /></button>
         </header>
         <div className="task-dep-modal__body">
           {loading ? (

@@ -24,7 +24,7 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeekl
   const [weeklySchedules, setWeeklySchedules] = useState<ScheduleResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [requestId, setRequestId] = useState(() => Date.now())
+  const [requestId, setRequestId] = useState(0)
 
   const dateKeys = useMemo(() => getWeekDays(weekStart).map(toDateKey), [weekStart])
 
@@ -96,7 +96,7 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeekl
   }, [anchorDate, dateKeys, requestId, weekStart])
 
   useEffect(() => {
-    const unsubscribe = onScheduleChanged(() => setRequestId(Date.now()))
+    const unsubscribe = onScheduleChanged(() => setRequestId((value) => value + 1))
     return unsubscribe
   }, [])
 
@@ -105,7 +105,7 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeekl
     presenceMap,
     isLoading,
     error,
-    refetch: () => setRequestId(Date.now()),
+    refetch: () => setRequestId((value) => value + 1),
   }
 }
 

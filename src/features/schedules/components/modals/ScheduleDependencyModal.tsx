@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useMemo, useState, useId } from 'react'
 import Modal from '@shared/components/common/Modal'
 import useScheduleList from '../../hooks/useScheduleList'
@@ -56,7 +57,7 @@ const ScheduleDependencyModal = ({
           <h1 id={titleId}>{modeLabels[mode]}</h1>
         </div>
         <button className="schedule-modal__close" onClick={onClose} aria-label="닫기">
-          ✕
+          <WorkspaceIcon name="close" />
         </button>
       </header>
       <div className="schedule-modal__body dependency-modal__body">

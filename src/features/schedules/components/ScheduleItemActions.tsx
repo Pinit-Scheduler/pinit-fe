@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import useScheduleActions from '../hooks/useScheduleActions.ts'
 import type { ScheduleSummary } from '../types/schedule'
 
@@ -41,7 +42,7 @@ const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsPro
           disabled={actions.isMutating}
           title="시작"
         >
-          ▶ 시작
+          <WorkspaceIcon name="play" /> 시작
         </button>
       )}
       {actions.canPause && (
@@ -51,7 +52,7 @@ const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsPro
           disabled={actions.isMutating}
           title="일시중지"
         >
-          ⏸ 일시중지
+          <WorkspaceIcon name="pause" /> 일시중지
         </button>
       )}
       {actions.canComplete && (
@@ -61,7 +62,7 @@ const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsPro
           disabled={actions.isMutating}
           title="완료"
         >
-          ✓ 완료
+          <WorkspaceIcon name="check" /> 완료
         </button>
       )}
       {actions.canCancel && (
@@ -71,7 +72,7 @@ const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsPro
           disabled={actions.isMutating}
           title="취소"
         >
-          ✕ 취소
+          <WorkspaceIcon name="close" /> 취소
         </button>
       )}
     </div>

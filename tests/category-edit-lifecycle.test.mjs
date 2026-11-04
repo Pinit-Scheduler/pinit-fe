@@ -99,6 +99,7 @@ for (const kind of ['task', 'schedule']) {
     const dependencies = {
       'react/jsx-runtime': { jsx, jsxs: jsx },
       react: hooks.react,
+      '@shared/components/common/WorkspaceIcon': { default: () => null },
       '@shared/routing/RouteSurface': {
         useRouteSurfaceNavigation: () => ({ markDirty() {}, close() {} }),
         RouteSurfaceActions: () => null,

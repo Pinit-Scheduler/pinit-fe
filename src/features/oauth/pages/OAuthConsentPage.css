@@ -79,7 +79,8 @@
 }
 
 .consent__client-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: 'Pinit Pretendard', sans-serif;
+  font-variant-numeric: tabular-nums;
   font-size: 12px;
   color: var(--c-slate-700);
   overflow-wrap: anywhere;
@@ -146,7 +147,8 @@
 }
 
 .consent__scope-label--raw {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: 'Pinit Pretendard', sans-serif;
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   overflow-wrap: anywhere;
 }

@@ -1,3 +1,4 @@
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import useScheduleViewState from '../../hooks/useScheduleViewState.ts'
@@ -297,6 +298,8 @@ const SchedulesTabPage = () => {
   } = useScheduleDrag({
     containerRef: listRef,
     hasItems: schedules.length > 0,
+    resetKey: selectedDateKey,
+    disabled: movingScheduleId !== null || isScheduleLoading || !!scheduleError,
     onMove: handleMoveSchedule,
     onRefresh: handleRefresh,
   })
@@ -384,7 +387,7 @@ const SchedulesTabPage = () => {
         getTodayWithOffset().format('YYYY-MM-DD'),
       ) && (
         <p className="schedules-tab__notice" role="note">
-          🔁 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가
+          <WorkspaceIcon name="repeat" /> 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가
           가까워지면 생겨요.
         </p>
       )}
@@ -417,6 +420,9 @@ const SchedulesTabPage = () => {
           </button>
         </div>
       </header>
+      <p className="schedules-tab__drag-hint">
+        카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로 끌어 시간을 바꿔요.
+      </p>
       <div
         ref={listRef}
         className={[
