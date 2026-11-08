@@ -41,6 +41,7 @@ import {
 import { applyDayPlan } from '../api/plans'
 import useDayPlan from '../hooks/useDayPlan'
 import PlanTimeline from '../components/PlanTimeline'
+import DayReplanningPanel from '../components/DayReplanningPanel'
 import type { PlanTimelineItem } from '../components/PlanTimeline'
 import type { PlanApplyBlock, PlannedBlock } from '../types/plan'
 import {
@@ -124,7 +125,7 @@ const scheduleSpan = (schedule: ScheduleResponse) => {
 const PlanPage = () => {
   const { offsetMinutes, zoneId } = useTimePreferences()
   const { addToast } = useToast()
-  const { upsertSchedule } = useScheduleCache()
+  const { upsertSchedule, invalidateSchedules } = useScheduleCache()
   const [searchParams, setSearchParams] = useSearchParams()
   const today = useMemo(
     () => getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD'),
@@ -549,6 +550,20 @@ const PlanPage = () => {
           일정이 되고, 그 전에는 아무것도 저장되지 않아요.
         </p>
       </header>
+
+      {date === today && (
+        <DayReplanningPanel
+          key={`${today}@${zoneId}`}
+          date={today}
+          zoneId={zoneId}
+          disabled={isApplying || isUpdatingCalibration}
+          onApplied={(ids) => {
+            invalidateSchedules(ids)
+            ids.forEach((scheduleId) => dispatchScheduleChanged({ scheduleId, reason: 'day-replanned' }))
+            setRefreshKey((key) => key + 1)
+          }}
+        />
+      )}
 
       <div
         className="plan-page__controls"

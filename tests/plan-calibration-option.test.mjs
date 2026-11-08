@@ -54,6 +54,7 @@ const dependencies = {
     findRoutineConflicts: () => ({}),
   },
   '../hooks/useDayPlan': () => report,
+  '../components/DayReplanningPanel': () => null,
 }
 vm.runInNewContext(outputText, {
   module,
