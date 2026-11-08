@@ -13,6 +13,10 @@ import { getSelectedScope } from '@features/spaces/store'
 import {
   getMetadata,
   rememberMetadata,
+  getResourceRevision,
+  handleResourceReadError,
+  isResourceUnavailable,
+  rejectResourceResponse,
   type WorkspaceTaskView,
   type WorkspaceScheduleView,
 } from '@features/spaces/metadata'
@@ -44,7 +48,7 @@ type ListParams = {
   mine?: boolean
 }
 const url = (path = '') => buildApiUrl('/workspace/tasks' + path, 'v2')
-const normalizeTask = (view: WorkspaceTaskView<TaskApiResponse>): Task => {
+const normalizeTask = (view: WorkspaceTaskView<TaskApiResponse>, requestRevision: number): Task => {
   const { task, ...metadata } = view
   const result: Task = {
     ...task,
@@ -59,7 +63,8 @@ const normalizeTask = (view: WorkspaceTaskView<TaskApiResponse>): Task => {
     nextTaskIds: task.nextTaskIds ?? [],
     tags: task.tags ?? [],
   }
-  rememberMetadata('task', result.id, metadata)
+  if (!rememberMetadata('task', result.id, metadata, requestRevision))
+    rejectResourceResponse(result)
   return result
 }
 function scopeQuery(
@@ -78,9 +83,10 @@ function scopeQuery(
   if (params.mine !== undefined) query.set('mine', String(params.mine))
   return query
 }
-const normalizePage = (response: PageResponse): TaskListResponse => ({
+const normalizePage = (response: PageResponse, revision: number): TaskListResponse => ({
   ...response,
-  content: (response.content ?? []).map(normalizeTask),
+  content: (response.content ?? []).map((view) => normalizeTask(view, revision))
+    .filter((task) => !isResourceUnavailable('task', task.id, task)),
 })
 export async function fetchTasks({
   page = 0,
@@ -89,6 +95,7 @@ export async function fetchTasks({
   signal,
   ...scope
 }: ListParams): Promise<TaskListResponse> {
+  const revision = getResourceRevision()
   const query = scopeQuery(
     new URLSearchParams({
       page: String(page),
@@ -99,6 +106,7 @@ export async function fetchTasks({
   )
   return normalizePage(
     await httpClient<PageResponse>(url(`?${query}`), { signal }),
+    revision,
   )
 }
 export async function searchTasks({
@@ -116,11 +124,13 @@ export async function searchTasks({
   params?: [string, string][]
   signal?: AbortSignal
 }): Promise<TaskListResponse> {
+  const revision = getResourceRevision()
   const query = scopeQuery(new URLSearchParams(params), { spaceId, projectId })
   query.set('page', String(page))
   query.set('size', String(size))
   return normalizePage(
     await httpClient<PageResponse>(url(`?${query}`), { signal }),
+    revision,
   )
 }
 export async function fetchTasksByDeadline(
@@ -129,6 +139,7 @@ export async function fetchTasksByDeadline(
 ): Promise<Task[]> {
   const result: Task[] = []
   for (let page = 0; ; page++) {
+    const revision = getResourceRevision()
     const query = new URLSearchParams({
       date,
       mine: 'true',
@@ -138,6 +149,7 @@ export async function fetchTasksByDeadline(
     if (zoneId) query.set('zoneId', zoneId)
     const response = normalizePage(
       await httpClient<PageResponse>(url(`?${query}`)),
+      revision,
     )
     result.push(...response.content)
     if (response.last ?? response.content.length < 100) break
@@ -153,6 +165,7 @@ export async function fetchTaskArchiveByCursor({
   cursor?: string | null
   signal?: AbortSignal
 }): Promise<TaskArchiveCursorResponse> {
+  const revision = getResourceRevision()
   const page = /^\d+$/.test(cursor ?? '') ? Number(cursor) : 0
   const query = scopeQuery(
     new URLSearchParams({
@@ -163,6 +176,7 @@ export async function fetchTaskArchiveByCursor({
   )
   const result = normalizePage(
     await httpClient<PageResponse>(url(`?${query}`), { signal }),
+    revision,
   )
   const hasNext = !(result.last ?? result.content.length < size)
   return {
@@ -171,13 +185,21 @@ export async function fetchTaskArchiveByCursor({
     nextCursor: hasNext ? String(page + 1) : null,
   }
 }
-export const fetchTaskDetail = async (taskId: number, signal?: AbortSignal) =>
-  normalizeTask(
-    await httpClient<WorkspaceTaskView<TaskApiResponse>>(url(`/${taskId}`), {
-      signal,
-    }),
-  )
+export async function fetchTaskDetail(taskId: number, signal?: AbortSignal) {
+  const revision = getResourceRevision()
+  try {
+    const task = normalizeTask(await httpClient<WorkspaceTaskView<TaskApiResponse>>(
+      url(`/${taskId}`), { signal }), revision)
+    if (isResourceUnavailable('task', taskId, task))
+      throw new Error('작업 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+    return task
+  } catch (error) {
+    handleResourceReadError('task', taskId, error, revision)
+    throw error
+  }
+}
 export async function createTask(payload: TaskRequest) {
+  const revision = getResourceRevision()
   const selected = getSelectedScope()
   const {
     spaceId = selected.spaceId,
@@ -199,9 +221,10 @@ export async function createTask(payload: TaskRequest) {
         : {}),
     },
   })
-  return normalizeTask(response)
+  return normalizeTask(response, revision)
 }
 export async function updateTask(taskId: number, payload: TaskRequest) {
+  const revision = getResourceRevision()
   const { expectedVersion, spaceId, projectId, assigneeId, ...task } = payload
   const version = expectedVersion ?? getMetadata('task', taskId)?.version
   if (version === undefined) throw new Error('작업을 다시 연 뒤 수정해 주세요.')
@@ -219,6 +242,7 @@ export async function updateTask(taskId: number, payload: TaskRequest) {
           : {}),
       },
     }),
+    revision,
   )
 }
 async function versionOf(taskId: number, expectedVersion?: number) {
@@ -247,11 +271,13 @@ async function changeTaskState(
   expectedVersion?: number,
 ) {
   const version = await versionOf(taskId, expectedVersion)
+  const revision = getResourceRevision()
   return normalizeTask(
     await httpClient<WorkspaceTaskView<TaskApiResponse>>(
       url(`/${taskId}/state`),
       { method: 'POST', json: { expectedVersion: version, action } },
     ),
+    revision,
   )
 }
 export const completeTask = (taskId: number, expectedVersion?: number) =>
@@ -271,6 +297,7 @@ export async function createScheduleFromTask(
   capturedVersion?: number,
 ) {
   const expectedVersion = await versionOf(taskId, capturedVersion)
+  const revision = getResourceRevision()
   const view = await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
     url(`/${taskId}/schedule`),
     {
@@ -281,5 +308,5 @@ export async function createScheduleFromTask(
       },
     },
   )
-  rememberMetadata('schedule', view.schedule.id, view)
+  rememberMetadata('schedule', view.schedule.id, { ...view, linkedTaskId: taskId }, revision)
 }

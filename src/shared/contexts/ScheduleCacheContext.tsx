@@ -1,4 +1,4 @@
-import { isSpaceUnavailable } from '@features/spaces/metadata'
+import { isSpaceUnavailable, isResourceUnavailable } from '@features/spaces/metadata'
 import {
   createContext,
   useCallback,
@@ -68,8 +68,19 @@ export const ScheduleCacheProvider = ({
           : current,
       )
     }
+    const evictResources = (event: Event) => {
+      const ids = new Set((event as CustomEvent<{ scheduleIds: number[] }>).detail.scheduleIds)
+      setSchedulesById((previous) => Object.fromEntries(
+        Object.entries(previous).filter(([id]) => !ids.has(Number(id))),
+      ))
+      setActiveScheduleId((current) => current !== null && ids.has(current) ? null : current)
+    }
     window.addEventListener('workspace:access-changed', evict)
-    return () => window.removeEventListener('workspace:access-changed', evict)
+    window.addEventListener('workspace:resources-evicted', evictResources)
+    return () => {
+      window.removeEventListener('workspace:access-changed', evict)
+      window.removeEventListener('workspace:resources-evicted', evictResources)
+    }
   }, [])
   const pendingRef = useRef<number | null>(null)
   const beginMutation = useCallback((id: number) => {
@@ -85,7 +96,7 @@ export const ScheduleCacheProvider = ({
   }, [])
 
   const upsertSchedule = useCallback((schedule: ScheduleResponse) => {
-    if (isSpaceUnavailable(schedule.spaceId)) return
+    if (isSpaceUnavailable(schedule.spaceId) || isResourceUnavailable('schedule', schedule.id, schedule)) return
     setSchedulesById((prev) => {
       const current = prev[schedule.id]
       if (
@@ -111,6 +122,7 @@ export const ScheduleCacheProvider = ({
   const setSchedule = upsertSchedule
 
   const setActiveSchedule = useCallback((scheduleId: number | null) => {
+    if (scheduleId !== null && isResourceUnavailable('schedule', scheduleId)) return
     setActiveScheduleId(scheduleId)
   }, [])
 

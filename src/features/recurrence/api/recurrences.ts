@@ -4,6 +4,10 @@ import { getSelectedScope } from '@features/spaces/store'
 import {
   getMetadata,
   rememberMetadata,
+  getResourceRevision,
+  handleResourceReadError,
+  isResourceUnavailable,
+  rejectResourceResponse,
   type WorkspaceMetadata,
 } from '@features/spaces/metadata'
 import type {
@@ -23,15 +27,18 @@ type View = WorkspaceMetadata & {
   impact?: RecurrenceEditResponse['impact']
 }
 const url = (path = '') => buildApiUrl('/workspace/recurrences' + path, 'v2')
-function normalize(view: View, remember = true): RecurrenceSeries {
+function normalize(view: View, remember = true, revision = getResourceRevision()): RecurrenceSeries {
   const { recurrence, previous: _previous, impact: _impact, ...metadata } = view
   void _previous
   void _impact
-  if (remember && recurrence.id !== null)
-    rememberMetadata('series', recurrence.id, metadata)
-  return { ...recurrence, ...metadata }
+  const result = { ...recurrence, ...metadata }
+  if (remember && recurrence.id !== null &&
+    !rememberMetadata('series', recurrence.id, metadata, revision))
+    rejectResourceResponse(result)
+  return result
 }
 export async function createRecurrence(payload: RecurrenceCreateRequest) {
+  const revision = getResourceRevision()
   const selected = getSelectedScope()
   const {
     spaceId = selected.spaceId,
@@ -52,21 +59,35 @@ export async function createRecurrence(payload: RecurrenceCreateRequest) {
           : { assignee: { memberId: assigneeId } }),
       },
     }),
+    true,
+    revision,
   )
 }
 export async function fetchRecurrences(
   status: RecurrenceStatus = 'ACTIVE',
 ): Promise<RecurrenceListResponse> {
+  const revision = getResourceRevision()
   const selected = getSelectedScope()
   const query = new URLSearchParams({ status })
   if (selected.spaceId !== null) query.set('spaceId', String(selected.spaceId))
   if (selected.projectId !== null)
     query.set('projectId', String(selected.projectId))
   const views = await httpClient<View[]>(url(`?${query}`))
-  return { recurrences: views.map((view) => normalize(view)) }
+  return { recurrences: views.map((view) => normalize(view, true, revision))
+    .filter((series) => series.id === null || !isResourceUnavailable('series', series.id, series)) }
 }
-export const fetchRecurrence = async (id: number) =>
-  normalize(await httpClient<View>(url(`/${id}`)))
+export async function fetchRecurrence(id: number) {
+  const revision = getResourceRevision()
+  try {
+    const series = normalize(await httpClient<View>(url(`/${id}`)), true, revision)
+    if (isResourceUnavailable('series', id, series))
+      throw new Error('반복 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+    return series
+  } catch (error) {
+    handleResourceReadError('series', id, error, revision)
+    throw error
+  }
+}
 async function versionOf(id: number, expectedVersion?: number) {
   if (expectedVersion !== undefined) return expectedVersion
   return (
@@ -81,6 +102,7 @@ export async function updateRecurrence(
   const { expectedVersion, spaceId, projectId, assigneeId, ...recurrence } =
     payload
   const version = await versionOf(id, expectedVersion)
+  const revision = getResourceRevision()
   if (version === undefined)
     throw new Error('반복을 다시 열어 최신 버전을 확인해 주세요.')
   const view = await httpClient<
@@ -99,7 +121,7 @@ export async function updateRecurrence(
     },
   })
   return {
-    series: normalize(view, !dryRun),
+    series: normalize(view, !dryRun, revision),
     previous: view.previous ?? null,
     impact: view.impact,
   }

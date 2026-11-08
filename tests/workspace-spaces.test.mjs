@@ -65,6 +65,8 @@ function taskHarness() {
     '@shared/api/httpClient': {
       httpClient: async (url, options = {}) => {
         calls.push({ url, ...options })
+        if (response instanceof Error) throw response
+        if (typeof response === 'function') return response()
         return response
       },
     },
@@ -740,6 +742,127 @@ test('Out-of-order realtime reads cannot lower the metadata version', () => {
   registry.rememberMetadata('task', 1, { ...view(), version: 11 })
   registry.rememberMetadata('task', 1, { ...view(), version: 7 })
   assert.equal(registry.getMetadata('task', 1).version, 11)
+})
+
+test('A moved-out Task evicts its linked active Schedule without removing access to the old space', () => {
+  const window = new EventTarget()
+  const registry = load('features/spaces/metadata.ts', {}, { window, CustomEvent })
+  const providers = new Map()
+  function provider(path, name) {
+    const state = []
+    let cursor = 0, mounted = false
+    const react = {
+      createContext: () => ({ Provider: 'provider' }),
+      useState: (initial) => {
+        const index = cursor++
+        if (!(index in state)) state[index] = initial
+        return [state[index], (next) => {
+          state[index] = typeof next === 'function' ? next(state[index]) : next
+        }]
+      },
+      useEffect: (effect) => { if (!mounted) effect() },
+      useMemo: (factory) => factory(),
+      useCallback: (callback) => callback,
+      useRef: (initial) => react.useState({ current: initial })[0],
+    }
+    const api = load(path, {
+      react,
+      'react/jsx-runtime': { jsx: (_type, props) => props },
+      '@features/spaces/metadata': registry,
+    }, { window })
+    const render = () => {
+      cursor = 0
+      const value = api[name]({ children: null }).value
+      mounted = true
+      return value
+    }
+    providers.set(name, render)
+    return render()
+  }
+  const tasks = provider('shared/contexts/TaskCacheContext.tsx', 'TaskCacheProvider')
+  const schedules = provider('shared/contexts/ScheduleCacheContext.tsx', 'ScheduleCacheProvider')
+  registry.rememberMetadata('task', 1, view({ spaceId: 22 }))
+  registry.rememberMetadata('schedule', 8, { ...view({ spaceId: 22 }), linkedTaskId: 1 })
+  registry.rememberMetadata('task', 2, view({ spaceId: 22 }))
+  tasks.setTask({ id: 1, spaceId: 22, version: 7 })
+  tasks.setTask({ id: 2, spaceId: 22, version: 7 })
+  schedules.setSchedule({ id: 8, taskId: 1, spaceId: 22, version: 7 })
+  schedules.setActiveSchedule(8)
+  assert.equal(providers.get('ScheduleCacheProvider')().activeScheduleId, 8)
+  registry.evictWorkspaceResource('task', 1, true)
+  assert.equal(providers.get('TaskCacheProvider')().tasksById[1], undefined)
+  assert.equal(providers.get('TaskCacheProvider')().tasksById[2].id, 2)
+  assert.equal(providers.get('ScheduleCacheProvider')().schedulesById[8], undefined)
+  assert.equal(providers.get('ScheduleCacheProvider')().activeScheduleId, null)
+  assert.equal(registry.getMetadata('task', 1), undefined)
+  assert.equal(registry.getMetadata('schedule', 8), undefined)
+  assert.equal(registry.isSpaceUnavailable(22), false)
+  tasks.setTask({ id: 1, spaceId: 22, version: 8 })
+  schedules.setSchedule({ id: 8, taskId: 1, spaceId: 22, version: 8 })
+  assert.equal(providers.get('TaskCacheProvider')().tasksById[1], undefined)
+  assert.equal(providers.get('ScheduleCacheProvider')().schedulesById[8], undefined)
+})
+
+test('An in-flight read or page cannot resurrect a removed resource; a new authorized read can restore the same version', async () => {
+  const h = taskHarness()
+  await h.api.fetchTaskDetail(1)
+  let release
+  h.respond(() => new Promise((resolve) => { release = resolve }))
+  const oldRead = h.api.fetchTaskDetail(1)
+  h.registry.evictWorkspaceResource('task', 1, true)
+  release(view())
+  await assert.rejects(oldRead, /접근 권한/)
+  assert.equal(h.registry.getMetadata('task', 1), undefined)
+  h.respond(view())
+  assert.equal((await h.api.fetchTaskDetail(1)).version, 7)
+  h.respond(() => new Promise((resolve) => { release = resolve }))
+  const oldPage = h.api.fetchTasks({})
+  h.registry.evictWorkspaceResource('task', 1, true)
+  release({ content: [view()], last: true })
+  assert.deepEqual(plain((await oldPage).content), [])
+  assert.equal(h.registry.getMetadata('task', 1), undefined)
+})
+
+test('Resource read 403/404/410 evicts once, while transient network/503 failures preserve cache', async () => {
+  for (const status of [undefined, 503, 403, 404, 410]) {
+    const h = taskHarness()
+    await h.api.fetchTaskDetail(1)
+    const failure = Object.assign(new Error('read failed'), { status })
+    h.respond(failure)
+    await assert.rejects(h.api.fetchTaskDetail(1))
+    assert.equal(h.registry.getMetadata('task', 1) === undefined, [403, 404, 410].includes(status))
+    if ([403, 404, 410].includes(status)) {
+      const revision = h.registry.getResourceRevision()
+      await assert.rejects(h.api.fetchTaskDetail(1))
+      assert.equal(h.registry.getResourceRevision(), revision)
+    }
+  }
+})
+
+test('Workspace realtime handles deleted, purged and moved-out Task/Schedule events without stale detail reads', () => {
+  for (const action of ['DELETED', 'PURGED', 'MOVED_OUT']) {
+    for (const resourceType of ['TASK', 'SCHEDULE']) {
+      const registry = metadata()
+      registry.rememberMetadata(resourceType.toLowerCase(), 1, view({ spaceId: 22 }))
+      let changed, cleanup, reads = 0
+      const Component = load('features/spaces/WorkspaceRealtime.tsx', {
+        react: { useEffect: (effect) => { cleanup = effect() }, useState: () => [false, () => {}] },
+        'react/jsx-runtime': { jsx: () => null },
+        '@contexts/TaskCacheContext': { useTaskCache: () => ({ setTask() {} }) },
+        '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule() {} }) },
+        '@features/tasks/api/tasks': { fetchTaskDetail: () => { reads++; return Promise.resolve(task()) } },
+        '@features/schedules/api/schedules': { fetchScheduleDetail: () => { reads++; return Promise.resolve({ id: 1 }) } },
+        './store': { useSpaces: () => ({ spaces: [{ id: 22 }], memberId: 4 }), workspaceChanged() {} },
+        './realtime': { subscribeToWorkspace: (_signal, listener) => { changed = listener; return Promise.resolve() } },
+        './metadata': registry,
+      }).default
+      Component()
+      changed({ spaceId: 22, resourceId: 1, resourceType, action })
+      assert.equal(registry.getMetadata(resourceType.toLowerCase(), 1), undefined)
+      assert.equal(reads, 0)
+      cleanup()
+    }
+  }
 })
 
 test('Shared trash restore uses the deleted row version and keeps the real dependency restoration result', async () => {

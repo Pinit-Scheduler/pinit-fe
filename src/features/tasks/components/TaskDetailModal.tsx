@@ -34,6 +34,7 @@ import {
   previewSeriesDelete,
 } from '@features/recurrence/utils/seriesMutations'
 import { useTrashUndo } from '@features/trash'
+import { isResourceUnavailable } from '@features/spaces/metadata'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -82,7 +83,7 @@ const TaskDetailModal = ({
       } catch (err) {
         if (!mounted) return
         setTaskState(null)
-        removeTask(taskId)
+        if (isResourceUnavailable('task', taskId)) removeTask(taskId)
         setError(
           err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
         )

@@ -1,4 +1,4 @@
-import { isSpaceUnavailable } from '@features/spaces/metadata'
+import { isSpaceUnavailable, isResourceUnavailable } from '@features/spaces/metadata'
 import {
   createContext,
   useCallback,
@@ -34,11 +34,21 @@ export const TaskCacheProvider = ({ children }: { children: ReactNode }) => {
         ),
       )
     }
+    const evictResources = (event: Event) => {
+      const ids = new Set((event as CustomEvent<{ taskIds: number[] }>).detail.taskIds)
+      setTasksById((previous) => Object.fromEntries(
+        Object.entries(previous).filter(([id]) => !ids.has(Number(id))),
+      ))
+    }
     window.addEventListener('workspace:access-changed', evict)
-    return () => window.removeEventListener('workspace:access-changed', evict)
+    window.addEventListener('workspace:resources-evicted', evictResources)
+    return () => {
+      window.removeEventListener('workspace:access-changed', evict)
+      window.removeEventListener('workspace:resources-evicted', evictResources)
+    }
   }, [])
   const setTask = useCallback((task: Task) => {
-    if (isSpaceUnavailable(task.spaceId)) return
+    if (isSpaceUnavailable(task.spaceId) || isResourceUnavailable('task', task.id, task)) return
     setTasksById((prev) => {
       const current = prev[task.id]
       if (

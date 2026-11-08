@@ -2,6 +2,7 @@ import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
 import {
   rememberMetadata,
+  getResourceRevision,
   type WorkspaceTaskView,
   type WorkspaceScheduleView,
 } from '@features/spaces/metadata'
@@ -34,13 +35,14 @@ export async function restoreTask(
   expectedVersion?: number,
 ): Promise<TaskRestoreResponse | null> {
   const version = await versionOf('tasks', id, expectedVersion)
+  const revision = getResourceRevision()
   const view = await httpClient<
     WorkspaceTaskView<{ id: number }> & { restoreResult?: TaskRestoreResponse }
   >(url(`/workspace/tasks/${id}/restore`), {
     method: 'POST',
     json: { expectedVersion: version },
   })
-  rememberMetadata('task', id, view)
+  rememberMetadata('task', id, view, revision)
   return view.restoreResult ?? null
 }
 export async function restoreSchedule(
@@ -48,6 +50,7 @@ export async function restoreSchedule(
   expectedVersion?: number,
 ): Promise<ScheduleRestoreResponse | null> {
   const version = await versionOf('schedules', id, expectedVersion)
+  const revision = getResourceRevision()
   const view = await httpClient<
     WorkspaceScheduleView<{ id: number }> & {
       restoreResult?: ScheduleRestoreResponse
@@ -56,7 +59,7 @@ export async function restoreSchedule(
     method: 'POST',
     json: { expectedVersion: version },
   })
-  rememberMetadata('schedule', id, view)
+  rememberMetadata('schedule', id, view, revision)
   return view.restoreResult ?? null
 }
 export async function purgeTask(id: number, expectedVersion?: number) {

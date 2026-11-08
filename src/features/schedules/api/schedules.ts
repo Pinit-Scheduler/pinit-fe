@@ -13,6 +13,10 @@ import { getSelectedScope } from '@features/spaces/store'
 import {
   getMetadata,
   rememberMetadata,
+  getResourceRevision,
+  handleResourceReadError,
+  isResourceUnavailable,
+  rejectResourceResponse,
   type WorkspaceScheduleView,
 } from '@features/spaces/metadata'
 
@@ -22,10 +26,10 @@ type Scope = { allSpaces?: boolean; mine?: boolean }
 const url = (path = '') => buildApiUrl('/workspace/schedules' + path, 'v2')
 export const normalizeSchedule = (
   view: WorkspaceScheduleView<ScheduleResponse>,
+  revision = getResourceRevision(),
 ): ScheduleResponse => {
   const { schedule, ...metadata } = view
-  rememberMetadata('schedule', schedule.id, metadata)
-  return {
+  const result = {
     ...schedule,
     ...metadata,
     recurrence: schedule.recurrence
@@ -35,6 +39,9 @@ export const normalizeSchedule = (
         }
       : null,
   }
+  if (!rememberMetadata('schedule', schedule.id,
+    { ...metadata, linkedTaskId: schedule.taskId }, revision)) rejectResourceResponse(result)
+  return result
 }
 function queryFor(time: Time, days: number, scope: Scope = {}) {
   const local = toApiDateTimeWithZone(time)
@@ -61,18 +68,15 @@ function queryFor(time: Time, days: number, scope: Scope = {}) {
   if (scope.mine !== undefined) query.set('mine', String(scope.mine))
   return query
 }
-export const fetchSchedules = async (time: Time, scope?: Scope) =>
-  (
-    await httpClient<WorkspaceScheduleView<ScheduleResponse>[]>(
-      url(`?${queryFor(time, 1, scope)}`),
-    )
-  ).map(normalizeSchedule)
-export const fetchWeeklySchedules = async (time: Time) =>
-  (
-    await httpClient<WorkspaceScheduleView<ScheduleResponse>[]>(
-      url(`?${queryFor(time, 7)}`),
-    )
-  ).map(normalizeSchedule)
+async function readSchedules(query: URLSearchParams) {
+  const revision = getResourceRevision()
+  const views = await httpClient<WorkspaceScheduleView<ScheduleResponse>[]>(url(`?${query}`))
+  return views.map((view) => normalizeSchedule(view, revision))
+    .filter((schedule) => !isResourceUnavailable('schedule', schedule.id, schedule))
+}
+export const fetchSchedules = (time: Time, scope?: Scope) =>
+  readSchedules(queryFor(time, 1, scope))
+export const fetchWeeklySchedules = (time: Time) => readSchedules(queryFor(time, 7))
 export type ScheduleSimpleRequest = {
   title: string
   description: string
@@ -86,6 +90,7 @@ export type ScheduleSimpleRequest = {
 }
 export type ScheduleSimplePatchRequest = Partial<ScheduleSimpleRequest>
 export async function createSchedule(payload: ScheduleSimpleRequest) {
+  const revision = getResourceRevision()
   const selected = getSelectedScope()
   const {
     spaceId = selected.spaceId,
@@ -108,12 +113,14 @@ export async function createSchedule(payload: ScheduleSimpleRequest) {
           : {}),
       },
     }),
+    revision,
   )
 }
 export async function updateSchedule(
   scheduleId: number,
   payload: ScheduleSimplePatchRequest,
 ) {
+  const revision = getResourceRevision()
   const { spaceId, projectId, assigneeId, expectedVersion, ...schedule } =
     payload
   const version =
@@ -142,14 +149,22 @@ export async function updateSchedule(
         },
       },
     ),
+    revision,
   )
 }
-export const fetchScheduleDetail = async (scheduleId: number) =>
-  normalizeSchedule(
-    await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
-      url(`/${scheduleId}`),
-    ),
-  )
+export async function fetchScheduleDetail(scheduleId: number) {
+  const revision = getResourceRevision()
+  try {
+    const schedule = normalizeSchedule(await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
+      url(`/${scheduleId}`)), revision)
+    if (isResourceUnavailable('schedule', scheduleId, schedule))
+      throw new Error('일정 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+    return schedule
+  } catch (error) {
+    handleResourceReadError('schedule', scheduleId, error, revision)
+    throw error
+  }
+}
 async function versionOf(id: number, expectedVersion?: number) {
   if (expectedVersion !== undefined) return expectedVersion
   const current = getMetadata('schedule', id) ?? (await fetchScheduleDetail(id))
@@ -168,14 +183,17 @@ async function changeScheduleState(
   action: 'START' | 'SUSPEND' | 'COMPLETE' | 'CANCEL',
   expectedVersion?: number,
 ) {
+  const version = await versionOf(id, expectedVersion)
+  const revision = getResourceRevision()
   return normalizeSchedule(
     await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
       url(`/${id}/state`),
       {
         method: 'POST',
-        json: { action, expectedVersion: await versionOf(id, expectedVersion) },
+        json: { action, expectedVersion: version },
       },
     ),
+    revision,
   )
 }
 export const startSchedule = (

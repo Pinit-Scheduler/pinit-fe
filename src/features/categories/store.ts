@@ -4,6 +4,7 @@ import { httpClient } from '@shared/api/httpClient'
 import {
   getMetadata,
   rememberMetadata,
+  getResourceRevision,
   type WorkspaceMetadata,
 } from '@features/spaces/metadata'
 import { getAccessToken } from '@shared/api/authTokens'
@@ -153,15 +154,18 @@ const assign = async (
   const resource = kind === 'tasks' ? 'task' : 'schedule'
   let current = getMetadata(resource, id)
   if (!current) {
+    const revision = getResourceRevision()
     const view = await httpClient<WorkspaceMetadata>(
       buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
     )
-    rememberMetadata(resource, id, view)
+    if (!rememberMetadata(resource, id, view, revision))
+      throw new Error('업무 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
     current = view
   }
   const project = state.categories.find((item) => item.id === categoryId)
   const spaceId = project?.spaceId ?? current.spaceId
   if (current.spaceId === spaceId && current.projectId === categoryId) return
+  const revision = getResourceRevision()
   const result = await httpClient<WorkspaceMetadata>(
     buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
     {
@@ -172,7 +176,7 @@ const assign = async (
       },
     },
   )
-  rememberMetadata(resource, id, result)
+  rememberMetadata(resource, id, result, revision)
   const field = kind === 'tasks' ? 'taskAssignments' : 'scheduleAssignments'
   const next = { ...state[field] }
   if (categoryId === null) delete next[id]
@@ -186,6 +190,7 @@ export const assignSeriesCategory = async (
   scope: 'ALL' | 'FOLLOWING' | 'TEMPLATE' = 'TEMPLATE',
   fromDate?: string,
 ) => {
+  const revision = getResourceRevision()
   const current = await httpClient<WorkspaceMetadata>(
     buildApiUrl(`/workspace/recurrences/${id}`, 'v2'),
   )
@@ -206,7 +211,7 @@ export const assignSeriesCategory = async (
       },
     },
   )
-  rememberMetadata('series', id, result)
+  rememberMetadata('series', id, result, revision)
   if (pending) await pending.catch(() => {})
   // 프로젝트 배정은 이미 저장됐다. 이후 조회 실패는 store.error로 알리고 저장 실패로 바꾸지 않는다.
   await reloadCategories().catch(() => {})

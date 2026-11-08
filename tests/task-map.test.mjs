@@ -302,7 +302,14 @@ test('task APIs propagate AbortSignal and preserve unknown server readiness', as
       name === '@features/spaces/store'
         ? { getSelectedScope: () => ({ spaceId: null, projectId: null }) }
         : name === '@features/spaces/metadata'
-          ? { rememberMetadata() {} }
+          ? (() => {
+              const registry = { exports: {} }
+              const source = readFileSync(new URL('../src/features/spaces/metadata.ts', import.meta.url), 'utf8')
+              vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
+                module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+              } }).outputText, { module: registry, exports: registry.exports })
+              return registry.exports
+            })()
           : name.includes('httpClient')
             ? { httpClient: client }
             : name.includes('config')

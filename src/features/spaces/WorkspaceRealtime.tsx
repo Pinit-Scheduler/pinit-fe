@@ -5,11 +5,12 @@ import { fetchTaskDetail } from '@features/tasks/api/tasks'
 import { fetchScheduleDetail } from '@features/schedules/api/schedules'
 import { useSpaces, workspaceChanged } from './store'
 import { subscribeToWorkspace, type SpaceEvent } from './realtime'
+import { evictWorkspaceResource } from './metadata'
 
 export default function WorkspaceRealtime() {
   const { spaces, memberId } = useSpaces()
-  const { setTask, removeTask } = useTaskCache()
-  const { setSchedule, removeSchedule } = useScheduleCache()
+  const { setTask } = useTaskCache()
+  const { setSchedule } = useScheduleCache()
   const [disconnected, setDisconnected] = useState(false)
   const ready = spaces.some((space) => !space.deleted)
   useEffect(() => {
@@ -26,8 +27,9 @@ export default function WorkspaceRealtime() {
       const key = `${type}:${event.resourceId}`
       const sequence = (reads.get(key) ?? 0) + 1
       reads.set(key, sequence)
+      const removed = ['DELETED', 'PURGED', 'MOVED_OUT'].includes(event.action.toUpperCase())
       if (type === 'TASK') {
-        if (event.action === 'DELETED') removeTask(event.resourceId)
+        if (removed) evictWorkspaceResource('task', event.resourceId, true)
         else
           void fetchTaskDetail(event.resourceId)
             .then((task) => {
@@ -37,7 +39,7 @@ export default function WorkspaceRealtime() {
             .catch(() => {})
       }
       if (type === 'SCHEDULE') {
-        if (event.action === 'DELETED') removeSchedule(event.resourceId)
+        if (removed) evictWorkspaceResource('schedule', event.resourceId, true)
         else
           void fetchScheduleDetail(event.resourceId)
             .then((schedule) => {
@@ -46,6 +48,7 @@ export default function WorkspaceRealtime() {
             })
             .catch(() => {})
       }
+      if (type === 'RECURRENCE' && removed) evictWorkspaceResource('series', event.resourceId, true)
     }
     void subscribeToWorkspace(controller.signal, changed, (connected) => {
       if (!controller.signal.aborted) setDisconnected(!connected)
@@ -54,7 +57,7 @@ export default function WorkspaceRealtime() {
       controller.abort()
       clearTimeout(timer)
     }
-  }, [ready, memberId, setTask, removeTask, setSchedule, removeSchedule])
+  }, [ready, memberId, setTask, setSchedule])
   return disconnected ? (
     <p className="space-realtime-status" role="status">
       실시간 연결을 다시 시도하고 있어요. 저장 시 서버에서 최신 버전을
