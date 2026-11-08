@@ -41,6 +41,7 @@ import {
 } from '@features/schedules'
 import { TodayPage } from '@features/today'
 import { PlanPage } from '@features/planner'
+import DeadlineRiskPage from '@features/deadline-risk/pages/DeadlineRiskPage'
 import {
   TaskListPage,
   TaskCreatePage,
@@ -87,6 +88,7 @@ const WorkspaceRoutes = () => {
           <Route index element={<Navigate to="/app/today" replace />} />
           <Route path="today" element={<TodayPage />} />
           <Route path="plan" element={<PlanPage />} />
+          <Route path="deadline-risk" element={<DeadlineRiskPage />} />
           <Route path="schedules" element={<SchedulesTabPage />} />
           <Route path="tasks" element={<TaskListPage />} />
           <Route path="task-map" element={<TaskMapPage />} />

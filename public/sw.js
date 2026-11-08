@@ -27,6 +27,8 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
+  // Time-sensitive forecasts explicitly opt out of both browser and SW caches.
+  if (event.request.cache === 'no-store') return
   if (!cache.isSameOriginGet(event.request)) return
   event.respondWith(
     event.request.mode === 'navigate'
