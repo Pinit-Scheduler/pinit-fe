@@ -158,6 +158,7 @@ const ForgotPasswordPage = () => {
                 waitSeconds={emailCode.waitSeconds}
                 isSending={emailCode.isSending}
                 onRequestCode={() => sendCode(email)}
+                disabled={emailCode.isSending}
                 hideRequestButton
               />
               {formError}
@@ -184,7 +185,13 @@ const ForgotPasswordPage = () => {
               </p>
               <p>메일에 적힌 아이디(일부 가림)로 어떤 계정인지 확인할 수 있어요.</p>
               <div className="signup__sent-actions">
-                <button type="button" className="signup__inline-btn" onClick={handleChangeEmail} disabled={isSubmitting}>
+                {/* 보내는 중에 바꾸면 끝난 요청이 이전 주소를 다시 기록하므로 막는다. */}
+                <button
+                  type="button"
+                  className="signup__inline-btn"
+                  onClick={handleChangeEmail}
+                  disabled={isSubmitting || emailCode.isSending}
+                >
                   다른 이메일 입력
                 </button>
                 <button

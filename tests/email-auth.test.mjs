@@ -130,6 +130,13 @@ test('emailRequired routes to registration until it is done and leaves the regis
   assert.equal(decideEmailGate(true, registration), 'render')
   assert.equal(decideEmailGate(false, registration), 'leaveRegistration')
   assert.equal(decideEmailGate(false, '/app/today'), 'render')
+  // React Router는 대소문자와 끝의 /를 무시하고 같은 화면으로 연다.
+  for (const alias of ['/email-registration/', '/EMAIL-REGISTRATION', '/Email-Registration//']) {
+    assert.equal(requirement.isEmailRegistrationPath(alias), true, alias)
+    assert.equal(decideEmailGate(true, alias), 'render', alias)
+    assert.equal(decideEmailGate(false, alias), 'leaveRegistration', alias)
+  }
+  assert.equal(requirement.isEmailRegistrationPath('/email-registration-old'), false)
 })
 
 test('emailRequired is remembered per member and notifies subscribers only on change', () => {

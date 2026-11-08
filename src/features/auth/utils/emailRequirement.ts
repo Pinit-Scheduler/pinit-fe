@@ -46,8 +46,12 @@ export const readEmailRequired = (response: unknown): boolean | null => {
  */
 export type EmailGateDecision = 'render' | 'toRegistration' | 'leaveRegistration'
 
+/** 라우터처럼 대소문자와 끝의 `/`를 무시하고 등록 화면 경로인지 본다. */
+export const isEmailRegistrationPath = (pathname: string) =>
+  pathname.replace(/\/+$/, '').toLowerCase() === EMAIL_REGISTRATION_PATH
+
 export const decideEmailGate = (required: boolean, pathname: string): EmailGateDecision => {
-  const onRegistration = pathname === EMAIL_REGISTRATION_PATH
+  const onRegistration = isEmailRegistrationPath(pathname)
   if (required) return onRegistration ? 'render' : 'toRegistration'
   return onRegistration ? 'leaveRegistration' : 'render'
 }

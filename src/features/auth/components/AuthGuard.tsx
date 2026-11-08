@@ -5,7 +5,7 @@ import { fetchAccount } from '@features/settings/api/account'
 import { clearAuthTokens, getAccessToken, isAccessTokenExpired, isLoggedOut } from '@shared/api/authTokens'
 import { ApiError } from '@shared/api/httpClient'
 import { rememberReturnTo } from '../utils/returnTo'
-import { decideEmailGate, emailRequirement } from '../utils/emailRequirement'
+import { decideEmailGate, emailRequirement, isEmailRegistrationPath } from '../utils/emailRequirement'
 import { EMAIL_REGISTRATION_PATH } from '../utils/authPaths'
 import { currentTokenSubject } from '../utils/currentTokenSubject'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
@@ -40,7 +40,7 @@ const AuthGuard = () => {
     // 로그인 뒤 지금 보던 화면(예: /oauth/consent?request=…)으로 돌아올 수 있게 기억한다.
     // 이메일 등록 화면은 기억하지 않는다. 다시 로그인하면 등록 필요 여부로 다시 정한다.
     const redirectToLogin = () => {
-      if (window.location.pathname !== EMAIL_REGISTRATION_PATH) {
+      if (!isEmailRegistrationPath(window.location.pathname)) {
         rememberReturnTo(`${window.location.pathname}${window.location.search}`)
       }
       navigate('/login', { replace: true })
