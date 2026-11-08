@@ -58,7 +58,9 @@ export const httpClient = async <T>(
     /^\/oauth\/(?:token|register|revoke|authorize\/decision)\/?$/.test(requestPath)
   const sensitiveRequest = explicitSensitiveRequest || authenticationFlow
   const sensitiveResponse = explicitSensitiveResponse || authenticationFlow
-  const logUrl = sensitiveRequest ? '[sensitive request]' : url
+  const logUrl = explicitSensitiveRequest
+    ? '[sensitive request]'
+    : authenticationFlow ? url.split(/[?#]/, 1)[0] : url
   let accessToken = getAccessToken()
   const body = json ? JSON.stringify(json) : undefined
 
