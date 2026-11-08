@@ -8,7 +8,8 @@ const RUN_STATUSES = new Set(['passed', 'failed', 'timedout', 'interrupted'])
 const MAX_LINE = 2_048
 
 export default class SafeReporter {
-  constructor() {
+  constructor({ write = (text) => process.stdout.write(text) } = {}) {
+    this.write = write
     this.passed = 0
     this.failed = 0
     this.skipped = 0
@@ -26,7 +27,7 @@ export default class SafeReporter {
     else if (status === 'skipped') this.skipped++
     else this.failed++
     // Never serialize names, Playwright errors, call logs, attachments or stdout.
-    process.stdout.write(`QA_TEST ${JSON.stringify({ status })}\n`)
+    this.write(`QA_TEST ${JSON.stringify({ status })}\n`)
   }
   onStdOut(chunk) {
     // QA records are ASCII. A bounded line buffer also handles split Buffers;
@@ -48,11 +49,11 @@ export default class SafeReporter {
     if (!line.startsWith('QA ')) return
     try {
       const record = validatedPublicRecord(JSON.parse(line.slice(3)))
-      if (record) process.stdout.write(`QA ${JSON.stringify(record)}\n`)
+      if (record) this.write(`QA ${JSON.stringify(record)}\n`)
     } catch { /* Do not print even a fragment of invalid worker output. */ }
   }
   onStdErr() {}
-  onError() { this.runnerError = true; process.stdout.write('QA_ERROR RUNNER_ERROR\n') }
+  onError() { this.runnerError = true; this.write('QA_ERROR RUNNER_ERROR\n') }
   async onEnd(result) {
     this.output = ''
     let status = RUN_STATUSES.has(result.status) ? result.status : 'failed'
@@ -68,9 +69,9 @@ export default class SafeReporter {
     } catch {
       status = 'failed'
       summary.status = status
-      process.stdout.write('QA_ERROR RUNNER_ERROR\n')
+      this.write('QA_ERROR RUNNER_ERROR\n')
     }
-    process.stdout.write(`QA_TOTAL ${JSON.stringify(summary)}\n`)
+    this.write(`QA_TOTAL ${JSON.stringify(summary)}\n`)
     return { status }
   }
 }

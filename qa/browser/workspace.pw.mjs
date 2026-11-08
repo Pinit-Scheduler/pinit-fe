@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { CANONICAL, API } from './constants.mjs'
 import { candidateTransport } from './transport.mjs'
 import { createFixtures, cleanupFixtures, ownedApi, tokenFor } from './fixtures.mjs'
-import { check, evidence, failureCode, QaFailure } from './safe.mjs'
+import { check, evidence, failureCode, failureLocation, QaFailure } from './safe.mjs'
 import { captureFinalSpace } from './screenshots.mjs'
 import { assertNoOverflow, chooseSpace, confirm, createProjectUi, createSpaceUi, createTaskUi, dismissTour, editTitleUi, isApi, linkedScheduleUi, loginUi, manage, mutation, route, spacesReady, today, waitUntil } from './ui.mjs'
 import { oauthUi } from './oauth.mjs'
@@ -47,6 +47,7 @@ function scenario(code, body) {
     try { await body(); evidence('scenario', { code, ok: true, ui: true }) }
     catch (error) {
       evidence('scenario', { code, ok: false })
+      failureLocation(error)
       evidence('result', { code: failureCode(error), status: error instanceof QaFailure ? error.status : undefined, ok: false })
       throw new QaFailure(failureCode(error), error instanceof QaFailure ? error.status : undefined)
     }
@@ -56,7 +57,7 @@ const getTask = async (owner, id) => (await ownedApi(owner, `/v2/workspace/tasks
 const getSchedule = async (owner, id) => (await ownedApi(owner, `/v2/workspace/schedules/${id}`)).data
 const snapshot = async (owner, id) => (await ownedApi(owner, `/v2/spaces/${id}/snapshot?includeDeleted=true`)).data
 const memberRow = (page, nickname) => page.locator('.space-manager-row').filter({ has: page.locator('strong').filter({ hasText: nickname }) })
-const projectRow = (page, name) => page.locator('.space-manager-row').filter({ has: page.getByRole('button', { name, exact: true }) })
+const projectRow = (page, name) => page.locator('.space-manager-row').filter({ has: page.getByRole('link', { name, exact: true }) })
 
 test.beforeAll(async ({ browser }) => {
   try {
@@ -64,6 +65,8 @@ test.beforeAll(async ({ browser }) => {
     ;[a, b] = owners
     for (const owner of owners) {
       const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale: 'ko-KR', timezoneId: 'Asia/Seoul', serviceWorkers: 'block' })
+      context.setDefaultTimeout(20_000)
+      context.setDefaultNavigationTimeout(30_000)
       contexts.push(context)
       transports.push(await candidateTransport(context, fileURLToPath(new URL('../../dist/', import.meta.url))))
       owner.page = await context.newPage()

@@ -16,29 +16,21 @@ test('worker allowlist rejects whole records with any extra or invalid field', (
   assert.deepEqual(validatedPublicRecord({ step: 'scenario', code: 'TASK_409_SSE_DRAFT_PRESERVED', ok: true }), { step: 'scenario', code: 'TASK_409_SSE_DRAFT_PRESERVED', ok: true })
 })
 test('reporter handles split buffers and discards raw exceptions and oversized lines', () => {
-  const reporter = new SafeReporter()
-  const original = process.stdout.write
   let output = ''
-  process.stdout.write = (chunk) => { output += chunk; return true }
-  try {
-    reporter.onStdOut(Buffer.from('raw secret exception\nQA {"step":"scenario","co'))
-    reporter.onStdOut(Buffer.from('de":"TASK_409_SSE_DRAFT_PRESERVED","ok":true}\n'))
-    reporter.onStdOut('QA ' + 'x'.repeat(4_096) + '\n')
-    reporter.onStdErr('stderr synthetic credential')
-  } finally { process.stdout.write = original }
+  const reporter = new SafeReporter({ write: (chunk) => { output += chunk } })
+  reporter.onStdOut(Buffer.from('raw secret exception\nQA {"step":"scenario","co'))
+  reporter.onStdOut(Buffer.from('de":"TASK_409_SSE_DRAFT_PRESERVED","ok":true}\n'))
+  reporter.onStdOut('QA ' + 'x'.repeat(4_096) + '\n')
+  reporter.onStdErr('stderr synthetic credential')
   assert.equal(output, 'QA {"step":"scenario","code":"TASK_409_SSE_DRAFT_PRESERVED","ok":true}\n')
 })
 test('failed or skipped suites cannot export screenshots from a prior successful marker', async () => {
-  const reporter = new SafeReporter()
-  const original = process.stdout.write
-  process.stdout.write = () => true
-  try {
-    reporter.onBegin()
-    reporter.passed = 1
-    assert.deepEqual(await reporter.onEnd({ status: 'passed' }), { status: 'passed' })
-    assert.equal(JSON.parse(await readFile(new URL('test-passed.json', RUNTIME), 'utf8')).status, 'passed')
-    reporter.skipped = 1
-    await reporter.onEnd({ status: 'passed' })
-    await assert.rejects(readFile(new URL('test-passed.json', RUNTIME)), { code: 'ENOENT' })
-  } finally { process.stdout.write = original }
+  const reporter = new SafeReporter({ write: () => {} })
+  reporter.onBegin()
+  reporter.passed = 1
+  assert.deepEqual(await reporter.onEnd({ status: 'passed' }), { status: 'passed' })
+  assert.equal(JSON.parse(await readFile(new URL('test-passed.json', RUNTIME), 'utf8')).status, 'passed')
+  reporter.skipped = 1
+  await reporter.onEnd({ status: 'passed' })
+  await assert.rejects(readFile(new URL('test-passed.json', RUNTIME)), { code: 'ENOENT' })
 })

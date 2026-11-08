@@ -12,7 +12,7 @@ export async function mutation(page, path, method, action, status = [200, 201, 2
   const pending = page.waitForResponse((response) => isApi(response, path, method), { timeout: 20_000 })
   await action()
   const response = await pending
-  check(status.includes(response.status()), 'UI_API_STATUS_UNEXPECTED')
+  if (!status.includes(response.status())) throw new QaFailure('UI_API_STATUS_UNEXPECTED', response.status())
   let data = null
   if (response.headers()['content-type']?.includes('json')) {
     try { data = await response.json() } catch { throw new QaFailure('UI_API_JSON_FAILED') }

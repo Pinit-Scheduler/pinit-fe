@@ -97,6 +97,9 @@ const SAFE_CODES = new Set([
   'CANONICAL_RELEASE_NOT_READY',
   'CANONICAL_SW_VERSION_REQUIRED',
   'TRUSTED_MASTER_REQUIRED',
+  'SOURCE_UI_LINE',
+  'SOURCE_SCENARIO_LINE',
+  'SOURCE_OAUTH_LINE',
 ])
 const BOOLEAN_KEYS = new Set(['ready', 'ok', 'sse', 'ui'])
 const COUNT_KEYS = new Set(['passed', 'failed', 'skipped', 'count', 'requests', 'spaces', 'tasks', 'schedules', 'version', 'expectedVersion', 'serverVersion', 'scopes', 'contexts', 'remainingAccounts', 'remainingClients', 'cleanupFailures', 'acknowledgements', 'writes'])
@@ -144,4 +147,14 @@ export async function saveEvidence(step, details = {}) {
 }
 export function failureCode(error) {
   return error instanceof QaFailure && SAFE_CODES.has(error.message) ? error.message : 'BROWSER_ASSERTION_FAILED'
+}
+export function failureLocation(error) {
+  // A fixed source-file enum plus a bounded line number helps diagnose selectors
+  // without emitting Playwright's message, locator, request or call log.
+  const location = typeof error?.stack === 'string' ? /qa[\\/]browser[\\/](ui\.mjs|workspace\.pw\.mjs|oauth\.mjs):(\d+):\d+/.exec(error.stack) : null
+  if (!location) return
+  const count = Number(location[2])
+  if (!Number.isSafeInteger(count) || count < 1 || count > 2000) return
+  const code = { 'ui.mjs': 'SOURCE_UI_LINE', 'workspace.pw.mjs': 'SOURCE_SCENARIO_LINE', 'oauth.mjs': 'SOURCE_OAUTH_LINE' }[location[1]]
+  evidence('result', { code, count, ok: false })
 }

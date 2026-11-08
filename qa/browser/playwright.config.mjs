@@ -17,5 +17,7 @@ export default {
     trace: 'off',
     video: 'off',
     screenshot: 'off',
+    actionTimeout: 20_000,
+    navigationTimeout: 30_000,
   },
 }
