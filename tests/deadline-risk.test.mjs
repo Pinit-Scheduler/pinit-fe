@@ -40,6 +40,23 @@ const Item = load('../src/features/deadline-risk/components/DeadlineRiskItem.tsx
   '../utils/deadlineRiskView': view,
 }).default
 
+test('page announces personal-space-only tasks and schedules before forecast loading completes', () => {
+  const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
+    react: { useState: React.useState },
+    'react/jsx-runtime': jsxRuntime,
+    'react-router-dom': { Link },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+    '../components/DeadlineRiskItem': { default: Item },
+    '../hooks/useDeadlineRisk': { default: () => ({ forecast: null, error: null, isLoading: true, refresh() {} }) },
+    '../utils/deadlineRiskView': view,
+    './DeadlineRiskPage.css': {},
+  }).default
+  const html = renderToStaticMarkup(React.createElement(Page))
+  assert.match(html, /개인 공간의 작업과 일정만 반영해요/)
+  assert.match(html, /팀이나 다른 공간의 작업·일정은 포함하지 않아요/)
+  assert.match(html, /계산하고 있어요/)
+})
+
 test('5 required hours versus 2 available hours shows 3 hours shortage and predecessor actions', () => {
   const html = renderToStaticMarkup(React.createElement(Item, { item: baseItem, zoneId: 'Asia/Seoul' }))
   for (const text of ['시간 부족', '5시간', '2시간', '3시간', '사용 가능 시간(상한)', '미완료 선행 작업 1개']) assert.ok(html.includes(text), text)

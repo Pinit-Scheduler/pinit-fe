@@ -17,6 +17,7 @@ export default function DeadlineRiskPage() {
     <section className="deadline-risk" aria-labelledby="deadline-risk-title">
       <header className="deadline-risk__header">
         <h1 id="deadline-risk-title">마감 위험 예보</h1>
+        <p>개인 공간의 작업과 일정만 반영해요. 팀이나 다른 공간의 작업·일정은 포함하지 않아요.</p>
         <p>마감 전에 끝낼 시간이 충분할까요? 선행 작업과 이미 잡힌 일정, 생활 시간을 함께 살펴봐요.</p>
         <p className="deadline-risk__hint">조회 시점의 가정에 따른 시간 예보예요. 일정이나 작업을 자동으로 바꾸지 않아요.</p>
       </header>
