@@ -1,3 +1,4 @@
+import type { AllowedActions } from '@features/spaces/types'
 // ADR-0019 반복 일정·반복 작업(/v2/recurrences) wire 형식.
 
 import type { DayOfWeek } from '@features/routines/types/routine'
@@ -46,6 +47,12 @@ export type FlexibleTemplate = {
 }
 
 export type RecurrenceSeries = {
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
+  assigneeNickname?: string | null
+  version?: number
+  allowedActions?: AllowedActions
   id: number | null
   mode: RecurrenceMode
   status: RecurrenceStatus
@@ -63,6 +70,9 @@ export type RecurrenceSeries = {
 }
 
 export type RecurrenceCreateRequest = {
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
   mode: RecurrenceMode
   title: string
   description: string
@@ -83,6 +93,10 @@ export type RecurrenceChanges = {
 }
 
 export type RecurrenceUpdateRequest = {
+  expectedVersion?: number
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
   scope: RecurrenceScope
   /** FOLLOWING이면 기준 회차 날짜 */
   fromDate?: string
@@ -113,6 +127,7 @@ export type RecurrenceListResponse = { recurrences: RecurrenceSeries[] }
 
 /** 일정·작업 응답의 회차 표시. 반복 회차가 아니면 null */
 export type RecurrenceRef = {
+  version?: number
   seriesId: number
   /** 규칙이 만든 원래 날짜(YYYY-MM-DD). 회차를 옮겨도 바뀌지 않는다 */
   occurrenceDate: string

@@ -1,3 +1,4 @@
+import { onScheduleChanged } from '@shared/utils/events'
 import { fetchScheduleDetail } from '../api/schedules'
 import { useEffect, useState } from 'react'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
@@ -17,6 +18,8 @@ const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
   const [error, setError] = useState<string | null>(null)
   const [timestamp, setTimestamp] = useState(() => Date.now())
   const { setSchedule: cacheSchedule } = useScheduleCache()
+
+  useEffect(() => onScheduleChanged(() => setTimestamp(Date.now())), [])
 
   useEffect(() => {
     if (!numericId) {
@@ -38,7 +41,8 @@ const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
         }
       } catch (err) {
         if (isMounted) {
-          const message = err instanceof Error ? err.message : '일정을 불러오지 못했습니다.'
+          const message =
+            err instanceof Error ? err.message : '일정을 불러오지 못했습니다.'
           setError(message)
           setSchedule(null)
         }

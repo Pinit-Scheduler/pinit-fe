@@ -1,10 +1,4 @@
-import { useState } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import {
-  CategoryPicker,
-  assignTaskCategory,
-  assignSeriesCategory,
-} from '@features/categories'
 import TaskForm from '../components/TaskForm'
 import type { TaskFormValues } from '../components/TaskForm'
 import { createTask } from '../api/tasks'
@@ -27,36 +21,6 @@ import { ApiError } from '@shared/api/httpClient'
 
 const TaskCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
-  const [pendingCategory, setPendingCategory] = useState<{
-    kind: 'task' | 'series'
-    id: number
-    categoryId: number | null
-  } | null>(null)
-  const [categoryError, setCategoryError] = useState<string | null>(null)
-  const [savingCategory, setSavingCategory] = useState(false)
-  const finishCategory = async (item: {
-    kind: 'task' | 'series'
-    id: number
-    categoryId: number | null
-  }) => {
-    setSavingCategory(true)
-    setCategoryError(null)
-    try {
-      if (item.kind === 'series')
-        await assignSeriesCategory(item.id, item.categoryId, 'ALL')
-      else await assignTaskCategory(item.id, item.categoryId)
-      dispatchTaskChanged({ reason: 'category' })
-      complete('/app/tasks')
-    } catch (error) {
-      setCategoryError(
-        error instanceof Error
-          ? error.message
-          : '카테고리를 저장하지 못했어요. 다시 시도해 주세요.',
-      )
-    } finally {
-      setSavingCategory(false)
-    }
-  }
   const { setTask } = useTaskCache()
   const { addToast } = useToast()
 
@@ -71,6 +35,11 @@ const TaskCreatePage = () => {
     )
     try {
       const created = await createRecurrence({
+        spaceId: values.spaceId,
+        projectId: values.categoryId,
+        ...(values.assigneeId === undefined
+          ? {}
+          : { assigneeId: values.assigneeId }),
         mode: 'FLEXIBLE',
         title: values.title,
         description: values.description,
@@ -95,13 +64,7 @@ const TaskCreatePage = () => {
       )
       if (created.id === null)
         throw new Error('반복 시리즈 ID를 확인하지 못했어요.')
-      const pending = {
-        kind: 'series' as const,
-        id: created.id,
-        categoryId: values.categoryId,
-      }
-      setPendingCategory(pending)
-      await finishCategory(pending)
+      complete('/app/tasks')
     } catch (error) {
       console.error('반복 작업 생성 실패', error)
       const fieldErrors =
@@ -132,6 +95,11 @@ const TaskCreatePage = () => {
         { zeroIsEmpty: true },
       )
       const payload = {
+        spaceId: values.spaceId,
+        projectId: values.categoryId,
+        ...(values.assigneeId !== undefined
+          ? { assigneeId: values.assigneeId }
+          : {}),
         title: values.title,
         description: values.description,
         dueDate: toApiDateWithOffset(values.dueDate),
@@ -152,13 +120,7 @@ const TaskCreatePage = () => {
       const created = await createTask(payload)
       setTask(created)
       dispatchTaskChanged(created.id, 'create')
-      const pending = {
-        kind: 'task' as const,
-        id: created.id,
-        categoryId: values.categoryId,
-      }
-      setPendingCategory(pending)
-      await finishCategory(pending)
+      complete('/app/tasks')
     } catch (error) {
       console.error('작업 생성 실패', error)
       addToast('작업을 생성하지 못했습니다.', 'error')
@@ -171,38 +133,15 @@ const TaskCreatePage = () => {
         <p className="task-page__eyebrow">새 작업</p>
         <h1 className="task-page__title">작업 추가</h1>
         <p className="task-page__description">
-          마감과 중요도, 카테고리를 정하고 필요한 작업을 연결하세요.
+          마감과 중요도, 프로젝트를 정하고 필요한 작업을 연결하세요.
         </p>
       </header>
       <div className="task-page__content">
-        {pendingCategory ? (
-          <div className="task-form">
-            <p role="status">
-              작업은 저장되었어요. 카테고리 저장을 마치면 닫힙니다.
-            </p>
-            <CategoryPicker
-              value={pendingCategory.categoryId}
-              disabled={savingCategory}
-              onChange={(categoryId) =>
-                setPendingCategory({ ...pendingCategory, categoryId })
-              }
-            />
-            {categoryError && <p role="alert">{categoryError}</p>}
-            <button
-              className="workspace-button workspace-button--primary"
-              disabled={savingCategory}
-              onClick={() => void finishCategory(pendingCategory)}
-            >
-              카테고리 저장 후 닫기
-            </button>
-          </div>
-        ) : (
-          <TaskForm
-            onSubmit={handleSubmit}
-            submitLabel="작업 생성"
-            allowRecurrence
-          />
-        )}
+        <TaskForm
+          onSubmit={handleSubmit}
+          submitLabel="작업 생성"
+          allowRecurrence
+        />
       </div>
     </section>
   )

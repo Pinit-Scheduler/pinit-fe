@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { isSpaceUnavailable } from '@features/spaces/metadata'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 import type { ReactNode } from 'react'
 import type { Task } from '@features/tasks/types/task'
 
@@ -13,8 +21,34 @@ const TaskCacheContext = createContext<TaskCacheValue | null>(null)
 export const TaskCacheProvider = ({ children }: { children: ReactNode }) => {
   const [tasksById, setTasksById] = useState<Record<number, Task>>({})
 
+  useEffect(() => {
+    const evict = (event: Event) => {
+      const ids = new Set(
+        (event as CustomEvent<{ spaceIds: number[] }>).detail.spaceIds,
+      )
+      setTasksById((previous) =>
+        Object.fromEntries(
+          Object.entries(previous).filter(
+            ([, task]) => task.spaceId === undefined || !ids.has(task.spaceId),
+          ),
+        ),
+      )
+    }
+    window.addEventListener('workspace:access-changed', evict)
+    return () => window.removeEventListener('workspace:access-changed', evict)
+  }, [])
   const setTask = useCallback((task: Task) => {
-    setTasksById((prev) => ({ ...prev, [task.id]: task }))
+    if (isSpaceUnavailable(task.spaceId)) return
+    setTasksById((prev) => {
+      const current = prev[task.id]
+      if (
+        current?.version !== undefined &&
+        task.version !== undefined &&
+        current.version > task.version
+      )
+        return prev
+      return { ...prev, [task.id]: task }
+    })
   }, [])
 
   const removeTask = useCallback((taskId: number) => {
@@ -34,7 +68,11 @@ export const TaskCacheProvider = ({ children }: { children: ReactNode }) => {
     [tasksById, removeTask, setTask],
   )
 
-  return <TaskCacheContext.Provider value={value}>{children}</TaskCacheContext.Provider>
+  return (
+    <TaskCacheContext.Provider value={value}>
+      {children}
+    </TaskCacheContext.Provider>
+  )
 }
 
 const useTaskCacheInternal = () => {

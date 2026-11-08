@@ -1,7 +1,9 @@
+import { isSpaceUnavailable } from '@features/spaces/metadata'
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -16,6 +18,7 @@ export type ScheduleCacheValue = {
   schedulesById: Record<number, ScheduleResponse>
   activeScheduleId: number | null
   activeSchedule: ScheduleResponse | null
+  removeSchedule: (id: number) => void
   setSchedule: (schedule: ScheduleResponse) => void
   upsertSchedule: (schedule: ScheduleResponse) => void
   setActiveSchedule: (scheduleId: number | null) => void
@@ -45,6 +48,29 @@ export const ScheduleCacheProvider = ({
   const [pendingScheduleId, setPendingScheduleId] = useState<number | null>(
     null,
   )
+  useEffect(() => {
+    const evict = (event: Event) => {
+      const removed = (
+        event as CustomEvent<{ spaceIds: number[]; scheduleIds: number[] }>
+      ).detail
+      const ids = new Set(removed.spaceIds)
+      setSchedulesById((previous) =>
+        Object.fromEntries(
+          Object.entries(previous).filter(
+            ([, schedule]) =>
+              schedule.spaceId === undefined || !ids.has(schedule.spaceId),
+          ),
+        ),
+      )
+      setActiveScheduleId((current) =>
+        current !== null && removed.scheduleIds.includes(current)
+          ? null
+          : current,
+      )
+    }
+    window.addEventListener('workspace:access-changed', evict)
+    return () => window.removeEventListener('workspace:access-changed', evict)
+  }, [])
   const pendingRef = useRef<number | null>(null)
   const beginMutation = useCallback((id: number) => {
     if (pendingRef.current !== null) return false
@@ -59,10 +85,26 @@ export const ScheduleCacheProvider = ({
   }, [])
 
   const upsertSchedule = useCallback((schedule: ScheduleResponse) => {
-    setSchedulesById((prev) => ({
-      ...prev,
-      [schedule.id]: schedule,
-    }))
+    if (isSpaceUnavailable(schedule.spaceId)) return
+    setSchedulesById((prev) => {
+      const current = prev[schedule.id]
+      if (
+        current?.version !== undefined &&
+        schedule.version !== undefined &&
+        current.version > schedule.version
+      )
+        return prev
+      return { ...prev, [schedule.id]: schedule }
+    })
+  }, [])
+
+  const removeSchedule = useCallback((id: number) => {
+    setSchedulesById((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+    setActiveScheduleId((current) => (current === id ? null : current))
   }, [])
 
   // alias to keep existing callers readable
@@ -110,6 +152,7 @@ export const ScheduleCacheProvider = ({
         ? (schedulesById[activeScheduleId] ?? null)
         : null,
       setSchedule,
+      removeSchedule,
       upsertSchedule,
       setActiveSchedule,
       updateScheduleState,
@@ -122,6 +165,7 @@ export const ScheduleCacheProvider = ({
       schedulesById,
       setActiveSchedule,
       setSchedule,
+      removeSchedule,
       upsertSchedule,
       updateScheduleState,
     ],

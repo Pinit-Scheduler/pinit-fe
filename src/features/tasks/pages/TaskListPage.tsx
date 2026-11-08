@@ -1,3 +1,4 @@
+import { useProjectFilter } from '@features/spaces/store'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { searchTasks } from '../api/tasks'
 import type { Task } from '../types/task'
@@ -10,7 +11,6 @@ import {
   CategoryFilter,
   CategoryManager,
   useCategories,
-  type CategoryFilterValue,
 } from '@features/categories'
 import WorkspaceTaskCard from '../components/WorkspaceTaskCard'
 import TaskArchiveModal from '../components/modals/TaskArchiveModal'
@@ -46,8 +46,8 @@ export default function TaskListPage() {
     { offsetMinutes } = useTimePreferences()
   const { taskAssignments } = useCategories()
   const [filters, setFilters] = useState(readFilters),
-    [queryInput, setQueryInput] = useState(''),
-    [category, setCategory] = useState<CategoryFilterValue>('all')
+    [queryInput, setQueryInput] = useState('')
+  const [category, setCategory] = useProjectFilter()
   const [filterOpen, setFilterOpen] = useState(false),
     [managerOpen, setManagerOpen] = useState(false),
     [archiveOpen, setArchiveOpen] = useState(false)
@@ -103,7 +103,7 @@ export default function TaskListPage() {
         })
         let incoming = response.content
         if (category !== 'all') {
-          // Category is a separate owner-scoped contract. Traverse every server result before filtering;
+          // Project assignments are server facts. Traverse every server result before filtering;
           // filtering only the first page would incorrectly report missing tasks as absent.
           let cursor = nextPage
           const seen = new Set(incoming.map((t) => t.id))
@@ -259,7 +259,7 @@ export default function TaskListPage() {
             className="workspace-button"
             onClick={() => setManagerOpen(true)}
           >
-            카테고리 관리
+            프로젝트 관리
           </button>
         </div>
         {filterOpen && (

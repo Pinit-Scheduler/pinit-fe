@@ -1,10 +1,20 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import {
+  getMetadata,
+  rememberMetadata,
+  type WorkspaceMetadata,
+} from '@features/spaces/metadata'
 import { getAccessToken } from '@shared/api/authTokens'
 import { onTaskChanged, onScheduleChanged } from '@shared/utils/events'
 
-export type Category = { id: number; name: string; builtIn: boolean }
+export type Category = {
+  id: number
+  name: string
+  builtIn: boolean
+  spaceId?: number
+}
 export type CategoryFilterValue = number | 'none' | 'all'
 export type CategorySnapshot = {
   categories: Category[]
@@ -12,14 +22,7 @@ export type CategorySnapshot = {
   scheduleAssignments: Record<string, number>
   seriesAssignments?: Record<string, number>
 }
-const defaults = [
-  '업무·커리어',
-  '학습',
-  '개인 프로젝트',
-  '생활·행정',
-  '건강·운동',
-  '여가·관계',
-].map((name, i) => ({ id: -i - 1, name, builtIn: true }))
+const defaults: Category[] = []
 const empty = (): CategorySnapshot => ({
   categories: defaults,
   taskAssignments: {},
@@ -99,10 +102,21 @@ export const reloadCategories = (): Promise<void> => {
     emit()
   }
   const requestEpoch = epoch
-  const request = httpClient<CategorySnapshot>(url())
+  const request = httpClient<CategorySnapshot & { projects?: Category[] }>(
+    buildApiUrl('/projects/snapshot', 'v2'),
+  )
     .then((data) => {
       if (actor !== key || epoch !== requestEpoch) return
-      state = { ...data, isLoading: false, hasLoaded: true, error: null }
+      state = {
+        ...data,
+        categories: (data.projects ?? data.categories ?? []).map((project) => ({
+          ...project,
+          builtIn: false,
+        })),
+        isLoading: false,
+        hasLoaded: true,
+        error: null,
+      }
       emit()
     })
     .catch((error) => {
@@ -113,7 +127,7 @@ export const reloadCategories = (): Promise<void> => {
           error:
             error instanceof Error
               ? error.message
-              : '카테고리를 불러오지 못했어요.',
+              : '프로젝트를 불러오지 못했어요.',
         }
         emit()
       }
@@ -136,14 +150,31 @@ const assign = async (
   id: number,
   categoryId: number | null,
 ) => {
-  const requestedBy = sessionKey()
-  await httpClient<void>(url('/' + kind + '/' + id), {
-    method: 'PUT',
-    json: { categoryId },
-  })
-  if (actor !== requestedBy || sessionKey() !== requestedBy) return
-  const field = kind === 'tasks' ? 'taskAssignments' : 'scheduleAssignments',
-    next = { ...state[field] }
+  const resource = kind === 'tasks' ? 'task' : 'schedule'
+  let current = getMetadata(resource, id)
+  if (!current) {
+    const view = await httpClient<WorkspaceMetadata>(
+      buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
+    )
+    rememberMetadata(resource, id, view)
+    current = view
+  }
+  const project = state.categories.find((item) => item.id === categoryId)
+  const spaceId = project?.spaceId ?? current.spaceId
+  if (current.spaceId === spaceId && current.projectId === categoryId) return
+  const result = await httpClient<WorkspaceMetadata>(
+    buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
+    {
+      method: 'PATCH',
+      json: {
+        expectedVersion: current.version,
+        location: { spaceId, projectId: categoryId },
+      },
+    },
+  )
+  rememberMetadata(resource, id, result)
+  const field = kind === 'tasks' ? 'taskAssignments' : 'scheduleAssignments'
+  const next = { ...state[field] }
   if (categoryId === null) delete next[id]
   else next[id] = categoryId
   state = { ...state, [field]: next }
@@ -155,12 +186,29 @@ export const assignSeriesCategory = async (
   scope: 'ALL' | 'FOLLOWING' | 'TEMPLATE' = 'TEMPLATE',
   fromDate?: string,
 ) => {
-  await httpClient<void>(url('/recurrences/' + id), {
-    method: 'PUT',
-    json: { categoryId, scope, fromDate },
-  })
+  const current = await httpClient<WorkspaceMetadata>(
+    buildApiUrl(`/workspace/recurrences/${id}`, 'v2'),
+  )
+  const project = state.categories.find((item) => item.id === categoryId)
+  const spaceId = project?.spaceId ?? current.spaceId
+  const result = await httpClient<WorkspaceMetadata>(
+    buildApiUrl(`/workspace/recurrences/${id}`, 'v2'),
+    {
+      method: 'PATCH',
+      json: {
+        expectedVersion: current.version,
+        recurrence: {
+          scope: scope === 'TEMPLATE' ? 'ALL' : scope,
+          fromDate,
+          changes: {},
+        },
+        location: { spaceId, projectId: categoryId },
+      },
+    },
+  )
+  rememberMetadata('series', id, result)
   if (pending) await pending.catch(() => {})
-  // 분류 PUT은 이미 저장됐다. 이후 조회 실패는 store.error로 알리고 저장 실패로 바꾸지 않는다.
+  // 프로젝트 배정은 이미 저장됐다. 이후 조회 실패는 store.error로 알리고 저장 실패로 바꾸지 않는다.
   await reloadCategories().catch(() => {})
 }
 export const createCategory = async (name: string) => {

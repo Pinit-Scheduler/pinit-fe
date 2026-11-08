@@ -184,7 +184,7 @@ export const createCategoryMockRepository = (
         !body.name.trim() ||
         body.name.trim().length > 30
       )
-        return failure('카테고리 이름은 1–30자로 입력해 주세요.')
+        return failure('프로젝트 이름은 1–30자로 입력해 주세요.')
       const name = body.name.trim()
       if (
         [...builtIns, ...current.custom].some(
@@ -192,7 +192,7 @@ export const createCategoryMockRepository = (
             category.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
         )
       )
-        return failure('같은 이름의 카테고리가 있습니다.', 409)
+        return failure('같은 이름의 프로젝트가 있습니다.', 409)
       const category = { id: ++sequence, name, builtIn: false }
       current.custom.push(category)
       return json(category, 201)
@@ -202,15 +202,15 @@ export const createCategoryMockRepository = (
       const id = Number(categoryMatch[1]),
         category = current.custom.find((item) => item.id === id)
       if (builtIns.some((item) => item.id === id))
-        return failure('기본 카테고리는 수정하거나 삭제할 수 없습니다.', 409)
-      if (!category) return failure('카테고리를 찾을 수 없습니다.', 404)
+        return failure('기본 프로젝트는 수정하거나 삭제할 수 없습니다.', 409)
+      if (!category) return failure('프로젝트를 찾을 수 없습니다.', 404)
       if (method === 'PATCH') {
         if (
           typeof body?.name !== 'string' ||
           !body.name.trim() ||
           body.name.trim().length > 30
         )
-          return failure('카테고리 이름은 1–30자로 입력해 주세요.')
+          return failure('프로젝트 이름은 1–30자로 입력해 주세요.')
         const name = body.name.trim()
         if (
           [...builtIns, ...current.custom].some(
@@ -219,7 +219,7 @@ export const createCategoryMockRepository = (
               item.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
           )
         )
-          return failure('같은 이름의 카테고리가 있습니다.', 409)
+          return failure('같은 이름의 프로젝트가 있습니다.', 409)
         category.name = name
         return json(category)
       }
@@ -249,7 +249,7 @@ export const createCategoryMockRepository = (
         !Object.hasOwn(body, 'categoryId') ||
         !validCategory(owner, body.categoryId)
       )
-        return failure('사용할 수 없는 카테고리입니다.')
+        return failure('사용할 수 없는 프로젝트입니다.')
       const categoryId = body.categoryId
       if (kind === 'recurrences') {
         if (seriesOwners.get(id) !== owner)
@@ -303,7 +303,7 @@ export const createCategoryMockRepository = (
       }
       return new Response(null, { status: 204 })
     }
-    return failure('지원하지 않는 카테고리 요청입니다.', 405)
+    return failure('지원하지 않는 프로젝트 요청입니다.', 405)
   }
   return {
     handle,

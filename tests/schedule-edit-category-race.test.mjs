@@ -44,7 +44,8 @@ const createHarness = ({ recurring = false } = {}) => {
     '@shared/utils/datetime': {
       toDateFromApi: () => new Date('2026-11-03T01:00:00Z'),
       toApiDateTimeWithZone: (date) => date,
-      toDateKey: (date) => new Date(date.dateTime ?? date).toISOString().slice(0, 10),
+      toDateKey: (date) =>
+        new Date(date.dateTime ?? date).toISOString().slice(0, 10),
       toDisplayDayjs: () => ({ format: () => '10:00' }),
     },
     '../../hooks/useScheduleDetail': {
@@ -129,6 +130,38 @@ const createHarness = ({ recurring = false } = {}) => {
     Error,
     console: { error() {} },
     require: (name) => {
+      if (name === '@features/spaces/metadata') {
+        const source = readFileSync(
+          new URL('../src/features/spaces/metadata.ts', import.meta.url),
+          'utf8',
+        )
+        const output = ts.transpileModule(source, {
+          compilerOptions: {
+            module: ts.ModuleKind.CommonJS,
+            target: ts.ScriptTarget.ES2022,
+          },
+        }).outputText
+        const registry = { exports: {} }
+        vm.runInNewContext(output, {
+          module: registry,
+          exports: registry.exports,
+        })
+        return registry.exports
+      }
+      if (name === '@features/spaces/useMoveConfirmation')
+        return {
+          useMoveConfirmation: () => ({
+            dialog: null,
+            confirm: async (from, to) => {
+              assert.ok(
+                from === undefined || to === undefined || from === to,
+                'Cross-space confirmation requires its own dialog test',
+              )
+              return true
+            },
+          }),
+          moveResultMessage: () => null,
+        }
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     },
@@ -236,8 +269,9 @@ test('an explicitly changed recurrence category still applies to the confirmed s
     categoryId: 8,
     categoryChanged: true,
   })
-  assert.deepEqual(h.seriesAssigned, [[4, 8, 'ALL', '2026-11-03']])
+  assert.deepEqual(h.seriesAssigned, [])
   assert.equal(h.seriesUpdated.length, 1)
+  assert.equal(h.seriesUpdated[0][4].projectId, 8)
 })
 
 test('background category refresh failure keeps the mounted schedule editor and its stable identity', async () => {
@@ -274,9 +308,11 @@ test('title-only save after a category refresh never writes the stale form categ
   })
   assert.deepEqual(h.assigned, [])
   assert.equal(h.saved[0][1].title, 'title edit')
+  assert.equal(Object.hasOwn(h.saved[0][1], 'projectId'), false)
+  assert.equal(Object.hasOwn(h.saved[0][1], 'assigneeId'), false)
 })
 
-test('schedule content success is published even when the category write fails, and retry keeps the editor open', async () => {
+test('schedule content and project save atomically; failed save preserves the editor', async () => {
   const h = createHarness()
   h.setCategory({ isLoading: false, error: null, id: 7 })
   const form = h.render()
@@ -286,45 +322,39 @@ test('schedule content success is published even when the category write fails, 
     categoryId: 8,
     categoryChanged: true,
   }
-  h.failCategory(true)
-  await assert.rejects(form.props.onSubmit(values), /category failed/)
-  assert.equal(h.saved.length, 1)
-  assert.equal(h.events[0].reason, 'updated')
+  h.failContent(true)
+  await assert.rejects(form.props.onSubmit(values), /content failed/)
+  assert.equal(h.saved.length, 0)
+  assert.deepEqual(h.events, [])
   assert.deepEqual(h.exits, [])
-  assert.match(
-    h.toasts.at(-1)[0],
-    /일정 내용은 저장됐지만 카테고리는 저장하지 못했어요/,
-  )
-  h.failCategory(false)
+  h.failContent(false)
   await h.render().props.onSubmit(values)
-  assert.deepEqual(h.assigned, [[9, 8]])
+  assert.equal(h.saved.length, 1)
+  assert.equal(h.saved[0][1].projectId, 8)
+  assert.equal(h.events[0].reason, 'updated')
+  assert.deepEqual(h.assigned, [])
   assert.deepEqual(h.exits, ['/app/schedules'])
 })
 
-test('a saved recurrence category is published when the content write fails; retry can undo that partial category change', async () => {
+test('recurring schedule content and project scope commit atomically; retry keeps the same draft', async () => {
   const h = createHarness({ recurring: true })
   h.setCategory({ isLoading: false, error: null, id: 7 })
   const form = h.render()
+  const values = {
+    ...form.props.initialValues,
+    categoryId: 8,
+    categoryChanged: true,
+  }
   h.failContent(true)
-  await assert.rejects(
-    form.props.onSubmit({
-      ...form.props.initialValues,
-      categoryId: 8,
-      categoryChanged: true,
-    }),
-    /content failed/,
-  )
-  assert.deepEqual(h.seriesAssigned, [[4, 8, 'ALL', '2026-11-03']])
-  assert.equal(h.events[0].reason, 'category')
+  await assert.rejects(form.props.onSubmit(values), /content failed/)
+  assert.deepEqual(h.seriesAssigned, [])
+  assert.deepEqual(h.seriesUpdated, [])
+  assert.deepEqual(h.events, [])
   assert.deepEqual(h.exits, [])
-  assert.match(
-    h.toasts.at(-1)[0],
-    /카테고리는 저장됐지만 반복 일정 내용은 저장하지 못했어요/,
-  )
   h.failContent(false)
-  await h
-    .render()
-    .props.onSubmit({ ...form.props.initialValues, categoryChanged: false })
-  assert.deepEqual(h.seriesAssigned[1], [4, 7, 'ALL', '2026-11-03'])
+  await h.render().props.onSubmit(values)
+  assert.equal(h.seriesUpdated.length, 1)
+  assert.equal(h.seriesUpdated[0][1], 'ALL')
+  assert.equal(h.seriesUpdated[0][4].projectId, 8)
   assert.deepEqual(h.exits, ['/app/schedules'])
 })

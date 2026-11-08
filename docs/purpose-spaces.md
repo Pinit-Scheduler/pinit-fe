@@ -1,0 +1,54 @@
+# 목적 공간·프로젝트 프론트엔드
+
+공간 전환과 관리 화면은 `/app/spaces`, 초대 수락은 `/spaces/join/:token`이다. 공개 초대 주소로 진입하면 기존 로그인·회원가입 복귀 경로를 이용한다. 이름은 서버가 반환한 회원 닉네임만 표시한다.
+
+## 원본과 책임
+
+- 승인 UI: `Pinit-Scheduler/pinit-ui-design@97f5a9d`, 최신 설계 문서: `5ac921f9`의 `docs/design-evidence/team-space-policy.md`, `backend-domain-boundary.md`.
+- 이후 확정된 정책: 관리자만 초대·참여자 관리, 한 시간 내 여러 사람이 사용하는 링크, 작업·연결 일정 동반 이동, 공유 실행 상태, 공간을 넘는 이동의 선후관계 해제·기록, 미담당 작업의 오늘 제외.
+- 실제 업무 규칙, 기본 담당자, 권한과 상태별 가능한 행동은 서버 응답이 원본이다. FE는 `allowedActions`, 버전, 결과를 소비하며 로컬 공유 작업 복제나 모의 권한 엔진을 만들지 않는다.
+
+## 데이터 연결
+
+`src/features/spaces`는 공간 목록·프로젝트·참여자 스냅샷, 전환, 관리 화면, 초대, 소속·담당자 입력과 실시간 무효화를 담당한다. 개인 기본 공간의 음수 ID를 보존한다. 숫자 0을 null로 묵시 변환해 기본 공간으로 우회하지 않으며 식별자 유효성은 서버가 검사한다. 현재 서버 계약에서 0은 유효한 공간 ID가 아니다. 선택 공간은 계정별 세션 저장소의 보기 설정이다.
+
+작업·일정·반복 API는 `/v2/workspace/tasks`, `/schedules`, `/recurrences`의 wrapper를 기존 화면 타입으로 변환한다. 내용과 `location`·`assignee`를 한 번에 저장한다. 반복의 `ALL`·`FOLLOWING` 범위와 영향 미리보기는 유지한다. 내부 `categories` 이름은 기존 컴포넌트 호환을 위해 남지만 `/v2/projects/snapshot`의 실제 프로젝트 ID를 사용한다.
+
+새 작업의 담당자 생략과 `{assignee:{memberId:null}}`은 다르다. 생성 기본값은 서버 draft를 읽으며, 기존 미담당 작업을 편집할 때 null을 본인으로 대체하지 않는다. 오늘은 선택 공간과 독립된 `mine=true` 조회를 사용한다. 시작 가능한 작업과 오늘 마감 작업은 따로 조회하므로 두 영역에 같은 작업이 나타나는 교집합을 유지한다.
+
+## 편집·실시간·실패
+
+폼은 처음 읽은 `expectedVersion`과 반복의 `recurrenceVersion`을 보존한다. SSE나 후속 GET이 캐시를 갱신해도 편집 초안의 버전을 바꾸지 않는다. 서버 `VERSION_CONFLICT`는 저장 실패이며 한 번 확인하면 최신 화면을 읽는다. 자동 재저장·자동 덮어쓰기는 하지 않는다. 계획 제안의 `blocks[].expectedVersion`도 로컬 편집에서 보존해 승인 요청에 그대로 보낸다.
+
+SSE는 `/v2/workspace/events` 단일 Bearer fetch stream이다. 공간 수가 늘어도 브라우저 HTTP/1 연결을 공간마다 점유하지 않고 `changed.spaceId`로 구분한다. 구독 수명 안에서 마지막 SSE id를 기억해 재연결의 `Last-Event-ID`로 보내며 계정 변경 시 폐기한다. 토큰 갱신·계정 변경·권한 박탈을 처리하고 연결 복구 시 목록을 다시 읽는다. 늦게 도착한 이전 버전이 최신 캐시 버전을 낮추지 않는다. 편집 입력은 그대로 남는다. 공유 일정 상태 변경 뒤 연결 작업에 대한 추가 쓰기는 하지 않고 서버 처리 결과를 다시 읽는다.
+
+초대 수락과 폼 제출은 같은 렌더 사이의 연속 클릭도 잠근다. 서버가 참여 완료를 반환한 뒤 공간 재조회가 실패해도 수락을 다시 POST하지 않는다. 만료·철회·삭제된 공간·저장 실패는 서버 응답을 표시한다. 초대 토큰과 응답은 HTTP 디버그 로그에서 제외한다.
+
+휴지통은 서버에서 관리자 권한으로 필터한 `/v2/trash` 목록을 사용한다. 공유 복구·영구 삭제는 목록의 버전을 새 workspace 경로에 보낸다. 되돌리기는 삭제된 행의 최신 버전을 조회한 뒤 수행하며 버전 없는 legacy 쓰기로 우회하지 않는다. 전체 비우기는 기존 개인 휴지통만 대상으로 한다. 서버가 복구 결과를 제공하면 실제 미복구 선후관계 수를 표시한다.
+
+## 검증과 실행
+
+```powershell
+npm ci
+node --test --test-concurrency=1
+npm run lint
+npm run build
+```
+
+이번 변경의 `src/shared/api/config.ts`는 개발에서도 `VITE_API_BASE_URL`을 읽도록 확장했다. 준비 baseline에서는 task API의 개발 origin이 `http://localhost:8080`으로 고정됐고 이 변수가 운영 빌드에만 반영됐으므로 그 동작과 구분한다. 현재 개발 기본값은 API `http://localhost:8080`, auth `http://localhost:8081`, notification `http://localhost:8082`다. 통합 검증에서는 `VITE_API_BASE_URL`, `VITE_AUTH_BASE_URL`, `VITE_NOTIFICATION_API_BASE_URL` 세 변수를 모두 `http://localhost:8080`으로 지정한다. URL helper가 API 버전 경로를 붙이므로 환경 변수에는 `/v2`나 `/v0`를 넣지 않는다. 운영 데이터베이스나 운영 API로 개발 검증하지 않는다.
+
+`tests/workspace-spaces.test.mjs`는 wrapper, 권한·버전 전달, null/생략, 오늘 범위, 초대 오류·중복, SSE 인증/권한/계정, 충돌·로그 비밀값, 늦은 스냅샷과 휴지통을 검증한다. 기존 편집 수명주기 테스트는 원자 저장 계약에 맞춰 내용+프로젝트 실패 시 초안 유지, 성공 후 재조회 실패와 재쓰기 금지 경계를 유지한다. 실제 브라우저와 DB 연결 검증은 별도 실행 증거로 기록하며 단위 검사·빌드 성공을 배포나 통합 성공으로 간주하지 않는다.
+
+## AI 앱 동의
+
+`mcp:spaces`는 기존 보기·수정·삭제 scope와 독립된 추가 opt-in이다. 서버가 요청 또는 opt-in 목록에 제공한 경우에만 표시하고 항상 기본 선택을 해제한다. 기존 client·grant·토큰에 권한을 자동 추가하지 않는다. 공간/공유 업무 도구는 이 권한과 기존 동작별 scope를 함께 필요로 한다. 삭제·참여자 제외·탈퇴·초대 철회에는 `mcp:delete`와 미리보기·확인도 필요하다. FE 동의 설명과 연결된 앱의 권한 라벨, AI 사용 이력의 새 41개 도구 이름을 같은 계약으로 표시한다.
+
+## 정적 검증 기록 — 2026-11-09
+
+- `npx tsc -b`: 통과.
+- `node --test --test-concurrency=1`: 246개 통과, 실패·건너뜀 0. 기존 218개 회귀를 유지·새 계약에 맞춰 갱신하고 28개 검사를 추가했다.
+- `npm run lint`: 통과. 기존 `baseline-browser-mapping` 데이터 나이 안내만 출력된다.
+- `npm run build`: TypeScript·Vite 통과, 344개 모듈. JS 718.07kB(압축 222.12kB), CSS 174.44kB(압축 28.42kB). 기존 500kB 청크 크기 안내는 숨기지 않았다.
+- `git diff --check`: 통과.
+
+이 기록은 **정적 검증 완료**이며 실제 BE 브라우저 통합·운영 배포 기록이 아니다. 실제 8080 서버 연결, 두 사용자 실시간·충돌, 관리자/참여자 CRUD·초대·삭제/복구, 모바일 390×400·키보드·오류 포커스·다크 테마, OAuth 추가 권한 동의는 후속 검증이 필요하다. 특히 `includeDeleted`의 삭제 공간 snapshot/read 계약은 BE 수정 후 삭제→새로고침→복구 시나리오로 확인한다. Codex CLI 리뷰·PR·병합·배포도 아직 실행하지 않았다.

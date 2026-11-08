@@ -1,6 +1,12 @@
 export const READ_SCOPE = 'mcp:read'
 export const WRITE_SCOPE = 'mcp:write'
 export const DELETE_SCOPE = 'mcp:delete'
+export const SPACES_SCOPE = 'mcp:spaces'
+export type KnownConsentScope =
+  | typeof READ_SCOPE
+  | typeof WRITE_SCOPE
+  | typeof DELETE_SCOPE
+  | typeof SPACES_SCOPE
 
 export type ConsentScopeOption = {
   scope: string
@@ -17,24 +23,44 @@ export type ConsentScopeOption = {
 type KnownScope = Omit<ConsentScopeOption, 'scope' | 'unknown'>
 
 const KNOWN_SCOPES: Record<string, KnownScope> = {
-  [READ_SCOPE]: { label: '일정·작업 보기', required: true, defaultChecked: true },
-  [WRITE_SCOPE]: { label: '일정·작업 만들기·수정·상태 변경 (삭제는 불가)', required: false, defaultChecked: true },
+  [READ_SCOPE]: {
+    label: '일정·작업 보기',
+    required: true,
+    defaultChecked: true,
+  },
+  [WRITE_SCOPE]: {
+    label: '일정·작업 만들기·수정·상태 변경 (삭제는 불가)',
+    required: false,
+    defaultChecked: true,
+  },
   // 요청돼도 기본은 해제. 사용자가 직접 체크해야만 허용한다.
   [DELETE_SCOPE]: {
     label: '일정·작업 삭제 (AI가 삭제할 때마다 미리보기 후 확인)',
     required: false,
     defaultChecked: false,
     warning:
-      '허용하면 AI 앱이 일정이나 작업 삭제를 요청할 수 있어요. 삭제마다 미리보기를 확인한 뒤에만 지워지고, 지운 뒤에는 되돌릴 수 없어요.',
+      '허용하면 AI 앱이 일정이나 작업 삭제를 요청할 수 있어요. 삭제마다 미리보기를 확인한 뒤에만 지워집니다. 영구 삭제와 반복 범위 삭제는 되돌릴 수 없어요.',
+  },
+  [SPACES_SCOPE]: {
+    label: '공간·프로젝트 및 공유 업무 도구 사용',
+    required: false,
+    defaultChecked: false,
+    warning:
+      '참여한 공간의 내용과 과거 기록 조회, 공간·프로젝트·공유 소속 관리, 초대와 참여자 관리를 포함해요. 수정에는 수정 권한, 삭제·초대 철회·참여자 제외·탈퇴에는 삭제 권한도 함께 필요해요. 실제 공간 관리자 권한은 Pinit에서 확인합니다.',
   },
 }
 
-const KNOWN_SCOPE_ORDER = [READ_SCOPE, WRITE_SCOPE, DELETE_SCOPE]
+const KNOWN_SCOPE_ORDER = [READ_SCOPE, WRITE_SCOPE, DELETE_SCOPE, SPACES_SCOPE]
 
-export const describeScope = (scope: string) => KNOWN_SCOPES[scope]?.label ?? scope
+export const describeScope = (scope: string) =>
+  KNOWN_SCOPES[scope]?.label ?? scope
 
 const normalizeScopes = (scopes: readonly string[] | null | undefined) =>
-  new Set((Array.isArray(scopes) ? scopes : []).map((scope) => scope.trim()).filter(Boolean))
+  new Set(
+    (Array.isArray(scopes) ? scopes : [])
+      .map((scope) => scope.trim())
+      .filter(Boolean),
+  )
 
 /**
  * 동의 화면 체크박스. 읽기는 항상 필요(쓰기·삭제가 읽기를 포함하는 백엔드 규칙과 같음)하고,
@@ -50,12 +76,26 @@ export const buildConsentScopeOptions = (
   const offered = new Set([...normalizeScopes(requestedScopes), ...optIn])
   const toOption = (scope: string): ConsentScopeOption => {
     const known = KNOWN_SCOPES[scope]
-    const base = known ? { scope, ...known } : { scope, label: scope, required: false, defaultChecked: false, unknown: true }
+    const base = known
+      ? { scope, ...known }
+      : {
+          scope,
+          label: scope,
+          required: false,
+          defaultChecked: false,
+          unknown: true,
+        }
     // opt-in scope는 사용자가 직접 체크해야만 허용한다.
-    return optIn.has(scope) && !base.required ? { ...base, defaultChecked: false } : base
+    return optIn.has(scope) && !base.required
+      ? { ...base, defaultChecked: false }
+      : base
   }
-  const known = KNOWN_SCOPE_ORDER.filter((scope) => scope === READ_SCOPE || offered.has(scope)).map(toOption)
-  const unknown = [...offered].filter((scope) => !(scope in KNOWN_SCOPES)).map(toOption)
+  const known = KNOWN_SCOPE_ORDER.filter(
+    (scope) => scope === READ_SCOPE || offered.has(scope),
+  ).map(toOption)
+  const unknown = [...offered]
+    .filter((scope) => !(scope in KNOWN_SCOPES))
+    .map(toOption)
   return [...known, ...unknown]
 }
 
@@ -83,7 +123,8 @@ export const toDecisionScopes = (
     .map((option) => option.scope)
 }
 
-export const hasDeleteScope = (scopes: readonly string[]) => scopes.includes(DELETE_SCOPE)
+export const hasDeleteScope = (scopes: readonly string[]) =>
+  scopes.includes(DELETE_SCOPE)
 
 /** 서버가 준 redirectUri로만 이동하되, javascript: 같은 스킴은 막는다. */
 export const isNavigableRedirectUri = (uri: unknown): uri is string => {
@@ -96,12 +137,19 @@ export const isNavigableRedirectUri = (uri: unknown): uri is string => {
   }
 }
 
-export const isRequestExpired = (expiresAt: string, now: number = Date.now()) => {
+export const isRequestExpired = (
+  expiresAt: string,
+  now: number = Date.now(),
+) => {
   const expiry = Date.parse(expiresAt)
   return Number.isNaN(expiry) || expiry <= now
 }
 
-export type ConsentErrorKind = 'expired' | 'unauthorized' | 'network' | 'unknown'
+export type ConsentErrorKind =
+  | 'expired'
+  | 'unauthorized'
+  | 'network'
+  | 'unknown'
 
 export type ConsentError = {
   kind: ConsentErrorKind
@@ -109,12 +157,18 @@ export type ConsentError = {
 }
 
 const readStatus = (error: unknown) => {
-  const status = error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined
+  const status =
+    error && typeof error === 'object'
+      ? (error as { status?: unknown }).status
+      : undefined
   return typeof status === 'number' ? status : undefined
 }
 
 const readMessage = (error: unknown) => {
-  const message = error && typeof error === 'object' ? (error as { message?: unknown }).message : undefined
+  const message =
+    error && typeof error === 'object'
+      ? (error as { message?: unknown }).message
+      : undefined
   return typeof message === 'string' && message.trim() ? message : undefined
 }
 
@@ -124,10 +178,24 @@ export const EXPIRED_REQUEST_MESSAGE =
 // ApiError(status 0 = fetch 실패)를 import 없이 구조로 판별한다.
 export const toConsentError = (error: unknown): ConsentError => {
   const status = readStatus(error)
-  if (status === 404 || status === 410) return { kind: 'expired', message: EXPIRED_REQUEST_MESSAGE }
-  if (status === 401) return { kind: 'unauthorized', message: '로그인이 만료됐어요. 다시 로그인한 뒤 이어서 진행해주세요.' }
+  if (status === 404 || status === 410)
+    return { kind: 'expired', message: EXPIRED_REQUEST_MESSAGE }
+  if (status === 401)
+    return {
+      kind: 'unauthorized',
+      message: '로그인이 만료됐어요. 다시 로그인한 뒤 이어서 진행해주세요.',
+    }
   if (status === 0) {
-    return { kind: 'network', message: '서버에 연결하지 못했어요. 네트워크 상태를 확인한 뒤 다시 시도해주세요.' }
+    return {
+      kind: 'network',
+      message:
+        '서버에 연결하지 못했어요. 네트워크 상태를 확인한 뒤 다시 시도해주세요.',
+    }
   }
-  return { kind: 'unknown', message: readMessage(error) ?? '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.' }
+  return {
+    kind: 'unknown',
+    message:
+      readMessage(error) ??
+      '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+  }
 }

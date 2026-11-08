@@ -1,3 +1,4 @@
+import type { AllowedActions } from '@features/spaces/types'
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import type { DifficultyValue } from '@constants/difficulty'
 import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
@@ -11,6 +12,17 @@ export type ScheduleState =
 export type ScheduleTaskType = 'DEEP_WORK' | 'QUICK_TASK' | 'ADMIN_TASK'
 
 export type ScheduleResponse = {
+  moveResult?: {
+    movedTaskIds: number[]
+    movedScheduleIds: number[]
+    removedDependencyCount: number
+  }
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
+  assigneeNickname?: string | null
+  version?: number
+  allowedActions?: AllowedActions
   id: number
   ownerId: number
   title: string
@@ -39,6 +51,13 @@ export type ScheduleRequest = {
 }
 
 export type ScheduleFormValues = {
+  spaceId?: number
+  assigneeId?: number | null
+  expectedVersion?: number
+  recurrenceVersion?: number
+  affiliationChanged?: boolean
+  locationChanged?: boolean
+  assigneeChanged?: boolean
   categoryId?: number | null
   /** 폼을 열었을 때와 비교한 사용자 분류 변경 여부 */
   categoryChanged?: boolean
@@ -52,6 +71,12 @@ export type ScheduleFormValues = {
 }
 
 export type ScheduleSummary = {
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
+  assigneeNickname?: string | null
+  version?: number
+  allowedActions?: AllowedActions
   id: number
   ownerId: number
   title: string
