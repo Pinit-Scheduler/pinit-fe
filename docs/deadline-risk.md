@@ -44,7 +44,7 @@
 | --- | --- |
 | `generatedAt` / `horizonEnd` | UTC offset/Z가 있는 instant. 종료는 회원 시간대의 오늘+days 자정(제외)이다. |
 | `requiredMinutes` | 해당 작업과 미완료 선행 체인의 남은 시간. 체인 안의 공유 선행 작업은 1회만 센다. |
-| `availableMinutes` | 해당 체인이 마감 전 쓸 수 있는 시간의 상한. 생활 시간·고정 일정·일일 목표를 반영하고, 체인의 이미 연결된 예약은 1회 포함한다. 실제 배치 성공 시간이나 아무 때나 쓸 수 있는 시간의 보장은 아니다. |
+| `availableMinutes` | 해당 체인이 마감 전 쓸 수 있는 시간의 상한과 필요 시간 중 작은 값. 생활 시간·고정 일정·일일 목표를 반영하고, 체인의 이미 연결된 예약은 1회 포함한다. 실제 배치 성공 시간이나 아무 때나 쓸 수 있는 시간의 보장은 아니다. |
 | `shortageMinutes` | `max(requiredMinutes - availableMinutes, 0)`. `AT_RISK`에서도 0일 수 있다. |
 | `predecessorTaskIds` | 미완료 선행 체인 ID. 화면은 응답에 없는 제목을 추정하지 않고 작업 링크를 제공한다. |
 | `reasons` / `assumptions` / `limitations` | 서버가 보내는 설명을 React text로 표시한다. HTML로 삽입하지 않는다. |
@@ -82,5 +82,18 @@ React 검토에서는 effect 정리와 요청 경합, 기간/시간대 변경 �
 - `npm run lint`: 통과. baseline-browser-mapping 데이터 갱신 안내가 남는다.
 - `npm run build`: 통과. 기존 단일 bundle의 500kB 초과 경고가 남는다.
 - 위 단위/hook/VM 검증은 실제 서버·DB·인증 브라우저 왕복의 성공 증거가 아니다. 브라우저 fixture 검증 결과는 별도 기록하며 운영 배포·실사용 예보 정확도·성공 확률은 검증하지 않았다.
+
+### 브라우저 합성 응답 검증
+
+2026-11-09 로컬 Vite와 headless Chrome에서 다음 흐름을 확인했다. 브라우저 시간대는 `America/Los_Angeles`, 응답 시간대는 `Asia/Seoul`로 달리 설정했다. 모든 API 요청은 로컬 합성 응답으로 가로채고 GET 이외의 요청과 외부 호스트는 차단했다. 운영 데이터·실제 인증 서버·DB는 사용하지 않았다.
+
+- 다섯 상태 표시, 5시간 필요/2시간 상한/3시간 부족, 서울 09:00 기준 시각.
+- 가정과 한계 펼치기, 14일 요청·응답, 선행 작업 링크.
+- 작업 상세의 제목·설명 로드와 뒤로 가기를 통한 예보 복귀.
+- 503 이후 이전 숫자 제거, 재조회로 빈 결과 표시, 다시 정상 결과 표시.
+- 390px 화면 가로 넘침 없음, 작업 행의 시간·이유·링크 확인, 계획 화면 이동 및 예보 진입 링크로 복귀.
+- React Router가 처리한 렌더 예외와 처리되지 않은 브라우저 예외 0건. 의도한 503 및 개발 모드의 취소 요청 로그는 실패 처리 검증 중 발생한다.
+
+재현 스크립트는 `scripts/deadline-risk-browser-smoke.mjs`다. 별도 터미널에서 `VITE_USE_MOCK_API=false`로 `npm run dev -- --host 127.0.0.1 --port 4187 --strictPort`를 실행한다. Chrome 설치와 선택 검증 의존성 `playwright`가 필요하다. 프로젝트의 제품 의존성을 바꾸지 않으려면 별도 임시 폴더에 `npm install --no-save --ignore-scripts playwright`로 준비하고 `DEADLINE_RISK_PLAYWRIGHT_MODULE`을 해당 `playwright/index.mjs`의 `file:///` URL로 지정한다. 프로젝트에서 import 가능한 기존 Playwright가 있다면 이 변수는 생략한다. `node scripts/deadline-risk-browser-smoke.mjs`를 실행하면 `.cache/deadline-risk-browser/`에 결과 JSON과 화면을 만든다. `DEADLINE_RISK_BASE_URL`과 `DEADLINE_RISK_QA_DIR`로 로컬 주소·출력 위치를 바꿀 수 있다. 스크립트의 합성 응답은 실제 BE 계산이나 배포 환경 E2E를 검증하지 않는다. 실제 SW 실행은 이 스크립트에 포함하지 않고 위 VM 테스트에서 따로 검증한다.
 
 구현 진입점은 `src/features/deadline-risk/`이고 기존 파일은 route 1개, 제목 1개, PlanPage 진입 링크 1개 및 SW no-store 정책만 추가했다. graph snapshot은 기존 기준을 유지하며 이 신규 API와 페이지를 포함하지 않는다.
