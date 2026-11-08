@@ -63,7 +63,7 @@
 
 ## 갱신·오류·캐시
 
-- 요청에는 `cache: 'no-store'`와 `AbortSignal`을 전달한다. `public/sw.js`도 no-store 요청은 가로채지 않아, 같은 origin API를 사용하더라도 cache-first 예보를 반환하지 않는다. 새 worker 적용 후의 코드 정책이며, 기존 설치본의 업데이트 완료는 별도 배포 검증 범위다.
+- 요청에는 `cache: 'no-store'`와 `AbortSignal`을 전달한다. `public/sw.js`도 no-store 요청은 가로채지 않아, 같은 origin API를 사용하더라도 cache-first 예보를 반환하지 않는다. worker cache와 constants import query는 v25→v26으로 함께 올려 활성화 시 이전 캐시를 정리한다. 새 worker 적용 후의 코드 정책이며, 기존 설치본의 업데이트 완료는 별도 배포 검증 범위다.
 - 기간·시간대·재조회 revision이 바뀌면 이전 결과를 즉시 숨긴다. 이전 요청을 취소하고 늦은 성공/실패가 새 결과를 덮지 않도록 cleanup에서 배제한다.
 - 작업/일정 변경 이벤트와 창 focus, 사용자의 **다시 조회**로 갱신한다. 과거 결과를 오류 fallback으로 계속 보여 주지 않는다. 실패하면 지속 오류와 다시 조회 버튼을 제공한다. 정기 polling이나 background 알림은 없다.
 - 조회 후 흐른 시간은 자동으로 재계산되지 않는다. 화면에 기준 시각을 남기고 다시 조회할 때 반영한다고 설명한다.
