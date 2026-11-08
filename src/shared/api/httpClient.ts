@@ -46,11 +46,18 @@ export const httpClient = async <T>(
     json,
     headers,
     credentials,
-    sensitiveResponse,
-    sensitiveRequest,
+    sensitiveResponse: explicitSensitiveResponse,
+    sensitiveRequest: explicitSensitiveRequest,
     ...rest
   } = options
   const url = path.startsWith('http') ? path : buildUrl(API_BASE_URL, path)
+  // Login/signup callers must not accidentally log passwords, OAuth codes or returned tokens.
+  const requestPath = url.split(/[?#]/, 1)[0].replace(/^https?:\/\/[^/]+/, '')
+  const authenticationFlow =
+    /^\/v0\/(?:login(?:\/.*)?|signup|refresh)\/?$/.test(requestPath) ||
+    /^\/oauth\/(?:token|register|revoke|authorize\/decision)\/?$/.test(requestPath)
+  const sensitiveRequest = explicitSensitiveRequest || authenticationFlow
+  const sensitiveResponse = explicitSensitiveResponse || authenticationFlow
   const logUrl = sensitiveRequest ? '[sensitive request]' : url
   let accessToken = getAccessToken()
   const body = json ? JSON.stringify(json) : undefined

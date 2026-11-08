@@ -439,6 +439,38 @@ test('Account changes while a response body is pending cannot publish private da
     assert.equal(JSON.stringify(logs).includes('private-member-one-data'), false)
   }
 })
+
+test('Auth transports redact credentials without caller flags and preserve normal API responses and diagnostics', async () => {
+  const secret = 'fixture-secret-must-not-be-logged'
+  for (const path of [
+    '/v0/login', '/v0/signup', '/v0/login/oauth2/code/naver?code=' + secret,
+    '/v0/refresh', '/oauth/token', '/oauth/register', '/oauth/revoke', '/oauth/authorize/decision',
+    '/workspace/tasks?q=/v0/login',
+  ]) {
+    for (const status of [200, 400]) {
+      const logs = []
+      const auth = !path.startsWith('/workspace/')
+      const body = auth ? { token: secret, password: secret } : { title: 'ordinary-diagnostic' }
+      const { httpClient } = load('shared/api/httpClient.ts', {
+        './config': { API_BASE_URL: 'https://api.fixture', AUTH_BASE_URL: 'https://api.fixture/v0', buildUrl: (base, path) => base + path },
+        './authTokens': { getAccessToken: () => null, getTokenSubject: () => null, isAccessTokenExpired: () => false },
+        './httpClientHelpers': { debugLog: (...args) => logs.push(args) },
+        './authSession': {}, './errorMessage': { getApiErrorMessage: () => 'server error' },
+      }, {
+        window: new EventTarget(), Event,
+        console: { error: (...args) => logs.push(args) },
+        fetch: async () => Response.json(body, { status }),
+      })
+      const request = httpClient(path, {
+        method: 'POST', json: auth ? { username: 'local-fixture', password: secret } : body,
+      })
+      if (status === 200) assert.deepEqual(plain(await request), body)
+      else await assert.rejects(request, (error) => error.status === 400 && JSON.stringify(error.data) === JSON.stringify(body))
+      assert.equal(JSON.stringify(logs).includes(secret), false)
+      if (!auth) assert.equal(JSON.stringify(logs).includes('ordinary-diagnostic'), true)
+    }
+  }
+})
 function invitationHarness({
   previewError,
   acceptError,
