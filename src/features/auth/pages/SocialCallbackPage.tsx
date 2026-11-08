@@ -36,10 +36,10 @@ const SocialCallbackPage = () => {
 
     // code/state/access_token 등을 백엔드로 전달해 토큰 교환
     exchangeSocialLogin(provider, payload)
-      .then(() => {
+      .then((response) => {
         if (isCancelled) return
         setStatus('로그인 완료! 이전 화면으로 이동해요.')
-        navigateAfterLogin()
+        navigateAfterLogin(response)
       })
       .catch((err) => {
         if (isCancelled) return

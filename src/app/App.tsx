@@ -33,6 +33,8 @@ import {
   SignupPage,
   SocialCallbackPage,
   AuthGuard,
+  ForgotPasswordPage,
+  EmailRegistrationPage,
 } from '@features/auth'
 import {
   ScheduleCreatePage,
@@ -140,9 +142,11 @@ const AppRoutes = () => (
     <Route path="/" element={<LandingPage />} />
     <Route path="/login" element={<LoginPage />} />
     <Route path="/signup" element={<SignupPage />} />
+    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
     <Route path="/login/callback/:provider" element={<SocialCallbackPage />} />
     <Route element={<AuthGuard />}>
       <Route path="/oauth/consent" element={<OAuthConsentPage />} />
+      <Route path="/email-registration" element={<EmailRegistrationPage />} />
       <Route path="/app/*" element={<WorkspaceRoutes />} />
     </Route>
   </Routes>
