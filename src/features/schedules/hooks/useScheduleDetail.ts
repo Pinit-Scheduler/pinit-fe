@@ -11,7 +11,10 @@ type UseScheduleDetailReturn = {
   refetch: () => void
 }
 
-const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
+const useScheduleDetail = (
+  scheduleId?: string,
+  { refreshOnChange = true }: { refreshOnChange?: boolean } = {},
+): UseScheduleDetailReturn => {
   const numericId = scheduleId ? Number(scheduleId) : undefined
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -19,7 +22,10 @@ const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
   const [timestamp, setTimestamp] = useState(() => Date.now())
   const { setSchedule: cacheSchedule } = useScheduleCache()
 
-  useEffect(() => onScheduleChanged(() => setTimestamp(Date.now())), [])
+  useEffect(() => {
+    if (!refreshOnChange) return
+    return onScheduleChanged(() => setTimestamp((previous) => previous + 1))
+  }, [refreshOnChange])
 
   useEffect(() => {
     if (!numericId) {
@@ -60,11 +66,38 @@ const useScheduleDetail = (scheduleId?: string): UseScheduleDetailReturn => {
     }
   }, [cacheSchedule, numericId, timestamp])
 
+  useEffect(() => {
+    if (refreshOnChange || !numericId || typeof window === 'undefined') return
+    let mounted = true
+    let sequence = 0
+    const verifyAccess = (event: Event) => {
+      const removed = (event as CustomEvent<{ scheduleIds?: number[] }>).detail
+      if (!removed?.scheduleIds?.includes(numericId)) return
+      const current = ++sequence
+      // Check access without replacing the edit session's content or version.
+      void fetchScheduleDetail(numericId).catch((failure: unknown) => {
+        if (!mounted || current !== sequence) return
+        const status = typeof failure === 'object' && failure !== null && 'status' in failure
+          ? failure.status : undefined
+        if (status !== 403 && status !== 404 && status !== 410) return
+        setSchedule(null)
+        setError('일정이 이동되었거나 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      })
+    }
+    window.addEventListener('workspace:resources-evicted', verifyAccess)
+    window.addEventListener('workspace:access-changed', verifyAccess)
+    return () => {
+      mounted = false
+      window.removeEventListener('workspace:resources-evicted', verifyAccess)
+      window.removeEventListener('workspace:access-changed', verifyAccess)
+    }
+  }, [numericId, refreshOnChange])
+
   return {
     schedule,
     isLoading,
     error,
-    refetch: () => setTimestamp(Date.now()),
+    refetch: () => setTimestamp((previous) => previous + 1),
   }
 }
 

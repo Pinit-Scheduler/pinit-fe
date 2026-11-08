@@ -9,10 +9,7 @@ import {
   useState,
 } from 'react'
 import type { ReactNode } from 'react'
-import type {
-  ScheduleResponse,
-  ScheduleState,
-} from '@features/schedules/types/schedule'
+import type { ScheduleResponse } from '@features/schedules/types/schedule'
 
 export type ScheduleCacheValue = {
   schedulesById: Record<number, ScheduleResponse>
@@ -25,13 +22,6 @@ export type ScheduleCacheValue = {
   pendingScheduleId: number | null
   beginMutation: (scheduleId: number) => boolean
   endMutation: (scheduleId: number) => void
-  updateScheduleState: (
-    scheduleId: number,
-    nextState: ScheduleState,
-    extras?: Partial<
-      Pick<ScheduleResponse, 'scheduleType' | 'taskId' | 'duration'>
-    >,
-  ) => void
 }
 
 const ScheduleCacheContext = createContext<ScheduleCacheValue | null>(null)
@@ -126,33 +116,6 @@ export const ScheduleCacheProvider = ({
     setActiveScheduleId(scheduleId)
   }, [])
 
-  const updateScheduleState = useCallback(
-    (
-      scheduleId: number,
-      nextState: ScheduleState,
-      extras?: Partial<
-        Pick<ScheduleResponse, 'scheduleType' | 'taskId' | 'duration'>
-      >,
-    ) => {
-      setSchedulesById((prev) => {
-        const current = prev[scheduleId]
-        if (!current) return prev
-        return {
-          ...prev,
-          [scheduleId]: {
-            ...current,
-            state: nextState,
-            ...extras,
-          },
-        }
-      })
-      if (scheduleId === activeScheduleId && nextState === 'COMPLETED') {
-        setActiveScheduleId(null)
-      }
-    },
-    [activeScheduleId],
-  )
-
   const value = useMemo(
     () => ({
       schedulesById,
@@ -167,7 +130,6 @@ export const ScheduleCacheProvider = ({
       removeSchedule,
       upsertSchedule,
       setActiveSchedule,
-      updateScheduleState,
     }),
     [
       activeScheduleId,
@@ -179,7 +141,6 @@ export const ScheduleCacheProvider = ({
       setSchedule,
       removeSchedule,
       upsertSchedule,
-      updateScheduleState,
     ],
   )
 

@@ -49,7 +49,10 @@ const createHarness = ({ recurring = false } = {}) => {
       toDisplayDayjs: () => ({ format: () => '10:00' }),
     },
     '../../hooks/useScheduleDetail': {
-      default: () => ({ schedule, isLoading: false, error: null }),
+      default: (_id, options) => {
+        assert.equal(options.refreshOnChange, false, 'editing must pin its first snapshot')
+        return { schedule, isLoading: false, error: null }
+      },
     },
     '@contexts/ToastContext': {
       useToast: () => ({ addToast: (...args) => toasts.push(args) }),

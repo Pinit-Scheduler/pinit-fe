@@ -61,6 +61,14 @@ export const httpClient = async <T>(
     next === accessToken ||
     (getTokenSubject(accessToken) !== null &&
       getTokenSubject(accessToken) === getTokenSubject(next))
+  const assertCurrentActor = () => {
+    const current = getAccessToken()
+    if (accessToken && (!current || !sameActor(current)))
+      throw new ApiError(
+        '계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.',
+        401, null, logUrl,
+      )
+  }
 
   const performFetch = async (token?: string) => {
     const nextToken = token ?? accessToken
@@ -142,14 +150,7 @@ export const httpClient = async <T>(
       }
     }
 
-    const currentToken = getAccessToken()
-    if (accessToken && (!currentToken || !sameActor(currentToken)))
-      throw new ApiError(
-        '계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.',
-        401,
-        null,
-        logUrl,
-      )
+    assertCurrentActor()
 
     // 응답 로깅
     debugLog(`📥 [${new Date().toISOString()}] API Response:`, {
@@ -170,6 +171,7 @@ export const httpClient = async <T>(
       } catch {
         /* 응답 본문을 읽지 못하면 기본 오류 메시지를 사용 */
       }
+      assertCurrentActor()
       if (
         response.status === 409 &&
         payload &&
@@ -197,6 +199,7 @@ export const httpClient = async <T>(
     }
 
     const rawBody = await response.text()
+    assertCurrentActor()
     if (!rawBody) {
       debugLog(`✅ Success (Empty Body):`, logUrl)
       return undefined as T

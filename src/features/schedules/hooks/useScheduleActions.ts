@@ -45,7 +45,6 @@ const useScheduleActions = (
   const [lastError, setLastError] = useState<string | null>(null)
   const retryRef = useRef<(() => Promise<void>) | null>(null)
   const {
-    updateScheduleState,
     setActiveSchedule,
     setSchedule,
     activeScheduleId,
@@ -93,7 +92,6 @@ const useScheduleActions = (
       const saved = await handler(scheduleId)
       setCurrentState(saved.state)
       setSchedule(saved)
-      updateScheduleState(scheduleId, saved.state)
       setLastMessage(message)
       try {
         const detail = await fetchScheduleDetail(scheduleId)
@@ -209,7 +207,7 @@ const useScheduleActions = (
   }
 
   return {
-    currentState,
+    currentState: cachedState ?? currentState,
     isMutating,
     lastMessage,
     lastError,

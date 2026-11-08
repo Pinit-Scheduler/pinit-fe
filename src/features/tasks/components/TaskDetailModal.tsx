@@ -173,9 +173,10 @@ const TaskDetailModal = ({
     payload: Parameters<typeof createScheduleFromTask>[1],
     expectedVersion?: number,
   ) => {
-    if (!task) return
     try {
-      await createScheduleFromTask(task.id, payload, expectedVersion)
+      if (expectedVersion === undefined)
+        throw new Error('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지됩니다.')
+      await createScheduleFromTask(taskId, payload, expectedVersion)
       dispatchScheduleChanged({
         reason: 'task-assigned',
         scheduleId: undefined,

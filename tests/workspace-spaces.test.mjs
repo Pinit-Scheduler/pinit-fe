@@ -409,6 +409,36 @@ test('successful data returned for a previous account cannot enter the new accou
   )
   assert.equal(token, 'member-2')
 })
+
+test('Account changes while a response body is pending cannot publish private data or a stale conflict notice', async () => {
+  for (const status of [200, 409]) {
+    let token = 'member-1', release, bodyStarted, conflicts = 0
+    const started = new Promise((resolve) => { bodyStarted = resolve })
+    const window = new EventTarget(), logs = []
+    window.addEventListener('workspace:edit-conflict', () => conflicts++)
+    const { httpClient, ApiError } = load('shared/api/httpClient.ts', {
+      './config': { API_BASE_URL: 'https://api.fixture/v2', AUTH_BASE_URL: 'https://api.fixture/v0', buildUrl: (base, path) => base + path },
+      './authTokens': { getAccessToken: () => token, getTokenSubject: (value) => value, isAccessTokenExpired: () => false },
+      './httpClientHelpers': { debugLog: (...args) => logs.push(args) },
+      './authSession': {},
+      './errorMessage': {},
+    }, {
+      window, Event,
+      fetch: async () => ({
+        status, ok: status === 200, headers: new Headers({ 'Content-Type': 'application/json' }),
+        text: () => { bodyStarted(); return new Promise((resolve) => { release = resolve }) },
+      }),
+    })
+    const pending = httpClient('/workspace/tasks/1')
+    await started
+    token = 'member-2'
+    release(JSON.stringify({ code: 'VERSION_CONFLICT', task: 'private-member-one-data' }))
+    await assert.rejects(pending, (failure) => failure instanceof ApiError && failure.status === 401)
+    assert.equal(token, 'member-2')
+    assert.equal(conflicts, 0)
+    assert.equal(JSON.stringify(logs).includes('private-member-one-data'), false)
+  }
+})
 function invitationHarness({
   previewError,
   acceptError,
@@ -787,6 +817,10 @@ test('A moved-out Task evicts its linked active Schedule without removing access
   tasks.setTask({ id: 1, spaceId: 22, version: 7 })
   tasks.setTask({ id: 2, spaceId: 22, version: 7 })
   schedules.setSchedule({ id: 8, taskId: 1, spaceId: 22, version: 7 })
+  schedules.setSchedule({ id: 8, taskId: 1, spaceId: 22, version: 9, state: 'COMPLETED' })
+  schedules.setSchedule({ id: 8, taskId: 1, spaceId: 22, version: 8, state: 'IN_PROGRESS' })
+  assert.equal(providers.get('ScheduleCacheProvider')().schedulesById[8].version, 9)
+  assert.equal(providers.get('ScheduleCacheProvider')().schedulesById[8].state, 'COMPLETED')
   schedules.setActiveSchedule(8)
   assert.equal(providers.get('ScheduleCacheProvider')().activeScheduleId, 8)
   registry.evictWorkspaceResource('task', 1, true)
@@ -821,6 +855,24 @@ test('An in-flight read or page cannot resurrect a removed resource; a new autho
   release({ content: [view()], last: true })
   assert.deepEqual(plain((await oldPage).content), [])
   assert.equal(h.registry.getMetadata('task', 1), undefined)
+})
+
+test('Account metadata reset rejects a previous account request even if its body was already authorized', async () => {
+  const h = taskHarness()
+  let release
+  h.respond(() => new Promise((resolve) => { release = resolve }))
+  const previousAccount = h.api.fetchTaskDetail(1)
+  h.registry.clearWorkspaceMetadata()
+  release(view())
+  await assert.rejects(previousAccount, /접근 권한/)
+  assert.equal(h.registry.getMetadata('task', 1), undefined)
+  h.respond(view({ spaceId: -8, assigneeId: 2 }))
+  assert.equal((await h.api.fetchTaskDetail(1)).spaceId, -8)
+  const previousRevision = h.registry.getResourceRevision()
+  h.registry.clearWorkspaceMetadata()
+  h.registry.rememberMetadata('task', 1, view({ spaceId: -12, assigneeId: 3 }))
+  h.registry.handleResourceReadError('task', 1, { status: 403 }, previousRevision)
+  assert.equal(h.registry.getMetadata('task', 1).assigneeId, 3)
 })
 
 test('Resource read 403/404/410 evicts once, while transient network/503 failures preserve cache', async () => {
@@ -863,6 +915,126 @@ test('Workspace realtime handles deleted, purged and moved-out Task/Schedule eve
       cleanup()
     }
   }
+})
+
+test('Schedule edit snapshot survives realtime events with its original version; normal detail still refreshes', async () => {
+  const settle = () => new Promise((resolve) => setImmediate(resolve))
+  for (const refreshOnChange of [false, true]) {
+    const state = [], effects = [], listeners = new Set()
+    const window = new EventTarget()
+    let cursor = 0, requests = 0, response = { id: 8, title: '처음', version: 7 }
+    const cacheSchedule = () => {}
+    const react = {
+      useState: (initial) => {
+        const index = cursor++
+        if (!(index in state)) state[index] = typeof initial === 'function' ? initial() : initial
+        return [state[index], (next) => {
+          state[index] = typeof next === 'function' ? next(state[index]) : next
+        }]
+      },
+      useEffect: (effect, deps) => {
+        const index = cursor++
+        const previous = effects[index]
+        if (!previous || deps.some((value, i) => value !== previous.deps[i])) {
+          previous?.cleanup?.()
+          effects[index] = { deps, cleanup: effect() }
+        }
+      },
+    }
+    const useDetail = load('features/schedules/hooks/useScheduleDetail.ts', {
+      react,
+      '@shared/utils/events': {
+        onScheduleChanged: (listener) => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+      },
+      '../api/schedules': { fetchScheduleDetail: async () => {
+        requests++
+        if (response instanceof Error) throw response
+        return response
+      } },
+      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: cacheSchedule }) },
+    }, { window }).default
+    const render = () => { cursor = 0; return useDetail('8', { refreshOnChange }) }
+    render()
+    await settle()
+    assert.equal(render().schedule.version, 7)
+    response = { ...response, title: '다른 사용자가 수정', version: 11 }
+    for (const listener of listeners) listener({ scheduleId: 8 })
+    const duringEvent = render()
+    if (!refreshOnChange) {
+      assert.equal(duringEvent.isLoading, false, 'editing must not unmount the form')
+      assert.equal(duringEvent.schedule.title, '처음')
+      assert.equal(duringEvent.schedule.version, 7)
+      assert.equal(requests, 1)
+      const verify = () => window.dispatchEvent(new CustomEvent('workspace:resources-evicted', {
+        detail: { scheduleIds: [8] },
+      }))
+      verify()
+      await settle()
+      assert.equal(render().schedule.version, 7, 'authorized move must preserve edit snapshot')
+      response = Object.assign(new Error('temporary outage'), { status: 503 })
+      verify()
+      await settle()
+      assert.equal(render().schedule.version, 7, 'outage must preserve draft')
+      response = Object.assign(new Error('not accessible'), { status: 404 })
+      verify()
+      await settle()
+      assert.equal(render().schedule, null, 'server-confirmed lost access must stop editing')
+      assert.match(render().error, /접근 권한/)
+    } else {
+      await settle()
+      assert.equal(render().schedule.version, 11)
+      assert.equal(requests, 2)
+    }
+    for (const effect of effects) effect?.cleanup?.()
+  }
+})
+
+test('Task schedule assignment still writes the captured identity/version when detail refresh is unavailable', async () => {
+  const calls = []
+  const ScheduleModal = () => null
+  const jsx = (type, props) => ({ type, props })
+  const Page = load('features/tasks/components/TaskDetailModal.tsx', {
+    react: { useEffect() {}, useState: (value) => [value, () => {}], useRef: (current) => ({ current }), useId: () => 'title' },
+    'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+    '@shared/components/common/WorkspaceIcon': {},
+    '@features/categories': {},
+    '@shared/components/common/Modal': {},
+    '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({}) },
+    '../api/tasks': { createScheduleFromTask: async (...args) => calls.push(args) },
+    '@shared/utils/priorityStyles': {},
+    './TaskScheduleModal': { default: ScheduleModal },
+    '@contexts/TaskCacheContext': { useTaskCache: () => ({ tasksById: {}, setTask() {}, removeTask() {} }) },
+    '@contexts/ToastContext': { useToast: () => ({ addToast() {} }) },
+    '@shared/utils/events': { dispatchScheduleChanged() {} },
+    '@shared/utils/deadlineStyles': {},
+    '@shared/utils/datetime': {},
+    '@shared/utils/isoDuration': {},
+    './TaskDetailModal.css': {},
+    '@features/recurrence/components/RecurrenceRuleFields.css': {},
+    '@features/recurrence/components/RecurrenceScopeDialog': { useRecurrenceScope: () => ({ dialog: null }) },
+    '@features/recurrence/utils/seriesMutations': {},
+    '@features/trash': { useTrashUndo: () => ({}) },
+    '@features/spaces/metadata': metadata(),
+  }).default
+  const find = (node) => {
+    if (!node || typeof node !== 'object') return null
+    if (node.type === ScheduleModal) return node
+    const children = node.props?.children
+    for (const child of Array.isArray(children) ? children : [children]) {
+      const result = find(child)
+      if (result) return result
+    }
+    return null
+  }
+  const modal = find(Page({ taskId: 42, onClose() {} }))
+  const payload = { title: '입력한 일정', date: '2026-11-09T10:00:00', scheduleType: 'DEEP_WORK' }
+  await modal.props.onSubmit(payload, 0)
+  assert.deepEqual(plain(calls), [[42, payload, 0]])
+  await assert.rejects(modal.props.onSubmit(payload), /입력한 내용은 유지/)
+  assert.equal(calls.length, 1, 'missing version must not silently succeed or read a replacement version')
 })
 
 test('Shared trash restore uses the deleted row version and keeps the real dependency restoration result', async () => {

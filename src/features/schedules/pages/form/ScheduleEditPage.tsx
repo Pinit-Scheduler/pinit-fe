@@ -40,7 +40,10 @@ const ScheduleEditPage = () => {
     reload: reloadCategories,
   } = useCategories()
   const { addToast } = useToast()
-  const { schedule, isLoading, error } = useScheduleDetail(scheduleId)
+  // Keep the edit session's original snapshot; background events must not remount the draft.
+  const { schedule, isLoading, error } = useScheduleDetail(scheduleId, {
+    refreshOnChange: false,
+  })
   const { offsetMinutes } = useTimePreferences()
   const recurrenceScope = useRecurrenceScope()
   const move = useMoveConfirmation()

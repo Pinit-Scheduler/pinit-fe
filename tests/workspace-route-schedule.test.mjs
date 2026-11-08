@@ -90,6 +90,7 @@ const harness = ({
   const states = [],
     active = [],
     updates = [],
+    published = [],
     events = [],
     requests = []
   let hookIndex = 0,
@@ -149,7 +150,7 @@ const harness = ({
     },
     updateScheduleState: (...args) => updates.push(args),
     setActiveSchedule: (id) => active.push(id),
-    setSchedule() {},
+    setSchedule: (schedule) => published.push(schedule),
   }
   const hooks = load('../src/features/schedules/hooks/useScheduleActions.ts', {
     '../api/schedules.ts': api,
@@ -190,6 +191,7 @@ const harness = ({
     actions: hooks.default(9, state),
     active,
     updates,
+    published,
     events,
     requests,
     states,
@@ -210,7 +212,9 @@ for (const action of ['complete', 'cancel'])
     h.succeed()
     await h.actions.retry()
     assert.deepEqual(h.active, [null])
-    assert.equal(h.updates.length, 1)
+    assert.deepEqual(h.updates, [], 'state-only writes must not bypass the versioned cache')
+    assert.equal(h.published[0].version, 2)
+    assert.equal(h.published[0].state, action === 'complete' ? 'COMPLETED' : 'NOT_STARTED')
     assert.equal(h.events.length, 1)
     assert.equal(h.states[2], null)
   })

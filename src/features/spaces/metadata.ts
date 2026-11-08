@@ -16,6 +16,7 @@ const seriesMetadata = new Map<number, WorkspaceMetadata>()
 const scheduleMetadata = new Map<number, WorkspaceMetadata>()
 export type ResourceKind = 'task' | 'schedule' | 'series'
 let revision = 0
+let accountRevision = 0
 const invalidated = new Map<string, number>()
 const unavailableResources = new Set<string>()
 let rejectedResponses = new WeakSet<object>()
@@ -40,6 +41,7 @@ export function rememberMetadata(
   const key = resourceKey(kind, id)
   if (
     unavailableSpaces.has(metadata.spaceId) ||
+    requestRevision < accountRevision ||
     requestRevision < (invalidated.get(key) ?? 0)
   ) return false
   const registry =
@@ -98,7 +100,8 @@ export function handleResourceReadError(
   error: unknown,
   requestRevision: number,
 ) {
-  if (requestRevision < (invalidated.get(resourceKey(kind, id)) ?? 0)) return
+  if (requestRevision < accountRevision ||
+    requestRevision < (invalidated.get(resourceKey(kind, id)) ?? 0)) return
   const status =
     typeof error === 'object' && error !== null && 'status' in error
       ? error.status : undefined
@@ -115,6 +118,7 @@ export function getMetadata(kind: 'task' | 'schedule' | 'series', id: number) {
   ).get(id)
 }
 export function clearWorkspaceMetadata() {
+  accountRevision = ++revision
   invalidated.clear()
   unavailableResources.clear()
   rejectedResponses = new WeakSet<object>()
