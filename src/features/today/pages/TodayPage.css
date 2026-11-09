@@ -80,6 +80,10 @@
   text-align: left;
   cursor: pointer;
 }
+.today-page__all,
+.today-workspace__schedules > .workspace-panel__head a {
+  transition: color var(--motion-fast) var(--motion-ease);
+}
 .today-page__all:hover {
   color: var(--c-blue-600);
 }
@@ -87,6 +91,9 @@
   font-size: 13px;
   text-decoration: none;
   color: var(--c-slate-500);
+}
+.today-workspace__schedules > .workspace-panel__head a:hover {
+  color: var(--c-blue-600);
 }
 .today-page__schedule-date {
   display: flex;
@@ -118,6 +125,14 @@
   font-size: 13px;
   padding-top: 14px;
   font-variant-numeric: tabular-nums;
+  transition: color var(--motion-base) var(--motion-ease);
+}
+/* The time follows the schedule's state: the accent while it runs, muted once it is done. */
+.today-page__schedule-row[data-state='in_progress'] > time {
+  color: var(--c-blue-600);
+}
+.today-page__schedule-row[data-state='completed'] > time {
+  color: var(--c-slate-400);
 }
 .today-page__empty {
   padding: 22px 8px;
@@ -127,6 +142,59 @@
 }
 .today-page .workspace-inline-error {
   margin-block: 12px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion. Tokens and keyframes come from src/shared/styles/motion.css */
+/* (see docs/motion/README.md). Rows enter and leave through           */
+/* useListPresence; nothing here plays on a refetch.                  */
+/* ------------------------------------------------------------------ */
+
+/* Rows sit in wrappers, so the card's own :last-child rule no longer sees its neighbours. */
+.today-workspace__task-body .today-page__task-row > .workspace-task {
+  border-bottom: 1px solid var(--c-slate-200);
+}
+.today-workspace__task-body
+  .today-page__task-list:last-child
+  > .today-page__task-row:last-child
+  > .workspace-task {
+  border-bottom: 0;
+}
+
+/* A loading line waits before it shows, so a quick first load shows nothing at all. */
+.today-page__loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease)
+    var(--motion-status-delay) both;
+}
+
+/* The first content for a day fades up where the loading line was. */
+.today-page__reveal {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
+/* An empty line appears after the last row has faded out, not on top of it. */
+.today-page__empty:not(.today-page__loading) {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+.today-page__count {
+  font-variant-numeric: tabular-nums;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* index.css cuts every duration; the fades come back, the travel stays at 0. */
+  .today-page__loading,
+  .today-page__reveal,
+  .today-page__empty,
+  .today-page__count {
+    animation-duration: var(--motion-base) !important;
+  }
+  .today-page__schedule-row > time,
+  .today-page__all,
+  .today-workspace__schedules > .workspace-panel__head a {
+    transition-duration: var(--motion-base) !important;
+  }
 }
 @media (max-width: 1150px) {
   .today-workspace {
