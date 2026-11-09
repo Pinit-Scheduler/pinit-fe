@@ -113,3 +113,10 @@ test('my schedules keep only my assignments and count the hidden ones', () => {
   assert.deepEqual(ids(solo), [1, 2, 3, 4])
   assert.equal(solo.hidden, 0)
 })
+test('overdue banner asks the server for the same audience as the week dots', () => {
+  const read = (path) => readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
+  const hook = read('features/schedules/hooks/useOverdueSchedulesSummary.ts')
+  assert.match(hook, /fetchWeeklySchedules\(.*\{ mine \}\)/)
+  const page = read('features/schedules/pages/tab/SchedulesTabPage.tsx')
+  assert.match(page, /useOverdueSchedulesSummary\(\{ mine \}\)/)
+})

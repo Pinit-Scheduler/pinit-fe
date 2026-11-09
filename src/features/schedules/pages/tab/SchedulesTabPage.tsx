@@ -127,7 +127,7 @@ const SchedulesTabPage = () => {
     summary: overdueSummary,
     isLoading: isOverdueLoading,
     refetch: refetchOverdue,
-  } = useOverdueSchedulesSummary()
+  } = useOverdueSchedulesSummary({ mine })
   const statsWeekStart = useMemo(
     () => currentWeekStart.add(1, 'day'),
     [currentWeekStart],
@@ -482,7 +482,7 @@ const SchedulesTabPage = () => {
         hiddenScheduleCount > 0 &&
         !isScheduleLoading &&
         !scheduleError && (
-          <div className="schedules-tab__hidden-note">
+          <div className="schedules-tab__hidden-note" role="status">
             <span>
               이 날 팀원 일정 {hiddenScheduleCount}개는 숨겨져 있어요.
             </span>
