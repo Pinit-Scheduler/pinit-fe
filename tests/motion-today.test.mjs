@@ -142,3 +142,130 @@ test('Today motion uses the shared tokens and never transition: all', () => {
   for (const [, value] of css.matchAll(/(?:animation|transition):([^;]+);/g))
     assert.match(value, /var\(--motion-/, 'timing comes from a token: ' + value.trim())
 })
+
+// ---------------------------------------------------------------------------
+// Focus leaves a row before it turns inert
+// ---------------------------------------------------------------------------
+
+function loadFocus(activeRef) {
+  class FakeElement {
+    constructor(name, attrs = {}, children = []) {
+      this.name = name
+      this.attrs = attrs
+      this.children = children
+      this.parent = null
+      this.focused = 0
+      children.forEach((child) => (child.parent = this))
+    }
+    getAttribute(name) {
+      return name in this.attrs ? this.attrs[name] : null
+    }
+    get nextElementSibling() {
+      const list = this.parent?.children ?? []
+      return list[list.indexOf(this) + 1] ?? null
+    }
+    get previousElementSibling() {
+      const list = this.parent?.children ?? []
+      return list[list.indexOf(this) - 1] ?? null
+    }
+    contains(other) {
+      for (let node = other; node; node = node.parent) if (node === this) return true
+      return false
+    }
+    closest(selector) {
+      for (let node = this; node; node = node.parent)
+        if (selector === '[data-presence="exit"]' && node.attrs['data-presence'] === 'exit')
+          return node
+      return null
+    }
+    querySelectorAll() {
+      const out = []
+      const walk = (node) =>
+        node.children.forEach((child) => {
+          if (child.name === 'input' || child.name === 'button') out.push(child)
+          walk(child)
+        })
+      walk(this)
+      return out
+    }
+    focus() {
+      this.focused++
+      activeRef.current = this
+    }
+  }
+  const output = ts.transpileModule(read('features/today/focus.ts'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText
+  const module = { exports: {} }
+  vm.runInNewContext(output, {
+    module,
+    exports: module.exports,
+    Array,
+    HTMLElement: FakeElement,
+    document: {
+      get activeElement() {
+        return activeRef.current
+      },
+    },
+  })
+  return { ...module.exports, El: FakeElement }
+}
+
+const row = (El, id, presence) => {
+  const check = new El('input', { id: 'check-' + id })
+  const title = new El('button', { id: 'title-' + id })
+  return {
+    row: new El('div', presence ? { 'data-presence': presence } : {}, [new El('article', {}, [check, title])]),
+    check,
+    title,
+  }
+}
+
+test('focus in a leaving row moves to the same control in the next row', () => {
+  const active = { current: null }
+  const { moveFocusOutOfLeavingRow, El } = loadFocus(active)
+  const a = row(El, 1, 'exit')
+  const b = row(El, 2)
+  const root = new El('div', {}, [new El('div', {}, [a.row, b.row])])
+  active.current = a.check
+  assert.equal(moveFocusOutOfLeavingRow(root, () => null), true)
+  assert.equal(active.current, b.check)
+})
+
+test('focus falls back to the row above, then to the heading', () => {
+  const active = { current: null }
+  const { moveFocusOutOfLeavingRow, El } = loadFocus(active)
+  const above = row(El, 1)
+  const last = row(El, 2, 'exit')
+  const root = new El('div', {}, [new El('div', {}, [above.row, last.row])])
+  active.current = last.title
+  moveFocusOutOfLeavingRow(root, () => null)
+  assert.equal(active.current, above.title)
+
+  const only = row(El, 3, 'exit')
+  const heading = new El('h2')
+  const lone = new El('div', {}, [heading, new El('div', {}, [only.row])])
+  active.current = only.check
+  assert.equal(moveFocusOutOfLeavingRow(lone, () => heading), true)
+  assert.equal(active.current, heading)
+})
+
+test('focus outside a leaving row is left alone', () => {
+  const active = { current: null }
+  const { moveFocusOutOfLeavingRow, El } = loadFocus(active)
+  const a = row(El, 1)
+  const root = new El('div', {}, [a.row])
+  active.current = a.check
+  assert.equal(moveFocusOutOfLeavingRow(root, () => null), false)
+  assert.equal(a.check.focused, 0)
+})
+
+test('Today hands the focus on and fades only mounts it is waiting for', () => {
+  assert.match(page, /useLayoutEffect\(\(\) => \{\s*moveFocusOutOfLeavingRow\(workspaceRef\.current/)
+  assert.equal((page.match(/<h2 tabIndex=\{-1\}>/g) ?? []).length, 2)
+  // Cached content shown again on a return to the tab does not replay a fade.
+  assert.doesNotMatch(css, /\.today-page__empty:not\(/)
+  assert.match(css, /\.today-page__empty--after-rows \{\s*animation:/)
+  assert.match(css, /\.today-page__count--reveal \{\s*animation:/)
+  assert.match(css, /\.today-page__reveal \{\s*animation: [^;]* backwards;/)
+})

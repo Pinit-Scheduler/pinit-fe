@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { Link } from 'react-router-dom'
 import { fetchSchedules } from '@features/schedules/api/schedules'
 import {
@@ -31,6 +38,7 @@ import { useTweenedNumber } from '@shared/motion/useTweenedNumber'
 import type { PresenceEntry } from '@shared/motion/presence'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useSettlingList } from '../settle'
+import { moveFocusOutOfLeavingRow } from '../focus'
 import './TodayPage.css'
 
 type TodayTasks = { ready: Task[]; due: Task[] }
@@ -59,6 +67,34 @@ const useRevealAfterLoading = (isInitialLoading: boolean) => {
   if (isInitialLoading && !seen) setSeen(true)
   return seen
 }
+
+/**
+ * Whether this list showed rows for the current day on this mount. An empty line fades in only
+ * when it replaces rows that just left, not when a cached empty list is shown again.
+ */
+const useHadRows = (count: number, resetKey: string) => {
+  const [state, setState] = useState({ resetKey, had: count > 0 })
+  if (state.resetKey !== resetKey) {
+    const next = { resetKey, had: count > 0 }
+    setState(next)
+    return next.had
+  }
+  if (count > 0 && !state.had) setState({ resetKey, had: true })
+  return state.had || count > 0
+}
+
+const emptyLine = (text: string, afterRows: boolean) => (
+  <p
+    className={
+      'today-page__empty' + (afterRows ? ' today-page__empty--after-rows' : '')
+    }
+  >
+    {text}
+  </p>
+)
+
+const headingOf = (leaving: HTMLElement) =>
+  leaving.closest('section')?.querySelector<HTMLElement>('h2') ?? null
 
 export default function TodayPage() {
   const today = useCurrentDay(),
@@ -129,6 +165,15 @@ export default function TodayPage() {
   })
   const revealTasks = useRevealAfterLoading(tasksQuery.isInitialLoading)
   const revealSchedules = useRevealAfterLoading(schedulesQuery.isInitialLoading)
+  const dueHadRows = useHadRows(dueRows.length, dayKey)
+  const readyHadRows = useHadRows(readyRows.length, dayKey)
+  const schedulesHadRows = useHadRows(scheduleRows.length, dayKey)
+
+  // A leaving row turns inert in this commit. Hand the focus on before the browser drops it.
+  const workspaceRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    moveFocusOutOfLeavingRow(workspaceRef.current, headingOf)
+  }, [readyRows, dueRows, scheduleRows])
 
   const assign = async (
     payload: Parameters<typeof createScheduleFromTask>[1],
@@ -219,13 +264,13 @@ export default function TodayPage() {
           </button>
         </div>
       </header>
-      <div className="today-workspace">
+      <div className="today-workspace" ref={workspaceRef}>
         <section
           className="workspace-panel today-workspace__tasks"
           aria-busy={tasksQuery.isFetching || undefined}
         >
           <div className="workspace-panel__head">
-            <h2>오늘의 작업</h2>
+            <h2 tabIndex={-1}>오늘의 작업</h2>
             <span className="today-page__legend">
               <i />
               중요도 <i />
@@ -250,16 +295,14 @@ export default function TodayPage() {
                 </h3>
                 {taskRows(
                   dueRows,
-                  <p className="today-page__empty">오늘 마감인 작업이 없어요.</p>,
+                  emptyLine('오늘 마감인 작업이 없어요.', dueHadRows),
                 )}
                 <h3 className="today-page__section-title">
                   바로 시작할 수 있는 작업
                 </h3>
                 {taskRows(
                   readyRows,
-                  <p className="today-page__empty">
-                    바로 시작할 수 있는 작업이 없어요.
-                  </p>,
+                  emptyLine('바로 시작할 수 있는 작업이 없어요.', readyHadRows),
                 )}
               </div>
             )}
@@ -278,7 +321,7 @@ export default function TodayPage() {
           aria-busy={schedulesQuery.isFetching || undefined}
         >
           <div className="workspace-panel__head">
-            <h2>오늘의 일정</h2>
+            <h2 tabIndex={-1}>오늘의 일정</h2>
             <Link to="/app/schedules" onClick={tabLinkClick('/app/schedules')}>
               달력 보기 →
             </Link>
@@ -287,7 +330,12 @@ export default function TodayPage() {
             <WorkspaceIcon name="calendar" />
             {today.format('M월 D일 (dd)')}
             {schedules && (
-              <span className="today-page__count">
+              <span
+                className={
+                  'today-page__count' +
+                  (revealSchedules ? ' today-page__count--reveal' : '')
+                }
+              >
                 <Count value={schedules.length} />개
               </span>
             )}
@@ -322,9 +370,10 @@ export default function TodayPage() {
                     </div>
                   ))
                 ) : (
-                  <p className="today-page__empty">
-                    오늘 일정이 없어요. 새로운 일정을 추가해 보세요.
-                  </p>
+                  emptyLine(
+                    '오늘 일정이 없어요. 새로운 일정을 추가해 보세요.',
+                    schedulesHadRows,
+                  )
                 )}
               </div>
             )}

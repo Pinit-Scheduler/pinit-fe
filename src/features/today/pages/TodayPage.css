@@ -167,27 +167,36 @@
     var(--motion-status-delay) both;
 }
 
-/* The first content for a day fades up where the loading line was. */
+/* The first content for a day fades up where the loading line was. Backwards fill only, so the
+   panel keeps no transform (and no stacking context) once it has arrived. */
 .today-page__reveal {
-  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) backwards;
 }
 
-/* An empty line appears after the last row has faded out, not on top of it. */
-.today-page__empty:not(.today-page__loading) {
-  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+/* An empty line that replaces the last row appears after that row has faded out. A cached empty
+   list shown again on a return to the tab does not fade. */
+.today-page__empty--after-rows {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) backwards;
 }
 
 .today-page__count {
   font-variant-numeric: tabular-nums;
-  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+.today-page__count--reveal {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) backwards;
+}
+
+/* The panel headings take the focus when the last row of a list leaves under it. */
+.today-workspace h2[tabindex='-1']:focus:not(:focus-visible) {
+  outline: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* index.css cuts every duration; the fades come back, the travel stays at 0. */
   .today-page__loading,
   .today-page__reveal,
-  .today-page__empty,
-  .today-page__count {
+  .today-page__empty--after-rows,
+  .today-page__count--reveal {
     animation-duration: var(--motion-base) !important;
   }
   .today-page__schedule-row > time,
