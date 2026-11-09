@@ -26,6 +26,10 @@ export const EMAIL_AUTH_MESSAGES = {
 const readField = (error: unknown, key: 'status' | 'message'): unknown =>
   error && typeof error === 'object' ? (error as Record<string, unknown>)[key] : undefined
 
+// 서버가 코드를 이미 쓴 뒤 실패한 400에 붙이는 안내(비밀번호 재설정에서 새 비밀번호가 현재와 같음).
+// 상태 코드만으로는 다른 400과 구별되지 않아 문구로 판단한다(auth PasswordResetService·EmailConflictException).
+const NEW_CODE_HINT = '새 인증 코드'
+
 const readStatus = (error: unknown): number | null => {
   const status = readField(error, 'status')
   return typeof status === 'number' ? status : null
@@ -53,7 +57,10 @@ export const describeEmailAuthError = (error: unknown, stage: EmailAuthStage): E
       return { message: EMAIL_AUTH_MESSAGES.network, requiresNewCode: false }
     case 400:
       // 코드 틀림·만료(서버가 한 문구로 응답), 입력 규칙 위반, 아이디 중복 등. 서버 문구가 이유를 말한다.
-      return failure(EMAIL_AUTH_MESSAGES.invalid)
+      return failure(
+        EMAIL_AUTH_MESSAGES.invalid,
+        stage === 'submit' && serverMessage !== null && serverMessage.includes(NEW_CODE_HINT),
+      )
     case 409:
       return failure(EMAIL_AUTH_MESSAGES.conflict, true)
     case 429:

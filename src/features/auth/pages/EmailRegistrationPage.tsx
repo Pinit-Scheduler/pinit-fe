@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { registerMyEmail, requestMyEmailCode } from '../api/email'
+import { fetchAccount } from '@features/settings/api/account'
+import { ApiError } from '@shared/api/httpClient'
 import { normalizeEmail, validateEmail, validateEmailCode } from '../utils/accountRules'
 import { describeEmailAuthError } from '../utils/emailAuthErrors'
 import { emailRequirement } from '../utils/emailRequirement'
@@ -60,6 +62,18 @@ const EmailRegistrationPage = () => {
     fieldRefs.current.code?.focus()
   }
 
+  // 400 "이미 이메일을 등록했어요"는 앞선 등록 응답을 놓쳤거나 다른 탭에서 등록한 경우다.
+  // 서버 값을 다시 읽어 등록이 끝났으면 화면을 떠나게 한다. 조회 실패는 무시한다.
+  const recheckRequirement = async () => {
+    const subject = currentTokenSubject()
+    try {
+      const account = await fetchAccount()
+      if (!account.emailRequired) emailRequirement.set(subject, false)
+    } catch {
+      /* 화면에 남은 오류 문구로 충분하다 */
+    }
+  }
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     const nextErrors: RegistrationErrors = {}
@@ -87,6 +101,7 @@ const EmailRegistrationPage = () => {
       }
       addToast(failure.message, 'error')
       setIsSubmitting(false)
+      if (error instanceof ApiError && error.status === 400) void recheckRequirement()
     }
   }
 

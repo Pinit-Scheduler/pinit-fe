@@ -102,6 +102,10 @@ test('error statuses map to the documented messages and only 409 asks for a new 
 
   assert.deepEqual({ ...describe(apiError(400, codeMessage), 'submit') }, { message: codeMessage, requiresNewCode: false })
   assert.equal(describe(apiError(400), 'submit').message, errors.EMAIL_AUTH_MESSAGES.invalid)
+  // 비밀번호 재설정에서 새 비밀번호가 현재와 같으면 서버는 코드를 쓴 뒤 400으로 새 코드를 받으라고 한다.
+  const samePassword = '새 비밀번호가 현재 비밀번호와 같습니다. 새 인증 코드를 받아 다른 비밀번호로 다시 시도해 주세요.'
+  assert.deepEqual({ ...describe(apiError(400, samePassword), 'submit') }, { message: samePassword, requiresNewCode: true })
+  assert.equal(describe(apiError(400, samePassword), 'send').requiresNewCode, false)
 
   assert.deepEqual({ ...describe(apiError(409), 'submit') }, {
     message: errors.EMAIL_AUTH_MESSAGES.conflict,
