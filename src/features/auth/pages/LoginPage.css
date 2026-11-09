@@ -219,7 +219,8 @@
   cursor: not-allowed;
 }
 
-/* Waiting on the server: a hairline draws once under the label and holds near the end. */
+/* Waiting on the server: a hairline draws once under the label and holds near the end.
+ * Like any loading sign it waits --motion-status-delay, so a quick answer shows no line. */
 .login__btn[aria-busy='true'] {
   cursor: progress;
 }
@@ -236,7 +237,7 @@
   opacity: 0.6;
   transform-origin: left center;
   transform: scaleX(0.92);
-  animation: login-pending 2400ms var(--motion-ease) both;
+  animation: login-pending 2400ms var(--motion-ease) var(--motion-status-delay) both;
 }
 
 @keyframes login-pending {
@@ -311,15 +312,10 @@
   background: color-mix(in srgb, var(--c-slate-50) 80%, transparent);
   font-weight: 600;
   color: var(--c-slate-900);
+  /* Fields are not dimmed while a submit is pending: a quick failure would flash them. */
   transition:
     border-color var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    opacity var(--motion-base) var(--motion-ease);
-}
-
-.login__field input:disabled,
-.signup__field input:disabled {
-  opacity: 0.7;
+    background-color var(--motion-fast) var(--motion-ease);
 }
 
 .login__field input[aria-invalid='true'],

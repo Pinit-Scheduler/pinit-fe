@@ -126,3 +126,12 @@ test('motion in the auth, landing and banner styles follows the contract', () =>
       assert.match(css, /@media \(prefers-reduced-motion: reduce\)/, `${path}: reduced motion handled`)
   }
 })
+
+test('a pending submit waits the status delay before its hairline and never dims the fields', () => {
+  const css = read('src/features/auth/pages/LoginPage.css')
+  assert.match(
+    css,
+    /\.login__btn\[aria-busy='true'\]::before \{[^}]*animation: login-pending 2400ms var\(--motion-ease\) var\(--motion-status-delay\) both;/,
+  )
+  assert.doesNotMatch(css, /input:disabled[^{]*\{[^}]*opacity/)
+})
