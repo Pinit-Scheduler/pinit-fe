@@ -1,4 +1,4 @@
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 
 type ModalProps = {
   /** 닫기 요청(Esc, 바깥 클릭). 없으면 Esc와 바깥 클릭으로 닫히지 않는다. */
@@ -46,6 +46,13 @@ const Modal = ({
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
+  // 렌더 시점의 초점(대화상자를 연 요소)을 기억한다. 안쪽 입력의 autoFocus는 effect보다 먼저
+  // 초점을 가져가므로, effect에서 읽으면 닫을 때 사라진 입력으로 돌아가려다 초점을 잃는다.
+  const [opener] = useState(() =>
+    typeof document !== 'undefined' && document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  )
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -59,11 +66,13 @@ const Modal = ({
       document.body.style.overflow = 'hidden'
     }
     stack.push(id)
-    const previous =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null
     const dialog = dialogRef.current
+    const previous =
+      opener && !dialog?.contains(opener)
+        ? opener
+        : document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null
     if (dialog && !dialog.contains(document.activeElement)) {
       const autofocus = dialog.querySelector<HTMLElement>('[autofocus]')
       ;(autofocus ?? focusableIn(dialog)[0] ?? dialog).focus({
@@ -117,7 +126,7 @@ const Modal = ({
       if (previous && previous.isConnected)
         previous.focus({ preventScroll: true })
     }
-  }, [embedded])
+  }, [embedded, opener])
 
   const handleBackdrop = (event: MouseEvent<HTMLDivElement>) => {
     if (closeOnBackdrop && event.target === event.currentTarget) onClose?.()

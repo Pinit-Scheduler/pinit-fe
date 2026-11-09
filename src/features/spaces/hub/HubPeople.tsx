@@ -27,14 +27,9 @@ export default function HubPeople({
   onRemove: (row: MemberRow) => void
 }) {
   const actions = space.allowedActions
+  // 참여자 관리가 꺼지면 그 메뉴 자체를 그리지 않으므로, 안내는 보이는 초대 버튼에만 단다.
   const notes = unavailableLines(
-    [
-      { off: actions.invite === false, reason: space.unavailableReasons?.invite },
-      {
-        off: actions.manageMembers === false,
-        reason: space.unavailableReasons?.manageMembers,
-      },
-    ],
+    [{ off: actions.invite === false, reason: space.unavailableReasons?.invite }],
     adminNames(space.members),
   )
   return (
@@ -51,7 +46,7 @@ export default function HubPeople({
           disabled={!actions.invite || busy}
           onClick={onInvite}
         >
-          초대 링크 만들기
+          {busy ? '처리 중…' : '초대 링크 만들기'}
         </button>
       </div>
       {notes.map((line) => (

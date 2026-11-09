@@ -1,6 +1,6 @@
 import { ApiError } from '@shared/api/httpClient'
 import { useEffect, useId, useRef, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useToast } from '@contexts/ToastContext'
@@ -349,6 +349,14 @@ export default function SpacesPage() {
         ?.focus(),
     )
   }
+  // 같은 경로로 다시 들어오면(스페이스 시트의 "모든 스페이스 보기" 등) 좁은 화면은 목록부터 보인다.
+  const location = useLocation()
+  const entry = useRef(location.key)
+  useEffect(() => {
+    if (entry.current === location.key) return
+    entry.current = location.key
+    setDetail(params.has('tab'))
+  }, [location.key, params])
   const scrolledTab = useRef<string | null>(null)
   useEffect(() => {
     if (!space || !tab || scrolledTab.current === tab) return

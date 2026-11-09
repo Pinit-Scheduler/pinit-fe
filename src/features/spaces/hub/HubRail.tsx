@@ -40,15 +40,13 @@ export default function HubRail({
                   <strong>{space.name}</strong>
                   {line.who && <small>{line.who}</small>}
                 </span>
-                <span
-                  className="hub-rail__count"
-                  aria-label={
-                    line.open === '–'
+                <span className="hub-rail__count">
+                  <span aria-hidden>{line.open}</span>
+                  <span className="hub-sr">
+                    {line.open === '–'
                       ? '미완료 작업 수 없음'
-                      : `미완료 작업 ${line.open}개`
-                  }
-                >
-                  {line.open}
+                      : `미완료 작업 ${line.open}개`}
+                  </span>
                 </span>
               </button>
             </li>
