@@ -1,7 +1,4 @@
-import {
-  useMoveConfirmation,
-  moveResultMessage,
-} from '@features/spaces/useMoveConfirmation'
+import { moveResultMessage } from '@features/spaces/moveResult'
 import EditConflictDialog from '@features/spaces/EditConflictDialog'
 import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
 import { changedInput, isEditConflict } from '@features/spaces/conflicts'
@@ -59,7 +56,6 @@ const ScheduleEditPage = () => {
   })
   const { offsetMinutes } = useTimePreferences()
   const recurrenceScope = useRecurrenceScope()
-  const move = useMoveConfirmation()
   const [conflict, setConflict] = useState<{ rows: InputRow[] } | null>(null)
   const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
   const reportConflict = (values: ScheduleFormValues) => {
@@ -119,11 +115,6 @@ const ScheduleEditPage = () => {
   }, [schedule, isLoading, addToast, handleClose, error])
 
   const handleSubmit = async (values: ScheduleFormValues) => {
-    if (
-      (values.locationChanged || values.categoryChanged) &&
-      !(await move.confirm(schedule?.spaceId, values.spaceId))
-    )
-      return false
     if (schedule?.recurrence) {
       const scope = await recurrenceScope.ask('edit', schedule.title, {
         preview: async (selected) => {
@@ -353,7 +344,6 @@ const ScheduleEditPage = () => {
         </>
       )}
       {recurrenceScope.dialog}
-      {move.dialog}
       {conflict && (
         <EditConflictDialog
           noun="일정"

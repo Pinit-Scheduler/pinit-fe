@@ -118,3 +118,36 @@ test('the http client no longer raises a global conflict dialog', () => {
   const source = readFileSync(new URL('../src/shared/api/httpClient.ts', import.meta.url), 'utf8')
   assert.equal(source.includes('workspace:edit-conflict'), false)
 })
+
+const impactTo = { id: 44, name: '주말 러닝 모임', personal: false, memberCount: 3 }
+const impactBase = { creating: false, kind: 'task', fromSpaceId: 31, to: impactTo, assignee: { id: 7, nickname: '준호' }, destinationMemberIds: [1, 2, 3], hasLinkedItem: false, dependencyCount: 0 }
+test('moving names the release, the audience and linked items', () => {
+  const { affiliationImpact } = load('features/spaces/affiliationImpact.ts')
+  assert.deepEqual(plain(affiliationImpact(impactBase).map((line) => line.kind)), ['release', 'share', 'linked'])
+  assert.equal(affiliationImpact(impactBase)[0].text, '담당자 준호님은 주말 러닝 모임 참여자가 아니라서 저장하면 담당이 해제돼요.')
+  assert.equal(affiliationImpact({ ...impactBase, dependencyCount: 2 }).at(-1).kind, 'links')
+})
+test('no release when the chosen assignee is a member', () => {
+  const { affiliationImpact } = load('features/spaces/affiliationImpact.ts')
+  assert.equal(affiliationImpact({ ...impactBase, assignee: { id: 2, nickname: '서연' } }).some((l) => l.kind === 'release'), false)
+  assert.equal(affiliationImpact({ ...impactBase, destinationMemberIds: null }).some((l) => l.kind === 'release'), false)
+})
+test('creating in a team space only says who sees it', () => {
+  const { affiliationImpact } = load('features/spaces/affiliationImpact.ts')
+  assert.deepEqual(plain(affiliationImpact({ ...impactBase, creating: true, fromSpaceId: undefined })), [
+    { kind: 'share', text: '주말 러닝 모임 참여자 3명이 이 작업을 함께 봐요.' },
+  ])
+})
+test('the summary line reads space › project, assignee', () => {
+  const { affiliationSummary } = load('features/spaces/affiliationImpact.ts')
+  assert.equal(affiliationSummary({ name: '핀잇 개선' }, { name: '작업 카드 개선' }, { nickname: '준호' }), '핀잇 개선 › 작업 카드 개선, 담당 준호')
+  assert.equal(affiliationSummary({ name: '나의 스페이스' }, null, null), '나의 스페이스, 담당자 미정')
+  assert.equal(affiliationSummary({ name: '나의 스페이스' }, null, undefined), '나의 스페이스, 담당자 확인 중')
+})
+test('the record disclosure is asked only when moving into a shared space', () => {
+  const { needsRecordDisclosure } = load('features/spaces/affiliationImpact.ts')
+  assert.equal(needsRecordDisclosure({ creating: false, fromSpaceId: 31, to: impactTo }), true)
+  assert.equal(needsRecordDisclosure({ creating: false, fromSpaceId: 44, to: impactTo }), false)
+  assert.equal(needsRecordDisclosure({ creating: true, fromSpaceId: undefined, to: impactTo }), false)
+  assert.equal(needsRecordDisclosure({ creating: false, fromSpaceId: 31, to: { ...impactTo, personal: true } }), false)
+})

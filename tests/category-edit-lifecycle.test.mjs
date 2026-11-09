@@ -39,20 +39,8 @@ const load = (path, dependencies) => {
         })
         return registry.exports
       }
-      if (name === '@features/spaces/useMoveConfirmation')
-        return {
-          useMoveConfirmation: () => ({
-            dialog: null,
-            confirm: async (from, to) => {
-              assert.ok(
-                from === undefined || to === undefined || from === to,
-                'Cross-space confirmation requires its own dialog test',
-              )
-              return true
-            },
-          }),
-          moveResultMessage: () => null,
-        }
+      if (name === '@features/spaces/moveResult')
+        return { moveResultMessage: () => null }
       if (name === '@features/spaces/EditConflictDialog')
         return { default: () => null }
       if (name === '@features/spaces/MyInputDisclosure')
@@ -153,6 +141,10 @@ for (const kind of ['task', 'schedule']) {
       },
       '@features/categories': { CategoryPicker },
       '@features/spaces/AffiliationFields': { default: CategoryPicker },
+      '@features/spaces/affiliationImpact': {
+        needsRecordDisclosure: () => false,
+      },
+      '@features/spaces/store': { useSpaces: () => ({ spaces: [] }) },
       '@shared/utils/datetime': {
         getTodayWithOffset: () => day,
         toDateKey: () => '2026-11-03',

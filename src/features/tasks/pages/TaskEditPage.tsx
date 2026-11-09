@@ -1,7 +1,4 @@
-import {
-  useMoveConfirmation,
-  moveResultMessage,
-} from '@features/spaces/useMoveConfirmation'
+import { moveResultMessage } from '@features/spaces/moveResult'
 import EditConflictDialog from '@features/spaces/EditConflictDialog'
 import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
 import { changedInput, isEditConflict } from '@features/spaces/conflicts'
@@ -63,7 +60,6 @@ const TaskEditPage = () => {
   const { setTask: cacheSetTask } = useTaskCache()
   const { addToast } = useToast()
   const recurrenceScope = useRecurrenceScope()
-  const move = useMoveConfirmation()
   const [conflict, setConflict] = useState<{ rows: InputRow[] } | null>(null)
   const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
   const [formKey, setFormKey] = useState(0)
@@ -212,11 +208,6 @@ const TaskEditPage = () => {
 
   const handleSubmit = async (values: TaskFormValues) => {
     if (!numericId) return
-    if (
-      (values.locationChanged || values.categoryChanged) &&
-      !(await move.confirm(task?.spaceId, values.spaceId))
-    )
-      return
     if (task?.recurrence) {
       const scope = await recurrenceScope.ask('edit', task.title, {
         preview: async (scope) => {
@@ -414,7 +405,6 @@ const TaskEditPage = () => {
         )}
       </div>
       {recurrenceScope.dialog}
-      {move.dialog}
       {conflict && (
         <EditConflictDialog
           noun="작업"
