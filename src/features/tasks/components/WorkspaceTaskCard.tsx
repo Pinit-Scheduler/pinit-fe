@@ -36,7 +36,7 @@ export default function WorkspaceTaskCard({
     setError(null)
     setRefreshOnly(false)
     try {
-      const result = await saveTaskCompletion(item, !done, {
+      const result = await saveTaskCompletion(item, {
         mutate: done ? reopenTask : completeTask,
         refresh: fetchTaskDetail,
         onSaved: (saved) => {
@@ -76,7 +76,10 @@ export default function WorkspaceTaskCard({
         className="workspace-task__check"
         type="checkbox"
         checked={done}
-        disabled={pending}
+        disabled={
+          pending ||
+          !(done ? item.allowedActions?.reopen : item.allowedActions?.complete)
+        }
         onChange={() => void toggle()}
         aria-label={item.title + (done ? ' 완료 취소' : ' 완료')}
       />
@@ -86,6 +89,7 @@ export default function WorkspaceTaskCard({
         </button>
         <div className="workspace-task__meta">
           <CategoryBadge kind="task" itemId={item.id} />
+          <span>{item.assigneeNickname ?? '담당자 미정'}</span>
           {item.recurrence && <span>반복</span>}
           {!done && (item.inboundDependencyCount ?? 0) > 0 && (
             <span>이전 작업 {item.inboundDependencyCount}개 남음</span>
@@ -106,7 +110,7 @@ export default function WorkspaceTaskCard({
               '시간 미입력'}
           </summary>
           <p>{item.description || '등록된 설명이 없어요.'}</p>
-          {onAssign && !done && (
+          {onAssign && !done && item.allowedActions?.schedule && (
             <button className="workspace-button" onClick={onAssign}>
               일정 배정
             </button>

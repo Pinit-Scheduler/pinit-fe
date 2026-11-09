@@ -1,3 +1,4 @@
+import { useProjectFilter } from '@features/spaces/store'
 import {
   useEffect,
   useId,
@@ -460,7 +461,7 @@ export default function TaskMapPage() {
   const [mode, setMode] = useState<'sequence' | 'matrix'>('sequence')
   const [sort, setSort] = useState<GraphSort>('priority')
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<number | 'none' | 'all'>('all')
+  const [category, setCategory] = useProjectFilter()
   const [state, setState] = useState('all')
   const [urgentDays, setUrgentDays] = useState(2)
   const { data, isLoading, error, count, reload } =
@@ -583,7 +584,7 @@ export default function TaskMapPage() {
       </div>
       {categories.error && (
         <p className="tm-warning" role="status">
-          카테고리를 불러오지 못했습니다.{' '}
+          프로젝트를 불러오지 못했습니다.{' '}
           <button
             type="button"
             onClick={() => {

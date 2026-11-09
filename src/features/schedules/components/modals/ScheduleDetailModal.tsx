@@ -91,7 +91,7 @@ const ScheduleDetailModal = ({
       )
     ) {
       try {
-        await deleteSchedule(schedule.id)
+        await deleteSchedule(schedule.id, schedule.version)
         console.log(`✅ Schedule deleted: ${schedule.id}`)
         if (activeScheduleId === schedule.id) {
           setActiveSchedule(null)
@@ -225,12 +225,14 @@ const ScheduleDetailModal = ({
                 open(`/app/schedules/${schedule.id}/edit`)
               }
             }}
+            disabled={!schedule?.allowedActions?.edit}
             className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--edit"
           >
             <WorkspaceIcon name="edit" /> 수정
           </button>
           <button
             type="button"
+            disabled={!schedule?.allowedActions?.delete}
             onClick={handleDelete}
             className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
           >

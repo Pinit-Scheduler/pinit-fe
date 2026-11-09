@@ -90,6 +90,7 @@ const harness = ({
   const states = [],
     active = [],
     updates = [],
+    published = [],
     events = [],
     requests = []
   let hookIndex = 0,
@@ -100,6 +101,17 @@ const harness = ({
     requests.push([name, id])
     if (deferred) await deferred
     if (failing) throw new Error('connection lost')
+    return {
+      id,
+      state: {
+        start: 'IN_PROGRESS',
+        pause: 'SUSPENDED',
+        complete: 'COMPLETED',
+        cancel: 'NOT_STARTED',
+      }[name],
+      version: 2,
+      allowedActions: {},
+    }
   }
   const api = {
     startSchedule: mutation('start'),
@@ -114,7 +126,19 @@ const harness = ({
   }
   const cache = {
     activeScheduleId: 9,
-    schedulesById: {},
+    schedulesById: {
+      9: {
+        id: 9,
+        state,
+        version: 1,
+        allowedActions: {
+          start: ['NOT_STARTED', 'SUSPENDED'].includes(state),
+          suspend: state === 'IN_PROGRESS',
+          complete: ['NOT_STARTED', 'IN_PROGRESS'].includes(state),
+          cancel: ['IN_PROGRESS', 'SUSPENDED', 'COMPLETED'].includes(state),
+        },
+      },
+    },
     pendingScheduleId: null,
     beginMutation: (id) => {
       if (pending !== null) return false
@@ -126,10 +150,11 @@ const harness = ({
     },
     updateScheduleState: (...args) => updates.push(args),
     setActiveSchedule: (id) => active.push(id),
-    setSchedule() {},
+    setSchedule: (schedule) => published.push(schedule),
   }
   const hooks = load('../src/features/schedules/hooks/useScheduleActions.ts', {
     '../api/schedules.ts': api,
+    '@features/spaces/metadata': { getMetadata: () => undefined },
     '@features/auth/api/member': {
       fetchActiveScheduleId: async () => {
         if (verificationFails) throw new Error('verification failed')
@@ -166,6 +191,7 @@ const harness = ({
     actions: hooks.default(9, state),
     active,
     updates,
+    published,
     events,
     requests,
     states,
@@ -186,7 +212,9 @@ for (const action of ['complete', 'cancel'])
     h.succeed()
     await h.actions.retry()
     assert.deepEqual(h.active, [null])
-    assert.equal(h.updates.length, 1)
+    assert.deepEqual(h.updates, [], 'state-only writes must not bypass the versioned cache')
+    assert.equal(h.published[0].version, 2)
+    assert.equal(h.published[0].state, action === 'complete' ? 'COMPLETED' : 'NOT_STARTED')
     assert.equal(h.events.length, 1)
     assert.equal(h.states[2], null)
   })
@@ -247,21 +275,21 @@ const recurrenceHarness = () => {
 }
 test('following preview uses original occurrence date; confirmed commit skips a second prompt', async () => {
   const h = recurrenceHarness(),
-    ref = { seriesId: 4, occurrenceDate: '2026-11-03' }
+    ref = { seriesId: 4, occurrenceDate: '2026-11-03', version: 9 }
   assert.equal(
     await h.series.previewSeriesDelete(ref, 'FOLLOWING'),
     '3 deleted, 2 protected',
   )
   await h.series.confirmAndDeleteSeries(ref, 'FOLLOWING', true)
   assert.deepEqual(plain(h.calls), [
-    ['delete', 4, 'FOLLOWING', '2026-11-03', true],
-    ['delete', 4, 'FOLLOWING', '2026-11-03', false],
+    ['delete', 4, 'FOLLOWING', '2026-11-03', true, 9],
+    ['delete', 4, 'FOLLOWING', '2026-11-03', false, 9],
   ])
   assert.equal(h.prompts.length, 0)
 })
 test('edit preview and confirmed update preserve scope and only changed fields', async () => {
   const h = recurrenceHarness(),
-    ref = { seriesId: 4, occurrenceDate: '2026-11-03' },
+    ref = { seriesId: 4, occurrenceDate: '2026-11-03', version: 9 },
     changes = { title: 'changed' }
   assert.equal(
     await h.series.previewSeriesUpdate(ref, 'ALL', changes),
@@ -269,8 +297,8 @@ test('edit preview and confirmed update preserve scope and only changed fields',
   )
   await h.series.confirmAndUpdateSeries(ref, 'ALL', changes, true)
   assert.deepEqual(plain(h.calls), [
-    ['update', 4, { scope: 'ALL', changes }, true],
-    ['update', 4, { scope: 'ALL', changes }, false],
+    ['update', 4, { expectedVersion: 9, scope: 'ALL', changes }, true],
+    ['update', 4, { expectedVersion: 9, scope: 'ALL', changes }, false],
   ])
   assert.equal(h.prompts.length, 0)
 })
@@ -284,7 +312,7 @@ test('an unconfirmed destructive action never commits when confirmation is decli
     false,
   )
   assert.equal(h.calls.length, 1)
-  assert.equal(h.calls[0].at(-1), true)
+  assert.equal(h.calls[0][4], true)
 })
 
 test('retry after a successful start with a failed active-ID lookup verifies without posting start twice', async () => {

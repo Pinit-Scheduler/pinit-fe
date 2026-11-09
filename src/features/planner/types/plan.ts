@@ -1,12 +1,18 @@
 import type { DateTimeWithZone } from '@shared/types/datetime'
-import type { ScheduleResponse, ScheduleTaskType } from '@features/schedules/types/schedule'
+import type {
+  ScheduleResponse,
+  ScheduleTaskType,
+} from '@features/schedules/types/schedule'
 import type { RoutineKind } from '@features/routines/types/routine'
 import type { FactorSource } from '@features/calibration/types/calibration'
 
 // ADR-0015 하루 계획 API(GET /v2/plans, POST /v2/plans/apply) wire 형식.
 // 길이는 ISO-8601 기간 문자열("PT1H30M")이다.
 
-export type UnplacedReason = 'NO_FITTING_SLOT' | 'DAILY_OBJECTIVE_EXCEEDED' | 'PREDECESSOR_NOT_PLACED'
+export type UnplacedReason =
+  | 'NO_FITTING_SLOT'
+  | 'DAILY_OBJECTIVE_EXCEEDED'
+  | 'PREDECESSOR_NOT_PLACED'
 
 export type BlockRejectionReason =
   | 'TASK_NOT_FOUND'
@@ -20,6 +26,7 @@ export type BlockRejectionReason =
   | 'PREDECESSOR_NOT_SCHEDULED'
 
 export type PlannedBlock = {
+  expectedVersion?: number
   taskId: number
   title: string
   start: DateTimeWithZone
@@ -87,6 +94,7 @@ export type PlanRoutineOccurrence = {
 }
 
 export type PlanApplyBlock = {
+  expectedVersion?: number
   taskId: number
   /** 오프셋 없는 로컬 시각(YYYY-MM-DDTHH:mm:ss), zoneId로 해석 */
   startTime: string

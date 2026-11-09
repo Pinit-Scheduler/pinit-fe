@@ -3,6 +3,7 @@ const RETURN_TO_KEY = 'pinit.authReturnTo'
 
 // OAuth 동의 요청(10분)보다 조금 길게만 보관해, 버려진 값이 나중 로그인에 끼어들지 않게 한다.
 export const RETURN_TO_TTL_MS = 15 * 60 * 1000
+export const INVITATION_RETURN_TO_TTL_MS = 60 * 60 * 1000
 
 type ReturnToStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
@@ -37,7 +38,10 @@ export const rememberReturnTo = (
 ) => {
   if (!storage || !isSafeReturnPath(path) || isAuthPath(path)) return
   try {
-    storage.setItem(RETURN_TO_KEY, JSON.stringify({ path, savedAt: now } satisfies StoredReturnTo))
+    storage.setItem(
+      RETURN_TO_KEY,
+      JSON.stringify({ path, savedAt: now } satisfies StoredReturnTo),
+    )
   } catch {
     /* 저장 공간을 쓸 수 없으면 기본 경로로 이동한다 */
   }
@@ -54,8 +58,12 @@ export const consumeReturnTo = (
     storage.removeItem(RETURN_TO_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<StoredReturnTo>
-    if (!isSafeReturnPath(parsed.path) || typeof parsed.savedAt !== 'number') return null
-    if (now - parsed.savedAt > RETURN_TO_TTL_MS || parsed.savedAt > now) return null
+    if (!isSafeReturnPath(parsed.path) || typeof parsed.savedAt !== 'number')
+      return null
+    const ttl = parsed.path.startsWith('/spaces/join/')
+      ? INVITATION_RETURN_TO_TTL_MS
+      : RETURN_TO_TTL_MS
+    if (now - parsed.savedAt > ttl || parsed.savedAt > now) return null
     return parsed.path
   } catch {
     return null
@@ -66,7 +74,10 @@ export const consumeReturnTo = (
  * 로그인 직후 이동할 곳. OAuth 동의 화면은 framing 차단 헤더가 붙은 문서로 다시 받아야 하므로
  * SPA 이동 대신 전체 페이지 이동을 쓴다.
  */
-export const resolvePostLoginTarget = (returnTo: string | null, fallback = '/app') => {
+export const resolvePostLoginTarget = (
+  returnTo: string | null,
+  fallback = '/app',
+) => {
   const path = returnTo ?? fallback
   return { path, fullPageLoad: path.startsWith('/oauth/') }
 }

@@ -14,9 +14,11 @@ import {
 } from '@shared/api/authTokens'
 import { useMemberZoneSync } from '@features/settings/hooks/useMemberZoneSync'
 import './AppShell.css'
+import { SpaceContextBar } from '@features/spaces/SpaceChrome'
 
 const TAB_TITLES: Record<string, string> = {
-  '/app/today': '오늘 할당된 일',
+  '/app/today': '오늘의 내 작업',
+  '/app/spaces': '공간·프로젝트 관리',
   '/app/plan': '하루 계획',
   '/app/deadline-risk': '마감 위험 예보',
   '/app/schedules': '일정',
@@ -171,6 +173,7 @@ const AppShell = () => {
           <OfflineBanner />
           <UpdateBanner />
           {pathname === '/app/today' && <InstallBanner />}
+          <SpaceContextBar />
           <Outlet />
         </main>
         <MiniPlayerBar />

@@ -1,3 +1,10 @@
+import {
+  onTaskChanged,
+  onScheduleChanged,
+  dispatchTaskChanged,
+  dispatchScheduleChanged,
+} from '@shared/utils/events'
+import { isEditConflict } from '@features/spaces/conflicts'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -37,6 +44,7 @@ const RecurrencesPage = () => {
   const confirmation = useRecurrenceScope()
   const [renaming, setRenaming] = useState<{
     id: number
+    version?: number
     title: string
   } | null>(null)
   const [status, setStatus] = useState<RecurrenceStatus>('ACTIVE')
@@ -44,6 +52,7 @@ const RecurrencesPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<{
     id: number
+    version?: number
     draft: RuleDraft
     errors: Record<string, string>
   } | null>(null)
@@ -66,6 +75,15 @@ const RecurrencesPage = () => {
   }, [load])
 
   useEffect(() => {
+    const offTask = onTaskChanged(() => void load())
+    const offSchedule = onScheduleChanged(() => void load())
+    return () => {
+      offTask()
+      offSchedule()
+    }
+  }, [load])
+
+  useEffect(() => {
     writeFlag(NUDGE_KEYS.recurrencesNewBadgeSeen)
   }, [])
 
@@ -81,9 +99,12 @@ const RecurrencesPage = () => {
         addToast(done, 'success')
         setEditing(null)
         setRenaming(null)
+        dispatchTaskChanged({ reason: 'recurrence' })
+        dispatchScheduleChanged({ reason: 'recurrence' })
         await load()
       }
     } catch (runError) {
+      if (isEditConflict(runError)) return
       if (runError instanceof ApiError && runError.status === 400 && editing) {
         setEditing({
           ...editing,
@@ -109,7 +130,11 @@ const RecurrencesPage = () => {
     void run(
       series,
       async (id) => {
-        const payload = { scope: 'ALL' as const, changes: { title } }
+        const payload = {
+          expectedVersion: renaming?.version ?? series.version,
+          scope: 'ALL' as const,
+          changes: { title },
+        }
         const chosen = await confirmation.ask('edit', series.title, {
           scopes: ['ALL'],
           preview: async () =>
@@ -136,6 +161,7 @@ const RecurrencesPage = () => {
       series,
       async (id) => {
         const payload = {
+          expectedVersion: editing.version,
           scope: 'ALL' as const,
           changes: { rule: toRule(editing.draft) },
         }
@@ -162,11 +188,19 @@ const RecurrencesPage = () => {
           scopes: ['ALL'],
           preview: async () =>
             deleteImpactMessage(
-              (await deleteRecurrence(id, 'ALL', undefined, true)).impact,
+              (
+                await deleteRecurrence(
+                  id,
+                  'ALL',
+                  undefined,
+                  true,
+                  series.version,
+                )
+              ).impact,
             ),
         })
         if (chosen === null) return false
-        await deleteRecurrence(id, 'ALL', undefined, false)
+        await deleteRecurrence(id, 'ALL', undefined, false, series.version)
         return true
       },
       '반복을 끝냈어요.',
@@ -270,9 +304,12 @@ const RecurrencesPage = () => {
                     setRenaming({
                       id: series.id as number,
                       title: series.title,
+                      version: series.version,
                     })
                   }
-                  disabled={busyId === series.id}
+                  disabled={
+                    busyId === series.id || !series.allowedActions?.edit
+                  }
                 >
                   제목 바꾸기
                 </button>
@@ -285,11 +322,14 @@ const RecurrencesPage = () => {
                         : {
                             id: series.id as number,
                             draft: toRuleDraft(series.rule),
+                            version: series.version,
                             errors: {},
                           },
                     )
                   }
-                  disabled={busyId === series.id}
+                  disabled={
+                    busyId === series.id || !series.allowedActions?.edit
+                  }
                 >
                   규칙 바꾸기
                 </button>
@@ -297,7 +337,9 @@ const RecurrencesPage = () => {
                   type="button"
                   className="is-danger"
                   onClick={() => end(series)}
-                  disabled={busyId === series.id}
+                  disabled={
+                    busyId === series.id || !series.allowedActions?.delete
+                  }
                 >
                   끝내기
                 </button>

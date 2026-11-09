@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useMoveConfirmation,
+  moveResultMessage,
+} from '@features/spaces/useMoveConfirmation'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import {
-  useCategories,
-  assignTaskCategory,
-  assignSeriesCategory,
-} from '@features/categories'
+import { useCategories } from '@features/categories'
 import TaskForm from '../components/TaskForm'
 import type { TaskFormValues } from '../components/TaskForm'
 import { fetchTaskDetail, updateTask } from '../api/tasks'
@@ -50,13 +50,23 @@ const TaskEditPage = () => {
   const { setTask: cacheSetTask } = useTaskCache()
   const { addToast } = useToast()
   const recurrenceScope = useRecurrenceScope()
-  const savedCategory = useRef<{ itemId: number; value: number | null } | null>(
-    null,
-  )
-  const categoryChanged = (values: TaskFormValues) =>
-    values.categoryChanged === true ||
-    (savedCategory.current?.itemId === numericId &&
-      savedCategory.current.value !== values.categoryId)
+  const move = useMoveConfirmation()
+  const affiliation = (values: TaskFormValues) => {
+    const location = values.locationChanged || values.categoryChanged
+    if (!location && !values.assigneeChanged) return undefined
+    return {
+      ...(location
+        ? { spaceId: values.spaceId, projectId: values.categoryId ?? null }
+        : {}),
+      ...(values.assigneeChanged && values.assigneeId !== undefined
+        ? { assigneeId: values.assigneeId }
+        : {}),
+    }
+  }
+  const seriesRef = (values: TaskFormValues) => ({
+    ...task!.recurrence!,
+    version: values.recurrenceVersion ?? task!.recurrence!.version,
+  })
 
   useEffect(() => {
     if (!numericId) return
@@ -121,24 +131,13 @@ const TaskEditPage = () => {
       expectedDurationMinutes:
         expectedDuration.kind === 'value' ? expectedDuration.minutes : 0,
     }
-    let categorySaved = false
     try {
-      if (categoryChanged(values)) {
-        await assignSeriesCategory(
-          task.recurrence.seriesId,
-          values.categoryId,
-          scope,
-          task.recurrence.occurrenceDate,
-        )
-        savedCategory.current = { itemId: task.id, value: values.categoryId }
-        categorySaved = true
-        dispatchTaskChanged({ reason: 'category' })
-      }
       const outcome = await confirmAndUpdateSeries(
-        task.recurrence,
+        seriesRef(values),
         scope,
         flexibleChanges(before, after),
         true,
+        affiliation(values),
       )
       if (outcome === 'cancelled') return
       if (outcome === 'updated') {
@@ -149,8 +148,8 @@ const TaskEditPage = () => {
     } catch (err) {
       console.error('반복 작업 수정 실패', err)
       addToast(
-        categorySaved
-          ? '카테고리는 저장됐지만 반복 작업 내용은 저장하지 못했어요. 입력한 내용은 유지됩니다. 다시 저장해 주세요.'
+        err instanceof Error
+          ? err.message
           : '반복 작업을 바꾸지 못했어요. 입력한 내용은 유지됩니다.',
         'error',
       )
@@ -159,6 +158,11 @@ const TaskEditPage = () => {
 
   const handleSubmit = async (values: TaskFormValues) => {
     if (!numericId) return
+    if (
+      (values.locationChanged || values.categoryChanged) &&
+      !(await move.confirm(task?.spaceId, values.spaceId))
+    )
+      return
     if (task?.recurrence) {
       const scope = await recurrenceScope.ask('edit', task.title, {
         preview: async (scope) => {
@@ -183,14 +187,11 @@ const TaskEditPage = () => {
               duration.kind === 'value' ? duration.minutes : 0,
           }
           const changes = flexibleChanges(before, after)
-          const changesCategory = categoryChanged(values)
-          if (changesCategory && !Object.keys(changes).length)
-            return '카테고리를 선택한 회차 범위와 이후 새 회차에 적용합니다.'
-          return (
-            (await previewSeriesUpdate(task.recurrence!, scope, changes)) +
-            (changesCategory
-              ? ' 카테고리도 선택한 범위와 이후 새 회차에 적용됩니다.'
-              : '')
+          return await previewSeriesUpdate(
+            seriesRef(values),
+            scope,
+            changes,
+            affiliation(values),
           )
         },
       })
@@ -200,7 +201,6 @@ const TaskEditPage = () => {
         return
       }
     }
-    let contentSaved = false
     try {
       const expectedDuration = parseDurationInput(
         values.expectedDurationMinutes,
@@ -214,6 +214,8 @@ const TaskEditPage = () => {
             ? { expectedDuration: minutesToIsoDuration(0) }
             : {}
       const payload = {
+        expectedVersion: values.expectedVersion ?? task?.version,
+        ...affiliation(values),
         title: values.title,
         description: values.description,
         dueDate: toApiDateWithOffset(values.dueDate),
@@ -243,20 +245,15 @@ const TaskEditPage = () => {
       setInitialPrevIds(values.previousTaskIds)
       setInitialNextIds(values.nextTaskIds)
       cacheSetTask(updated)
-      contentSaved = true
+      const moveMessage = moveResultMessage(updated.moveResult)
       dispatchTaskChanged(numericId, 'update')
-      if (categoryChanged(values)) {
-        await assignTaskCategory(numericId, values.categoryId)
-        savedCategory.current = { itemId: numericId, value: values.categoryId }
-        dispatchTaskChanged(numericId, 'category')
-      }
-      addToast('작업을 수정했어요.', 'success')
+      addToast(moveMessage ?? '작업을 수정했어요.', 'success')
       complete('/app/tasks')
     } catch (err) {
       console.error('작업 수정 실패', err)
       addToast(
-        contentSaved
-          ? '작업 내용은 저장됐지만 카테고리는 저장하지 못했어요. 입력한 내용은 유지됩니다. 다시 저장해 주세요.'
+        err instanceof Error
+          ? err.message
           : '작업을 수정하지 못했습니다. 입력한 내용은 유지됩니다.',
         'error',
       )
@@ -279,7 +276,7 @@ const TaskEditPage = () => {
         <p className="task-page__eyebrow">작업 수정</p>
         <h1 className="task-page__title">작업 업데이트</h1>
         <p className="task-page__description">
-          작업 정보와 카테고리, 이전·다음 연결을 수정하세요.
+          작업 정보와 프로젝트, 이전·다음 연결을 수정하세요.
         </p>
       </header>
       <div className="task-page__content">
@@ -295,7 +292,7 @@ const TaskEditPage = () => {
               type="button"
               onClick={() => void reloadCategories().catch(() => {})}
             >
-              카테고리 다시 불러오기
+              프로젝트 다시 불러오기
             </button>
           </div>
         ) : (
@@ -303,19 +300,24 @@ const TaskEditPage = () => {
             {categoryLoadError && (
               <div role="alert">
                 <p>
-                  카테고리를 새로 확인하지 못했어요.작성 중인 내용은 유지됩니다.
+                  프로젝트를 새로 확인하지 못했어요.작성 중인 내용은 유지됩니다.
                 </p>
                 <button
                   type="button"
                   onClick={() => void reloadCategories().catch(() => {})}
                 >
-                  카테고리 다시 확인
+                  프로젝트 다시 확인
                 </button>
               </div>
             )}
             <TaskForm
               key={task.id}
+              allowedActions={task.allowedActions}
               initialValues={{
+                spaceId: task.spaceId,
+                assigneeId: task.assigneeId,
+                expectedVersion: task.version,
+                recurrenceVersion: task.recurrence?.version,
                 title: task.title,
                 description: task.description,
                 dueDate: toDayjsFromDateWithOffset(task.dueDate).format(
@@ -330,12 +332,15 @@ const TaskEditPage = () => {
                 previousTaskIds: initialPrevIds,
                 nextTaskIds: initialNextIds,
                 tagIds: (task.tags ?? []).map((tag) => tag.id),
-                categoryId: taskCategory(task.id)?.id ?? null,
+                categoryId: task.projectId ?? taskCategory(task.id)?.id ?? null,
               }}
               taskId={task.id}
               onSubmit={handleSubmit}
               submitLabel="작업 수정"
-              hideDependencies={Boolean(task.recurrence)}
+              hideDependencies={
+                Boolean(task.recurrence) ||
+                task.allowedActions?.editDependencies === false
+              }
               effectiveExpectedDurationLabel={(() => {
                 const label = formatIsoDurationLabel(
                   task.effectiveExpectedDuration,
@@ -348,6 +353,7 @@ const TaskEditPage = () => {
         )}
       </div>
       {recurrenceScope.dialog}
+      {move.dialog}
     </section>
   )
 }
