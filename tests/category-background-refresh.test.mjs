@@ -51,6 +51,14 @@ const load = (path, dependencies) => {
           }),
           moveResultMessage: () => null,
         }
+      if (name === '@features/spaces/EditConflictDialog')
+        return { default: () => null }
+      if (name === '@features/spaces/MyInputDisclosure')
+        return { default: () => null }
+      if (name === '@features/spaces/conflicts')
+        return { changedInput: () => [], isEditConflict: () => false }
+      if (name === '@constants/schedules' && !(name in dependencies))
+        return { scheduleTypeLabel: {} }
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     },

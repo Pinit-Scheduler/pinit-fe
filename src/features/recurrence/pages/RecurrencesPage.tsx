@@ -4,7 +4,7 @@ import {
   dispatchTaskChanged,
   dispatchScheduleChanged,
 } from '@shared/utils/events'
-import { isEditConflict } from '@features/spaces/conflicts'
+import { reportEditConflict } from '@features/spaces/conflicts'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
@@ -109,7 +109,7 @@ const RecurrencesPage = () => {
         await load()
       }
     } catch (runError) {
-      if (isEditConflict(runError)) return
+      if (reportEditConflict(runError)) return
       if (runError instanceof ApiError && runError.status === 400 && editing) {
         setEditing({
           ...editing,

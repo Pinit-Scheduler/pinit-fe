@@ -181,14 +181,6 @@ export const httpClient = async <T>(
         /* 응답 본문을 읽지 못하면 기본 오류 메시지를 사용 */
       }
       assertCurrentActor()
-      if (
-        response.status === 409 &&
-        payload &&
-        typeof payload === 'object' &&
-        'code' in payload &&
-        payload.code === 'VERSION_CONFLICT'
-      )
-        window.dispatchEvent(new Event('workspace:edit-conflict'))
       console.error(`❌ API Error:`, {
         status: response.status,
         url: logUrl,

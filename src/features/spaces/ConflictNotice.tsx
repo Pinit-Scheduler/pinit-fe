@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { EVENT } from './conflicts'
+import { useSpaces } from './store'
 
 export default function ConflictNotice() {
   const [open, setOpen] = useState(false)
+  const { reload } = useSpaces()
   useEffect(() => {
     const show = () => setOpen(true)
     window.addEventListener(EVENT, show)
@@ -26,7 +28,11 @@ export default function ConflictNotice() {
         <button
           type="button"
           className="workspace-button workspace-button--primary"
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            void reload()
+              .catch(() => {})
+              .finally(() => setOpen(false))
+          }}
         >
           최신 내용 확인
         </button>

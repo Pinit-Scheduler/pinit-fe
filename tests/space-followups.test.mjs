@@ -102,3 +102,19 @@ test('unavailableLines skips enabled actions and collapses identical texts in or
   )
   assert.deepEqual(plain(unavailableLines([{ off: false, reason: undefined }], [])), [])
 })
+
+test('my input keeps only the fields I changed', () => {
+  const { changedInput } = load('features/spaces/conflicts.ts', { '@shared/api/httpClient': { ApiError: class {} } })
+  const labels = { title: '제목', description: '설명', dueDate: '마감일' }
+  const before = { title: '첫 작업 기록 안내 초안', description: '', dueDate: '2026-11-03' }
+  const mine = { title: '첫 작업 기록 안내 초안 다듬기', description: '두 줄로 줄였어요.', dueDate: '2026-11-03' }
+  assert.deepEqual(plain(changedInput(before, mine, labels)), [
+    { label: '제목', value: '첫 작업 기록 안내 초안 다듬기' },
+    { label: '설명', value: '두 줄로 줄였어요.' },
+  ])
+  assert.deepEqual(plain(changedInput(before, before, labels)), [])
+})
+test('the http client no longer raises a global conflict dialog', () => {
+  const source = readFileSync(new URL('../src/shared/api/httpClient.ts', import.meta.url), 'utf8')
+  assert.equal(source.includes('workspace:edit-conflict'), false)
+})

@@ -12,6 +12,19 @@ export function isEditConflict(error: unknown): error is ApiError {
     String(data?.code ?? data?.errorCode ?? data?.type ?? ''),
   )
 }
+export type InputRow = { label: string; value: string }
+const text = (value: unknown) =>
+  Array.isArray(value) ? value.join(', ') : String(value ?? '')
+/** labels 순서대로, 서버 값과 달라진 내 입력만 돌려준다. */
+export function changedInput(
+  before: Record<string, unknown>,
+  mine: Record<string, unknown>,
+  labels: Record<string, string>,
+): InputRow[] {
+  return Object.keys(labels)
+    .filter((key) => text(before[key]).trim() !== text(mine[key]).trim())
+    .map((key) => ({ label: labels[key], value: text(mine[key]) }))
+}
 export function reportEditConflict(error: unknown): boolean {
   if (!isEditConflict(error)) return false
   window.dispatchEvent(new Event(EVENT))

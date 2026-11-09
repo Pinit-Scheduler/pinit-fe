@@ -2,7 +2,12 @@ import {
   useMoveConfirmation,
   moveResultMessage,
 } from '@features/spaces/useMoveConfirmation'
-import { useCallback, useEffect, useMemo } from 'react'
+import EditConflictDialog from '@features/spaces/EditConflictDialog'
+import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
+import { changedInput, isEditConflict } from '@features/spaces/conflicts'
+import type { InputRow } from '@features/spaces/conflicts'
+import { scheduleTypeLabel } from '@constants/schedules'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ScheduleForm from '../../components/ScheduleForm'
 import { toApiDateTimeWithZone, toDateFromApi } from '@shared/utils/datetime'
@@ -29,6 +34,14 @@ import { fixedChanges } from '@features/recurrence/utils/recurrenceRules'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { useCategories } from '@features/categories'
 
+const LABELS = {
+  title: '제목',
+  description: '설명',
+  date: '날짜·시간',
+  scheduleType: '유형',
+  plannedDurationMinutes: '계획 시간(분)',
+}
+
 const ScheduleEditPage = () => {
   const { scheduleId } = useParams()
   const { complete } = useRouteSurfaceNavigation()
@@ -41,12 +54,41 @@ const ScheduleEditPage = () => {
   } = useCategories()
   const { addToast } = useToast()
   // Keep the edit session's original snapshot; background events must not remount the draft.
-  const { schedule, isLoading, error } = useScheduleDetail(scheduleId, {
+  const { schedule, isLoading, error, refetch } = useScheduleDetail(scheduleId, {
     refreshOnChange: false,
   })
   const { offsetMinutes } = useTimePreferences()
   const recurrenceScope = useRecurrenceScope()
   const move = useMoveConfirmation()
+  const [conflict, setConflict] = useState<{ rows: InputRow[] } | null>(null)
+  const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
+  const reportConflict = (values: ScheduleFormValues) => {
+    if (!schedule) return
+    const show = (type: string) =>
+      scheduleTypeLabel[type as keyof typeof scheduleTypeLabel] ?? type
+    const server = {
+      title: schedule.title,
+      description: schedule.description,
+      date: toDisplayDayjs(schedule.date).format('YYYY-MM-DD HH:mm'),
+      scheduleType: show(schedule.scheduleType ?? 'DEEP_WORK'),
+      plannedDurationMinutes:
+        parseIsoDurationMinutes(schedule.plannedDuration) ?? '',
+    }
+    const mine = {
+      title: values.title,
+      description: values.description,
+      date: toDisplayDayjs(values.date).format('YYYY-MM-DD HH:mm'),
+      scheduleType: show(values.scheduleType),
+      plannedDurationMinutes: values.plannedDurationMinutes ?? '',
+    }
+    // 이전 충돌 상태는 이번 시도의 입력으로 바꾼다.
+    setConflict({ rows: changedInput(server, mine, LABELS) })
+  }
+  const loadLatest = () => {
+    setKeptInput(conflict?.rows ?? null)
+    setConflict(null)
+    refetch()
+  }
   const affiliation = (values: ScheduleFormValues) => {
     const location = values.locationChanged || values.categoryChanged
     if (!location && !values.assigneeChanged) return undefined
@@ -136,9 +178,14 @@ const ScheduleEditPage = () => {
           reason: 'updated',
         })
       }
+      setKeptInput(null)
       handleClose()
     } catch (error) {
       console.error('일정 수정 실패:', error)
+      if (isEditConflict(error)) {
+        reportConflict(values)
+        return false
+      }
       addToast(
         error instanceof Error
           ? error.message
@@ -200,9 +247,14 @@ const ScheduleEditPage = () => {
         dispatchScheduleChanged({ reason: 'recurrence' })
         addToast('반복 일정을 바꿨어요.', 'success')
       }
+      setKeptInput(null)
       handleClose()
     } catch (error) {
       console.error('반복 일정 수정 실패:', error)
+      if (isEditConflict(error)) {
+        reportConflict(values)
+        return false
+      }
       addToast(
         error instanceof Error
           ? error.message
@@ -288,6 +340,7 @@ const ScheduleEditPage = () => {
               </button>
             </div>
           )}
+          {keptInput && <MyInputDisclosure rows={keptInput} open={false} />}
           <ScheduleForm
             allowedActions={schedule?.allowedActions}
             unavailableReasons={schedule?.unavailableReasons}
@@ -301,6 +354,13 @@ const ScheduleEditPage = () => {
       )}
       {recurrenceScope.dialog}
       {move.dialog}
+      {conflict && (
+        <EditConflictDialog
+          noun="일정"
+          rows={conflict.rows}
+          onLoadLatest={loadLatest}
+        />
+      )}
     </section>
   )
 }

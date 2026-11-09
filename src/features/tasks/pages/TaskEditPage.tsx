@@ -2,6 +2,10 @@ import {
   useMoveConfirmation,
   moveResultMessage,
 } from '@features/spaces/useMoveConfirmation'
+import EditConflictDialog from '@features/spaces/EditConflictDialog'
+import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
+import { changedInput, isEditConflict } from '@features/spaces/conflicts'
+import type { InputRow } from '@features/spaces/conflicts'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
@@ -31,6 +35,15 @@ import {
 } from '@features/recurrence/utils/seriesMutations'
 import { flexibleChanges } from '@features/recurrence/utils/recurrenceRules'
 
+const LABELS = {
+  title: '제목',
+  description: '설명',
+  dueDate: '마감일',
+  importance: '중요도',
+  difficulty: '난이도',
+  expectedDurationMinutes: '예상 시간(분)',
+}
+
 const TaskEditPage = () => {
   const { taskId } = useParams()
   const { complete } = useRouteSurfaceNavigation()
@@ -51,6 +64,42 @@ const TaskEditPage = () => {
   const { addToast } = useToast()
   const recurrenceScope = useRecurrenceScope()
   const move = useMoveConfirmation()
+  const [conflict, setConflict] = useState<{ rows: InputRow[] } | null>(null)
+  const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
+  const [formKey, setFormKey] = useState(0)
+  const reportConflict = (values: TaskFormValues) => {
+    if (!task) return
+    const server = {
+      title: task.title,
+      description: task.description,
+      dueDate: toDayjsFromDateWithOffset(task.dueDate).format('YYYY-MM-DD'),
+      importance: task.importance,
+      difficulty: task.difficulty,
+      expectedDurationMinutes: (() => {
+        const entered = parseIsoDurationMinutes(task.expectedDuration)
+        return entered ? String(entered) : ''
+      })(),
+    }
+    // 이전 충돌 상태는 이번 시도의 입력으로 바꾼다.
+    setConflict({ rows: changedInput(server, { ...values }, LABELS) })
+  }
+  const loadLatest = async () => {
+    if (!numericId) return
+    try {
+      const data = await fetchTaskDetail(numericId)
+      setTask(data)
+      setInitialPrevIds(data.previousTaskIds ?? [])
+      setInitialNextIds(data.nextTaskIds ?? [])
+      setKeptInput(conflict?.rows ?? null)
+      setConflict(null)
+      setFormKey((key) => key + 1)
+    } catch (err) {
+      addToast(
+        err instanceof Error ? err.message : '최신 내용을 불러오지 못했어요.',
+        'error',
+      )
+    }
+  }
   const affiliation = (values: TaskFormValues) => {
     const location = values.locationChanged || values.categoryChanged
     if (!location && !values.assigneeChanged) return undefined
@@ -144,9 +193,14 @@ const TaskEditPage = () => {
         dispatchTaskChanged({ reason: 'recurrence' })
         addToast('반복 작업을 바꿨어요.', 'success')
       }
+      setKeptInput(null)
       complete('/app/tasks')
     } catch (err) {
       console.error('반복 작업 수정 실패', err)
+      if (isEditConflict(err)) {
+        reportConflict(values)
+        return
+      }
       addToast(
         err instanceof Error
           ? err.message
@@ -248,9 +302,14 @@ const TaskEditPage = () => {
       const moveMessage = moveResultMessage(updated.moveResult)
       dispatchTaskChanged(numericId, 'update')
       addToast(moveMessage ?? '작업을 수정했어요.', 'success')
+      setKeptInput(null)
       complete('/app/tasks')
     } catch (err) {
       console.error('작업 수정 실패', err)
+      if (isEditConflict(err)) {
+        reportConflict(values)
+        return
+      }
       addToast(
         err instanceof Error
           ? err.message
@@ -310,8 +369,9 @@ const TaskEditPage = () => {
                 </button>
               </div>
             )}
+            {keptInput && <MyInputDisclosure rows={keptInput} open={false} />}
             <TaskForm
-              key={task.id}
+              key={`${task.id}:${formKey}`}
               allowedActions={task.allowedActions}
               unavailableReasons={task.unavailableReasons}
               initialValues={{
@@ -355,6 +415,13 @@ const TaskEditPage = () => {
       </div>
       {recurrenceScope.dialog}
       {move.dialog}
+      {conflict && (
+        <EditConflictDialog
+          noun="작업"
+          rows={conflict.rows}
+          onLoadLatest={() => void loadLatest()}
+        />
+      )}
     </section>
   )
 }

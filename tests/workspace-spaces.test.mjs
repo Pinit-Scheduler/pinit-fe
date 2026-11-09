@@ -406,7 +406,7 @@ test('HTTP 409 emits a conflict notice and never retries or overwrites; sensitiv
       !failure.url.includes(secret),
   )
   assert.equal(calls.length, 1)
-  assert.equal(notices, 1)
+  assert.equal(notices, 0)
   assert.equal(JSON.stringify(logs).includes(secret), false)
 })
 test('successful data returned for a previous account cannot enter the new account cache', async () => {

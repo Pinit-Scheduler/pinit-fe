@@ -1,4 +1,4 @@
-import { isEditConflict } from '@features/spaces/conflicts'
+import { reportEditConflict } from '@features/spaces/conflicts'
 import { useSpaces } from '@features/spaces/store'
 import UnavailableNote from '@features/spaces/UnavailableNote'
 import { adminNames, unavailableLines } from '@features/spaces/unavailable'
@@ -120,7 +120,7 @@ const TrashPage = () => {
       if (message) addToast(message, 'success')
       await load()
     } catch (runError) {
-      if (isEditConflict(runError)) return
+      if (reportEditConflict(runError)) return
       console.error('휴지통 작업 실패', runError)
       addToast(
         runError instanceof ApiError && runError.status === 404
