@@ -16,10 +16,18 @@ export type AllowedActions = {
   schedule?: boolean
   editDependencies?: boolean
 }
+/** 서버가 꺼진 동작에 붙이는 이유 코드. pinit-monolith `UnavailableReason`과 같다. */
 export type UnavailableReason =
   | 'ADMIN_ONLY'
   | 'SPACE_DELETED'
+  | 'PROJECT_DELETED'
+  | 'PERSONAL_SPACE'
+  | 'LAST_ADMIN'
   | 'SCHEDULE_RUNNING'
+  | 'TASK_COMPLETED'
+  | 'PREDECESSOR_INCOMPLETE'
+  | 'ALREADY_SCHEDULED'
+  | 'RECURRING_TASK'
 export type UnavailableReasons = Partial<
   Record<keyof AllowedActions, UnavailableReason>
 >
@@ -50,6 +58,7 @@ export type Project = {
   deletedAt?: string | null
   deleted?: boolean
   allowedActions: AllowedActions
+  unavailableReasons?: UnavailableReasons
 }
 export type Affiliation = {
   spaceId: number

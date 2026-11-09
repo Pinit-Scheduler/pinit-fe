@@ -83,6 +83,46 @@ test('unavailable copy comes from the server reason, not from roles', () => {
   ]), ['서연'])
 })
 
+test('every server reason code has its own sentence and unknown codes fall back', () => {
+  const { unavailableText } = load('features/spaces/unavailable.ts')
+  assert.equal(unavailableText('PROJECT_DELETED', []), '휴지통에 있는 프로젝트라 할 수 없어요.')
+  assert.equal(unavailableText('PERSONAL_SPACE', []), '나의 스페이스에서는 할 수 없어요.')
+  assert.equal(unavailableText('LAST_ADMIN', ['서연']), '다른 관리자를 정한 뒤 나갈 수 있어요.')
+  assert.equal(unavailableText('TASK_COMPLETED', []), '완료한 작업은 일정에 넣을 수 없어요.')
+  assert.equal(unavailableText('PREDECESSOR_INCOMPLETE', []), '먼저 할 작업을 끝내야 일정에 넣을 수 있어요.')
+  assert.equal(unavailableText('ALREADY_SCHEDULED', []), '이미 일정에 넣은 작업이에요.')
+  assert.equal(unavailableText('RECURRING_TASK', []), '반복 작업은 순서를 연결할 수 없어요.')
+  assert.equal(unavailableText('A_CODE_ADDED_LATER', ['서연']), '지금은 할 수 없어요.')
+})
+
+test('the edit reason also explains the FE-only update alias for spaces and projects', async () => {
+  const space = {
+    id: 22, name: '팀', purpose: null, personal: false, version: 0, deletedAt: null,
+    allowedActions: { edit: false, delete: false },
+    unavailableReasons: { edit: 'SPACE_DELETED', delete: 'SPACE_DELETED' },
+  }
+  const project = {
+    id: 5, spaceId: 22, name: '프로젝트', outcome: null, completed: false, version: 0, deletedAt: null,
+    allowedActions: { edit: false, delete: false },
+    unavailableReasons: { edit: 'PROJECT_DELETED', delete: 'PROJECT_DELETED' },
+  }
+  const plainProject = { ...project, id: 6, allowedActions: { edit: true }, unavailableReasons: undefined }
+  const api = load('features/spaces/api.ts', {
+    '@shared/api/config': { buildApiUrl: (path) => path },
+    '@shared/api/httpClient': {
+      httpClient: async (url) =>
+        url.startsWith('/spaces?')
+          ? { defaultSpaceId: -1, currentMember: { memberId: 1, nickname: '나' }, spaces: [space] }
+          : { space, projects: [project, plainProject], members: [] },
+    },
+  })
+  const snapshot = await api.fetchWorkspace()
+  assert.equal(snapshot.spaces[0].unavailableReasons.update, 'SPACE_DELETED')
+  assert.equal(snapshot.projects[0].unavailableReasons.update, 'PROJECT_DELETED')
+  assert.equal(snapshot.projects[0].unavailableReasons.delete, 'PROJECT_DELETED')
+  assert.equal(snapshot.projects[1].unavailableReasons, undefined)
+})
+
 test('unavailableLines skips enabled actions and collapses identical texts in order', () => {
   const { unavailableLines } = load('features/spaces/unavailable.ts')
   assert.deepEqual(
