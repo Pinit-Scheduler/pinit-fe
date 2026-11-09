@@ -572,6 +572,31 @@ test('motion tokens in CSS and TS agree', () => {
   assert.match(css, /--motion-distance: 8px/)
 })
 
+test('under reduced motion, no shared rule whose keyframe travels a fixed distance gets its duration back', () => {
+  const css = readFileSync(new URL('../src/shared/styles/motion.css', import.meta.url), 'utf8')
+  // Keyframes that move by a fixed amount rather than --motion-distance (which is 0 under reduced motion).
+  const travelling = [...css.matchAll(/@keyframes ([\w-]+) \{([^@]*?)\n\}/g)]
+    .filter(([, , body]) => /transform/.test(body) && !/--motion-distance/.test(body))
+    .map(([, name]) => name)
+  assert.deepEqual(travelling.sort(), ['motion-sheet-in', 'motion-sheet-out'])
+  const reducedStart = css.indexOf('/* Reduced motion.')
+  const before = css.slice(0, reducedStart)
+  const reduced = css.slice(reducedStart)
+  const rules = (text) =>
+    [...text.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([, selector, body]) => ({
+      selector: selector.trim(),
+      body,
+    }))
+  for (const { selector, body } of rules(before)) {
+    const used = travelling.find((name) => new RegExp(`animation:\\s*${name}\\b`).test(body))
+    if (!used) continue
+    const override = rules(reduced).find((rule) => rule.selector === selector)
+    assert.ok(override, `${selector} has a reduced-motion override`)
+    assert.match(override.body, /animation-name: motion-fade-(in|out);/, selector)
+  }
+  assert.match(reduced, /@media \(prefers-reduced-motion: reduce\) and \(max-width: 899px\)/)
+})
+
 test('shared keyframes are defined once, in motion.css only', async () => {
   const { readdirSync, statSync } = await import('node:fs')
   const { join } = await import('node:path')

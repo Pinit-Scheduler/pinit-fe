@@ -244,3 +244,16 @@
     animation-name: motion-fade-in;
   }
 }
+
+/*
+ * The sheet keyframes travel the full panel height, not --motion-distance, so the restored
+ * durations above would bring the slide back. Under reduced motion a sheet only fades.
+ */
+@media (prefers-reduced-motion: reduce) and (max-width: 899px) {
+  [data-motion-surface='panel'][data-motion-sheet] {
+    animation-name: motion-fade-in;
+  }
+  [data-motion-surface='panel'][data-motion-sheet][data-state='closing'] {
+    animation-name: motion-fade-out;
+  }
+}
