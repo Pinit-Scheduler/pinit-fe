@@ -148,7 +148,7 @@ export default function TodayPage() {
           </button>
           <button
             className="workspace-button workspace-button--primary"
-            onClick={() => open('/app/tasks/new')}
+            onClick={() => open('/app/tasks/new?from=today')}
           >
             <WorkspaceIcon name="plus" />
             작업 추가
