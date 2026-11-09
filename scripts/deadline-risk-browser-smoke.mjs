@@ -11,11 +11,19 @@ const output = resolve(process.env.DEADLINE_RISK_QA_DIR || '.cache/deadline-risk
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch({ channel: 'chrome', headless: true })
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: 'America/Los_Angeles' })
-await context.addInitScript(() => localStorage.setItem('pinit.accessToken', 'local-browser-fixture'))
+await context.addInitScript(() => {
+  localStorage.setItem('pinit.accessToken', `fixture.${btoa(JSON.stringify({ sub: '7' }))}.fixture`)
+  sessionStorage.setItem('pinit.space.selection.7', '42')
+})
 const requests = [], errors = [], checks = []
 let mode = 'populated'
+let taskVersion = 1
+const eventRoutes = []
+let eventRequested
+const eventReady = new Promise(resolve => { eventRequested = resolve })
+const space = id => ({ id, name: id < 0 ? '개인 검증 공간' : '팀 검증 공간', purpose: '로컬 범위 검증', personal: id < 0, version: 1, allowedActions: {} })
 const item = (taskId, status, extra = {}) => ({
-  taskId, title: `브라우저 검증 작업 ${taskId}`, deadline: '2026-11-14T15:00:00Z', status,
+  taskId, title: `브라우저 검증 작업 ${taskId}${taskId === 101 && taskVersion > 1 ? ' 실시간 갱신' : ''}`, deadline: '2026-11-14T15:00:00Z', status,
   requiredMinutes: 300, availableMinutes: 120, shortageMinutes: 180,
   predecessorTaskIds: [], reasons: ['이미 잡힌 일정과 생활 시간을 제외한 상한이에요.'],
   suggestedFinish: null, recurrenceSeriesId: null, ...extra,
@@ -40,18 +48,25 @@ await context.route('**/*', async route => {
   if (!['localhost', '127.0.0.1'].includes(url.hostname)) return route.abort('blockedbyclient')
   requests.push({ method: req.method(), path: url.pathname, query: url.search })
   assert.equal(req.method(), 'GET', `Unexpected mutation ${req.method()} ${url.pathname}`)
+  if (url.pathname === '/v2/workspace/events') {
+    return new Promise(resolve => { eventRoutes.push({ route, resolve }); eventRequested() })
+  }
   let body = null, status = 200
   if (url.pathname === '/v2/plans/deadline-risk') {
     if (mode === 'error') { status = 503; body = { message: 'local fixture failure' } }
     else body = fixture(Number(url.searchParams.get('days')))
-  } else if (url.pathname === '/v2/members/settings') body = { zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT4H' }
+  } else if (url.pathname === '/v2/spaces') body = { defaultSpaceId: -7, currentMember: { memberId: 7, nickname: '로컬 검증' }, spaces: [space(-7), space(42)] }
+  else if (/^\/v2\/spaces\/-?\d+\/snapshot$/.test(url.pathname)) body = { space: space(Number(url.pathname.split('/')[3])), projects: [], members: [] }
+  else if (url.pathname === '/v2/projects/snapshot') body = { projects: [], taskAssignments: {}, scheduleAssignments: {}, seriesAssignments: {} }
+  else if (url.pathname === '/v2/members/settings') body = { zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT4H' }
   else if (url.pathname === '/v2/onboarding') body = { revision: 1, acknowledgedRevision: 1, pendingTour: [], features: [] }
   else if (/active|running|now-running|members\/now$/.test(url.pathname)) body = null
-  else if (/\/tasks\/\d+$/.test(url.pathname)) body = {
-    id: Number(url.pathname.split('/').at(-1)), title: '브라우저 검증 작업 101', description: '로컬 fixture',
+  else if (/^\/v2\/workspace\/tasks\/\d+$/.test(url.pathname)) body = {
+    spaceId: -7, projectId: null, assigneeId: 7, assigneeNickname: '로컬 검증', version: taskVersion, allowedActions: {},
+    task: { id: Number(url.pathname.split('/').at(-1)), title: `브라우저 검증 작업 101${taskVersion > 1 ? ' 실시간 갱신' : ''}`, description: '로컬 fixture',
     dueDate: { date: '2026-11-14', zoneId: 'Asia/Seoul', offset: '+09:00' },
     importance: 5, difficulty: 5, completed: false, previousTaskIds: [], nextTaskIds: [], tags: [],
-    expectedDuration: 'PT5H', effectiveExpectedDuration: 'PT5H',
+    expectedDuration: 'PT5H', effectiveExpectedDuration: 'PT5H' },
   }
   else if (/categor/.test(url.pathname)) body = { categories: [], taskAssignments: {}, scheduleAssignments: {}, seriesAssignments: {} }
   else if (url.pathname === '/v2/plans') { status = 503; body = { message: 'plan API outside smoke scope' } }
@@ -67,6 +82,12 @@ page.on('console', message => {
 try {
   await page.goto(`${base}/app/deadline-risk`)
   await page.getByText('5개 작업 중', { exact: false }).waitFor()
+  await page.getByRole('button', { name: /팀 검증 공간/ }).first().waitFor()
+  assert.ok((await page.locator('.space-context').innerText()).includes('개인 공간 · 마감 위험 예보'))
+  assert.ok(!(await page.locator('.space-context').innerText()).includes('로컬 범위 검증'))
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('pinit.space.selection.7')), '42')
+  assert.ok(requests.filter(request => request.path === '/v2/plans/deadline-risk').every(request => !/spaceId|projectId/.test(request.query)))
+  checks.push('team selection remains while personal-only forecast is read; forecast request has no team/project query')
   assert.match(await page.locator('.deadline-risk__basis').innerText(), /09:00/)
   assert.match(await page.locator('.deadline-risk__item').first().innerText(), /5시간/)
   assert.match(await page.locator('.deadline-risk__item').first().innerText(), /2시간/)
@@ -88,10 +109,27 @@ try {
   await page.getByRole('dialog').waitFor()
   await page.getByRole('dialog').getByRole('heading', { name: '브라우저 검증 작업 101', exact: true }).waitFor()
   await page.getByRole('dialog').getByText('로컬 fixture', { exact: true }).waitFor()
+  assert.ok(requests.some(request => request.path === '/v2/workspace/tasks/101' && request.query === ''))
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('pinit.space.selection.7')), '42')
   await page.goBack()
   await page.waitForURL('**/app/deadline-risk')
   await page.getByText('5개 작업 중', { exact: false }).waitFor()
   checks.push('task detail surface opens and browser back returns to forecast')
+  let eventTimer
+  try {
+    await Promise.race([
+      eventReady,
+      new Promise((_, reject) => { eventTimer = setTimeout(() => reject(new Error('Workspace SSE request did not start within 10 seconds')), 10_000) }),
+    ])
+  } finally { clearTimeout(eventTimer) }
+  taskVersion = 2
+  const nextForecast = page.waitForResponse(response => response.url().includes('/plans/deadline-risk'))
+  const stream = eventRoutes.shift()
+  await stream.route.fulfill({ status: 200, contentType: 'text/event-stream', body: 'id: 1\nevent: changed\ndata: {"spaceId":-7,"resourceType":"TASK","resourceId":101,"version":2,"action":"UPDATED"}\n\n', headers: { 'Access-Control-Allow-Origin': base, 'Access-Control-Allow-Credentials': 'true' } })
+  stream.resolve()
+  await nextForecast
+  await page.locator('.deadline-risk__item').first().getByRole('heading', { name: '브라우저 검증 작업 101 실시간 갱신', exact: true }).waitFor()
+  checks.push('workspace SSE change invalidates forecast while team scope remains selected')
   mode = 'error'
   await page.getByRole('button', { name: '다시 조회', exact: true }).click()
   await page.getByRole('alert').filter({ hasText: '마감 위험 예보를 불러오지 못했어요' }).waitFor()
@@ -110,13 +148,18 @@ try {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   assert.equal(overflow, false)
   checks.push('390px mobile has no horizontal overflow')
-  await page.getByRole('link', { name: '하루 계획 열기', exact: true }).click()
+  const personalPlanRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/v2/plans')
+  await page.getByRole('button', { name: '개인 공간에서 하루 계획 열기', exact: true }).click()
   await page.waitForURL('**/app/plan')
+  const planQuery = new URL((await personalPlanRequest).url()).searchParams
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('pinit.space.selection.7')), '-7')
+  assert.equal(planQuery.get('spaceId'), '-7')
+  assert.equal(planQuery.has('projectId'), false)
   await page.getByRole('link', { name: '마감 전에 시간이 충분한지 예보 보기', exact: true }).click()
   await page.waitForURL('**/app/deadline-risk')
   await page.getByText('5개 작업 중', { exact: false }).waitFor()
   assert.equal(errors.length, 0, JSON.stringify(errors))
-  checks.push('plan navigation; zero uncaught browser errors; GET-only local requests')
+  checks.push('explicit personal plan click clears team/project scope before plan request; zero uncaught browser errors; GET-only local requests')
   const result = { checks, requests, errors, scope: 'Local headless Chrome with intercepted synthetic API only; no real backend or DB or production requests.' }
   await writeFile(`${output}/result.json`, JSON.stringify(result, null, 2))
   console.log(JSON.stringify(result, null, 2))
@@ -124,4 +167,7 @@ try {
   console.log(JSON.stringify({ url: page.url(), text: await page.locator('body').innerText(), requests, errors }, null, 2))
   await page.screenshot({ path: `${output}/failure.png`, fullPage: true })
   throw error
-} finally { await browser.close() }
+} finally {
+  for (const stream of eventRoutes) { await stream.route.abort().catch(() => {}); stream.resolve() }
+  await browser.close()
+}

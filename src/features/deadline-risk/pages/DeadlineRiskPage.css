@@ -41,6 +41,8 @@
 .deadline-risk__predecessors ul { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; padding: 0; }
 .deadline-risk__actions { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 14px; }
 .deadline-risk__actions a { padding-block: 9px; }
+.deadline-risk__personal-action { border: 0; background: none; color: var(--workspace-blue); padding: 9px 0; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.deadline-risk__personal-action:disabled { color: var(--workspace-muted); cursor: not-allowed; text-decoration: none; }
 .deadline-risk__assumptions { margin-top: 24px; padding-bottom: 18px; font-size: 13px; color: var(--workspace-muted); }
 .deadline-risk__assumptions summary { cursor: pointer; color: var(--workspace-ink); font-size: 14px; min-height: 44px; padding-block: 10px; }
 .deadline-risk__assumptions h2 { font-size: 14px; color: var(--workspace-ink); margin-top: 16px; }

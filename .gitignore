@@ -10,7 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-.cache/deadline-risk-browser/
+.cache/deadline-risk-browser*/
 *.local
 
 # Editor directories and files

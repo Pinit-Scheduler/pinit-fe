@@ -33,6 +33,13 @@ const baseItem = {
   suggestedFinish: null, recurrenceSeriesId: null,
 }
 const Link = ({ to, children }) => React.createElement('a', { href: to }, children)
+const personalSpaces = {
+  defaultSpaceId: -7,
+  selectedSpaceId: 42,
+  selectedProjectId: 99,
+  spaces: [{ id: -7, personal: true }, { id: 42, personal: false }],
+  selectSpace() {},
+}
 const Item = load('../src/features/deadline-risk/components/DeadlineRiskItem.tsx', {
   'react/jsx-runtime': jsxRuntime,
   'react-router-dom': { Link, useLocation: () => ({ pathname: '/app/deadline-risk' }) },
@@ -44,8 +51,9 @@ test('page announces personal-space-only tasks and schedules before forecast loa
   const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
     react: { useState: React.useState },
     'react/jsx-runtime': jsxRuntime,
-    'react-router-dom': { Link },
+    'react-router-dom': { useNavigate: () => () => {} },
     '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+    '@features/spaces/store': { useSpaces: () => personalSpaces },
     '../components/DeadlineRiskItem': { default: Item },
     '../hooks/useDeadlineRisk': { default: () => ({ forecast: null, error: null, isLoading: true, refresh() {} }) },
     '../utils/deadlineRiskView': view,
@@ -57,10 +65,104 @@ test('page announces personal-space-only tasks and schedules before forecast loa
   assert.match(html, /계산하고 있어요/)
 })
 
+test('personal plan and empty-task actions switch team/project view only on click before navigating', () => {
+  const actions = []
+  const spaces = { ...personalSpaces, selectSpace(id, projectId = null) { actions.push(['select', id, projectId]) } }
+  const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
+    react: { useState: (initial) => [initial, () => {}] },
+    'react/jsx-runtime': jsxRuntime,
+    'react-router-dom': { useNavigate: () => (path) => actions.push(['navigate', path]) },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+    '@features/spaces/store': { useSpaces: () => spaces },
+    '../components/DeadlineRiskItem': { default: Item },
+    '../hooks/useDeadlineRisk': { default: () => ({
+      forecast: { ...baseItem, generatedAt: '2026-11-09T00:00:00Z', horizonEnd: '2026-11-15T15:00:00Z', zoneId: 'Asia/Seoul', items: [], assumptions: [], limitations: [] },
+      error: null, isLoading: false, refresh() {},
+    }) },
+    '../utils/deadlineRiskView': view,
+    './DeadlineRiskPage.css': {},
+  }).default
+  const buttons = []
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.forEach(walk)
+    if (!node || typeof node !== 'object') return
+    if (node.type === 'button') buttons.push(node)
+    walk(node.props?.children)
+  }
+  walk(Page())
+  assert.equal(actions.length, 0, 'reading a personal forecast does not silently change team selection')
+  buttons.find((button) => button.props.children === '개인 공간에서 하루 계획 열기').props.onClick()
+  assert.deepEqual(actions, [['select', -7, null], ['navigate', '/app/plan']])
+  actions.length = 0
+  buttons.find((button) => button.props.children === '개인 공간의 작업과 마감 확인하기').props.onClick()
+  assert.deepEqual(actions, [['select', -7, null], ['navigate', '/app/tasks']])
+})
+
+test('missing personal space during snapshot loading or failure disables every personal action without team fallback', () => {
+  for (const error of [null, 'snapshot unavailable']) {
+    for (const items of [[], [baseItem]]) {
+      const actions = [], buttons = [], cards = []
+      const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
+        react: { useState: (initial) => [initial, () => {}] },
+        'react/jsx-runtime': jsxRuntime,
+        'react-router-dom': { useNavigate: () => (path) => actions.push(['navigate', path]) },
+        '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+        '@features/spaces/store': { useSpaces: () => ({ ...personalSpaces, spaces: [], loading: error === null, error, selectSpace: (id) => actions.push(['select', id]), reload: async () => {} }) },
+        '../components/DeadlineRiskItem': { default: Item },
+        '../hooks/useDeadlineRisk': { default: () => ({
+          forecast: { generatedAt: '2026-11-09T00:00:00Z', horizonEnd: '2026-11-15T15:00:00Z', zoneId: 'Asia/Seoul', items, assumptions: [], limitations: [] },
+          error: null, isLoading: false, refresh() {},
+        }) },
+        '../utils/deadlineRiskView': view,
+        './DeadlineRiskPage.css': {},
+      }).default
+      const walk = (node) => {
+        if (Array.isArray(node)) return node.forEach(walk)
+        if (!node || typeof node !== 'object') return
+        if (node.type === 'button' && typeof node.props.children === 'string' && node.props.children.startsWith('개인 공간')) buttons.push(node)
+        if (node.type === Item) cards.push(node)
+        walk(node.props?.children)
+      }
+      walk(Page())
+      assert.equal(buttons.length, items.length ? 1 : 2)
+      for (const button of buttons) {
+        assert.equal(button.props.disabled, true)
+        button.props.onClick()
+      }
+      for (const card of cards) {
+        assert.equal(card.props.canOpenPlan, false)
+        card.props.onOpenPlan()
+        const html = renderToStaticMarkup(card)
+        assert.match(html, /<button[^>]*disabled=""[^>]*>개인 공간에서 배치 검토/)
+      }
+      assert.equal(actions.length, 0, 'even an invoked stale callback must never fall back to selected team space')
+    }
+  }
+})
+
+test('workspace context labels personal forecast instead of the selected team purpose/project', () => {
+  const { SpaceContextBar } = load('../src/features/spaces/SpaceChrome.tsx', {
+    react: { useState: React.useState },
+    'react/jsx-runtime': jsxRuntime,
+    'react-router-dom': { Link, useNavigate: () => () => {}, useLocation: () => ({ pathname: '/app/deadline-risk' }) },
+    '@shared/components/common/Modal': { default: () => null },
+    '@shared/components/common/WorkspaceIcon': { default: () => null },
+    './store': { useSpaces: () => ({ ...personalSpaces, selectedSpace: { name: '선택한 팀', purpose: '팀 목적' }, selectedProject: { name: '팀 프로젝트', outcome: '팀 성과' } }) },
+    './spaces.css': {},
+  })
+  const html = renderToStaticMarkup(React.createElement(SpaceContextBar))
+  assert.ok(html.includes('개인 공간 · 마감 위험 예보'))
+  assert.ok(html.includes('선택한 팀'), 'space switcher stays available without silently changing selection')
+  assert.ok(!html.includes('팀 목적'))
+  assert.ok(!html.includes('팀 프로젝트'))
+})
+
 test('5 required hours versus 2 available hours shows 3 hours shortage and predecessor actions', () => {
   const html = renderToStaticMarkup(React.createElement(Item, { item: baseItem, zoneId: 'Asia/Seoul' }))
   for (const text of ['시간 부족', '5시간', '2시간', '3시간', '사용 가능 시간(상한)', '미완료 선행 작업 1개']) assert.ok(html.includes(text), text)
-  for (const path of ['/app/tasks/41', '/app/tasks/10', '/app/plan']) assert.ok(html.includes(`href="${path}"`), path)
+  for (const path of ['/app/tasks/41', '/app/tasks/10']) assert.ok(html.includes(`href="${path}"`), path)
+  assert.ok(html.includes('개인 공간에서 배치 검토'))
+  assert.ok(!html.includes('href="/app/plan"'), 'plan uses explicit local personal-scope selection, not a team-scoped link')
   assert.match(html, /2026.*11.*14.*00:00/)
   assert.ok(!html.includes('확률'))
 })

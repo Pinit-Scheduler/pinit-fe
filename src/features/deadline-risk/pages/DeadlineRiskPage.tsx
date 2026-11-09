@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
+import { useSpaces } from '@features/spaces/store'
 import DeadlineRiskItem from '../components/DeadlineRiskItem'
 import useDeadlineRisk from '../hooks/useDeadlineRisk'
 import type { DeadlineRiskDays } from '../types/deadlineRisk'
@@ -9,6 +10,15 @@ import './DeadlineRiskPage.css'
 
 export default function DeadlineRiskPage() {
   const { zoneId } = useTimePreferences()
+  const navigate = useNavigate()
+  const spaces = useSpaces()
+  const personalSpace = spaces.spaces.find((space) => space.id === spaces.defaultSpaceId && space.personal && !space.deleted)
+  const openPersonal = (path: '/app/plan' | '/app/tasks') => {
+    if (!personalSpace) return
+    // A local view preference only; clear a selected team/project before navigation.
+    spaces.selectSpace(personalSpace.id)
+    navigate(path)
+  }
   const [days, setDays] = useState<DeadlineRiskDays>(7)
   const { forecast, error, isLoading, refresh } = useDeadlineRisk(days, zoneId)
   const counts = forecast ? forecastCounts(forecast.items) : null
@@ -29,8 +39,9 @@ export default function DeadlineRiskPage() {
           </select>
         </label>
         <button type="button" onClick={refresh} disabled={isLoading}>다시 조회</button>
-        <Link to="/app/plan">하루 계획 열기</Link>
+        <button type="button" disabled={!personalSpace} onClick={() => openPersonal('/app/plan')}>개인 공간에서 하루 계획 열기</button>
       </div>
+      {!personalSpace ? <p className="deadline-risk__hint" role="status">개인 공간을 불러온 뒤 작업과 계획 화면을 열 수 있어요. {spaces.error ? <button type="button" onClick={() => void spaces.reload().catch(() => {})}>공간 다시 조회</button> : null}</p> : null}
       {isLoading ? <p role="status">마감과 남은 시간을 계산하고 있어요.</p> : null}
       {error ? <p className="deadline-risk__error" role="alert">{error}</p> : null}
       {forecast && counts ? (
@@ -44,7 +55,7 @@ export default function DeadlineRiskPage() {
             <div className="deadline-risk__empty">
               <h2>기간 안에 확인할 마감 작업이 없어요</h2>
               <p>완료한 작업은 예보에서 제외돼요. 아직 생성되지 않은 반복 회차는 포함하지 않아요.</p>
-              <Link to="/app/tasks">작업과 마감 확인하기</Link>
+              <button type="button" className="deadline-risk__personal-action" disabled={!personalSpace} onClick={() => openPersonal('/app/tasks')}>개인 공간의 작업과 마감 확인하기</button>
             </div>
           ) : (
             <>
@@ -53,7 +64,7 @@ export default function DeadlineRiskPage() {
               </p>
               <p className="deadline-risk__hint">필요 시간은 미완료 선행 작업까지 포함해요. 같은 선행 작업이 여러 예보에 나올 수 있어 항목별 시간을 합산하지 마세요.</p>
               <ul className="deadline-risk__list" aria-label="작업별 마감 위험">
-                {forecast.items.map((item) => <DeadlineRiskItem key={item.taskId} item={item} zoneId={forecast.zoneId} />)}
+                {forecast.items.map((item) => <DeadlineRiskItem key={item.taskId} item={item} zoneId={forecast.zoneId} canOpenPlan={Boolean(personalSpace)} onOpenPlan={() => openPersonal('/app/plan')} />)}
               </ul>
             </>
           )}

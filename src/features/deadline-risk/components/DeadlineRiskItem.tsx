@@ -3,7 +3,12 @@ import { formatMinutesLabel } from '@shared/utils/isoDuration'
 import type { DeadlineRiskItem as RiskItem } from '../types/deadlineRisk'
 import { forecastTimeLabel, riskExplanation, riskStatusLabel } from '../utils/deadlineRiskView'
 
-export default function DeadlineRiskItem({ item, zoneId }: { item: RiskItem; zoneId: string }) {
+export default function DeadlineRiskItem({ item, zoneId, canOpenPlan, onOpenPlan }: {
+  item: RiskItem
+  zoneId: string
+  canOpenPlan: boolean
+  onOpenPlan: () => void
+}) {
   const location = useLocation()
   const taskLinkState = { backgroundLocation: location }
   const unknown = item.status === 'UNKNOWN'
@@ -42,7 +47,7 @@ export default function DeadlineRiskItem({ item, zoneId }: { item: RiskItem; zon
       ) : null}
       <div className="deadline-risk__actions">
         <Link to={`/app/tasks/${item.taskId}`} state={taskLinkState}>작업 상세 확인</Link>
-        <Link to="/app/plan">하루 계획에서 배치 검토</Link>
+        <button type="button" className="deadline-risk__personal-action" disabled={!canOpenPlan} onClick={onOpenPlan}>개인 공간에서 배치 검토</button>
       </div>
     </li>
   )
