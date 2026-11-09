@@ -24,6 +24,7 @@
   font-size: 20px;
   color: var(--c-slate-600);
   cursor: pointer;
+  transition: background-color var(--motion-fast) var(--motion-ease);
 }
 
 .month-calendar__nav-btn:hover {
@@ -54,6 +55,9 @@
   border-radius: 12px;
   color: var(--c-slate-700);
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .month-calendar__day:hover {
@@ -95,6 +99,10 @@
   line-height: 18px;
   background-color: var(--c-blue-100);
   color: var(--c-blue-700);
+  /* A day whose last schedule completes turns grey with a fade. */
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    color var(--motion-base) var(--motion-ease);
 }
 
 .month-calendar__count.is-done {

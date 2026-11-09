@@ -1,6 +1,7 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import type { OverdueSummary } from '../types/schedule'
 import './OverdueBanner.css'
+import { useTweenedNumber } from '@shared/motion'
 
 type OverdueBannerProps = {
   summary: OverdueSummary
@@ -14,11 +15,13 @@ type OverdueBannerProps = {
  * @constructor
  */
 const OverdueBanner = ({ summary, onNavigateToDate }: OverdueBannerProps) => {
+  // Completing an overdue schedule counts the number down instead of swapping it.
+  const shownCount = Math.round(useTweenedNumber(summary.count ?? 0))
   if (!summary.hasOverdue) return null
 
   const { count, earliestDate } = summary
   const message = count
-    ? `이전 날짜에 아직 완료되지 않은 일정이 ${count}개 있어요.`
+    ? `이전 날짜에 아직 완료되지 않은 일정이 ${shownCount}개 있어요.`
     : '이전 날짜에 아직 완료되지 않은 일정이 있어요.'
 
   const handleClick = () => {

@@ -1,5 +1,5 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import useScheduleViewState from '../../hooks/useScheduleViewState.ts'
 import WeeklyDateStrip from '../../components/WeeklyDateStrip.tsx'
@@ -45,15 +45,55 @@ import {
   audienceSchedules,
   scheduleMineParam,
 } from '@features/spaces/scope'
+import {
+  MOTION_ENTER_MS,
+  prefersReducedMotion,
+  presenceProps,
+  useListPresence,
+  usePresence,
+  useTweenedNumber,
+} from '@shared/motion'
+
+type WeekDirection = 'forward' | 'backward'
+
+/** The week total glides to a new value. Keyed by week, so another week's value never tweens into it. */
+const WeeklyTotal = ({ minutes }: { minutes: number }) => {
+  const shown = useTweenedNumber(minutes)
+  return <>이번 주 총 작업 {formatMinutesToTime(Math.round(shown))}</>
+}
+
+/**
+ * Day change: the new day's rows slide in from the side the day lies on, or rise in when they
+ * replace a first load. Web Animations on the rows, so the list surface never fades or remounts.
+ */
+const animateDayRows = (root: HTMLElement | null, direction: -1 | 0 | 1) => {
+  if (!root) return
+  const reduce = prefersReducedMotion()
+  const offset = reduce ? 'none' : direction === 0 ? 'translateY(8px)' : `translateX(${direction * 12}px)`
+  root
+    .querySelectorAll<HTMLElement>(':scope > .schedules-tab__item')
+    .forEach((row, index) => {
+      row.animate?.(
+        [
+          { opacity: 0, transform: offset },
+          { opacity: 1, transform: 'none' },
+        ],
+        {
+          duration: MOTION_ENTER_MS,
+          easing: 'cubic-bezier(0.2, 0, 0, 1)',
+          // A short stagger reads as one sweep; it stops growing after six rows.
+          delay: reduce ? 0 : Math.min(index, 5) * 24,
+          fill: 'backwards',
+        },
+      )
+    })
+}
 
 const SchedulesTabPage = () => {
   const listRef = useRef<HTMLDivElement | null>(null)
   const [movingScheduleId, setMovingScheduleId] = useState<number | null>(null)
   const recurrenceScope = useRecurrenceScope()
   const { open } = useRouteSurfaceNavigation()
-  const [weekDirection, setWeekDirection] = useState<'forward' | 'backward'>(
-    'forward',
-  )
   const [calendarView, setCalendarView] = useState<'week' | 'month'>('week')
   const {
     currentWeekStart,
@@ -63,6 +103,28 @@ const SchedulesTabPage = () => {
     goToWeek,
     selectDate,
   } = useScheduleViewState()
+  // The week strip and the week total slide toward the week you moved to. Derived from the week
+  // itself, so the arrows, a swipe, the month view and the overdue banner all agree, and nothing
+  // slides on the first render.
+  const weekKey = currentWeekStart.format('YYYY-MM-DD')
+  const [weekNav, setWeekNav] = useState<{
+    key: string
+    direction: WeekDirection | null
+  }>({ key: weekKey, direction: null })
+  // What last changed the calendar: a week move slides it, a week/month switch fades it.
+  const [calendarMotion, setCalendarMotion] = useState<'week' | 'view' | null>(
+    null,
+  )
+  if (weekNav.key !== weekKey) {
+    setWeekNav({
+      key: weekKey,
+      direction: weekKey > weekNav.key ? 'forward' : 'backward',
+    })
+    setCalendarMotion('week')
+  }
+  const weekTransition = weekNav.direction
+    ? `week-transition week-transition--${weekNav.direction}`
+    : ''
   const { offsetMinutes } = useTimePreferences()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedDateKey = searchParams.get('date')
@@ -103,14 +165,13 @@ const SchedulesTabPage = () => {
   const { audience, setAudience, shared } = useScheduleAudience()
   // 주간·월간 표시는 서버의 mine 조회를 쓴다. 전환이 없는 스페이스는 서버 기본 조회를 유지한다.
   const mine = scheduleMineParam(!shared, audience)
+  // Keyed by week: picking another day in the same week reads nothing new.
   const {
     presenceMap,
-    isLoading: isPresenceLoading,
     error: presenceError,
     refetch: refetchPresence,
   } = useWeeklySchedulePresence({
     weekStart: currentWeekStart,
-    anchorDate: selectedDate,
     mine,
   })
   const monthly = useMonthlySchedules(
@@ -120,15 +181,24 @@ const SchedulesTabPage = () => {
   )
   const {
     schedules: schedulesByDate,
-    isLoading: isScheduleLoadingRaw,
+    data: dayData,
+    isLoading: isScheduleLoading,
+    isRefreshing: isScheduleRefreshing,
     error: scheduleErrorRaw,
     refetch: refetchSchedulesRaw,
+    setData: setDaySchedules,
   } = useScheduleList(selectedDate)
-  const {
-    summary: overdueSummary,
-    isLoading: isOverdueLoading,
-    refetch: refetchOverdue,
-  } = useOverdueSchedulesSummary({ mine })
+  // Rows exist for this day (fresh or refreshing). Only their absence shows a loading or error panel.
+  const hasDayData = dayData !== undefined
+  const { summary: overdueSummary, refetch: refetchOverdue } =
+    useOverdueSchedulesSummary({ mine })
+  // The banner rises in when overdue schedules appear and fades out when the last one is done.
+  // One that is already known when the page mounts (from the cache) is simply there.
+  const overdueBanner = usePresence(
+    overdueSummary.hasOverdue ? overdueSummary : null,
+  )
+  const [bannerEnters, setBannerEnters] = useState(!overdueBanner.mounted)
+  if (!bannerEnters && !overdueBanner.mounted) setBannerEnters(true)
   const statsWeekStart = useMemo(
     () => currentWeekStart.add(1, 'day'),
     [currentWeekStart],
@@ -136,6 +206,7 @@ const SchedulesTabPage = () => {
   const {
     current: weeklyStats,
     isLoading: isWeeklyStatsLoading,
+    isRefreshing: isWeeklyStatsRefreshing,
     error: weeklyStatsError,
     refetch: refetchWeeklyStats,
   } = useWeeklyStatistics({ weekStart: statsWeekStart })
@@ -167,7 +238,7 @@ const SchedulesTabPage = () => {
       )?.nickname
     return label ? { label, unassigned: false } : null
   }
-  const isScheduleLoading = isPresenceLoading || isScheduleLoadingRaw
+  // The week dots failing never blanks the day list; it only raises a toast.
   const scheduleError = scheduleErrorRaw ?? presenceError
   const refetchSchedules = () => {
     refetchPresence()
@@ -175,10 +246,34 @@ const SchedulesTabPage = () => {
     monthly.refetch()
   }
 
-  const handleChangeWeek = (offset: 1 | -1) => {
-    setWeekDirection(offset > 0 ? 'forward' : 'backward')
-    goToWeek(offset)
-  }
+  // New rows rise in, removed rows fade out where they were. Another day, audience or space is a
+  // new baseline: its rows arrive with the day transition instead.
+  const rows = useListPresence(
+    hasDayData ? schedules : undefined,
+    (schedule) => schedule.id,
+    {
+      resetKey: `${selectedDateKey}|${audience}|${selectedSpace?.id ?? 'all'}`,
+    },
+  )
+
+  // The day the rows on screen belong to. undefined before the first commit.
+  const shownDayRef = useRef<string | null | undefined>(undefined)
+  useLayoutEffect(() => {
+    const previous = shownDayRef.current
+    if (!hasDayData) {
+      if (previous === undefined) shownDayRef.current = null
+      return
+    }
+    shownDayRef.current = selectedDateKey
+    // First render with cached rows: the route already animates the page in.
+    if (previous === undefined || previous === selectedDateKey) return
+    animateDayRows(
+      listRef.current,
+      previous === null ? 0 : selectedDateKey > previous ? 1 : -1,
+    )
+  }, [hasDayData, selectedDateKey])
+
+  const handleChangeWeek = (offset: 1 | -1) => goToWeek(offset)
 
   // 달을 넘기면 주간 이동처럼 선택 날짜도 같은 날로 옮긴다(없는 날은 그 달 말일).
   const handleChangeMonth = (offset: 1 | -1) =>
@@ -235,8 +330,8 @@ const SchedulesTabPage = () => {
         try {
           if (await confirmAndDeleteSeries(target.recurrence, scope, true)) {
             if (activeScheduleId === scheduleId) setActiveSchedule(null)
+            // The event also refreshes the overdue banner.
             dispatchScheduleChanged({ reason: 'recurrence' })
-            refetchOverdue()
           }
         } catch (error) {
           console.error(
@@ -254,12 +349,14 @@ const SchedulesTabPage = () => {
       if (activeScheduleId === scheduleId) {
         setActiveSchedule(null)
       }
-      refetchSchedules()
-      refetchOverdue()
-      offerScheduleUndo(scheduleId, () => {
-        refetchSchedules()
-        refetchOverdue()
-      })
+      // The row leaves at once (it fades out where it was), then one event refreshes the day,
+      // the week dots, the month, the overdue banner and the week total.
+      setDaySchedules((previous) =>
+        (previous ?? []).filter((schedule) => schedule.id !== scheduleId),
+      )
+      dispatchScheduleChanged({ scheduleId, reason: 'deleted' })
+      // Restoring dispatches its own change, which refreshes the same views.
+      offerScheduleUndo(scheduleId)
     } catch (error) {
       console.error(`❌ Delete failed for schedule ${scheduleId}:`, error)
       if (!handleConflict(error)) addToast('일정 삭제에 실패했습니다.', 'error')
@@ -281,14 +378,16 @@ const SchedulesTabPage = () => {
         expectedVersion: schedule.version,
       })
       setSchedule(updated)
+      // The card leaves this day at once and fades out where it was.
+      setDaySchedules((previous) =>
+        (previous ?? []).filter((item) => item.id !== schedule.id),
+      )
+      // The event refreshes the day, week, month, overdue and stats views once. No extra refetch.
       dispatchScheduleChanged({
         schedule: updated,
         previousDateKey,
         reason: 'moved',
       })
-      refetchSchedules()
-      refetchOverdue()
-      refetchWeeklyStats()
       addToast(
         `"${schedule.title}" 일정을 ${offset < 0 ? '전날' : '다음날'}로 이동했어요.`,
         'success',
@@ -317,12 +416,15 @@ const SchedulesTabPage = () => {
         expectedVersion: schedule.version,
       })
       setSchedule(updated)
+      // The handle keeps the new time while the day refreshes in the background.
+      setDaySchedules((previous) =>
+        (previous ?? []).map((item) => (item.id === updated.id ? updated : item)),
+      )
       dispatchScheduleChanged({
         schedule: updated,
         previousDateKey,
         reason: 'moved',
       })
-      refetchSchedules()
       addToast(
         `"${schedule.title}" 일정을 ${nextDate.format('HH:mm')}로 옮겼어요.`,
         'success',
@@ -345,24 +447,31 @@ const SchedulesTabPage = () => {
     containerRef: listRef,
     hasItems: schedules.length > 0,
     resetKey: selectedDateKey,
-    disabled: movingScheduleId !== null || isScheduleLoading || !!scheduleError,
+    // Only a day with nothing to show blocks dragging. A refresh or a stale error does not.
+    disabled: movingScheduleId !== null || !hasDayData,
     onMove: handleMoveSchedule,
     onRefresh: handleRefresh,
   })
 
   return (
     <section className="schedules-tab">
-      {isOverdueLoading ? (
-        <StatusPanel variant="loading" title="미완료 일정 정보를 불러오는 중" />
-      ) : overdueSummary.hasOverdue ? (
-        <OverdueBanner
-          summary={overdueSummary}
-          onNavigateToDate={(dateKey) => {
-            const targetDate = toDisplayDayjs(dateKey)
-            selectDate(targetDate)
-          }}
-        />
-      ) : null}
+      {/* No loading panel here: it pushed the whole page down and back up on every change. */}
+      {overdueBanner.mounted && overdueBanner.value && (
+        <div
+          className="schedules-tab__overdue"
+          data-state={overdueBanner.closing ? 'closing' : undefined}
+          data-enter={bannerEnters || undefined}
+          inert={overdueBanner.closing || undefined}
+        >
+          <OverdueBanner
+            summary={overdueBanner.value}
+            onNavigateToDate={(dateKey) => {
+              const targetDate = toDisplayDayjs(dateKey)
+              selectDate(targetDate)
+            }}
+          />
+        </div>
+      )}
       <div
         className="schedules-tab__view-toggle"
         role="group"
@@ -374,30 +483,43 @@ const SchedulesTabPage = () => {
             type="button"
             className={calendarView === view ? 'is-active' : undefined}
             aria-pressed={calendarView === view}
-            onClick={() => setCalendarView(view)}
+            onClick={() => {
+              if (view !== calendarView) setCalendarMotion('view')
+              setCalendarView(view)
+            }}
           >
             {view === 'week' ? '주' : '월'}
           </button>
         ))}
       </div>
       {calendarView === 'month' ? (
-        <MonthCalendar
-          month={selectedDate.startOf('month')}
-          selectedDate={selectedDate}
-          todayKey={toDateKey(getTodayWithOffset(offsetMinutes))}
-          summaryByDate={monthly.summaryByDate}
-          isLoading={monthly.isLoading}
-          error={monthly.error}
-          onSelectDate={selectDate}
-          onChangeMonth={handleChangeMonth}
-        />
+        <div
+          key="month"
+          className={
+            calendarMotion === 'view' ? 'schedules-tab__calendar-in' : undefined
+          }
+        >
+          <MonthCalendar
+            month={selectedDate.startOf('month')}
+            selectedDate={selectedDate}
+            todayKey={toDateKey(getTodayWithOffset(offsetMinutes))}
+            summaryByDate={monthly.summaryByDate}
+            isLoading={monthly.isLoading}
+            error={monthly.error}
+            onSelectDate={selectDate}
+            onChangeMonth={handleChangeMonth}
+          />
+        </div>
       ) : (
         <div
-          className={[
-            'week-transition',
-            `week-transition--${weekDirection}`,
-          ].join(' ')}
-          key={currentWeekStart.format('YYYY-MM-DD')}
+          className={
+            calendarMotion === 'view'
+              ? 'schedules-tab__calendar-in'
+              : calendarMotion === 'week'
+                ? weekTransition
+                : undefined
+          }
+          key={weekKey}
         >
           <WeeklyDateStrip
             weekStart={currentWeekStart}
@@ -409,23 +531,29 @@ const SchedulesTabPage = () => {
         </div>
       )}
       <div
-        className={[
-          'schedules-tab__weekly-stats',
-          'week-transition',
-          `week-transition--${weekDirection}`,
-        ].join(' ')}
-        key={`${currentWeekStart.format('YYYY-MM-DD')}-stats`}
+        className={['schedules-tab__weekly-stats', weekTransition]
+          .filter(Boolean)
+          .join(' ')}
+        key={`${weekKey}-stats`}
+        aria-busy={isWeeklyStatsRefreshing || undefined}
       >
         {isWeeklyStatsLoading ? (
-          <span>이번 주 총 작업 시간을 불러오는 중...</span>
+          // Invisible for the first 150ms, so a quick load goes straight to the total.
+          <span className="schedules-tab__stats-pending">
+            이번 주 총 작업 시간을 불러오는 중...
+          </span>
         ) : weeklyStatsError ? (
-          <span>총 작업 시간을 표시할 수 없어요</span>
+          <span className="schedules-tab__stats-value">
+            총 작업 시간을 표시할 수 없어요
+          </span>
         ) : weeklyStats ? (
-          <span>
-            이번 주 총 작업 {formatMinutesToTime(weeklyStats.totalMinutes)}
+          <span className="schedules-tab__stats-value">
+            <WeeklyTotal minutes={weeklyStats.totalMinutes} />
           </span>
         ) : (
-          <span>이번 주 총 작업 0시간 0분</span>
+          <span className="schedules-tab__stats-value">
+            이번 주 총 작업 0시간 0분
+          </span>
         )}
       </div>
       {isBeyondGeneration(
@@ -492,8 +620,7 @@ const SchedulesTabPage = () => {
       {shared &&
         audience === 'mine' &&
         hiddenScheduleCount > 0 &&
-        !isScheduleLoading &&
-        !scheduleError && (
+        hasDayData && (
           <div className="schedules-tab__hidden-note" role="status">
             <span>
               이 날 다른 사람이 맡았거나 담당자가 없는 일정{' '}
@@ -519,11 +646,10 @@ const SchedulesTabPage = () => {
         )}
       <div
         ref={listRef}
-        className={[
-          'schedules-tab__list',
-          'fade-slide',
-          `week-transition--${weekDirection}`,
-        ].join(' ')}
+        // No mount animation on the list: it replayed on every visit. Days change with the
+        // row transition in animateDayRows; refreshes leave the rows as they are.
+        className="schedules-tab__list"
+        aria-busy={isScheduleRefreshing || undefined}
         data-onboarding-anchor="schedules.list"
         onTouchStart={containerTouchHandlers.onTouchStart}
         onTouchMove={containerTouchHandlers.onTouchMove}
@@ -555,19 +681,19 @@ const SchedulesTabPage = () => {
         >
           <span>다음날로 이동</span>
         </div>
-        {isPresenceLoading || isScheduleLoading ? (
+        {isScheduleLoading ? (
           <StatusPanel variant="loading" title="일정을 불러오는 중" />
-        ) : scheduleError ? (
+        ) : scheduleErrorRaw && !hasDayData ? (
           <StatusPanel
             variant="error"
             title="일정을 불러오지 못했어요"
-            description={scheduleError}
+            description={scheduleErrorRaw}
             action={<button onClick={refetchSchedules}>재시도</button>}
           />
-        ) : schedules.length ? (
-          schedules.map((schedule) => (
+        ) : rows.length ? (
+          rows.map(({ key, item: schedule, phase }) => (
             <div
-              key={schedule.id}
+              key={key}
               className={[
                 'schedules-tab__item',
                 draggingScheduleId === schedule.id ? 'is-dragging' : '',
@@ -575,7 +701,8 @@ const SchedulesTabPage = () => {
               ]
                 .filter(Boolean)
                 .join(' ')}
-              {...getItemHandlers(schedule)}
+              {...presenceProps(phase)}
+              {...(phase === 'exit' ? {} : getItemHandlers(schedule))}
             >
               <ScheduleTimeHandle
                 start={toDisplayDayjs(schedule.date)}
