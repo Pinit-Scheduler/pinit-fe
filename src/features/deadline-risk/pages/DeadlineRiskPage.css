@@ -1,0 +1,58 @@
+.deadline-risk {
+  flex: 1;
+  min-height: 0;
+  padding: 24px;
+  overflow-y: auto;
+  color: var(--workspace-ink);
+  line-height: 1.65;
+}
+.deadline-risk > * { max-width: 920px; margin-inline: auto; }
+.deadline-risk h1 { font-size: 24px; line-height: 1.35; margin: 0 0 12px; }
+.deadline-risk h2 { font-size: 17px; margin: 0; }
+.deadline-risk p { margin-block: 8px; }
+.deadline-risk a { color: var(--workspace-blue); text-underline-offset: 3px; }
+.deadline-risk__header { margin-bottom: 24px; }
+.deadline-risk__header > p { max-width: 66ch; }
+.deadline-risk__hint, .deadline-risk__deadline, .deadline-risk__basis { color: var(--workspace-muted); font-size: 13px; }
+.deadline-risk__toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin-bottom: 18px; }
+.deadline-risk__toolbar label { display: grid; gap: 5px; font-size: 13px; }
+.deadline-risk__toolbar select, .deadline-risk__toolbar button {
+  min-height: 44px; padding: 8px 12px; border: 1px solid var(--workspace-control-line);
+  border-radius: 8px; color: var(--workspace-ink); background: var(--workspace-surface); font: inherit;
+}
+.deadline-risk__toolbar button { cursor: pointer; font-weight: 600; }
+.deadline-risk__toolbar button:disabled { cursor: wait; opacity: .6; }
+.deadline-risk__toolbar > a { padding-block: 8px; }
+.deadline-risk :is(a, button, select, summary):focus-visible { outline: 3px solid var(--workspace-blue); outline-offset: 4px; }
+.deadline-risk__basis { border-block: 1px solid var(--workspace-line); padding-block: 8px; }
+.deadline-risk__summary { font-weight: 600; padding-top: 14px; }
+.deadline-risk__list { list-style: none; padding: 0; }
+.deadline-risk__item { padding: 22px 0; border-bottom: 1px solid var(--workspace-control-line); }
+.deadline-risk__item-heading { display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; align-items: baseline; }
+.deadline-risk__item-heading h2 { overflow-wrap: anywhere; }
+.deadline-risk__status { font-size: 13px; font-weight: 700; }
+.deadline-risk__item--shortage .deadline-risk__status, .deadline-risk__item--overdue .deadline-risk__status { color: var(--c-red-700); }
+.deadline-risk__item--feasible .deadline-risk__status { color: var(--workspace-blue); }
+.deadline-risk__minutes { display: flex; flex-wrap: wrap; gap: 18px 36px; margin-block: 16px; }
+.deadline-risk__minutes dt { font-size: 12px; color: var(--workspace-muted); }
+.deadline-risk__minutes dd { margin: 2px 0 0; font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.deadline-risk__reasons { padding-left: 20px; font-size: 14px; }
+.deadline-risk__predecessors { font-size: 13px; }
+.deadline-risk__predecessors ul { display: flex; flex-wrap: wrap; gap: 8px 18px; list-style: none; padding: 0; }
+.deadline-risk__actions { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 14px; }
+.deadline-risk__actions a { padding-block: 9px; }
+.deadline-risk__personal-action { border: 0; background: none; color: var(--workspace-blue); padding: 9px 0; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.deadline-risk__personal-action:disabled { color: var(--workspace-muted); cursor: not-allowed; text-decoration: none; }
+.deadline-risk__assumptions { margin-top: 24px; padding-bottom: 18px; font-size: 13px; color: var(--workspace-muted); }
+.deadline-risk__assumptions summary { cursor: pointer; color: var(--workspace-ink); font-size: 14px; min-height: 44px; padding-block: 10px; }
+.deadline-risk__assumptions h2 { font-size: 14px; color: var(--workspace-ink); margin-top: 16px; }
+.deadline-risk__empty { padding-block: 28px; }
+.deadline-risk__error { color: var(--c-red-700); }
+@media (max-width: 760px) {
+  .deadline-risk { padding: 18px 16px; }
+  .deadline-risk h1 { font-size: 21px; }
+  .deadline-risk__toolbar { gap: 10px; }
+  .deadline-risk__toolbar > a { flex-basis: 100%; }
+  .deadline-risk__minutes { gap: 14px 24px; }
+  .deadline-risk__minutes dd { font-size: 18px; }
+}

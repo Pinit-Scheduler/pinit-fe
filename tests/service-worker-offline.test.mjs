@@ -83,6 +83,15 @@ const loadWorker = ({ cached = {}, fetchResponse, failCacheWrite = false } = {})
   }
 }
 
+test('explicit no-store forecasts bypass old same-origin SW cache entries entirely', async () => {
+  const path = '/v2/plans/deadline-risk?days=7'
+  const worker = loadWorker({ cached: { [path]: 'outdated forecast' } })
+  const result = await worker.respond({ ...asset(path), cache: 'no-store' })
+  assert.equal(result, undefined, 'browser network handles request, worker supplies no cached fallback')
+  assert.equal(worker.fetches.length, 0)
+  assert.equal(worker.writes.length, 0)
+})
+
 test('online navigation bypasses old route HTML and updates the canonical shell for later offline deep links', async () => {
   let online = true
   const worker = loadWorker({
