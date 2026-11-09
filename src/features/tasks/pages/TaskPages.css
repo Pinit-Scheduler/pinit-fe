@@ -6,6 +6,8 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  /* clip, not hidden: focus returning to a control must not scroll the page sideways */
+  overflow: clip;
 }
 
 .task-page__header {
@@ -232,12 +234,17 @@
 
 .task-search__bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
+.task-search__bar > :not(.task-search__input) {
+  white-space: nowrap;
+}
+
 .task-search__input {
-  flex: 1;
+  flex: 1 1 160px;
   min-width: 0;
   padding: 8px 12px;
   border: 1px solid var(--c-slate-300);
