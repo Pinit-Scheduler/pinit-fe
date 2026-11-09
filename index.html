@@ -7,8 +7,18 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" sizes="512x512" href="/icons/pinit-app-logo.png" />
     <meta name="theme-color" content="#0b1b42" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Pinit</title>
+    <style>
+      /* 첫 페인트 색. CSS가 오기 전 흰 화면이 번쩍이지 않게 워크스페이스 배경(workspacePalette.css의 --workspace-bg)을 먼저 칠한다.
+         :where()라 명시도가 0이어서 index.css의 :root 배경이 로드되면 늘 이 규칙을 덮는다. */
+      :where(html) { color-scheme: light; background-color: #f4f6fa; }
+      :where(html[data-theme='dark']) { color-scheme: dark; background-color: #151c2a; }
+      @media (prefers-color-scheme: dark) {
+        :where(html:not([data-theme='light'])) { color-scheme: dark; background-color: #151c2a; }
+      }
+    </style>
     <script>
       // 첫 렌더 전에 저장된 테마를 적용한다(src/shared/theme/theme.ts와 같은 키·값).
       try {
