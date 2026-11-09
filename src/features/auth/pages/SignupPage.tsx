@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { signup } from '../api/auth'
 import { NICKNAME_MAX_LENGTH, validateNickname, validatePassword, validateUsername } from '../utils/accountRules'
 import { useToast } from '@contexts/ToastContext'
+import AuthMessage from '../components/AuthMessage'
 import './LoginPage.css'
 
 type SignupFormState = {
@@ -135,8 +136,9 @@ const SignupPage = () => {
               onMouseDown={handleTouchFocus}
               onFocus={handleTouchFocus}
               required
+              aria-invalid={errors.username ? true : undefined}
             />
-            {errors.username && <small>{errors.username}</small>}
+            <AuthMessage message={errors.username} />
           </label>
 
           <label className="signup__field">
@@ -153,8 +155,9 @@ const SignupPage = () => {
               onMouseDown={handleTouchFocus}
               onFocus={handleTouchFocus}
               required
+              aria-invalid={errors.password ? true : undefined}
             />
-            {errors.password && <small>{errors.password}</small>}
+            <AuthMessage message={errors.password} />
           </label>
 
           <label className="signup__field">
@@ -170,8 +173,9 @@ const SignupPage = () => {
               onMouseDown={handleTouchFocus}
               onFocus={handleTouchFocus}
               required
+              aria-invalid={errors.confirmPassword ? true : undefined}
             />
-            {errors.confirmPassword && <small>{errors.confirmPassword}</small>}
+            <AuthMessage message={errors.confirmPassword} />
           </label>
 
           <label className="signup__field">
@@ -187,14 +191,20 @@ const SignupPage = () => {
               onMouseDown={handleTouchFocus}
               onFocus={handleTouchFocus}
               required
+              aria-invalid={errors.nickname ? true : undefined}
             />
-            {errors.nickname && <small>{errors.nickname}</small>}
+            <AuthMessage message={errors.nickname} />
           </label>
 
-          {errors.form && <p className="signup__form-error">{errors.form}</p>}
+          <AuthMessage as="p" className="signup__form-error" message={errors.form} />
 
           <div className="login__actions signup__actions">
-            <button type="submit" className="login__btn login__btn--primary" disabled={isSubmitting}>
+            <button
+              type="submit"
+              className="login__btn login__btn--primary"
+              disabled={isSubmitting}
+              aria-busy={isSubmitting || undefined}
+            >
               {isSubmitting ? '가입 중...' : '회원가입'}
             </button>
             <button
