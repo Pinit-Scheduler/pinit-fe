@@ -15,6 +15,7 @@ export default function HubPeople({
   onInvite,
   onToggleAdmin,
   onRemove,
+  onAssign,
 }: {
   space: Space
   rows: MemberRow[]
@@ -25,11 +26,16 @@ export default function HubPeople({
   onInvite: () => void
   onToggleAdmin: (row: MemberRow) => void
   onRemove: (row: MemberRow) => void
+  onAssign: () => void
 }) {
   const actions = space.allowedActions
-  // 참여자 관리가 꺼지면 그 메뉴 자체를 그리지 않으므로, 안내는 보이는 초대 버튼에만 단다.
+  // 참여자 관리가 꺼지면 그 메뉴 자체를 그리지 않으므로, 안내는 보이는 초대·배정 버튼에만 단다.
   const notes = unavailableLines(
     [{ off: actions.invite === false, reason: space.unavailableReasons?.invite }],
+    adminNames(space.members),
+  )
+  const assignNotes = unavailableLines(
+    [{ off: actions.assign === false, reason: space.unavailableReasons?.assign }],
     adminNames(space.members),
   )
   return (
@@ -105,7 +111,19 @@ export default function HubPeople({
           <span className="hub-person__name">담당자 미정</span>
           <span className="hub-count">{unassigned.openCount}개</span>
           <span className="hub-due">{dueLabel(unassigned.nearestDueDate)}</span>
+          <button
+            type="button"
+            className="workspace-button workspace-button--primary hub-unassigned__assign"
+            aria-haspopup="dialog"
+            disabled={actions.assign === false}
+            onClick={onAssign}
+          >
+            배정하기
+          </button>
           <p>담당자가 없는 작업은 누구의 오늘에도 나오지 않아요.</p>
+          {assignNotes.map((line) => (
+            <UnavailableNote key={line} text={line} />
+          ))}
         </div>
       ) : unassigned ? (
         <p className="hub-quiet">모든 작업에 담당자가 있어요.</p>
