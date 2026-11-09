@@ -18,6 +18,7 @@ export type ScheduleCacheValue = {
   removeSchedule: (id: number) => void
   setSchedule: (schedule: ScheduleResponse) => void
   upsertSchedule: (schedule: ScheduleResponse) => void
+  invalidateSchedules: (scheduleIds: number[]) => void
   setActiveSchedule: (scheduleId: number | null) => void
   pendingScheduleId: number | null
   beginMutation: (scheduleId: number) => boolean
@@ -108,6 +109,14 @@ export const ScheduleCacheProvider = ({
     setActiveScheduleId((current) => (current === id ? null : current))
   }, [])
 
+  const invalidateSchedules = useCallback((scheduleIds: number[]) => {
+    setSchedulesById((previous) => {
+      const next = { ...previous }
+      scheduleIds.forEach((id) => { delete next[id] })
+      return next
+    })
+  }, [])
+
   // alias to keep existing callers readable
   const setSchedule = upsertSchedule
 
@@ -129,6 +138,7 @@ export const ScheduleCacheProvider = ({
       setSchedule,
       removeSchedule,
       upsertSchedule,
+      invalidateSchedules,
       setActiveSchedule,
     }),
     [
@@ -141,6 +151,7 @@ export const ScheduleCacheProvider = ({
       setSchedule,
       removeSchedule,
       upsertSchedule,
+      invalidateSchedules,
     ],
   )
 

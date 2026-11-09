@@ -20,6 +20,7 @@ const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
   '/app/spaces': '공간·프로젝트 관리',
   '/app/plan': '하루 계획',
+  '/app/deadline-risk': '마감 위험 예보',
   '/app/schedules': '일정',
   '/app/schedules/new': '일정 추가',
   '/app/new': '일정 추가',
