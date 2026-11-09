@@ -57,6 +57,7 @@
 
 .trend-chart__value {
   min-height: 1.2em;
+  font-variant-numeric: tabular-nums;
   color: var(--c-slate-600);
   font-size: 0.65rem;
   white-space: nowrap;
@@ -76,8 +77,8 @@
 .trend-chart__bar {
   display: block;
   width: 100%;
+  height: 100%;
   background-color: var(--c-blue-300);
-  transition: height 220ms ease;
 }
 
 .trend-chart__item.is-current .trend-chart__bar {
@@ -152,4 +153,108 @@
 .space-time .time-bars {
   max-width: 640px;
   margin-top: 12px;
+}
+
+/* ------------------------------------------------------------------ */
+/* 통계 화면의 움직임. docs/motion/README.md의 규칙을 따른다.           */
+/* ------------------------------------------------------------------ */
+
+/* 한 기간의 섹션 묶음. 주간·월간 모두 같은 간격으로 쌓인다. */
+.report-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+/* 처음 불러오기: 자리 표시는 150ms 기다렸다가 나타나서, 빠른 응답에는 아무것도 깜빡이지 않는다. */
+.report-section--loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) var(--motion-status-delay) both;
+}
+
+/* 자리 표시 다음에 들어온 내용만 한 번 떠오른다. 캐시 값으로 그릴 때는 움직이지 않는다. */
+.report-reveal {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
+/* 숫자와 글. 기간을 넘기는 동안 다른 기간의 값은 숨기고, 새 값이 오면 다시 나타난다. */
+.report-datum {
+  transition: opacity var(--motion-base) var(--motion-ease);
+}
+[data-pending] .report-datum {
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease-exit);
+}
+
+/* 막대. 크기는 그대로 두고 트랙 안에서 transform으로 밀어 넣는다. */
+.report-mark {
+  transition:
+    transform var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms),
+    background-color var(--motion-base) var(--motion-ease);
+}
+.report-mark--rise {
+  animation: stats-bar-rise var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms) backwards;
+}
+.report-mark--slide {
+  animation: stats-bar-slide var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms) backwards;
+}
+/* 새 값을 기다리는 동안 막대는 제자리에서 회색으로 가라앉는다. 빠른 응답이면 색이 바뀌기 전에 새 값으로 간다. */
+[data-pending] .report-mark,
+[data-pending] .trend-chart__item.is-current .report-mark,
+[data-pending] .plan-comparison__bar.is-planned {
+  background-color: var(--c-slate-200);
+  transition:
+    transform var(--motion-enter) var(--motion-ease),
+    background-color var(--motion-base) var(--motion-ease) var(--motion-status-delay);
+}
+[data-pending] .donut-chart__arc {
+  stroke: var(--c-slate-300);
+  transition:
+    stroke-dashoffset var(--motion-enter) var(--motion-ease),
+    stroke var(--motion-base) var(--motion-ease) var(--motion-status-delay);
+}
+
+@keyframes stats-bar-rise {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes stats-bar-slide {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+/* 값이 있는 채로 다시 불러오다 실패하면 내용은 두고 한 줄로 알린다. */
+.report-inline-error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+.report-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 움직임은 없애고 투명도 변화만 남긴다(--motion-distance는 0). */
+  .report-datum,
+  [data-pending] .report-datum {
+    transition-duration: var(--motion-base) !important;
+  }
+  .report-reveal,
+  .report-section--loading,
+  .report-inline-error {
+    animation-duration: var(--motion-base) !important;
+  }
 }
