@@ -795,11 +795,15 @@ button:disabled {
 
 /*
  * The realtime notice waits a moment before it rises in, so a reconnect that succeeds at once
- * never flashes it. (It still disappears at once: WorkspaceRealtime unmounts it.)
+ * never flashes it. Once it has appeared it fades out on reconnect (WorkspaceRealtime keeps it
+ * mounted through the exit with usePresence); inside the wait it unmounts at once.
  */
 .space-realtime-status {
   animation: motion-rise-in var(--motion-enter) var(--motion-ease)
     calc(var(--motion-status-delay) * 4) both;
+}
+.space-realtime-status[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
 }
 
 /* Invitation page: the card rises once; its content fades in when the invitation is read. */
@@ -847,5 +851,9 @@ button:disabled {
   .space-realtime-status {
     animation-name: motion-fade-in;
     animation-duration: var(--motion-base) !important;
+  }
+  .space-realtime-status[data-state='closing'] {
+    animation-name: motion-fade-out;
+    animation-duration: var(--motion-exit) !important;
   }
 }

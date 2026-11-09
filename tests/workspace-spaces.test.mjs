@@ -976,6 +976,7 @@ test('Workspace realtime handles deleted, purged and moved-out Task/Schedule eve
         './realtime': { subscribeToWorkspace: (_signal, listener) => { changed = listener; return Promise.resolve() } },
         './metadata': registry,
         '@shared/utils/events': { takeLocalEcho: () => false },
+        '@shared/motion/usePresence': { usePresence: () => ({ mounted: false, closing: false }) },
       }).default
       Component()
       changed({ spaceId: 22, resourceId: 1, resourceType, action })

@@ -7,12 +7,23 @@ import { useSpaces, workspaceChanged } from './store'
 import { subscribeToWorkspace, type SpaceEvent } from './realtime'
 import { evictWorkspaceResource } from './metadata'
 import { takeLocalEcho } from '@shared/utils/events'
+import { usePresence } from '@shared/motion/usePresence'
 
 export default function WorkspaceRealtime() {
   const { spaces, memberId } = useSpaces()
   const { setTask } = useTaskCache()
   const { setSchedule } = useScheduleCache()
   const [disconnected, setDisconnected] = useState(false)
+  // The notice waits before it rises in (spaces.css). It fades out only once it has actually
+  // appeared; a reconnect inside the wait unmounts it at once, so it never flashes.
+  const [entered, setEntered] = useState(false)
+  const [lastDisconnected, setLastDisconnected] = useState(disconnected)
+  if (lastDisconnected !== disconnected) {
+    setLastDisconnected(disconnected)
+    // Each disconnect restarts the delayed entrance, so it has to appear again before it may fade.
+    if (disconnected) setEntered(false)
+  }
+  const notice = usePresence(disconnected)
   const ready = spaces.some((space) => !space.deleted)
   useEffect(() => {
     if (!ready) return
@@ -69,10 +80,16 @@ export default function WorkspaceRealtime() {
       clearTimeout(timer)
     }
   }, [ready, memberId, setTask, setSchedule])
-  return disconnected ? (
-    <p className="space-realtime-status" role="status">
+  if (!notice.mounted || (notice.closing && !entered)) return null
+  return (
+    <p
+      className="space-realtime-status"
+      role="status"
+      data-state={notice.closing ? 'closing' : undefined}
+      onAnimationStart={notice.closing ? undefined : () => setEntered(true)}
+    >
       실시간 연결을 다시 시도하고 있어요. 저장 시 서버에서 최신 버전을
       확인합니다.
     </p>
-  ) : null
+  )
 }

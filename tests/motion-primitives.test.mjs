@@ -174,6 +174,7 @@ const realtimeComponent = (echo) => {
     './realtime': { subscribeToWorkspace: (_signal, listener) => { changed = listener; return Promise.resolve() } },
     './metadata': { evictWorkspaceResource() {} },
     '@shared/utils/events': { takeLocalEcho: echo },
+    '@shared/motion/usePresence': { usePresence: () => ({ mounted: false, closing: false }) },
   }).default
   Component()
   return { calls, changed: (event) => changed(event), cleanup: () => cleanup() }
@@ -198,6 +199,46 @@ test('the echo of this client\'s own save skips the global refetch but still rea
   assert.equal(h.calls.workspaceChanged, 2, 'removals and resyncs always refresh')
   assert.deepEqual(echoes, [['task', 1], ['schedule', 2]])
   h.cleanup()
+})
+
+test('the realtime notice fades out after it has appeared, and unmounts at once inside its delay', () => {
+  const render = ({ presence, entered }) => {
+    // useState order in the component: disconnected, entered, lastDisconnected.
+    const states = [!presence.closing, entered, !presence.closing]
+    let cursor = 0
+    const Component = load('features/spaces/WorkspaceRealtime.tsx', {
+      react: { useEffect() {}, useState: () => [states[cursor++], () => {}] },
+      'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
+      '@contexts/TaskCacheContext': { useTaskCache: () => ({ setTask() {} }) },
+      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule() {} }) },
+      '@features/tasks/api/tasks': { fetchTaskDetail() {} },
+      '@features/schedules/api/schedules': { fetchScheduleDetail() {} },
+      './store': { useSpaces: () => ({ spaces: [{ id: 22 }], memberId: 4 }), workspaceChanged() {} },
+      './realtime': { subscribeToWorkspace() {} },
+      './metadata': { evictWorkspaceResource() {} },
+      '@shared/utils/events': { takeLocalEcho: () => false },
+      '@shared/motion/usePresence': { usePresence: () => presence },
+    }).default
+    return Component()
+  }
+  const open = render({ presence: { mounted: true, closing: false, value: true }, entered: false })
+  assert.equal(open.type, 'p')
+  assert.equal(open.props['data-state'], undefined)
+  assert.equal(typeof open.props.onAnimationStart, 'function', 'the entrance marks the notice as shown')
+  const fading = render({ presence: { mounted: true, closing: true, value: true }, entered: true })
+  assert.equal(fading.props['data-state'], 'closing')
+  assert.equal(fading.props.onAnimationStart, undefined)
+  assert.equal(
+    render({ presence: { mounted: true, closing: true, value: true }, entered: false }),
+    null,
+    'a reconnect before the notice appeared never flashes it',
+  )
+  assert.equal(render({ presence: { mounted: false, closing: false }, entered: false }), null)
+  const css = readFileSync(new URL('../src/features/spaces/spaces.css', import.meta.url), 'utf8')
+  assert.match(
+    css,
+    /\.space-realtime-status\[data-state='closing'\] \{\s*animation: motion-fade-out var\(--motion-exit\) var\(--motion-ease-exit\) both;/,
+  )
 })
 
 // ---------------------------------------------------------------------------
