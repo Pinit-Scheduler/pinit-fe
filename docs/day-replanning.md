@@ -1,6 +1,6 @@
 # 오늘 남은 일정 다시 짜기
 
-2026-11-09 기능 변경 문서다. 기존 하루 계획의 `GET /v2/plans`와 새 일정 생성 계약은 유지한다. `master@c064de4a2a3a66bd190671e7853810c7d242996c`의 목적 공간·프로젝트 모델을 기능 브랜치에 merge하고 같은 범위·권한·캐시 규칙에 연결했다. 이 문서는 `codex/replan-day`의 구현·검증을 설명하며 운영 배포 완료를 뜻하지 않는다. 공통 고정 그래프의 FE 기준 `d27098bfce1c845565176cb357017075d433d3ac`에는 목적 공간과 이 기능이 없다.
+2026-11-09 기능 변경 문서다. 기존 하루 계획의 `GET /v2/plans`와 새 일정 생성 계약은 유지한다. `master@c064de4a2a3a66bd190671e7853810c7d242996c`의 목적 공간·프로젝트 모델에 연결한 뒤, OAuth/QA 정리까지 포함한 `master@3baa37ec247324497aa4b40e8c068c447f41899e`를 일반 feature merge로 반영했다. 이 문서는 `codex/replan-day`의 구현·검증을 설명하며 운영 배포 완료를 뜻하지 않는다. 공통 고정 그래프의 FE 기준 `d27098bfce1c845565176cb357017075d433d3ac`에는 목적 공간과 이 기능이 없다.
 
 ## 사용자 흐름
 
@@ -57,12 +57,12 @@
 
 브라우저 검증은 모든 API 응답을 별도 Playwright route fixture로 제공하고 외부 네트워크를 차단한 화면·전송 계약 검증이다. 기존 `VITE_USE_MOCK_API` 내장 mock에는 새 재배치 경로를 추가하지 않았다. 실제 BE·DB·인증을 연결한 E2E, 실제 기기·스크린 리더·운영 배포는 미확인이다. BE의 도메인·컨트롤러·롤백 테스트 결과와 이 기록을 구분한다.
 
-### 최신 목적 공간 모델 통합 검증
+### 목적 공간 모델 통합 검증 — c064 기준의 기록
 
 - 기본 브랜치 `c064de4a2a3a66bd190671e7853810c7d242996c`를 feature merge commit `c711c98dcfcd7538ce0388d572bb1163bb9060df`로 반영했다. 기존 workspace 캐시의 접근·버전·이동 응답 차단과 CI/브라우저 fixture 계약을 보존했다.
 - `node --test --test-concurrency=1`: **275개 통과, 실패·건너뜀 0**. 재배치 전용 20개 검사에는 공간·프로젝트 전환의 지연 응답, 적용 중 전환, 리소스 제거/참여 해제, 이벤트 없는 revision 변경, preview/apply 403/404/410, canonical 범위 거부가 포함된다.
 - `npm run lint`, `npm run build`: 통과. 349개 모듈, JS 735.37 kB(압축 227.14 kB), 기존 청크 크기·baseline 안내 유지.
-- 기존 `Workspace browser QA`의 운영 API fixture 실행 조건은 변경하지 않았다. 이 기능 브랜치에서는 그 운영 쓰기 작업이 실행되지 않는다.
+- 이 단락의 `c064`/`436bcf8ef08dc73f8cba86e96a227d81f0529f5e` 시점에는 기존 `Workspace browser QA` 승인 브랜치 조건을 유지해 해당 운영 쓰기 job이 skipped였다. 최신 `3baa`에서 그 workflow가 제거된 사실은 아래 최종 재확인 기록과 구분한다.
 
 ### 폐기 가능한 Task/H2를 연결한 실제 재배치 REST 브라우저 검증
 
@@ -80,3 +80,11 @@ FE의 [로컬 브라우저 harness](../qa/replanning/README.md)는 실제 빌드
 - page error 0, 외부 네트워크 요청 0, 모바일 390×844 가로 넘침 0. 데스크톱과 접근 거부 후 모바일 화면을 캡처해 확인했다.
 
 재현 코드는 `qa/replanning/local.mjs`, 실행법은 `qa/replanning/README.md`다. report·PNG는 ignored `qa/replanning/.runtime/`에 남긴다. 검증 후 로컬 proxy/browser와 BE fixture를 종료했다. 실제 운영 데이터, 정상 인증 발급/갱신, production SSE·MySQL 브라우저 통합, 실제 기기·스크린 리더·운영 배포는 이 검증의 범위가 아니다.
+
+### 최종 기본 브랜치 재확인 — OAuth/QA 정리 반영
+
+- `master@3baa37ec247324497aa4b40e8c068c447f41899e`를 일반 merge commit `2d84dbf93723b33a9197648b406cf902af640318`로 반영하고 `git merge-base --is-ancestor origin/master HEAD` 종료 코드 0을 확인했다.
+- 이전 native 검증 HEAD `436bcf8ef08dc73f8cba86e96a227d81f0529f5e`와 비교한 재배치·공간·일정 캐시·HTTP client/config·`qa/replanning/local.mjs`·루트 의존성 및 Playwright lock 차이는 0이다. 따라서 20개 재배치 검사, 275개 전체 검사 및 위 native 10개 시나리오의 구현 근거를 유지하며 DB fixture를 불필요하게 다시 실행하지 않았다.
+- 실제 변경된 OAuth 동의와 SW cache 연결 검사는 `node --test --test-concurrency=1 tests/oauth-consent.test.mjs tests/service-worker-cache-version.test.mjs`로 **16개 통과, 실패·건너뜀 0**을 확인했다.
+- master의 정리에 따라 운영 쓰기용 `Workspace browser QA`와 이전 safety unit 파일은 제거된 상태를 그대로 받아들였다. 남은 canonical smoke는 master push 전용 읽기 검사다. 로컬 비신뢰 이벤트에서 `TRUSTED_MASTER_REQUIRED`로 네트워크 전에 거부됨을 확인했고, canonical/local harness syntax check와 공유 Playwright `1.65.0` 모듈 해석을 확인했다. 운영 canonical 검사를 실행한 기록은 아니다.
+- 최신 merge에서 `npm run lint`, `npm run build`, `git diff --check` 통과. 349개 모듈, JS 734.98 kB(압축 227.00 kB), 기존 청크 크기·baseline 안내 유지. 전체 검사 275개와 native 10개 검증은 위 동일 구현의 실행 기록이며 이번 재확인에서 반복 실행한 것으로 적지 않는다.
