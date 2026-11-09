@@ -168,7 +168,7 @@ const OAuthConsentPage = () => {
 
     if (phase === 'loading') {
       return (
-        <div className="consent__state" role="status">
+        <div className="consent__state consent__state--loading" role="status">
           <h1>연결 요청을 확인하는 중...</h1>
         </div>
       )
@@ -233,7 +233,7 @@ const OAuthConsentPage = () => {
       )
 
     return (
-      <>
+      <div className="consent__body">
         <p className="consent__eyebrow">AI 앱 연결 요청</p>
         <h1 className="consent__title">
           <span className="consent__client">{request.clientName}</span>이(가) 내
@@ -354,7 +354,7 @@ const OAuthConsentPage = () => {
             {isBusy ? '처리 중...' : '허용'}
           </button>
         </div>
-      </>
+      </div>
     )
   }
 
