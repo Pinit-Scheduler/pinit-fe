@@ -3,11 +3,11 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useSpaces } from './store'
+import { projectSelectionTarget } from './scope'
 import './spaces.css'
 
 export function SpaceSwitcher() {
   const spaces = useSpaces()
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const current = spaces.selectedSpace
   return (
@@ -72,7 +72,6 @@ export function SpaceSwitcher() {
                   onClick={() => {
                     spaces.selectSpace(space.id)
                     setOpen(false)
-                    navigate('/app/tasks')
                   }}
                 >
                   <span className="space-avatar" aria-hidden>
@@ -107,12 +106,14 @@ export function SpaceProjectsNav() {
   const { projects, selectedSpaceId, selectedProjectId, selectProject } =
     useSpaces()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const items = projects.filter(
     (project) => project.spaceId === selectedSpaceId && !project.deleted,
   )
   const choose = (id: number | null) => {
     selectProject(id)
-    navigate('/app/tasks')
+    const target = projectSelectionTarget(pathname)
+    if (typeof target === 'string') navigate(target)
   }
   return (
     <nav className="space-projects-nav" aria-label="선택한 스페이스의 프로젝트">

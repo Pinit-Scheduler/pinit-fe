@@ -148,6 +148,7 @@ test('workspace context labels personal forecast instead of the selected team pu
     '@shared/components/common/Modal': { default: () => null },
     '@shared/components/common/WorkspaceIcon': { default: () => null },
     './store': { useSpaces: () => ({ ...personalSpaces, selectedSpace: { name: '선택한 팀', purpose: '팀 목적' }, selectedProject: { name: '팀 프로젝트', outcome: '팀 성과' } }) },
+    './scope': load('../src/features/spaces/scope.ts'),
     './spaces.css': {},
   })
   const html = renderToStaticMarkup(React.createElement(SpaceContextBar))
