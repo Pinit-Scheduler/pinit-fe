@@ -73,7 +73,7 @@
   border-radius: 14px;
   font-weight: 700;
   text-decoration: none;
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  transition: transform var(--motion-fast) var(--motion-ease);
 }
 
 .landing__action--primary {
@@ -94,8 +94,9 @@
   color: var(--c-slate-600);
 }
 
-.landing__action:active {
-  transform: translateY(1px);
+.landing__action:active,
+.landing__cta:active {
+  transform: scale(0.98);
 }
 
 .landing__glow {
@@ -192,6 +193,13 @@
   text-decoration: none;
   font-weight: 700;
   margin-top: 12px;
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+.landing__cta:hover {
+  background: var(--c-blue-700);
 }
 
 .landing__pagination {
@@ -208,6 +216,18 @@
   padding: 10px 12px;
   border-radius: 12px;
   font-weight: 700;
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.landing__pagination button:hover:not(:disabled) {
+  background: var(--c-slate-100);
+}
+
+.landing__pagination button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 
 .landing__pagination button:disabled {
@@ -216,23 +236,110 @@
 
 .landing__dots {
   display: flex;
-  gap: 6px;
+  gap: 0;
   align-items: center;
 }
 
+/* Every dot has the same 20px box, so picking one never shifts its neighbours.
+ * The ring (::before) gives way to a filled pill (::after) that grows from the dot's centre. */
 .landing__dots button {
-  width: 10px;
+  position: relative;
+  width: 20px;
   height: 10px;
-  border-radius: 999px;
-  border: 1px solid var(--c-slate-400);
-  background: var(--c-surface);
+  border: none;
+  background: transparent;
   padding: 0;
 }
 
-.landing__dots button.is-active {
+.landing__dots button::before,
+.landing__dots button::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  height: 10px;
+  border-radius: 5px;
+}
+
+.landing__dots button::before {
+  left: 5px;
+  width: 10px;
+  border: 1px solid var(--c-slate-400);
+  background: var(--c-surface);
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.landing__dots button::after {
+  left: 0;
   width: 20px;
-  background: linear-gradient(135deg, var(--c-blue-400), var(--c-blue-600));
-  border-color: transparent;
+  background: var(--c-blue-600);
+  opacity: 0;
+  transform: scaleX(0.5);
+  transition:
+    opacity var(--motion-fast) var(--motion-ease-exit),
+    transform var(--motion-exit) var(--motion-ease-exit);
+}
+
+.landing__dots button.is-active::before {
+  opacity: 0;
+}
+
+.landing__dots button.is-active::after {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    transform var(--motion-enter) var(--motion-ease);
+}
+
+/* Slides share one grid cell. The current one shows; the others wait just off to the side
+ * they come from, so Next moves content left and Previous moves it right. */
+.landing__slide-stack {
+  display: grid;
+}
+
+.landing__slide-panel {
+  grid-area: 1 / 1;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity var(--motion-exit) var(--motion-ease-exit),
+    transform var(--motion-exit) var(--motion-ease-exit),
+    visibility 0s linear var(--motion-exit);
+}
+
+.landing__slide-panel[data-position='before'] {
+  transform: translateX(calc(var(--motion-distance) * -1));
+}
+
+.landing__slide-panel[data-position='after'] {
+  transform: translateX(var(--motion-distance));
+}
+
+.landing__slide-panel[data-position='current'] {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity var(--motion-enter) var(--motion-ease) 60ms,
+    transform var(--motion-enter) var(--motion-ease) 60ms,
+    visibility 0s;
+}
+
+/* The one load sequence: the hero lines, then the introduction, rise in with a short stagger. */
+.landing [data-reveal] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+.landing [data-reveal='1'] {
+  animation-delay: 60ms;
+}
+.landing [data-reveal='2'] {
+  animation-delay: 120ms;
+}
+.landing [data-reveal='3'] {
+  animation-delay: 180ms;
+}
+.landing [data-reveal='4'] {
+  animation-delay: 240ms;
 }
 
 .landing__eyebrow {
@@ -269,5 +376,25 @@
 
   .landing__actions {
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Opacity only. Travel is already 0 (--motion-distance); the fades opt back in. */
+  .landing [data-reveal] {
+    animation-duration: var(--motion-base) !important;
+  }
+  .landing__slide-panel,
+  .landing__dots button::before,
+  .landing__dots button::after {
+    transition-duration: var(--motion-base) !important;
+  }
+  .landing__dots button::after {
+    transform: none;
+  }
+  .landing__action:active,
+  .landing__cta:active,
+  .landing__pagination button:active:not(:disabled) {
+    transform: none;
   }
 }

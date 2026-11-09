@@ -65,7 +65,7 @@ const SocialCallbackPage = () => {
           OP에서 받은 access token/code/state를 백엔드로 전달해 세션을 준비하고 있어요.
         </p>
 
-        <div className="login__status">
+        <div className="login__status" aria-live="polite">
           <div className="login__status-item">
             <span className="login__status-dot" />
             <div>
@@ -74,7 +74,7 @@ const SocialCallbackPage = () => {
             </div>
           </div>
           {error ? (
-            <div className="login__status-item">
+            <div className="login__status-item login__status-item--error">
               <span className="login__status-dot login__status-dot--amber" />
               <div>
                 <p className="login__status-label">오류</p>

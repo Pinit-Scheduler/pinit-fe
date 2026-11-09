@@ -3,12 +3,23 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { refreshAccessToken } from '../api/auth'
 import { clearAuthTokens, getAccessToken, isAccessTokenExpired, isLoggedOut } from '@shared/api/authTokens'
 import { rememberReturnTo } from '../utils/returnTo'
+import { resolveAuthEntry } from '../utils/authEntry'
+import AuthBoot from './AuthBoot'
+
+const readAuthEntry = () =>
+  resolveAuthEntry({
+    loggedOut: isLoggedOut(),
+    token: getAccessToken(),
+    isExpired: isAccessTokenExpired,
+  })
 
 const AuthGuard = () => {
-  const [isReady, setIsReady] = useState(false)
+  // A valid stored token renders the page in the first frame. Only a refresh or a redirect waits.
+  const [isReady, setIsReady] = useState(() => readAuthEntry() === 'ready')
   const navigate = useNavigate()
 
   useEffect(() => {
+    if (isReady) return
     let isCancelled = false
 
     // 로그인 뒤 지금 보던 화면(예: /oauth/consent?request=…)으로 돌아올 수 있게 기억한다.
@@ -18,14 +29,13 @@ const AuthGuard = () => {
     }
 
     const ensureAuth = async () => {
-      if (isLoggedOut()) {
+      const entry = readAuthEntry()
+      if (entry === 'logged-out') {
         clearAuthTokens()
         redirectToLogin()
         return
       }
-      const token = getAccessToken()
-      const shouldRefresh = !token || isAccessTokenExpired(token)
-      if (!shouldRefresh) {
+      if (entry === 'ready') {
         setIsReady(true)
         return
       }
@@ -45,9 +55,9 @@ const AuthGuard = () => {
     return () => {
       isCancelled = true
     }
-  }, [navigate])
+  }, [isReady, navigate])
 
-  if (!isReady) return null
+  if (!isReady) return <AuthBoot />
 
   return <Outlet />
 }
