@@ -177,9 +177,12 @@ test('hub data is keyed by space so a stale space never shows', () => {
     new URL('../src/features/spaces/hub/useHubData.ts', import.meta.url),
     'utf8',
   )
-  assert.match(source, /`summary:\$\{spaceId\}`/)
-  assert.match(source, /`record:\$\{spaceId\}:\$\{weekStart\}`/)
-  assert.match(source, /fetchWeeklyRecord\(spaceId, weekStart\)/)
+  // Cached per space (useRevalidatingQuery): the key names the space, so another space's
+  // numbers never render, and a space seen before shows its last numbers at once.
+  assert.match(source, /summary:\$\{spaceId\}`/)
+  assert.match(source, /record:\$\{spaceId\}:\$\{weekStart\}`/)
+  assert.match(source, /fetchWeeklyRecord\(spaceId as number, weekStart, signal\)/)
+  assert.match(source, /useRevalidatingQuery/)
 })
 
 test('the hub never counts tasks itself', () => {
