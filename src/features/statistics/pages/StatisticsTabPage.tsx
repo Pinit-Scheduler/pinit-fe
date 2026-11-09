@@ -12,7 +12,7 @@ import { weekStartOf } from '@features/calibration/utils/calibrationView'
 import { monthLabel, monthStartOf, shiftMonth } from '../utils/reportView'
 
 const SCOPE_NOTE =
-  '모든 스페이스에서 내 기록이에요. 팀 기록은 스페이스에서 볼 수 있어요.'
+  '모든 스페이스의 내 기록이에요. 팀 기록은 스페이스에서 볼 수 있어요.'
 
 type View = 'week' | 'month' | 'recurrence'
 

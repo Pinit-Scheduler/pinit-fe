@@ -145,6 +145,7 @@ export function SpaceContextBar() {
   const today = pathname === '/app/today'
   const trash = pathname === '/app/settings/trash'
   const deadlineRisk = pathname === '/app/deadline-risk'
+  const statistics = pathname === '/app/statistics'
   const { selectedSpace, selectedProject } = useSpaces()
   return (
     <section className="space-context" aria-label="목적과 프로젝트">
@@ -164,7 +165,10 @@ export function SpaceContextBar() {
       {deadlineRisk && (
         <span className="space-context__project">개인 스페이스 · 마감 위험 예보</span>
       )}
-      {!today && !trash && !deadlineRisk && selectedSpace?.purpose && (
+      {statistics && (
+        <span className="space-context__project">모든 스페이스 · 내 기록</span>
+      )}
+      {!today && !trash && !deadlineRisk && !statistics && selectedSpace?.purpose && (
         <details>
           <summary>
             <span>목적</span>
@@ -179,7 +183,7 @@ export function SpaceContextBar() {
           )}
         </details>
       )}
-      {!today && !trash && !deadlineRisk && selectedProject && (
+      {!today && !trash && !deadlineRisk && !statistics && selectedProject && (
         <span className="space-context__project">
           {selectedProject.name}
           {selectedProject.completed ? ' · 완료' : ''}
