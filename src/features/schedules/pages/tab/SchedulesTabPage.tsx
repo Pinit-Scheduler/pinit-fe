@@ -10,6 +10,7 @@ import useWeeklySchedulePresence from '../../hooks/useWeeklySchedulePresence.ts'
 import useOverdueSchedulesSummary from '../../hooks/useOverdueSchedulesSummary.ts'
 import ScheduleCard from '../../components/ScheduleCard.tsx'
 import useScheduleList from '../../hooks/useScheduleList.ts'
+import useScheduleAudience from '../../hooks/useScheduleAudience'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { deleteSchedule, updateSchedule } from '../../api/schedules.ts'
@@ -38,6 +39,11 @@ import {
   previewSeriesDelete,
 } from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
+import { useSpaces } from '@features/spaces/store'
+import {
+  audienceSchedules,
+  scheduleMineParam,
+} from '@features/spaces/scope'
 
 const SchedulesTabPage = () => {
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -92,6 +98,10 @@ const SchedulesTabPage = () => {
   }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
+  const { memberId, selectedSpace } = useSpaces()
+  const { audience, setAudience, shared } = useScheduleAudience()
+  // 주간·월간 표시는 서버의 mine 조회를 쓴다. 전환이 없는 스페이스는 서버 기본 조회를 유지한다.
+  const mine = scheduleMineParam(!shared, audience)
   const {
     presenceMap,
     isLoading: isPresenceLoading,
@@ -100,8 +110,13 @@ const SchedulesTabPage = () => {
   } = useWeeklySchedulePresence({
     weekStart: currentWeekStart,
     anchorDate: selectedDate,
+    mine,
   })
-  const monthly = useMonthlySchedules(selectedDate, calendarView === 'month')
+  const monthly = useMonthlySchedules(
+    selectedDate,
+    calendarView === 'month',
+    mine,
+  )
   const {
     schedules: schedulesByDate,
     isLoading: isScheduleLoadingRaw,
@@ -126,7 +141,7 @@ const SchedulesTabPage = () => {
   const { setSchedule, setActiveSchedule, activeScheduleId, schedulesById } =
     useScheduleCache()
 
-  const schedules = useMemo(
+  const daySchedules = useMemo(
     () =>
       schedulesByDate.map((item) => {
         const cached = schedulesById[item.id]
@@ -135,6 +150,22 @@ const SchedulesTabPage = () => {
       }),
     [schedulesByDate, schedulesById],
   )
+  // 날짜별 목록은 팀 전체를 받아 내 일정 보기에서 내가 담당자인 일정만 보여 준다(서버 mine=true와 같은 기준).
+  const { visible: schedules, hidden: hiddenScheduleCount } = useMemo(
+    () => audienceSchedules(daySchedules, shared, audience, memberId),
+    [daySchedules, shared, audience, memberId],
+  )
+  const showsAssignee = shared && audience === 'team'
+  const assigneeOf = (schedule: ScheduleSummary) => {
+    if (schedule.assigneeId === null)
+      return { label: '담당자 미정', unassigned: true }
+    const label =
+      schedule.assigneeNickname ||
+      selectedSpace?.members.find(
+        (member) => member.memberId === schedule.assigneeId,
+      )?.nickname
+    return label ? { label, unassigned: false } : null
+  }
   const isScheduleLoading = isPresenceLoading || isScheduleLoadingRaw
   const scheduleError = scheduleErrorRaw ?? presenceError
   const refetchSchedules = () => {
@@ -397,6 +428,24 @@ const SchedulesTabPage = () => {
       )}
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
+        {shared && (
+          <div
+            className="schedules-tab__audience"
+            role="group"
+            aria-label="일정 보기 범위"
+          >
+            {(['mine', 'team'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={audience === value}
+                onClick={() => setAudience(value)}
+              >
+                {value === 'mine' ? '내 일정' : '팀 전체'}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="schedules-tab__header-actions">
           <button
             type="button"
@@ -428,6 +477,20 @@ const SchedulesTabPage = () => {
         카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로
         끌어 시간을 바꿔요.
       </p>
+      {shared &&
+        audience === 'mine' &&
+        hiddenScheduleCount > 0 &&
+        !isScheduleLoading &&
+        !scheduleError && (
+          <div className="schedules-tab__hidden-note">
+            <span>
+              이 날 팀원 일정 {hiddenScheduleCount}개는 숨겨져 있어요.
+            </span>
+            <button type="button" onClick={() => setAudience('team')}>
+              팀 전체 보기
+            </button>
+          </div>
+        )}
       <div
         ref={listRef}
         className={[
@@ -500,6 +563,7 @@ const SchedulesTabPage = () => {
                 schedule={schedule}
                 onOpenDetail={(id) => open(`/app/schedules/${id}`)}
                 onDelete={handleDelete}
+                assignee={showsAssignee ? assigneeOf(schedule) : null}
               />
             </div>
           ))

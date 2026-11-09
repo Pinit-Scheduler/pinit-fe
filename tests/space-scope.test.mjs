@@ -77,3 +77,35 @@ test('breadcrumb names the scope the screen uses', () => {
     '내 공부',
   )
 })
+test('schedule audience maps to the mine parameter', () => {
+  const { scheduleMineParam } = load('features/spaces/scope.ts')
+  assert.equal(scheduleMineParam(true, 'team'), undefined)
+  assert.equal(scheduleMineParam(true, 'mine'), undefined)
+  assert.equal(scheduleMineParam(false, 'mine'), true)
+  assert.equal(scheduleMineParam(false, 'team'), false)
+})
+test('switching spaces brings the schedule view back to mine', () => {
+  const { audienceFor } = load('features/spaces/scope.ts')
+  assert.equal(audienceFor(31, null), 'mine')
+  assert.equal(audienceFor(31, { spaceId: 31, audience: 'team' }), 'team')
+  assert.equal(audienceFor(44, { spaceId: 31, audience: 'team' }), 'mine')
+})
+test('my schedules keep only my assignments and count the hidden ones', () => {
+  const { audienceSchedules } = load('features/spaces/scope.ts')
+  const day = [
+    { id: 1, assigneeId: 7 },
+    { id: 2, assigneeId: 9 },
+    { id: 3, assigneeId: null },
+    { id: 4, assigneeId: 7 },
+  ]
+  const ids = (result) => Array.from(result.visible, (item) => item.id)
+  const mine = audienceSchedules(day, true, 'mine', 7)
+  assert.deepEqual(ids(mine), [1, 4])
+  assert.equal(mine.hidden, 2)
+  const team = audienceSchedules(day, true, 'team', 7)
+  assert.deepEqual(ids(team), [1, 2, 3, 4])
+  assert.equal(team.hidden, 0)
+  const solo = audienceSchedules(day, false, 'mine', 7)
+  assert.deepEqual(ids(solo), [1, 2, 3, 4])
+  assert.equal(solo.hidden, 0)
+})

@@ -41,3 +41,31 @@ export function scopeCrumb(
   if (!space) return '스페이스'
   return project ? `${space.name} › ${project.name}` : space.name
 }
+
+export type ScheduleAudience = 'mine' | 'team'
+
+export function scheduleMineParam(
+  personal: boolean,
+  audience: ScheduleAudience,
+): boolean | undefined {
+  return personal ? undefined : audience === 'mine'
+}
+
+export function audienceFor(
+  spaceId: number | null,
+  stored: { spaceId: number | null; audience: ScheduleAudience } | null,
+): ScheduleAudience {
+  return stored && stored.spaceId === spaceId ? stored.audience : 'mine'
+}
+
+// Same rule as the server's mine=true: the caller is the assignee.
+export function audienceSchedules<T extends { assigneeId?: number | null }>(
+  schedules: T[],
+  shared: boolean,
+  audience: ScheduleAudience,
+  memberId: number,
+): { visible: T[]; hidden: number } {
+  if (!shared || audience === 'team') return { visible: schedules, hidden: 0 }
+  const visible = schedules.filter((item) => item.assigneeId === memberId)
+  return { visible, hidden: schedules.length - visible.length }
+}

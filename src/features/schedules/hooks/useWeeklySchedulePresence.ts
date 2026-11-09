@@ -9,6 +9,7 @@ import { onScheduleChanged } from '@shared/utils/events'
 type Options = {
   weekStart: dayjs.Dayjs
   anchorDate?: dayjs.Dayjs
+  mine?: boolean
 }
 
 type UseWeeklySchedulePresenceReturn = {
@@ -19,12 +20,15 @@ type UseWeeklySchedulePresenceReturn = {
   refetch: () => void
 }
 
-const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeeklySchedulePresenceReturn => {
+const useWeeklySchedulePresence = ({ weekStart, anchorDate, mine }: Options): UseWeeklySchedulePresenceReturn => {
   const [presenceMap, setPresenceMap] = useState<DateSchedulePresence>({})
   const [weeklySchedules, setWeeklySchedules] = useState<ScheduleResponse[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState(0)
+  // 내 일정/팀 전체를 바꾸면 이전 범위의 결과를 보여 주지 않는다.
+  const audienceKey = String(mine)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
 
   const dateKeys = useMemo(() => getWeekDays(weekStart).map(toDateKey), [weekStart])
 
@@ -37,8 +41,9 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeekl
       try {
         const base = anchorDate ?? weekStart
         const time = toApiDateTimeWithZone(base.hour(12))
-        const schedules = await fetchWeeklySchedules(time)
+        const schedules = await fetchWeeklySchedules(time, { mine })
         if (!isMounted) return
+        setLoadedKey(String(mine))
         setWeeklySchedules(schedules)
 
         // 날짜별로 일정 그룹화
@@ -74,6 +79,7 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeekl
         }
         // 에러 시 모든 날짜를 false로 설정
         if (isMounted) {
+          setLoadedKey(String(mine))
           const emptyMap: DateSchedulePresence = {}
           dateKeys.forEach((dateKey) => {
             emptyMap[dateKey] = { hasSchedule: false, hasOverdue: false }
@@ -93,18 +99,19 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate }: Options): UseWeekl
     return () => {
       isMounted = false
     }
-  }, [anchorDate, dateKeys, requestId, weekStart])
+  }, [anchorDate, dateKeys, mine, requestId, weekStart])
 
   useEffect(() => {
     const unsubscribe = onScheduleChanged(() => setRequestId((value) => value + 1))
     return unsubscribe
   }, [])
 
+  const fresh = loadedKey === audienceKey
   return {
-    weeklySchedules,
-    presenceMap,
-    isLoading,
-    error,
+    weeklySchedules: fresh ? weeklySchedules : [],
+    presenceMap: fresh ? presenceMap : {},
+    isLoading: isLoading || !fresh,
+    error: fresh ? error : null,
     refetch: () => setRequestId((value) => value + 1),
   }
 }
