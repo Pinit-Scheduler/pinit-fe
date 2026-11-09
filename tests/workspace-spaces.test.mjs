@@ -737,6 +737,7 @@ function spacesStoreHarness(respond) {
     {
       react: {
         useEffect() {},
+        useMemo: (compute) => compute(),
         useState: (initial) => [initial, () => {}],
         useSyncExternalStore: (_subscribe, get) => get(),
       },
