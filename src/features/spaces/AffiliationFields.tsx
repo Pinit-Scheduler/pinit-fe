@@ -108,19 +108,19 @@ export default function AffiliationFields({
             type="button"
             onClick={() => void workspace.reload().catch(() => {})}
           >
-            공간 다시 확인
+            스페이스 다시 확인
           </button>
         </p>
       )}
       {unavailable && (
         <p role="alert" className="space-error">
-          현재 공간에 접근할 수 없어요. 입력한 내용은 유지됩니다. 최신 화면에서
+          현재 스페이스에 접근할 수 없어요. 입력한 내용은 유지됩니다. 최신 화면에서
           권한을 확인해 주세요.
         </p>
       )}
       <div className="space-affiliation__fields">
         <label>
-          공간
+          스페이스
           <select
             disabled={!creating && allowedActions?.move === false}
             value={spaceId ?? ''}
@@ -134,7 +134,7 @@ export default function AffiliationFields({
             }}
           >
             <option value="" disabled>
-              공간 선택
+              스페이스 선택
             </option>
             {workspace.spaces
               .filter((space) => !space.deleted)
@@ -239,14 +239,14 @@ export default function AffiliationFields({
       )}
       {!creating && value.spaceId !== undefined && (
         <p className="space-help">
-          다른 공간으로 옮기면 연결된 작업·일정이 함께 이동하고, 원래 공간에
-          남은 작업과의 선행 관계는 해제·기록됩니다. 같은 공간의 프로젝트만
+          다른 스페이스로 옮기면 연결된 작업·일정이 함께 이동하고, 원래 스페이스에
+          남은 작업과의 선행 관계는 해제·기록됩니다. 같은 스페이스의 프로젝트만
           바꾸면 선행 관계는 유지됩니다.
         </p>
       )}
       {value.assigneeId === null && (
         <p className="space-help">
-          담당자 미정 작업은 공간 목록에 남고 오늘의 내 작업에서는 제외돼요.
+          담당자 미정 작업은 스페이스 목록에 남고 오늘의 내 작업에서는 제외돼요.
         </p>
       )}
     </fieldset>

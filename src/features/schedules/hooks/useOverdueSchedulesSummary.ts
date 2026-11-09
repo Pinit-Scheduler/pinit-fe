@@ -6,13 +6,18 @@ import { getTodayWithOffset, toApiDateTimeWithZone, toDateFromApi, toDateKey } f
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { onScheduleChanged } from '@shared/utils/events'
 
+type Options = { mine?: boolean }
+
 /**
  * 미완료된 일정 요약 정보를 반환하는 커스텀 훅
  * @returns 미완료된 일정 요약 정보, 로딩 상태, 재조회 함수
  */
-const useOverdueSchedulesSummary = () => {
+const useOverdueSchedulesSummary = ({ mine }: Options = {}) => {
   const [summary, setSummary] = useState<OverdueSummary>({ hasOverdue: false })
   const [isLoading, setIsLoading] = useState(true)
+  // 내 일정/팀 전체를 바꾸면 이전 범위의 개수를 보여 주지 않는다.
+  const audienceKey = String(mine)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
   const [timestamp, setTimestamp] = useState(() => Date.now())
   const { offsetMinutes } = useTimePreferences()
 
@@ -26,7 +31,7 @@ const useOverdueSchedulesSummary = () => {
         const todayKey = toDateKey(today)
 
         // 현재 주의 일정을 조회 (v1 주간 API)
-        const schedules = await fetchWeeklySchedules(toApiDateTimeWithZone(today))
+        const schedules = await fetchWeeklySchedules(toApiDateTimeWithZone(today), { mine })
 
         // 오늘 이전 날짜의 미완료 일정 필터링
         const overdueSchedules = schedules.filter((schedule: ScheduleResponse) => {
@@ -37,6 +42,7 @@ const useOverdueSchedulesSummary = () => {
         })
 
         if (isMounted) {
+          setLoadedKey(String(mine))
           if (overdueSchedules.length > 0) {
             // 가장 오래된 일정 찾기
             const earliest = overdueSchedules.reduce((earliest: ScheduleResponse, current: ScheduleResponse) => {
@@ -55,6 +61,7 @@ const useOverdueSchedulesSummary = () => {
       } catch {
         // 에러 시 hasOverdue: false로 설정
         if (isMounted) {
+          setLoadedKey(String(mine))
           setSummary({ hasOverdue: false })
         }
       } finally {
@@ -69,16 +76,17 @@ const useOverdueSchedulesSummary = () => {
     return () => {
       isMounted = false
     }
-  }, [offsetMinutes, timestamp])
+  }, [mine, offsetMinutes, timestamp])
 
   useEffect(() => {
     const unsubscribe = onScheduleChanged(() => setTimestamp(Date.now()))
     return unsubscribe
   }, [])
 
+  const fresh = loadedKey === audienceKey
   return {
-    summary,
-    isLoading,
+    summary: fresh ? summary : { hasOverdue: false },
+    isLoading: isLoading || !fresh,
     refetch: () => setTimestamp(Date.now()),
   }
 }

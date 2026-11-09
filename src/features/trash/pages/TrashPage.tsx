@@ -156,7 +156,7 @@ const TrashPage = () => {
   const onEmpty = () => {
     if (
       !window.confirm(
-        '개인 휴지통의 작업과 일정을 영구 삭제할까요? 공유 공간 항목은 남아 있어요.\n되돌릴 수 없어요.',
+        '개인 휴지통의 작업과 일정을 영구 삭제할까요? 공유 스페이스 항목은 남아 있어요.\n되돌릴 수 없어요.',
       )
     )
       return
@@ -232,7 +232,7 @@ const TrashPage = () => {
                     </p>
                     <p className="trash__item-meta">
                       {spaces.find((space) => space.id === task.spaceId)
-                        ?.name ?? '공간'}{' '}
+                        ?.name ?? '스페이스'}{' '}
                       · 마감 {formatDateWithOffset(task.dueDate, 'M월 D일')} ·{' '}
                       {formatDateTimeWithZone(task.deletedAt)}에 지움 ·{' '}
                       <span className="trash__purge">
@@ -304,7 +304,7 @@ const TrashPage = () => {
                     </p>
                     <p className="trash__item-meta">
                       {spaces.find((space) => space.id === schedule.spaceId)
-                        ?.name ?? '공간'}{' '}
+                        ?.name ?? '스페이스'}{' '}
                       · {formatDateTimeWithZone(schedule.date)} 일정 ·{' '}
                       {formatDateTimeWithZone(schedule.deletedAt)}에 지움 ·{' '}
                       <span className="trash__purge">

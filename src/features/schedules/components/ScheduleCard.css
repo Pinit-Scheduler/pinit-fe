@@ -114,6 +114,17 @@
   color: var(--c-slate-500);
 }
 
+/* 팀 전체 보기의 담당자. 파랑은 누르는 것에만 쓰므로 중립색으로 둔다. */
+.schedule-card__assignee {
+  font-weight: 600;
+  color: var(--c-slate-700);
+}
+
+.schedule-card__assignee--unassigned {
+  font-weight: 500;
+  color: var(--c-amber-800);
+}
+
 .schedule-card__state {
   font-size: 11px;
   padding: 4px 8px;

@@ -76,7 +76,8 @@ async function readSchedules(query: URLSearchParams) {
 }
 export const fetchSchedules = (time: Time, scope?: Scope) =>
   readSchedules(queryFor(time, 1, scope))
-export const fetchWeeklySchedules = (time: Time) => readSchedules(queryFor(time, 7))
+export const fetchWeeklySchedules = (time: Time, scope?: Scope) =>
+  readSchedules(queryFor(time, 7, scope))
 export type ScheduleSimpleRequest = {
   title: string
   description: string

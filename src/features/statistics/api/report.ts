@@ -1,4 +1,3 @@
-import { getSelectedScope } from '@features/spaces/store'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
 import type {
@@ -15,9 +14,6 @@ const withQuery = (
   params: Record<string, string | number | undefined>,
 ) => {
   const query = new URLSearchParams()
-  const { spaceId, projectId } = getSelectedScope()
-  if (spaceId !== null) query.set('spaceId', String(spaceId))
-  if (projectId !== null) query.set('projectId', String(projectId))
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined) query.set(key, String(value))
   })

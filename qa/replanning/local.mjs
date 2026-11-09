@@ -206,7 +206,7 @@ try {
   // itself must erase the independent preview copy and block another apply.
   await fixtureWrite('revoke')
   await page.getByRole('button', { name: '선택한 변경 적용', exact: true }).click()
-  await page.getByText('공간 접근 권한을 다시 확인해 주세요.', { exact: false }).waitFor()
+  await page.getByText('스페이스 접근 권한을 다시 확인해 주세요.', { exact: false }).waitFor()
   assert.equal(await page.locator('.day-replan__changes').count(), 0)
   assert.equal(await page.getByRole('button', { name: '변경 미리보기', exact: true }).isDisabled(), true)
   assert.ok([403, 404, 410].includes(native.at(-1).status))

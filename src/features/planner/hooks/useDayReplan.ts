@@ -140,7 +140,7 @@ const useDayReplan = (
       const next = await previewDayReplan({ ...scope, date, zoneId, delayMinutes: Number(delay) }, controller.current.signal)
       if (!currentRequest(sequence, subject, revision)) return
       if (next.spaceId !== spaceId || next.projectId !== projectId)
-        throw new Error('선택한 공간·프로젝트의 제안이 아니에요. 공간을 다시 불러와 주세요.')
+        throw new Error('선택한 스페이스·프로젝트의 제안이 아니에요. 스페이스를 다시 불러와 주세요.')
       previewRef.current = next
       previewRevision.current = revision
       setPreview(next)

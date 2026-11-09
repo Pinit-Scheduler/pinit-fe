@@ -18,22 +18,22 @@ type KnownScope = Omit<ConsentScopeOption, 'scope' | 'unknown'>
 
 const KNOWN_SCOPES: Record<string, KnownScope> = {
   [READ_SCOPE]: {
-    label: '개인·공유 공간의 일정·작업·프로젝트·참여자 보기',
+    label: '개인·공유 스페이스의 일정·작업·프로젝트·참여자 보기',
     required: true,
     defaultChecked: true,
   },
   [WRITE_SCOPE]: {
-    label: '개인·공유 공간의 내용 만들기·수정·상태 변경 (삭제는 불가)',
+    label: '개인·공유 스페이스의 내용 만들기·수정·상태 변경 (삭제는 불가)',
     required: false,
     defaultChecked: true,
   },
   // 요청돼도 기본은 해제. 사용자가 직접 체크해야만 허용한다.
   [DELETE_SCOPE]: {
-    label: '공간·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
+    label: '스페이스·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
     required: false,
     defaultChecked: false,
     warning:
-      '삭제·초대 철회·참여자 제외·공간 나가기는 미리보기를 확인한 뒤에만 실행돼요. 영구 삭제와 반복 범위 삭제는 되돌릴 수 없어요.',
+      '삭제·초대 철회·참여자 제외·스페이스 나가기는 미리보기를 확인한 뒤에만 실행돼요. 영구 삭제와 반복 범위 삭제는 되돌릴 수 없어요.',
   },
 }
 

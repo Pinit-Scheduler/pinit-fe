@@ -181,7 +181,7 @@ export function CategoryManager({ onClose }: { onClose: () => void }) {
         </button>
       </header>
       <p>
-        프로젝트 이름과 목적에 기여할 성과, 완료 상태는 공간 관리에서 바꿀 수
+        프로젝트 이름과 목적에 기여할 성과, 완료 상태는 스페이스 관리에서 바꿀 수
         있어요.
       </p>
       <Link
@@ -189,7 +189,7 @@ export function CategoryManager({ onClose }: { onClose: () => void }) {
         to="/app/spaces?tab=projects"
         onClick={onClose}
       >
-        공간·프로젝트 관리
+        스페이스·프로젝트 관리
       </Link>
     </Modal>
   )

@@ -83,7 +83,7 @@ try {
   await page.goto(`${base}/app/deadline-risk`)
   await page.getByText('5개 작업 중', { exact: false }).waitFor()
   await page.getByRole('button', { name: /팀 검증 공간/ }).first().waitFor()
-  assert.ok((await page.locator('.space-context').innerText()).includes('개인 공간 · 마감 위험 예보'))
+  assert.ok((await page.locator('.space-context').innerText()).includes('개인 스페이스 · 마감 위험 예보'))
   assert.ok(!(await page.locator('.space-context').innerText()).includes('로컬 범위 검증'))
   assert.equal(await page.evaluate(() => sessionStorage.getItem('pinit.space.selection.7')), '42')
   assert.ok(requests.filter(request => request.path === '/v2/plans/deadline-risk').every(request => !/spaceId|projectId/.test(request.query)))
@@ -149,7 +149,7 @@ try {
   assert.equal(overflow, false)
   checks.push('390px mobile has no horizontal overflow')
   const personalPlanRequest = page.waitForRequest(request => new URL(request.url()).pathname === '/v2/plans')
-  await page.getByRole('button', { name: '개인 공간에서 하루 계획 열기', exact: true }).click()
+  await page.getByRole('button', { name: '개인 스페이스에서 하루 계획 열기', exact: true }).click()
   await page.waitForURL('**/app/plan')
   const planQuery = new URL((await personalPlanRequest).url()).searchParams
   assert.equal(await page.evaluate(() => sessionStorage.getItem('pinit.space.selection.7')), '-7')

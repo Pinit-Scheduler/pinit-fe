@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
@@ -156,6 +157,39 @@ test('Today requests all-space mine ready/due independently and retains server d
   assert.equal(new URL(h.calls[0].url).searchParams.get('readyOnly'), 'true')
   assert.equal(new URL(h.calls[1].url).searchParams.get('date'), '2026-11-08')
   assert.equal(ready.content[0].id, due[0].id)
+})
+test('weekly schedules forward mine', async () => {
+  const calls = []
+  const require = createRequire(import.meta.url)
+  const dayjs = require('dayjs')
+  dayjs.extend(require('dayjs/plugin/isoWeek'))
+  const api = load('features/schedules/api/schedules.ts', {
+    dayjs: { default: dayjs },
+    '@shared/api/config': config,
+    '@shared/api/httpClient': {
+      httpClient: async (url) => {
+        calls.push(url)
+        return []
+      },
+    },
+    '@shared/utils/datetime': {
+      toApiDateTimeWithZone: (time) => ({ dateTime: time, zoneId: 'UTC' }),
+      toDisplayDayjs: (time) => dayjs(time),
+      toDateFromApi: ({ dateTime }) => new Date(dateTime + 'Z'),
+    },
+    '@features/spaces/store': {
+      getSelectedScope: () => ({ spaceId: 31, projectId: null }),
+    },
+    '@features/spaces/metadata': metadata(),
+  })
+  await api.fetchWeeklySchedules('2026-11-11T12:00:00', { mine: true })
+  const mine = new URL(calls[0]).searchParams
+  assert.equal(mine.get('mine'), 'true')
+  assert.equal(mine.get('spaceId'), '31')
+  await api.fetchWeeklySchedules('2026-11-11T12:00:00')
+  const plainWeek = new URL(calls[1]).searchParams
+  assert.equal(plainWeek.has('mine'), false)
+  assert.equal(plainWeek.get('spaceId'), '31')
 })
 test('Invitation transport uses server-issued same-origin URL and marks token requests sensitive', async () => {
   const calls = []

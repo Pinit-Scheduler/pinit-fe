@@ -92,7 +92,7 @@ export default function InvitationPage() {
             {invitation && (
               <>
                 <p className="space-notice">
-                  참여하면 이 공간의 공유 내용과 이동 전 기록을 함께 보고 수정할
+                  참여하면 이 스페이스의 공유 내용과 이동 전 기록을 함께 보고 수정할
                   수 있어요.
                 </p>
                 <p>
@@ -119,8 +119,8 @@ export default function InvitationPage() {
                 {busy
                   ? '참여 중…'
                   : invitation.status === 'ALREADY_MEMBER'
-                    ? '참여 중인 공간으로 이동'
-                    : '공간 참여'}
+                    ? '참여 중인 스페이스로 이동'
+                    : '스페이스 참여'}
               </button>
             )}
             {!unavailable && error && (

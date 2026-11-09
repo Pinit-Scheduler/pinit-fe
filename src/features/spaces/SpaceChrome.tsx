@@ -3,11 +3,11 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useSpaces } from './store'
+import { projectSelectionTarget } from './scope'
 import './spaces.css'
 
 export function SpaceSwitcher() {
   const spaces = useSpaces()
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const current = spaces.selectedSpace
   return (
@@ -25,10 +25,10 @@ export function SpaceSwitcher() {
         <span className="space-switcher__copy">
           <strong>
             {current?.name ??
-              (spaces.loading ? '공간 불러오는 중' : '공간 선택')}
+              (spaces.loading ? '스페이스 불러오는 중' : '스페이스 선택')}
           </strong>
           <small>
-            {current?.personal ? '본인 전용' : '함께 관리하는 목적 공간'}
+            {current?.personal ? '본인 전용' : '함께 관리하는 목적 스페이스'}
           </small>
         </span>
         <span aria-hidden>⌄</span>
@@ -41,11 +41,11 @@ export function SpaceSwitcher() {
           onClose={() => setOpen(false)}
         >
           <header className="space-dialog__header">
-            <h2 id="space-switcher-title">공간 전환</h2>
+            <h2 id="space-switcher-title">스페이스 전환</h2>
             <button
               type="button"
               className="space-icon-button"
-              aria-label="공간 선택 닫기"
+              aria-label="스페이스 선택 닫기"
               onClick={() => setOpen(false)}
             >
               <WorkspaceIcon name="close" />
@@ -72,7 +72,6 @@ export function SpaceSwitcher() {
                   onClick={() => {
                     spaces.selectSpace(space.id)
                     setOpen(false)
-                    navigate('/app/tasks')
                   }}
                 >
                   <span className="space-avatar" aria-hidden>
@@ -93,9 +92,9 @@ export function SpaceSwitcher() {
               ))}
           </div>
           <footer className="space-dialog__footer">
-            <p>오늘에는 모든 공간의 내 작업이 모입니다.</p>
+            <p>오늘에는 모든 스페이스의 내 작업이 모입니다.</p>
             <Link to="/app/spaces" onClick={() => setOpen(false)}>
-              공간·프로젝트 관리
+              스페이스·프로젝트 관리
             </Link>
           </footer>
         </Modal>
@@ -107,22 +106,24 @@ export function SpaceProjectsNav() {
   const { projects, selectedSpaceId, selectedProjectId, selectProject } =
     useSpaces()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const items = projects.filter(
     (project) => project.spaceId === selectedSpaceId && !project.deleted,
   )
   const choose = (id: number | null) => {
     selectProject(id)
-    navigate('/app/tasks')
+    const target = projectSelectionTarget(pathname)
+    if (typeof target === 'string') navigate(target)
   }
   return (
-    <nav className="space-projects-nav" aria-label="선택한 공간의 프로젝트">
+    <nav className="space-projects-nav" aria-label="선택한 스페이스의 프로젝트">
       <p>프로젝트</p>
       <button
         type="button"
         aria-pressed={selectedProjectId === null}
         onClick={() => choose(null)}
       >
-        공간의 모든 작업
+        스페이스의 모든 작업
       </button>
       {items.map((project) => (
         <button
@@ -144,6 +145,7 @@ export function SpaceContextBar() {
   const today = pathname === '/app/today'
   const trash = pathname === '/app/settings/trash'
   const deadlineRisk = pathname === '/app/deadline-risk'
+  const statistics = pathname === '/app/statistics'
   const { selectedSpace, selectedProject } = useSpaces()
   return (
     <section className="space-context" aria-label="목적과 프로젝트">
@@ -152,18 +154,21 @@ export function SpaceContextBar() {
       </div>
       {today && (
         <span className="space-context__project">
-          모든 공간 · 나에게 배정된 작업
+          모든 스페이스 · 나에게 배정된 작업
         </span>
       )}
       {trash && (
         <span className="space-context__project">
-          모든 공간 · 복구 권한이 있는 항목
+          모든 스페이스 · 복구 권한이 있는 항목
         </span>
       )}
       {deadlineRisk && (
-        <span className="space-context__project">개인 공간 · 마감 위험 예보</span>
+        <span className="space-context__project">개인 스페이스 · 마감 위험 예보</span>
       )}
-      {!today && !trash && !deadlineRisk && selectedSpace?.purpose && (
+      {statistics && (
+        <span className="space-context__project">모든 스페이스 · 내 기록</span>
+      )}
+      {!today && !trash && !deadlineRisk && !statistics && selectedSpace?.purpose && (
         <details>
           <summary>
             <span>목적</span>
@@ -178,7 +183,7 @@ export function SpaceContextBar() {
           )}
         </details>
       )}
-      {!today && !trash && !deadlineRisk && selectedProject && (
+      {!today && !trash && !deadlineRisk && !statistics && selectedProject && (
         <span className="space-context__project">
           {selectedProject.name}
           {selectedProject.completed ? ' · 완료' : ''}

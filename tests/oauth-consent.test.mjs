@@ -134,7 +134,7 @@ test('optInScopes render unchecked and are granted only when the user checks the
   )
   assert.equal(
     options[2].label,
-    '공간·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
+    '스페이스·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
   )
   assert.ok(options[2].warning, 'delete carries a warning')
 
@@ -215,7 +215,7 @@ test('opt-in wins over requested, and unknown scopes in either list show raw and
       ]),
     ],
     [
-      ['mcp:read', '개인·공유 공간의 일정·작업·프로젝트·참여자 보기', true, false],
+      ['mcp:read', '개인·공유 스페이스의 일정·작업·프로젝트·참여자 보기', true, false],
       ['mcp:future', 'mcp:future', false, true],
       ['mcp:later', 'mcp:later', false, true],
     ],
@@ -391,12 +391,12 @@ test('three primary scopes cover accessible personal and shared spaces without a
   assert.deepEqual([...options.map((option) => option.scope)], [
     'mcp:read', 'mcp:write', 'mcp:delete',
   ])
-  assert.match(options[0].label, /개인·공유 공간/)
+  assert.match(options[0].label, /개인·공유 스페이스/)
   assert.match(options[0].label, /프로젝트·참여자/)
-  assert.match(options[1].label, /개인·공유 공간/)
+  assert.match(options[1].label, /개인·공유 스페이스/)
   assert.match(options[1].label, /삭제는 불가/)
   assert.equal(options[2].defaultChecked, false)
-  assert.match(options[2].warning, /초대 철회·참여자 제외·공간 나가기/)
+  assert.match(options[2].warning, /초대 철회·참여자 제외·스페이스 나가기/)
   assert.deepEqual([...consent.toDecisionScopes(requested, optIn, ['mcp:write'])], requested)
   assert.deepEqual([...consent.toDecisionScopes(requested, optIn, ['mcp:write', 'mcp:delete'])], [
     ...requested, 'mcp:delete',

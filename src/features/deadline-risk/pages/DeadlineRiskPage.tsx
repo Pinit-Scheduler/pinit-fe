@@ -27,7 +27,7 @@ export default function DeadlineRiskPage() {
     <section className="deadline-risk" aria-labelledby="deadline-risk-title">
       <header className="deadline-risk__header">
         <h1 id="deadline-risk-title">마감 위험 예보</h1>
-        <p>개인 공간의 작업과 일정만 반영해요. 팀이나 다른 공간의 작업·일정은 포함하지 않아요.</p>
+        <p>개인 스페이스의 작업과 일정만 반영해요. 팀이나 다른 스페이스의 작업·일정은 포함하지 않아요.</p>
         <p>마감 전에 끝낼 시간이 충분할까요? 선행 작업과 이미 잡힌 일정, 생활 시간을 함께 살펴봐요.</p>
         <p className="deadline-risk__hint">조회 시점의 가정에 따른 시간 예보예요. 일정이나 작업을 자동으로 바꾸지 않아요.</p>
       </header>
@@ -39,9 +39,9 @@ export default function DeadlineRiskPage() {
           </select>
         </label>
         <button type="button" onClick={refresh} disabled={isLoading}>다시 조회</button>
-        <button type="button" disabled={!personalSpace} onClick={() => openPersonal('/app/plan')}>개인 공간에서 하루 계획 열기</button>
+        <button type="button" disabled={!personalSpace} onClick={() => openPersonal('/app/plan')}>개인 스페이스에서 하루 계획 열기</button>
       </div>
-      {!personalSpace ? <p className="deadline-risk__hint" role="status">개인 공간을 불러온 뒤 작업과 계획 화면을 열 수 있어요. {spaces.error ? <button type="button" onClick={() => void spaces.reload().catch(() => {})}>공간 다시 조회</button> : null}</p> : null}
+      {!personalSpace ? <p className="deadline-risk__hint" role="status">개인 스페이스를 불러온 뒤 작업과 계획 화면을 열 수 있어요. {spaces.error ? <button type="button" onClick={() => void spaces.reload().catch(() => {})}>스페이스 다시 조회</button> : null}</p> : null}
       {isLoading ? <p role="status">마감과 남은 시간을 계산하고 있어요.</p> : null}
       {error ? <p className="deadline-risk__error" role="alert">{error}</p> : null}
       {forecast && counts ? (
@@ -55,7 +55,7 @@ export default function DeadlineRiskPage() {
             <div className="deadline-risk__empty">
               <h2>기간 안에 확인할 마감 작업이 없어요</h2>
               <p>완료한 작업은 예보에서 제외돼요. 아직 생성되지 않은 반복 회차는 포함하지 않아요.</p>
-              <button type="button" className="deadline-risk__personal-action" disabled={!personalSpace} onClick={() => openPersonal('/app/tasks')}>개인 공간의 작업과 마감 확인하기</button>
+              <button type="button" className="deadline-risk__personal-action" disabled={!personalSpace} onClick={() => openPersonal('/app/tasks')}>개인 스페이스의 작업과 마감 확인하기</button>
             </div>
           ) : (
             <>
