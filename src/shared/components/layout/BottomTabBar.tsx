@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import { useScheduleViewStateContext } from '@contexts/ScheduleViewStateContext'
 import { toDateKey } from '@shared/utils/datetime'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
@@ -23,7 +24,7 @@ export default function BottomTabBar({ activePath }: { activePath: string }) {
         <NavLink
           key={path}
           to={'/app/' + path}
-          viewTransition
+          onClick={tabLinkClick('/app/' + path)}
           className={({ isActive }) =>
             'bottom-tab__item' + (isActive ? ' is-active' : '')
           }

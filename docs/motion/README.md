@@ -176,7 +176,8 @@ const toggle = async () => {
 
 ## Tab changes and scroll
 
-- **Tab change:** the sidebar and bottom-tab links pass `viewTransition`. Only `.app-shell__content` crossfades: the old page fades out and the new page rises in. The sidebar, top bar, bottom tab, mini player and toasts keep their own view-transition names and stay still.
+- **Tab change:** the sidebar and bottom-tab links call `tabLinkClick(path)` (`src/shared/routing/viewTransitionNavigation.ts`). Only `.app-shell__content` crossfades: the old page fades out and the new page rises in. The sidebar, top bar, bottom tab, mini player and toasts keep their own view-transition names and stay still.
+- **Why not `viewTransition` on a link:** every page renders inside descendant `<Routes>`. There, react-router's `Link` and `NavLink` use the plain navigator, which silently drops `viewTransition`. To animate another link, give it `onClick={tabLinkClick(path)}`, which uses the data router's navigate.
 - **No View Transitions support:** the content fades up with the Web Animations API instead.
 - **Back and forward:** browser back and forward between tabs, and programmatic `navigate()` calls, change the page with no transition.
 - **Scroll:** a new background page starts at the top. Opening a surface keeps the page's scroll.
@@ -249,7 +250,7 @@ The motion layer owns these files. Page work must not edit them. If you need a c
   - `src/shared/components/common/StatusPanel.tsx` and `StatusPanel.css`
   - `src/shared/contexts/ToastContext.tsx`, `toastList.ts` and `Toast.css`
 - **Routing and shell:**
-  - `src/shared/routing/RouteSurface.tsx`, `RouteSurface.css` and `routeSurfaceState.ts`
+  - `src/shared/routing/RouteSurface.tsx`, `RouteSurface.css`, `routeSurfaceState.ts` and `viewTransitionNavigation.ts`
   - `src/app/App.tsx` (`WorkspaceRoutes`)
   - `src/shared/components/layout/AppShell.tsx`, `BottomTabBar.tsx` and `WorkspaceSidebar.tsx`
 - **Realtime:**

@@ -1,6 +1,7 @@
 import { SpaceSwitcher, SpaceProjectsNav } from '@features/spaces/SpaceChrome'
 import { useSpaces } from '@features/spaces/store'
 import { Link, NavLink } from 'react-router-dom'
+import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import WorkspaceIcon, { type WorkspaceIconName } from '../common/WorkspaceIcon'
 const main: [string, string, WorkspaceIconName][] = [
   ['today', '오늘', 'sun'],
@@ -29,7 +30,11 @@ export default function WorkspaceSidebar() {
       <SpaceSwitcher />
       <nav aria-label="주 메뉴">
         {main.map(([path, label, icon]) => (
-          <NavLink key={path} to={'/app/' + path} viewTransition>
+          <NavLink
+            key={path}
+            to={'/app/' + path}
+            onClick={tabLinkClick('/app/' + path)}
+          >
             <WorkspaceIcon name={icon} />
             {label}
           </NavLink>
@@ -43,7 +48,7 @@ export default function WorkspaceSidebar() {
             key={path}
             end={path === 'settings'}
             to={'/app/' + path}
-            viewTransition
+            onClick={tabLinkClick('/app/' + path)}
           >
             <WorkspaceIcon name={icon} />
             {label}

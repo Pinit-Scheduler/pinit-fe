@@ -23,6 +23,7 @@ import {
   surfaceTitle,
 } from '@shared/routing/routeSurfaceState'
 import { usePresence } from '@shared/motion/usePresence'
+import { registerTransitionNavigate } from '@shared/routing/viewTransitionNavigation'
 import ScheduleDetailPage from '@features/schedules/pages/ScheduleDetailPage'
 import { TaskMapPage } from '@features/task-map'
 import { useEffect, useMemo, useState } from 'react'
@@ -155,6 +156,8 @@ const AppRoutes = () => (
 )
 
 const router = createBrowserRouter([{ path: '*', element: <AppRoutes /> }])
+// Tab links animate through the data router; see viewTransitionNavigation.ts for why.
+registerTransitionNavigate((to) => void router.navigate(to, { viewTransition: true }))
 
 const InitialLoadingScreen = () => {
   return (
