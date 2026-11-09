@@ -100,6 +100,8 @@ const SAFE_CODES = new Set([
   'SOURCE_UI_LINE',
   'SOURCE_SCENARIO_LINE',
   'SOURCE_OAUTH_LINE',
+  'TASK_FIXTURE_TITLE_INVALID',
+  'MOVE_RUNNER_POINTER_REQUIRED',
 ])
 const BOOLEAN_KEYS = new Set(['ready', 'ok', 'sse', 'ui'])
 const COUNT_KEYS = new Set(['passed', 'failed', 'skipped', 'count', 'requests', 'spaces', 'tasks', 'schedules', 'version', 'expectedVersion', 'serverVersion', 'scopes', 'contexts', 'remainingAccounts', 'remainingClients', 'cleanupFailures', 'acknowledgements', 'writes'])

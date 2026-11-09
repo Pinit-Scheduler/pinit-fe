@@ -29,6 +29,7 @@ const TaskScheduleModal = ({
   taskLabel,
 }: TaskScheduleModalProps) => {
   const titleId = useId()
+  const dateId = useId()
   const initialized = useRef(false)
   const capturedVersion = useRef(expectedVersion)
   const submissionLock = useRef(false)
@@ -108,9 +109,9 @@ const TaskScheduleModal = ({
         </button>
       </header>
       <form className="task-sched-modal__body" onSubmit={handleSubmit}>
-        <label className="task-sched-modal__field">
+        <div className="task-sched-modal__field">
           <div className="task-sched-modal__field-head">
-            <span>시작 시각</span>
+            <label htmlFor={dateId}>시작 시각</label>
             <button
               type="button"
               onClick={() => setDate(dayjs().minute(0).second(0).toDate())}
@@ -119,11 +120,12 @@ const TaskScheduleModal = ({
             </button>
           </div>
           <input
+            id={dateId}
             type="datetime-local"
             value={dayjs(date).format('YYYY-MM-DDTHH:mm')}
             onChange={(e) => setDate(dayjs(e.target.value).toDate())}
           />
-        </label>
+        </div>
 
         <div className="task-sched-modal__field">
           <span>유형</span>

@@ -8,13 +8,14 @@ export function isApi(response, path, method = 'GET') {
   const url = new URL(response.url())
   return url.origin === API && url.pathname === path && response.request().method() === method
 }
-export async function mutation(page, path, method, action, status = [200, 201, 204]) {
+export async function mutation(page, path, method, action, status = [200, 201, 204], { readBody = true } = {}) {
   const pending = page.waitForResponse((response) => isApi(response, path, method), { timeout: 20_000 })
+  void pending.catch(() => {}) // Keep the original rejection for the awaited assertion below.
   await action()
   const response = await pending
   if (!status.includes(response.status())) throw new QaFailure('UI_API_STATUS_UNEXPECTED', response.status())
   let data = null
-  if (response.headers()['content-type']?.includes('json')) {
+  if (readBody && response.headers()['content-type']?.includes('json')) {
     try { data = await response.json() } catch { throw new QaFailure('UI_API_JSON_FAILED') }
   }
   return { response, data }
@@ -29,6 +30,7 @@ export async function loginUi(owner) {
   await page.getByLabel('아이디', { exact: true }).fill(owner.username)
   await page.getByLabel('비밀번호', { exact: true }).fill(owner.password)
   const onboardingResponse = page.waitForResponse((response) => isApi(response, '/v2/onboarding'), { timeout: 20_000 })
+  void onboardingResponse.catch(() => {})
   await mutation(page, '/v0/login', 'POST', () => page.getByRole('button', { name: '로그인', exact: true }).click())
   await expect(page).toHaveURL(/\/app\//)
   const onboarding = await onboardingResponse
@@ -51,6 +53,10 @@ export async function chooseSpace(page, name) {
   await expect(dialog).toHaveCount(0)
 }
 export async function manage(page, name, tab = '목적·정보') {
+  // Invitation/consent routes are intentionally outside AppShell. Enter the
+  // normal management route before using its visible space-switcher control.
+  await route(page, '/app/spaces')
+  await spacesReady(page)
   if (name) await chooseSpace(page, name)
   await route(page, '/app/spaces')
   await spacesReady(page)
@@ -85,13 +91,14 @@ export async function fillTask(page, { title, spaceId, projectId = null, assigne
   await page.getByLabel('제목', { exact: true }).fill(title)
   await page.getByLabel('설명', { exact: true }).fill('실제 UI 검증에서 만든 작업')
   await page.getByLabel('마감 날짜', { exact: true }).fill(dueDate)
-  await page.getByLabel('공간', { exact: true }).selectOption(String(spaceId))
-  await page.getByLabel('프로젝트', { exact: true }).selectOption(projectId === null ? '' : String(projectId))
-  const assignee = page.getByLabel('담당자', { exact: true })
+  await page.getByRole('group', { name: '소속·담당자', exact: true }).getByLabel(/^공간/).selectOption(String(spaceId))
+  await page.getByRole('group', { name: '소속·담당자', exact: true }).getByLabel(/^프로젝트/).selectOption(projectId === null ? '' : String(projectId))
+  const assignee = page.getByRole('group', { name: '소속·담당자', exact: true }).getByLabel(/^담당자/)
   await expect(assignee).toBeEnabled()
   if (assigneeId !== undefined) await assignee.selectOption(assigneeId === null ? '' : String(assigneeId))
 }
 export async function createTaskUi(owner, input) {
+  check(input.title.length > 0 && input.title.length <= 20, 'TASK_FIXTURE_TITLE_INVALID')
   await route(owner.page, '/app/tasks/new')
   await fillTask(owner.page, input)
   const { data } = await mutation(owner.page, '/v2/workspace/tasks', 'POST', () => owner.page.getByRole('button', { name: '작업 생성', exact: true }).click())
@@ -101,15 +108,18 @@ export async function createTaskUi(owner, input) {
   return data
 }
 export async function editTitleUi(owner, kind, id, title) {
+  check(title.length > 0 && title.length <= 20, 'TASK_FIXTURE_TITLE_INVALID')
   await route(owner.page, `/app/${kind}/${id}/edit`)
-  await owner.page.getByLabel('제목', { exact: true }).fill(title)
+  await owner.page.getByLabel(kind === 'tasks' ? '제목' : '일정 제목', { exact: true }).fill(title)
   return mutation(owner.page, `/v2/workspace/${kind}/${id}`, 'PATCH', () => owner.page.getByRole('button', { name: kind === 'tasks' ? '작업 수정' : '일정 수정', exact: true }).click())
 }
 export async function linkedScheduleUi(owner, taskId) {
   await route(owner.page, `/app/tasks/${taskId}`)
   await owner.page.getByRole('button', { name: '일정으로 배정', exact: true }).click()
   const dialog = owner.page.locator('.task-sched-modal__content')
-  await dialog.getByLabel(/^시작 시각/).fill(today() + 'T12:00')
+  const dateInput = dialog.getByLabel('시작 시각', { exact: true })
+  await expect(dateInput).toHaveAttribute('type', 'datetime-local')
+  await dateInput.fill(today() + 'T12:00')
   const { data } = await mutation(owner.page, `/v2/workspace/tasks/${taskId}/schedule`, 'POST', () => dialog.getByRole('button', { name: '일정 생성', exact: true }).click())
   check(Number.isSafeInteger(data?.schedule?.id), 'CREATED_SCHEDULE_ID_REQUIRED')
   owner.schedules.add(data.schedule.id)

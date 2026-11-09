@@ -60,7 +60,10 @@ export async function oauthUi(owner) {
       let decision, returned
       try {
         ;[decision, returned] = await Promise.all([
-          mutation(owner.page, '/oauth/authorize/decision', 'POST', () => owner.page.getByRole('button', { name: '허용', exact: true }).click()),
+          // The app consumes redirectUri and performs a full navigation. Retain
+          // the real HTTP status, then verify the actual callback and token
+          // scopes; the old renderer may no longer expose response body bytes.
+          mutation(owner.page, '/oauth/authorize/decision', 'POST', () => owner.page.getByRole('button', { name: '허용', exact: true }).click(), [200], { readBody: false }),
           callback,
         ])
       } finally { clearTimeout(timer) }

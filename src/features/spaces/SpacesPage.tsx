@@ -77,6 +77,14 @@ function EditorDialog({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (mutationLock.current) return
+    if (editor.kind !== 'purpose' && !name.trim()) {
+      setInvalidField('name')
+      setError(
+        isProject ? '프로젝트 이름을 입력해 주세요.' : '공간 이름을 입력해 주세요.',
+      )
+      requestAnimationFrame(() => nameInput.current?.focus())
+      return
+    }
     mutationLock.current = true
     setBusy(true)
     setError(null)
@@ -167,7 +175,7 @@ function EditorDialog({
                   invalidField === 'name' ? `${titleId}-error` : undefined
                 }
                 required
-                maxLength={100}
+                maxLength={80}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 autoFocus
