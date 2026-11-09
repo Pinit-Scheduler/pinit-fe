@@ -3,7 +3,8 @@
   flex-direction: column;
   gap: 12px;
   padding: 4px 0 24px;
-  animation: modalSlideUp var(--motion-enter) var(--motion-ease) both;
+  /* Nothing plays on mount: the route surface already brings the form in, and moving from the
+     detail to the edit form crossfades inside the same surface. */
 }
 
 .schedule-form-page__header {

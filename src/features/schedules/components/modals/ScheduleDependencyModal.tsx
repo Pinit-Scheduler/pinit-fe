@@ -7,6 +7,7 @@ import type { ScheduleSummary } from '../../types/schedule'
 import './ScheduleModal.css'
 import './ScheduleDependencyModal.css'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
+import { usePresence } from '@shared/motion'
 
 type ScheduleDependencyModalProps = {
   isOpen: boolean
@@ -33,7 +34,12 @@ const ScheduleDependencyModal = ({
   const [selectedDateKey, setSelectedDateKey] = useState(() => toDateKey(getTodayWithOffset(offsetMinutes)))
   const selectedDate = useMemo(() => toDisplayDayjs(selectedDateKey), [selectedDateKey])
   const [localSelection, setLocalSelection] = useState<number[]>(selectedIds)
-  const { schedules, isLoading, error, refetch } = useScheduleList(selectedDate)
+  // Stays mounted through its exit so it can fade out instead of vanishing.
+  const presence = usePresence(isOpen)
+  // A closed modal reads nothing.
+  const { schedules, data, isLoading, error, refetch } = useScheduleList(selectedDate, {
+    enabled: presence.mounted,
+  })
 
   const dateLabel = useMemo(() => toDateKey(selectedDate), [selectedDate])
 
@@ -47,10 +53,10 @@ const ScheduleDependencyModal = ({
     onClose()
   }
 
-  if (!isOpen) return null
+  if (!presence.mounted) return null
 
   return (
-    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} closeOnBackdrop={false} labelledBy={titleId}>
+    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} closeOnBackdrop={false} labelledBy={titleId} closing={presence.closing}>
       <header className="schedule-modal__header">
         <div>
           <p className="dependency-modal__eyebrow">달력에서 선택</p>
@@ -94,7 +100,7 @@ const ScheduleDependencyModal = ({
 
         {isLoading ? (
           <p className="dependency-modal__status">일정을 불러오는 중...</p>
-        ) : error ? (
+        ) : error && data === undefined ? (
           <p className="dependency-modal__status dependency-modal__status--error">{error}</p>
         ) : schedules.length === 0 ? (
           <p className="dependency-modal__status">이 날짜에 등록된 일정이 없습니다.</p>
