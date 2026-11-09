@@ -316,6 +316,11 @@ test('task map shows loading only without a snapshot and keeps the map through e
   assert.match(page, /closing=\{fullscreen\.closing\}/)
   assert.match(page, /useListPresence\(graph\.nodes/)
   assert.match(page, /useListPresence\(edgePaths/)
+  // Another space or project is a new map: it refits and starts a new presence baseline.
+  assert.match(page, /layoutKey = `\$\{scopeKey\}:/)
+  assert.match(page, /presenceKey = `\$\{scopeKey\}:/)
+  // Nodes of the view being left stay drawn while the world glides away from them.
+  assert.match(page, /glideFrom !== null && inView\(node, glideFrom\)/)
 })
 
 // ---------------------------------------------------------------------------

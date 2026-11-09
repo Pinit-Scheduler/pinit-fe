@@ -275,8 +275,10 @@
 .tm-edges > path.tm-edge--active {
   stroke: var(--c-blue-500);
 }
+/* A new edge waits for its nodes to travel, then fades in along its curve, like a moved one. */
 .tm-edges > path[data-presence='enter'] {
   animation-name: motion-fade-in;
+  animation-delay: calc(var(--motion-enter) * 0.45);
 }
 .tm-edges marker path {
   fill: var(--c-slate-400);

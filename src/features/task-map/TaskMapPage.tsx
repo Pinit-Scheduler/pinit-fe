@@ -214,12 +214,22 @@ function SequenceMap({
     viewOverride.height === size.height
       ? viewOverride.view
       : initialView
-  const setView = (next: GraphView | ((prior: GraphView) => GraphView)) =>
+  // While the world glides to a new view, the nodes of the view it leaves stay drawn,
+  // so they slide out of the viewport instead of vanishing at the start of the glide.
+  const [glideFrom, setGlideFrom] = useState<GraphView | null>(null)
+  useEffect(() => {
+    if (!glideFrom) return
+    const timer = setTimeout(() => setGlideFrom(null), MOTION_ENTER_MS)
+    return () => clearTimeout(timer)
+  }, [glideFrom])
+  const setView = (next: GraphView | ((prior: GraphView) => GraphView)) => {
+    if (!drag.current) setGlideFrom(view)
     setViewOverride({
       layoutKey,
       ...size,
       view: typeof next === 'function' ? next(view) : next,
     })
+  }
   const focusNode = (node: GraphNode) => {
     setSelectedId(node.id)
     setView({
@@ -369,13 +379,16 @@ function SequenceMap({
       event.currentTarget.releasePointerCapture(event.pointerId)
   }
   // Cull spatially, but retain keyboard focus and provide a complete task picker plus previous/next controls.
+  const inView = (node: GraphNode, at: GraphView) =>
+    (node.x + node.width) * at.scale + at.x > -120 &&
+    node.x * at.scale + at.x < size.width + 120 &&
+    (node.y + node.height) * at.scale + at.y > -120 &&
+    node.y * at.scale + at.y < size.height + 120
   const visibleNodes = graph.nodes.filter(
     (node) =>
       node.id === selectedId ||
-      ((node.x + node.width) * view.scale + view.x > -120 &&
-        node.x * view.scale + view.x < size.width + 120 &&
-        (node.y + node.height) * view.scale + view.y > -120 &&
-        node.y * view.scale + view.y < size.height + 120),
+      inView(node, view) ||
+      (glideFrom !== null && inView(node, glideFrom)),
   )
   const visibleIds = new Set(visibleNodes.map((node) => node.id)),
     byId = new Map(graph.nodes.map((node) => [node.id, node]))
@@ -720,7 +733,7 @@ export default function TaskMapPage() {
   const [category, setCategory] = useProjectFilter()
   const [state, setState] = useState('all')
   const [urgentDays, setUrgentDays] = useState(2)
-  const { data, isLoading, isRefreshing, error, count, reload } =
+  const { data, isLoading, isRefreshing, error, count, reload, scopeKey } =
     useTaskGraph(includeCompleted)
   const { open } = useRouteSurfaceNavigation()
   const categories = useCategories(),
@@ -762,8 +775,10 @@ export default function TaskMapPage() {
     .sort(compareGraphTasks(sort, today))
   const unfinished = matching.filter((task) => !isTaskCompleted(task)),
     completed = matching.filter(isTaskCompleted)
-  const layoutKey = `${includeCompleted}:${mobile}:${sort}`,
-    presenceKey = `${includeCompleted}:${mobile}`,
+  // Another space, project, zone or the completed toggle is a different map: it refits and
+  // starts a new baseline instead of animating the whole swap.
+  const layoutKey = `${scopeKey}:${mobile}:${sort}`,
+    presenceKey = `${scopeKey}:${mobile}`,
     matrixKey = `${presenceKey}:${urgentDays}:${query.trim()}:${category}:${state}`
   // A failed refresh keeps the map; the server's message shows above it.
   const refreshError = error && data ? (

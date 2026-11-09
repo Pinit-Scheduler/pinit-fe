@@ -58,5 +58,7 @@ export const useTaskGraph = (includeCompleted: boolean) => {
     error: query.error,
     count: progress.key === key ? progress.count : 0,
     reload: query.refetch,
+    /** The snapshot's key. A change (completed toggle, zone, space, project) is a new map, not a refresh. */
+    scopeKey: key,
   }
 }
