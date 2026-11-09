@@ -1,5 +1,6 @@
 import { handleMockRequest } from './handlers'
 import { mockWorkspaceRemote } from './workspace'
+import { setChangeDeliveryDelay, STREAM_POLL_MS } from './workspaceState'
 
 let isInstalled = false
 
@@ -20,16 +21,19 @@ const readLatency = () => {
 
 const wait = (ms: number, signal?: AbortSignal | null) =>
   new Promise<void>((resolve, reject) => {
+    const aborted = () =>
+      reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+    if (signal?.aborted) return aborted()
     if (ms <= 0) return resolve()
-    const timer = window.setTimeout(resolve, ms)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        window.clearTimeout(timer)
-        reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
-      },
-      { once: true },
-    )
+    const onAbort = () => {
+      window.clearTimeout(timer)
+      aborted()
+    }
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
   })
 
 export const setupMockServer = () => {
@@ -38,6 +42,8 @@ export const setupMockServer = () => {
 
   const originalFetch = window.fetch.bind(window)
   let latency = readLatency()
+  // 실시간 이벤트는 응답이 도착한 뒤에 온다. 서버가 기록을 주기적으로 읽어 보내는 것과 같은 순서다.
+  setChangeDeliveryDelay(() => latency + STREAM_POLL_MS)
 
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(input, init)

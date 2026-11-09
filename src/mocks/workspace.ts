@@ -601,7 +601,7 @@ const changeTaskState = async (actor: number, task: Task, request: Request) => {
     return badRequest('action은 COMPLETE 또는 REOPEN이어야 합니다.')
   setTaskCompleted(task, action === 'COMPLETE')
   placement.version += 1
-  emit(actor, 'task', task.id, 'UPDATED')
+  emit(actor, 'task', task.id, 'STATE_CHANGED')
   return json(taskView(actor, task))
 }
 
@@ -629,11 +629,9 @@ const deleteTask = (actor: number, task: Task, searchParams: URLSearchParams) =>
   moveTaskToTrash(task.id, deleteSchedules)
   recomputeMockTaskReadiness(mockTasks)
   placement.version += 1
+  // 연결 일정은 끊기거나 함께 휴지통으로 가며 버전이 오른다. 서버는 작업 이벤트 하나만 기록한다.
+  for (const id of linked) bumpVersion('schedule', id)
   emit(actor, 'task', task.id, 'DELETED')
-  for (const id of linked) {
-    bumpVersion('schedule', id)
-    emit(actor, 'schedule', id, findSchedule(id) ? 'UPDATED' : 'DELETED')
-  }
   return noContent()
 }
 
@@ -676,12 +674,16 @@ const scheduleTask = async (actor: number, task: Task, request: Request) => {
       body.schedule.plannedDuration ?? formatIsoMinutes(effectiveExpectedMinutes(task)),
   }
   mockSchedules.push(schedule)
+  // 서버처럼 일정은 작업의 담당자에게 가고, 작업 버전도 오른다(`touchCollaboration`).
   setPlacement('schedule', schedule.id, {
     spaceId: placement.spaceId,
     projectId: placement.projectId,
-    assigneeId: actor,
+    assigneeId: placement.assigneeId,
     version: 1,
   })
+  task.updatedAt = nowIso()
+  placement.version += 1
+  emit(actor, 'task', task.id, 'UPDATED')
   emit(actor, 'schedule', schedule.id, 'CREATED')
   return json(scheduleView(actor, schedule), 201)
 }
@@ -880,7 +882,6 @@ const changeScheduleState = async (actor: number, schedule: ScheduleResponse, re
     if (task && !isDone(task)) {
       setTaskCompleted(task, true)
       bumpVersion('task', task.id)
-      emit(actor, 'task', task.id, 'UPDATED')
     }
   } else if (action === 'CANCEL') {
     if (state === 'NOT_STARTED')
@@ -891,12 +892,13 @@ const changeScheduleState = async (actor: number, schedule: ScheduleResponse, re
     if (task && isDone(task)) {
       setTaskCompleted(task, false)
       bumpVersion('task', task.id)
-      emit(actor, 'task', task.id, 'UPDATED')
     }
   } else return badRequest('action은 START, SUSPEND, COMPLETE, CANCEL 중 하나여야 합니다.')
   ;(schedule as { updatedAt?: string }).updatedAt = nowIso()
   placement.version += 1
-  emit(actor, 'schedule', schedule.id, 'UPDATED')
+  // 서버 순서: 일정 기록 다음에 연결 작업 기록(바뀌지 않았어도 남긴다).
+  emit(actor, 'schedule', schedule.id, 'STATE_CHANGED')
+  if (task) emit(actor, 'task', task.id, 'STATE_CHANGED')
   return json(scheduleView(actor, schedule))
 }
 

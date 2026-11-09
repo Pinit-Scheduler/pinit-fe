@@ -362,3 +362,77 @@ test('the workspace event stream sends changed frames that the realtime parser r
   const tail = await reader.read()
   assert.equal(tail.done, true)
 })
+
+test('a save answers before its own changed frame, so the client can recognise the echo', async () => {
+  // 서버는 커밋한 기록을 주기적으로 읽어 보낸다. 응답보다 이벤트가 먼저 오면 takeLocalEcho가
+  // 자기 저장을 알아보지 못해 저장할 때마다 전체를 다시 읽는다(깜빡임 9~10번).
+  const { api, call } = setup()
+  const controller = new AbortController()
+  const stream = await call('/v2/workspace/events', 'GET', undefined, {
+    signal: controller.signal,
+    headers: { Accept: 'text/event-stream' },
+  })
+  const reader = stream.body.getReader()
+  const decoder = new TextDecoder()
+  let text = ''
+  const readUntil = async (pattern) => {
+    while (!pattern.test(text)) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      text += decoder.decode(chunk.value, { stream: true })
+    }
+    return text
+  }
+  await readUntil(/event: ready/)
+  const list = await api('/v2/workspace/tasks?spaceId=2&status=OPEN')
+  const target = list.body.content[0]
+  let framed = false
+  const changed = readUntil(/event: changed/).then(() => {
+    framed = true
+  })
+  const saved = await api(`/v2/workspace/tasks/${target.task.id}/state`, 'POST', {
+    expectedVersion: target.version,
+    action: 'COMPLETE',
+  })
+  assert.equal(saved.status, 200)
+  // 화면이 응답을 처리하고 task:changed를 보내는 동안(다음 작업 단위까지) 이벤트는 아직 없다.
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  assert.equal(framed, false)
+  await changed
+  const event = JSON.parse(text.match(/event: changed\ndata: (.+)\n\n/)[1])
+  assert.equal(event.resourceId, target.task.id)
+  assert.equal(event.version, saved.body.version)
+  controller.abort()
+})
+
+test('scheduling a task bumps the task version and gives the schedule to its assignee', async () => {
+  const { api } = setup()
+  const created = await api('/v2/workspace/tasks', 'POST', {
+    task: {
+      title: '접근성 수정 확인',
+      description: '',
+      dueDate: { date: '2030-01-04', zoneId: 'Asia/Seoul', offset: '+09:00' },
+      importance: 5,
+      difficulty: 2,
+    },
+    location: { spaceId: 2, projectId: 21 },
+    assignee: { memberId: 4 },
+  })
+  const scheduled = await api(`/v2/workspace/tasks/${created.body.task.id}/schedule`, 'POST', {
+    expectedVersion: created.body.version,
+    schedule: {
+      date: { dateTime: '2030-01-04T10:00:00', zoneId: 'Asia/Seoul' },
+      scheduleType: 'DEEP_WORK',
+    },
+  })
+  assert.equal(scheduled.status, 201)
+  assert.equal(scheduled.body.assigneeId, 4)
+  const task = await api(`/v2/workspace/tasks/${created.body.task.id}`)
+  assert.equal(task.body.version, created.body.version + 1)
+  const stale = await api(`/v2/workspace/tasks/${created.body.task.id}/state`, 'POST', {
+    expectedVersion: created.body.version,
+    action: 'COMPLETE',
+  })
+  assert.equal(stale.status, 409)
+  assert.equal(stale.body.code, 'VERSION_CONFLICT')
+})

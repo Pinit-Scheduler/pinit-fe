@@ -269,16 +269,34 @@ const changeLog: ChangeEvent[] = []
 const subscribers = new Set<Subscriber>()
 let eventSeq = 0
 
+/**
+ * 변경을 스트림으로 보내기까지 기다리는 시간(ms). 서버는 커밋한 기록을 1초마다 읽어 보내므로
+ * 저장한 사람에게는 응답이 자기 `changed`보다 먼저 온다. 모크가 바로 보내면 이벤트가 응답보다
+ * 먼저 도착해 `takeLocalEcho`가 자기 저장을 알아보지 못하고, 저장할 때마다 전체를 다시 읽는다.
+ * `mockServer`는 응답 지연에 이 값을 더한다.
+ */
+export const STREAM_POLL_MS = 250
+let deliveryDelay = () => STREAM_POLL_MS
+export const setChangeDeliveryDelay = (delay: () => number) => {
+  deliveryDelay = delay
+}
+
 export const recordChange = (event: Omit<ChangeEvent, 'id'>) => {
   const entry = { ...event, id: ++eventSeq }
   changeLog.push(entry)
   if (changeLog.length > 500) changeLog.shift()
-  subscribers.forEach((subscriber) => {
-    if (subscriber.spaceId !== null && subscriber.spaceId !== entry.spaceId) return
+  // 받는 사람은 기록한 때의 참여자로 고른다. 서버도 커밋한 때의 권한으로 기록을 읽는다.
+  const targets = [...subscribers].filter((subscriber) => {
+    if (subscriber.spaceId !== null && subscriber.spaceId !== entry.spaceId) return false
     const space = findSpace(entry.spaceId)
-    if (!space || !memberOf(space, subscriber.actor)) return
-    subscriber.send(entry)
+    return Boolean(space && memberOf(space, subscriber.actor))
   })
+  if (targets.length)
+    setTimeout(() => {
+      targets.forEach((subscriber) => {
+        if (subscribers.has(subscriber)) subscriber.send(entry)
+      })
+    }, Math.max(0, deliveryDelay()))
   return entry
 }
 
