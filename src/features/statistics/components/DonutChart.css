@@ -37,11 +37,15 @@
 }
 
 .donut-chart__arc {
-  /* 처음 그릴 때 12시 방향에서 펜처럼 그어진다. 그 뒤로는 이전 비율에서 이어진다. */
-  animation: stats-ring-draw var(--motion-enter) var(--motion-ease) backwards;
+  /* 이전 비율에서 새 비율로 이어진다. */
   transition:
     stroke-dashoffset var(--motion-enter) var(--motion-ease),
     stroke var(--motion-base) var(--motion-ease);
+}
+
+/* 자리 표시 다음에 처음 그릴 때만 12시 방향에서 펜처럼 그어진다. 캐시 값으로 다시 그릴 때는 그대로 둔다. */
+.report-reveal .donut-chart__arc {
+  animation: stats-ring-draw var(--motion-enter) var(--motion-ease) backwards;
 }
 
 .donut-chart__arc--allocated {

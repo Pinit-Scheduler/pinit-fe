@@ -102,7 +102,7 @@ export default function PlanComparisonSection({
           <button onClick={reload}>다시 시도</button>
         </section>
       )}
-      <section className="workspace-panel plan-comparison" aria-hidden={held || undefined}>
+      <section className="workspace-panel plan-comparison" inert={held || undefined}>
         <h2>실제 실행 시간과 계획 시간</h2>
         <p>완료한 일정 기준 · 일시정지 시간은 실제 실행 시간에서 제외됩니다.</p>
         <div className="plan-comparison__rows">
@@ -138,7 +138,8 @@ export default function PlanComparisonSection({
             ' · 계획 길이를 알 수 없는 일정 ' + summary.unknown + '개 제외'}
         </small>
       </section>
-      <div className="workspace-stat-grid" aria-hidden={held || undefined}>
+      {/* inert: 붙잡은 틀 안의 "날짜별 수치 보기"가 다른 기간 값을 읽히거나 포커스를 받지 않게 한다. */}
+      <div className="workspace-stat-grid" inert={held || undefined}>
         <section className="workspace-panel plan-comparison">
           <h2>날짜별 계획 시간</h2>
           <p>일정이 배정된 날짜 기준</p>

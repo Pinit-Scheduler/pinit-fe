@@ -192,10 +192,12 @@
     transform var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms),
     background-color var(--motion-base) var(--motion-ease);
 }
-.report-mark--rise {
+/* 처음 그리는 막대만 바닥(왼쪽)에서 차오른다. 자리 표시 다음에 들어온 내용(.report-reveal) 안에서만 재생해,
+   캐시 값으로 다시 그릴 때(탭·보기를 다녀온 경우)는 막대가 0에서 다시 차오르지 않는다. */
+.report-reveal .report-mark--rise {
   animation: stats-bar-rise var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms) backwards;
 }
-.report-mark--slide {
+.report-reveal .report-mark--slide {
   animation: stats-bar-slide var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms) backwards;
 }
 /* 새 값을 기다리는 동안 막대는 제자리에서 회색으로 가라앉는다. 빠른 응답이면 색이 바뀌기 전에 새 값으로 간다. */

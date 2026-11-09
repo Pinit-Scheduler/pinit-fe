@@ -213,6 +213,58 @@ test('content rises in only after a loading placeholder, never on a cached rende
   assert.equal(loaded.render(() => loaded.useSawLoading(false)), true, 'stays set so the class does not flip')
 })
 
+test('a change fade plays on a real change, not when the value first appears', () => {
+  // Refs and effects that persist across renders, like React's, for one mounted component.
+  const refs = []
+  const effects = []
+  let index = 0
+  let effectIndex = 0
+  const react = {
+    useState: (initial) => [initial, () => {}],
+    useRef(value) {
+      const slot = index++
+      if (!(slot in refs)) refs[slot] = { current: value }
+      return refs[slot]
+    },
+    useEffect(run, deps) {
+      const slot = effectIndex++
+      const prev = effects[slot]
+      if (prev && deps && deps.every((dep, i) => Object.is(dep, prev[i]))) return
+      effects[slot] = deps
+      run()
+    },
+  }
+  const { useChangeFade } = load('hooks/useReportMotion.ts', { react, '@shared/motion': motionStub })
+  const played = []
+  const element = { animate: (frames) => { played.push(frames[0]); return { cancel() {} } } }
+  const render = (dep, direction) => {
+    index = 0
+    effectIndex = 0
+    const ref = useChangeFade(dep, direction)
+    ref.current = element
+  }
+  render(null)
+  render(false)
+  assert.equal(played.length, 0, 'null to a value is the first appearance, which .report-reveal handles')
+  render(true)
+  assert.equal(played.length, 1, 'an empty list becoming filled fades once')
+  render(true)
+  assert.equal(played.length, 1, 'the same value does not replay')
+  render('2026-11-02', 1)
+  assert.equal(played.length, 2)
+})
+
+test('chart entrance keyframes play only inside a reveal, so a cached render does not refill the bars', () => {
+  const css = cssFilesForEntrance.map(read).join('\n')
+  for (const name of ['stats-bar-rise', 'stats-bar-slide', 'stats-ring-draw']) {
+    // Each rule is "selector { body }"; find the rules whose animation names this keyframe.
+    const rules = [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+    const uses = rules.filter(([, , body]) => body.includes('animation:') && body.includes(name))
+    assert.ok(uses.length > 0, `${name} is used`)
+    for (const [, selector] of uses) assert.match(selector, /\.report-reveal\s/, `${name} runs outside .report-reveal: ${selector.trim()}`)
+  }
+})
+
 // ---------------------------------------------------------------------------
 // useWeeklyStatistics keeps its API for the schedules tab
 // ---------------------------------------------------------------------------
@@ -280,6 +332,7 @@ const cssFiles = [
     .map((name) => 'components/' + name),
   'pages/StatisticsTabPage.css',
 ]
+const cssFilesForEntrance = ['components/ReportSections.css', 'components/DonutChart.css']
 const shared = ['motion-fade-in', 'motion-fade-out', 'motion-rise-in', 'motion-rise-out', 'motion-drop-in',
   'motion-sheet-in', 'motion-sheet-out', 'modalFadeIn', 'modalSlideUp', 'fadeIn', 'fadeSlideIn']
 
