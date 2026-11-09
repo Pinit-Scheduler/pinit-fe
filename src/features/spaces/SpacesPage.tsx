@@ -1,9 +1,11 @@
 import { ApiError } from '@shared/api/httpClient'
-import { useId, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useEffect, useId, useRef, useState } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useToast } from '@contexts/ToastContext'
+import useCurrentDay from '@shared/hooks/useCurrentDay'
+import { weekStartOf } from '@features/calibration/utils/calibrationView'
 import {
   moveProject,
   createInvitation,
@@ -22,9 +24,18 @@ import {
   updateSpaceMemberRole,
 } from './api'
 import { reportEditConflict } from './conflicts'
+import { memberRows, projectRows } from './hub'
+import HubIdentity from './hub/HubIdentity'
+import HubPeople from './hub/HubPeople'
+import HubProjects from './hub/HubProjects'
+import HubRail from './hub/HubRail'
+import HubSettings from './hub/HubSettings'
+import TeamRecord from './hub/TeamRecord'
+import useHubData from './hub/useHubData'
 import { selectSpace, useSpaces, workspaceChanged } from './store'
 import type { Invitation, Project, Space } from './types'
 import './spaces.css'
+import './hub/hub.css'
 
 type Editor =
   | { kind: 'create-space' }
@@ -244,8 +255,10 @@ function EditorDialog({
 export default function SpacesPage() {
   const workspace = useSpaces()
   const { addToast } = useToast()
-  const [params, setParams] = useSearchParams()
-  const tab = params.get('tab') ?? 'purpose'
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const tab = params.get('tab')
+  const [detail, setDetail] = useState(params.has('tab'))
   const [editor, setEditor] = useState<Editor | null>(null)
   const [busy, setBusy] = useState(false)
   const mutationLock = useRef(false)
@@ -258,9 +271,18 @@ export default function SpacesPage() {
   const [invitation, setInvitation] = useState<Invitation | null>(null)
   const [copied, setCopied] = useState(false)
   const [movingProject, setMovingProject] = useState<Project | null>(null)
+  const backButton = useRef<HTMLButtonElement>(null)
+  const rail = useRef<HTMLDivElement>(null)
+  const today = useCurrentDay().format('YYYY-MM-DD')
+  const weekStart = weekStartOf(today) ?? today
   const space = workspace.selectedSpace
-  const projects = workspace.projects.filter(
-    (project) => project.spaceId === space?.id && !project.deleted,
+  const withRecord = Boolean(
+    space && !space.personal && space.members.length >= 2,
+  )
+  const { summaries, summary, record } = useHubData(
+    space?.id ?? null,
+    weekStart,
+    withRecord,
   )
   const refresh = workspaceChanged
   const run = async (action: () => Promise<unknown>, message: string) => {
@@ -311,11 +333,44 @@ export default function SpacesPage() {
       setBusy(false)
     }
   }
+  const choose = (spaceId: number) => {
+    selectSpace(spaceId)
+    setDetail(true)
+    requestAnimationFrame(() => {
+      if (window.matchMedia?.('(max-width: 760px)').matches)
+        backButton.current?.focus()
+    })
+  }
+  const back = () => {
+    setDetail(false)
+    requestAnimationFrame(() =>
+      rail.current
+        ?.querySelector<HTMLButtonElement>('[aria-current="true"]')
+        ?.focus(),
+    )
+  }
+  // 같은 경로로 다시 들어오면(스페이스 시트의 "모든 스페이스 보기" 등) 좁은 화면은 목록부터 보인다.
+  const location = useLocation()
+  const entry = useRef(location.key)
+  useEffect(() => {
+    if (entry.current === location.key) return
+    entry.current = location.key
+    setDetail(params.has('tab'))
+  }, [location.key, params])
+  const scrolledTab = useRef<string | null>(null)
+  useEffect(() => {
+    if (!space || !tab || scrolledTab.current === tab) return
+    const target = document.getElementById(`hub-${tab}`)
+    if (!target) return
+    scrolledTab.current = tab
+    target.scrollIntoView({ block: 'start' })
+  }, [tab, space])
+  const liveSpaces = workspace.spaces.filter((item) => !item.deleted)
   return (
     <section className="spaces-page">
       <header className="workspace-page-header">
         <div>
-          <h1>스페이스·프로젝트 관리</h1>
+          <h1>스페이스</h1>
           <p>목적과 프로젝트를 나누고, 같은 작업을 함께 관리하세요.</p>
         </div>
         <button
@@ -339,348 +394,166 @@ export default function SpacesPage() {
           </button>
         </div>
       )}
-      {space && (
-        <div className="space-management workspace-panel">
-          <div className="space-management__heading">
-            <div>
-              <span className="space-avatar" aria-hidden>
-                {space.name.slice(0, 1)}
-              </span>
-              <h2>{space.name}</h2>
-              <p>
-                {space.personal
-                  ? '본인 전용 기본 스페이스'
-                  : `${space.members.length}명이 함께 사용하는 스페이스`}
-              </p>
-            </div>
-          </div>
-          <nav className="space-tabs" aria-label="스페이스 관리 항목">
-            {[
-              ['purpose', '목적·정보'],
-              ['projects', '프로젝트'],
-              ['people', '참여자'],
-              ['trash', '삭제 항목'],
-            ].map(([id, name]) => (
-              <button
-                key={id}
-                type="button"
-                aria-current={tab === id ? 'page' : undefined}
-                onClick={() => setParams({ tab: id })}
-              >
-                {name}
-              </button>
-            ))}
-          </nav>
-          <div className="space-management__body">
-            {tab === 'purpose' && (
-              <>
-                <div className="space-section-heading">
-                  <h3>목적</h3>
-                  <button
-                    type="button"
-                    className="workspace-button"
-                    disabled={!space.allowedActions.update || busy}
-                    onClick={() => setEditor({ kind: 'space', space })}
-                  >
-                    스페이스 정보 수정
-                  </button>
-                </div>
-                <p className="space-purpose-copy">
-                  {space.purpose || '아직 목적을 작성하지 않았어요.'}
-                </p>
-                <div className="space-inline-actions">
-                  <button
-                    className="workspace-button"
-                    disabled={!space.allowedActions.update || busy}
-                    onClick={() => setEditor({ kind: 'purpose', space })}
-                  >
-                    목적 작성·수정
-                  </button>
-                  {space.purpose && (
-                    <button
-                      className="space-text-button"
-                      disabled={!space.allowedActions.edit || busy}
-                      onClick={() =>
-                        setConfirm({
-                          title: '목적 내용 삭제',
-                          description:
-                            '목적 내용만 지웁니다. 스페이스와 프로젝트, 작업·일정은 남아 있어요.',
-                          action: () =>
-                            updatePurpose(space.id, null, space.version),
-                        })
-                      }
-                    >
-                      목적 내용 삭제
-                    </button>
-                  )}
-                </div>
-                {space.personal ? (
-                  <p className="space-notice">
-                    나의 스페이스는 본인 전용이며 사람을 초대할 수 없어요.
-                  </p>
-                ) : (
-                  <div className="space-danger-zone">
-                    <button
-                      className="space-text-button"
-                      disabled={!space.allowedActions.leave || busy}
-                      onClick={() =>
-                        setConfirm({
-                          title: '스페이스 나가기',
-                          description:
-                            '나가면 이 스페이스의 공유 내용에 접근할 수 없어요.',
-                          action: () => leaveSpace(space.id),
-                        })
-                      }
-                    >
-                      스페이스 나가기
-                    </button>
-                    <button
-                      className="space-text-button space-text-button--danger"
-                      disabled={!space.allowedActions.delete || busy}
-                      onClick={() =>
-                        setConfirm({
-                          title: '스페이스 삭제',
-                          description:
-                            '이 스페이스가 목록에서 숨겨지고 참여자가 접근할 수 없게 됩니다. 복구는 관리자만 할 수 있어요.',
-                          action: () => deleteSpace(space.id, space.version),
-                        })
-                      }
-                    >
-                      스페이스 삭제
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-            {tab === 'projects' && (
-              <>
-                <div className="space-section-heading">
-                  <h3>프로젝트</h3>
-                  <button
-                    className="workspace-button workspace-button--primary"
-                    disabled={!space.allowedActions.update || busy}
-                    onClick={() => setEditor({ kind: 'create-project', space })}
-                  >
-                    프로젝트 만들기
-                  </button>
-                </div>
-                {projects.length ? (
-                  projects.map((project) => (
-                    <article className="space-manager-row" key={project.id}>
-                      <div>
-                        <Link
-                          className="space-project-title"
-                          to="/app/tasks"
-                          onClick={() => workspace.selectProject(project.id)}
-                        >
-                          {project.name}
-                        </Link>
-                        <p>
-                          {project.outcome ||
-                            '목적에 기여할 성과를 적어보세요.'}
-                        </p>
-                        {project.completed && <small>완료한 프로젝트</small>}
-                      </div>
-                      <div className="space-inline-actions">
-                        <button
-                          className="space-text-button"
-                          disabled={!project.allowedActions.update || busy}
-                          onClick={() =>
-                            setEditor({ kind: 'project', project })
-                          }
-                        >
-                          수정
-                        </button>
-                        <button
-                          className="space-text-button"
-                          disabled={!project.allowedActions.update || busy}
-                          onClick={() =>
-                            void run(
-                              () =>
-                                updateProject(project.id, {
-                                  completed: !project.completed,
-                                  expectedVersion: project.version,
-                                }),
-                              project.completed
-                                ? '프로젝트를 다시 열었어요.'
-                                : '프로젝트를 완료했어요.',
-                            )
-                          }
-                        >
-                          {project.completed ? '재개' : '완료'}
-                        </button>
-                        <button
-                          className="space-text-button"
-                          disabled={!project.allowedActions.move || busy}
-                          onClick={() => setMovingProject(project)}
-                        >
-                          스페이스 이동
-                        </button>
-                        <button
-                          className="space-text-button space-text-button--danger"
-                          disabled={!project.allowedActions.delete || busy}
-                          onClick={() =>
-                            setConfirm({
-                              title: '프로젝트 삭제',
-                              description:
-                                '프로젝트를 목록에서 숨깁니다. 복구는 관리자만 할 수 있어요.',
-                              action: () =>
-                                deleteProject(project.id, project.version),
-                            })
-                          }
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    </article>
-                  ))
-                ) : (
-                  <div className="space-empty">
-                    <h3>아직 프로젝트가 없어요</h3>
-                    <p>이 목적에 기여할 첫 프로젝트를 만들어 보세요.</p>
-                  </div>
-                )}
-              </>
-            )}
-            {tab === 'people' && (
-              <>
-                {space.personal ? (
-                  <div className="space-notice">
-                    기본 개인 스페이스에는 초대할 수 없어요. 함께할 스페이스를 새로
-                    만들면 사람을 초대할 수 있습니다.
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-section-heading">
-                      <h3>참여자 {space.members.length}명</h3>
-                      <button
-                        className="workspace-button workspace-button--primary"
-                        disabled={!space.allowedActions.invite || busy}
-                        onClick={() => void invite()}
-                      >
-                        {busy ? '처리 중…' : '초대 링크 만들기'}
-                      </button>
-                    </div>
-                    <p className="space-help">
-                      함께하는 참여자는 같은 작업과 진행 상태를 보고 수정합니다.
-                      공유로 옮기기 전 기록도 함께 볼 수 있어요.
-                    </p>
-                    {space.members.map((member) => (
-                      <article
-                        className="space-manager-row"
-                        key={member.memberId}
-                      >
-                        <span className="space-avatar" aria-hidden>
-                          {member.nickname.slice(0, 1)}
-                        </span>
-                        <div>
-                          <strong>
-                            {member.nickname}
-                            {member.memberId === workspace.memberId
-                              ? ' · 나'
-                              : ''}
-                          </strong>
-                          <small>
-                            {member.role === 'ADMIN' ? '관리자' : '참여자'}
-                          </small>
-                        </div>
-                        {member.memberId !== workspace.memberId &&
-                          space.allowedActions.manageMembers && (
-                            <button
-                              className="space-text-button"
-                              disabled={busy}
-                              onClick={() =>
-                                void run(
-                                  () =>
-                                    updateSpaceMemberRole(
-                                      space.id,
-                                      member.memberId,
-                                      member.role === 'ADMIN'
-                                        ? 'MEMBER'
-                                        : 'ADMIN',
-                                    ),
-                                  '관리자 역할을 바꿨어요.',
-                                )
-                              }
-                            >
-                              {member.role === 'ADMIN'
-                                ? '관리자 해제'
-                                : '관리자 지정'}
-                            </button>
-                          )}
-                        {member.memberId !== workspace.memberId && (
-                          <button
-                            className="space-text-button space-text-button--danger"
-                            disabled={
-                              !space.allowedActions.manageMembers || busy
-                            }
-                            onClick={() =>
-                              setConfirm({
-                                title: '참여자 제외',
-                                description: `${member.nickname} 님은 이 스페이스의 공유 내용에 접근할 수 없게 됩니다.`,
-                                action: () =>
-                                  removeSpaceMember(space.id, member.memberId),
-                              })
-                            }
-                          >
-                            제외
-                          </button>
-                        )}
-                      </article>
-                    ))}
-                  </>
-                )}
-              </>
-            )}
-            {tab === 'trash' && (
-              <>
-                <h3>삭제된 스페이스·프로젝트</h3>
-                <p className="space-help">
-                  서버에서 복구 권한을 받은 항목만 복구할 수 있습니다.
-                </p>
-                {workspace.spaces
-                  .filter((item) => item.deleted)
-                  .map((item) => (
-                    <article className="space-manager-row" key={`s${item.id}`}>
-                      <strong>{item.name}</strong>
-                      <button
-                        className="workspace-button"
-                        disabled={!item.allowedActions.restore || busy}
-                        onClick={() =>
-                          void run(
-                            () => restoreSpace(item.id, item.version),
-                            '스페이스를 복구했어요.',
-                          )
-                        }
-                      >
-                        복구
-                      </button>
-                    </article>
-                  ))}
-                {workspace.projects
-                  .filter((item) => item.deleted && item.spaceId === space.id)
-                  .map((item) => (
-                    <article className="space-manager-row" key={`p${item.id}`}>
-                      <strong>{item.name}</strong>
-                      <button
-                        className="workspace-button"
-                        disabled={!item.allowedActions.restore || busy}
-                        onClick={() =>
-                          void run(
-                            () => restoreProject(item.id, item.version),
-                            '프로젝트를 복구했어요.',
-                          )
-                        }
-                      >
-                        복구
-                      </button>
-                    </article>
-                  ))}
-              </>
-            )}
-          </div>
+      <div className={`spaces-hub${detail ? ' is-detail' : ''}`}>
+        <div ref={rail} className="spaces-hub__rail">
+          <HubRail
+            spaces={liveSpaces}
+            summaries={summaries.data}
+            failed={Boolean(summaries.error) && !summaries.data}
+            onRetry={summaries.reload}
+            selectedId={space?.id ?? null}
+            onSelect={choose}
+          />
         </div>
-      )}
+        {space && (
+          <article className="hub-overview" aria-labelledby="hub-space-title">
+            <button
+              ref={backButton}
+              type="button"
+              className="hub-back"
+              onClick={back}
+            >
+              <WorkspaceIcon name="back" aria-hidden />
+              모든 스페이스
+            </button>
+            <HubIdentity
+              space={space}
+              meId={workspace.memberId}
+              busy={busy}
+              onEditPurpose={() => setEditor({ kind: 'purpose', space })}
+              onDeletePurpose={() =>
+                setConfirm({
+                  title: '목적 내용 삭제',
+                  description:
+                    '목적 내용만 지웁니다. 스페이스와 프로젝트, 작업·일정은 남아 있어요.',
+                  action: () => updatePurpose(space.id, null, space.version),
+                })
+              }
+            />
+            <div className="hub-columns">
+              <HubProjects
+                space={space}
+                rows={projectRows(workspace.projects, space.id, summary.data)}
+                withoutProject={summary.data?.withoutProject ?? null}
+                failed={Boolean(summary.error) && !summary.data}
+                onRetry={summary.reload}
+                busy={busy}
+                onOpen={(project) => {
+                  workspace.selectProject(project.id)
+                  navigate('/app/tasks')
+                }}
+                onCreate={() => setEditor({ kind: 'create-project', space })}
+                onEdit={(project) => setEditor({ kind: 'project', project })}
+                onToggle={(project) =>
+                  void run(
+                    () =>
+                      updateProject(project.id, {
+                        completed: !project.completed,
+                        expectedVersion: project.version,
+                      }),
+                    project.completed
+                      ? '프로젝트를 다시 열었어요.'
+                      : '프로젝트를 완료로 표시했어요.',
+                  )
+                }
+                onMove={setMovingProject}
+                onDelete={(project) =>
+                  setConfirm({
+                    title: '프로젝트 삭제',
+                    description:
+                      '프로젝트를 목록에서 숨깁니다. 복구는 관리자만 할 수 있어요.',
+                    action: () => deleteProject(project.id, project.version),
+                  })
+                }
+              />
+              {!space.personal && (
+                <HubPeople
+                  space={space}
+                  rows={memberRows(
+                    space.members,
+                    workspace.memberId,
+                    summary.data,
+                  )}
+                  unassigned={summary.data?.unassigned ?? null}
+                  failed={Boolean(summary.error) && !summary.data}
+                  onRetry={summary.reload}
+                  busy={busy}
+                  onInvite={() => void invite()}
+                  onToggleAdmin={(member) =>
+                    void run(
+                      () =>
+                        updateSpaceMemberRole(
+                          space.id,
+                          member.memberId,
+                          member.admin ? 'MEMBER' : 'ADMIN',
+                        ),
+                      '관리자 역할을 바꿨어요.',
+                    )
+                  }
+                  onRemove={(member) =>
+                    setConfirm({
+                      title: '참여자 제외',
+                      description: `${member.name} 님은 이 스페이스의 공유 내용에 접근할 수 없게 됩니다. 맡고 있던 작업은 담당자 미정이 돼요.`,
+                      action: () =>
+                        removeSpaceMember(space.id, member.memberId),
+                    })
+                  }
+                />
+              )}
+            </div>
+            {withRecord && (
+              <TeamRecord
+                space={space}
+                projects={workspace.projects.filter(
+                  (project) => project.spaceId === space.id,
+                )}
+                meId={workspace.memberId}
+                record={record.data}
+                failed={Boolean(record.error) && !record.data}
+                onRetry={record.reload}
+                today={today}
+              />
+            )}
+            <HubSettings
+              space={space}
+              deletedSpaces={workspace.spaces.filter((item) => item.deleted)}
+              deletedProjects={workspace.projects.filter(
+                (item) => item.deleted && item.spaceId === space.id,
+              )}
+              busy={busy}
+              onEdit={() => setEditor({ kind: 'space', space })}
+              onLeave={() =>
+                setConfirm({
+                  title: '스페이스 나가기',
+                  description:
+                    '나가면 이 스페이스의 공유 내용에 접근할 수 없어요. 맡고 있던 작업은 담당자 미정이 돼요.',
+                  action: () => leaveSpace(space.id),
+                })
+              }
+              onDelete={() =>
+                setConfirm({
+                  title: '스페이스 삭제',
+                  description:
+                    '이 스페이스가 목록에서 숨겨지고 참여자가 접근할 수 없게 됩니다. 복구는 관리자만 할 수 있어요.',
+                  action: () => deleteSpace(space.id, space.version),
+                })
+              }
+              onRestoreSpace={(item) =>
+                void run(
+                  () => restoreSpace(item.id, item.version),
+                  '스페이스를 복구했어요.',
+                )
+              }
+              onRestoreProject={(item) =>
+                void run(
+                  () => restoreProject(item.id, item.version),
+                  '프로젝트를 복구했어요.',
+                )
+              }
+            />
+          </article>
+        )}
+      </div>
       {movingProject && (
         <ProjectMoveDialog
           project={movingProject}

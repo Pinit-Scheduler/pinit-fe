@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
 
-type UseReportReturn<T> = {
+export type UseReportReturn<T> = {
   data: T | null
   error: string | null
   isLoading: boolean
@@ -15,7 +15,7 @@ type UseReportReturn<T> = {
  */
 const useReport = <T,>(load: () => Promise<T>, key: string): UseReportReturn<T> => {
   const [loaded, setLoaded] = useState<{ key: string; value: T } | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
   const reload = useCallback(() => setRefreshKey((value) => value + 1), [])
@@ -23,13 +23,17 @@ const useReport = <T,>(load: () => Promise<T>, key: string): UseReportReturn<T> 
   useEffect(() => {
     let cancelled = false
     setIsLoading(true)
-    setError(null)
+    setFailure(null)
     load()
       .then((response) => {
         if (!cancelled) setLoaded({ key, value: response })
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : '통계를 불러오지 못했어요.')
+        if (!cancelled)
+          setFailure({
+            key,
+            message: err instanceof Error ? err.message : '통계를 불러오지 못했어요.',
+          })
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -45,6 +49,8 @@ const useReport = <T,>(load: () => Promise<T>, key: string): UseReportReturn<T> 
   useEffect(() => onTaskChanged(reload), [reload])
 
   const data = loaded && loaded.key === key ? loaded.value : null
+  // 다른 key에서 난 실패는 돌려주지 않는다(스페이스를 바꾼 직후 이전 실패가 보이지 않게).
+  const error = failure && failure.key === key ? failure.message : null
   return { data, error, isLoading, reload }
 }
 

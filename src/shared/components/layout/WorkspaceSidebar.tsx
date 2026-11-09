@@ -4,13 +4,13 @@ import { Link, NavLink } from 'react-router-dom'
 import WorkspaceIcon, { type WorkspaceIconName } from '../common/WorkspaceIcon'
 const main: [string, string, WorkspaceIconName][] = [
   ['today', '오늘', 'sun'],
+  ['spaces', '스페이스', 'spaces'],
   ['schedules', '일정', 'calendar'],
   ['tasks', '작업', 'task'],
   ['task-map', '작업 맵', 'map'],
   ['statistics', '통계', 'chart'],
 ]
 const manage: [string, string, WorkspaceIconName][] = [
-  ['spaces', '스페이스·프로젝트', 'task'],
   ['settings/routines', '생활 시간', 'clock'],
   ['settings/recurrences', '반복 관리', 'repeat'],
   ['settings/trash', '휴지통', 'trash'],

@@ -196,7 +196,7 @@ export function SpaceSwitcher({
             <footer className="space-dialog__footer">
               <p>오늘에는 모든 스페이스의 내 작업이 모입니다.</p>
               <Link to="/app/spaces" onClick={() => setOpen(false)}>
-                스페이스·프로젝트 관리
+                모든 스페이스 보기
               </Link>
             </footer>
           </Modal>,
@@ -250,6 +250,8 @@ export function SpaceContextBar() {
   const deadlineRisk = pathname === '/app/deadline-risk'
   const statistics = pathname === '/app/statistics'
   const { selectedSpace, selectedProject } = useSpaces()
+  // 허브는 목적과 프로젝트를 본문에 크게 보여 주므로 같은 정보를 위에 다시 두지 않는다.
+  if (pathname === '/app/spaces') return null
   return (
     <section className="space-context" aria-label="목적과 프로젝트">
       {today && (

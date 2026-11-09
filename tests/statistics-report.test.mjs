@@ -155,3 +155,34 @@ test('the day plan preview still follows the selected space', async () => {
   assert.equal(queryOf(urls[0]).get('spaceId'), '31')
   assert.equal(queryOf(urls[0]).get('projectId'), '88')
 })
+
+test('space time rows keep the server order and name unknown items', () => {
+  const { spaceTimeRows } = loadModule('../src/features/statistics/utils/spaceTime.ts', {
+    '@shared/utils/isoDuration': {
+      parseIsoDurationMinutes: (value) => ({ PT30M: 30, PT1H: 60 })[value] ?? 0,
+    },
+  })
+  const rows = spaceTimeRows(
+    [
+      {
+        spaceId: 31,
+        elapsed: 'PT1H',
+        projects: [
+          { projectId: 88, elapsed: 'PT30M' },
+          { projectId: null, elapsed: 'PT30M' },
+        ],
+      },
+      { spaceId: 77, elapsed: 'PT30M', projects: [{ projectId: 5, elapsed: 'PT30M' }] },
+    ],
+    [{ id: 31, name: '핀잇 개선', personal: false }],
+    [{ id: 88, name: '작업 카드 개선' }],
+  )
+  assert.deepEqual(plain(rows.map((row) => [row.name, row.minutes, row.child])), [
+    ['핀잇 개선', 60, false],
+    ['작업 카드 개선', 30, true],
+    ['프로젝트 없음', 30, true],
+    ['알 수 없는 스페이스', 30, false],
+    ['삭제된 프로젝트', 30, true],
+  ])
+  assert.deepEqual(plain(spaceTimeRows(undefined, [], [])), [])
+})

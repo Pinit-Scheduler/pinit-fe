@@ -320,80 +320,6 @@
   margin: auto;
   padding-bottom: 35px;
 }
-.space-management {
-  overflow: hidden;
-}
-.space-management__heading {
-  padding: 24px 28px;
-}
-.space-management__heading > div {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 12px;
-}
-.space-management__heading .space-avatar {
-  grid-row: span 2;
-}
-.space-management__heading h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 650;
-}
-.space-management__heading p {
-  margin: 5px 0 0;
-  font-size: 12px;
-  color: var(--workspace-muted);
-}
-.space-tabs {
-  display: flex;
-  gap: 8px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--workspace-line);
-  overflow: auto;
-}
-.space-tabs button {
-  flex-shrink: 0;
-  padding: 14px 8px;
-  font: inherit;
-  font-size: 13px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  color: var(--workspace-muted);
-  background: transparent;
-  cursor: pointer;
-}
-.space-tabs button[aria-current='page'] {
-  color: var(--workspace-blue);
-  border-bottom-color: var(--workspace-blue);
-  font-weight: 650;
-}
-.space-management__body {
-  padding: 26px 28px;
-}
-.space-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 16px;
-}
-.space-section-heading h3,
-.space-management__body > h3 {
-  margin: 0;
-  font-size: 15px;
-}
-.space-purpose-copy {
-  font-size: 17px;
-  line-height: 1.9;
-  max-width: 70ch;
-  white-space: pre-wrap;
-}
-.space-inline-actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
 .space-text-button {
   border: 0;
   background: transparent;
@@ -405,58 +331,6 @@
 }
 .space-text-button--danger {
   color: var(--c-red-600, #b13443);
-}
-.space-danger-zone {
-  display: flex;
-  gap: 20px;
-  border-top: 1px solid var(--workspace-line);
-  padding-top: 18px;
-  margin-top: 30px;
-}
-.space-manager-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 19px 0;
-  border-bottom: 1px solid var(--workspace-line);
-}
-.space-manager-row > div:first-of-type {
-  flex: 1;
-  min-width: 0;
-}
-.space-manager-row p {
-  margin: 6px 0;
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--workspace-muted);
-  white-space: pre-wrap;
-}
-.space-manager-row small {
-  display: block;
-  margin-top: 5px;
-  font-size: 11px;
-  color: var(--workspace-muted);
-}
-.space-project-title {
-  border: 0;
-  background: transparent;
-  color: var(--workspace-ink);
-  font: inherit;
-  text-align: left;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 14px;
-}
-.space-empty {
-  padding: 35px 15px;
-  text-align: center;
-}
-.space-empty h3 {
-  font-size: 15px;
-}
-.space-empty p {
-  font-size: 13px;
-  color: var(--workspace-muted);
 }
 .space-affiliation {
   padding: 16px;
@@ -584,9 +458,7 @@
   .space-option,
   .space-text-button,
   .space-icon-button,
-  .space-tabs button,
-  .space-projects-nav button,
-  .space-project-title
+  .space-projects-nav button
 ):focus-visible {
   outline: 3px solid var(--workspace-blue);
   outline-offset: 3px;
@@ -627,29 +499,6 @@ button:disabled {
   }
   .space-dialog--notice {
     padding: 22px 20px max(20px, env(safe-area-inset-bottom));
-  }
-  .space-management__heading {
-    padding: 20px;
-  }
-  .space-management__body {
-    padding: 20px;
-  }
-  .space-tabs {
-    padding: 0 12px;
-    gap: 3px;
-  }
-  .space-tabs button {
-    padding: 14px 8px;
-    font-size: 12px;
-    min-height: 44px;
-  }
-  .space-manager-row {
-    flex-wrap: wrap;
-    gap: 9px;
-  }
-  .space-manager-row > .space-inline-actions {
-    flex-basis: 100%;
-    justify-content: flex-end;
   }
   .space-text-button {
     min-height: 44px;
@@ -773,7 +622,6 @@ button:disabled {
   max-height: 3em;
   overflow: hidden;
 }
-
 .space-mark {
   display: inline-block;
   width: 10px;
@@ -781,12 +629,10 @@ button:disabled {
   border-radius: 3px;
   background: var(--space-mark);
 }
-
 .space-mark--personal {
   background: none;
   box-shadow: inset 0 0 0 1.5px #9aa3b2;
 }
-
 .space-option-projects {
   display: grid;
   gap: 2px;
@@ -876,7 +722,6 @@ button:disabled {
   margin: 0 0 12px;
   color: var(--workspace-muted);
 }
-
 .space-path {
   display: inline-flex;
   align-items: center;
