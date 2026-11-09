@@ -442,3 +442,20 @@ test('spaces CSS animates only transform, opacity and colors, with the motion to
     }
   }
 })
+
+test('hub numbers never glide from another space, and grown bars keep their transition', () => {
+  // The same member (or the unassigned line) appears in every space. Its count restarts per
+  // space instead of tweening from the space shown before.
+  const people = read('features/spaces/hub/HubPeople.tsx')
+  assert.equal((people.match(/<Count key=\{space\.id\}/g) ?? []).length, 2)
+  // A cached record for another space mounts as its own body, so its bars grow fresh.
+  assert.match(
+    read('features/spaces/hub/TeamRecord.tsx'),
+    /className="hub-record__body" key=\{`\$\{record\.spaceId\}:\$\{record\.start\}`\}/,
+  )
+  // A finished grow must not hold the transform, or later length changes could not transition.
+  assert.match(read('features/spaces/TimeBars.css'), /time-bars-grow [^;]+ backwards;/)
+  assert.match(read('features/spaces/hub/hub.css'), /hub-day-rise [^;]+ backwards;/)
+  // The project name mutes on its .motion-strike span only; no chained color transition.
+  assert.ok(!/\.hub-project__main strong \{\s*transition/.test(read('features/spaces/hub/hub.css')))
+})

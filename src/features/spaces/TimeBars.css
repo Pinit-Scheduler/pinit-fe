@@ -44,7 +44,8 @@
   transform: scaleX(var(--time-bar-scale, 0));
   transform-origin: left center;
   transition: transform var(--motion-enter) var(--motion-ease);
-  animation: time-bars-grow var(--motion-enter) var(--motion-ease) both;
+  /* backwards, not both: once grown, the bar's own transform (and its transition) applies. */
+  animation: time-bars-grow var(--motion-enter) var(--motion-ease) backwards;
   background: color-mix(in srgb, var(--workspace-ink) 70%, var(--workspace-surface));
 }
 .time-bars__row.is-child .time-bars__track i {

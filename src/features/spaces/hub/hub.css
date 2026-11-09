@@ -751,10 +751,10 @@
   pointer-events: none;
 }
 
-/* Completing a project: the strike draws, the name mutes, then the row leaves for its list. */
-.hub-project__main strong {
-  transition: color var(--motion-base) var(--motion-ease);
-}
+/* Completing a project: the strike draws, the name mutes, then the row leaves for its list.
+ * The name's color fades on its .motion-strike span (motion.css). A color transition on the
+ * <strong> as well would restart the span's delayed transition on every frame and hold the
+ * mute back until after the row has left. */
 .hub-dots i,
 .hub-bar i {
   transition: background-color var(--motion-base) var(--motion-ease);
@@ -771,7 +771,7 @@
 }
 .hub-day i {
   transform-origin: bottom center;
-  animation: hub-day-rise var(--motion-enter) var(--motion-ease) both;
+  animation: hub-day-rise var(--motion-enter) var(--motion-ease) backwards;
   animation-delay: calc(var(--hub-day-index, 0) * 24ms);
 }
 @keyframes hub-day-rise {

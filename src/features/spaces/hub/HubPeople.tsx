@@ -92,7 +92,9 @@ export default function HubPeople({
               {row.openAssignedCount == null ? (
                 '–'
               ) : (
-                <Count value={row.openAssignedCount} />
+                // Keyed by space: the same member's count in another space is a new number,
+                // not a change to glide from.
+                <Count key={space.id} value={row.openAssignedCount} />
               )}
             </span>
             <span className="hub-due">{dueLabel(row.nearestDueDate)}</span>
@@ -124,7 +126,7 @@ export default function HubPeople({
         <div className="hub-unassigned">
           <span className="hub-person__name">담당자 미정</span>
           <span className="hub-count">
-            <Count value={unassigned.openCount} />개
+            <Count key={space.id} value={unassigned.openCount} />개
           </span>
           <span className="hub-due">{dueLabel(unassigned.nearestDueDate)}</span>
           <button
