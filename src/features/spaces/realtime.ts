@@ -68,6 +68,7 @@ async function subscribeToEvents(
     ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),
   })
   let retry = 1000
+  let connectedBefore = false
   const sameMember = () => {
     const token = getAccessToken()
     return token !== null && getTokenSubject(token) === member
@@ -104,8 +105,10 @@ async function subscribeToEvents(
       if (!response.ok || !response.body) throw new Error('Stream unavailable')
       connection(true)
       retry = 1000
-      // Reconnects may have missed events. Refresh views, preserving any open edit draft.
-      changed()
+      // Views loaded their own data before the first connect, so only a reconnect refreshes them:
+      // events may have been missed during the gap. Any open edit draft is preserved.
+      if (connectedBefore) changed()
+      connectedBefore = true
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       const parse = createEventParser((name, data, id) => {

@@ -90,3 +90,12 @@
   font-size: 23px;
   cursor: pointer;
 }
+
+/* Toasts hang from the top edge: they drop in a few pixels and fade out in place. */
+.toast {
+  animation: motion-drop-in var(--motion-enter) var(--motion-ease) both;
+}
+.toast[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}

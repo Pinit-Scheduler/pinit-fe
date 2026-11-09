@@ -737,6 +737,7 @@ function spacesStoreHarness(respond) {
     {
       react: {
         useEffect() {},
+        useMemo: (compute) => compute(),
         useState: (initial) => [initial, () => {}],
         useSyncExternalStore: (_subscribe, get) => get(),
       },
@@ -747,6 +748,7 @@ function spacesStoreHarness(respond) {
       '@shared/utils/events': {
         dispatchTaskChanged() {},
         dispatchScheduleChanged() {},
+        onDataChanged: () => () => {},
         onTaskChanged: () => () => {},
         onScheduleChanged: () => () => {},
       },
@@ -973,6 +975,8 @@ test('Workspace realtime handles deleted, purged and moved-out Task/Schedule eve
         './store': { useSpaces: () => ({ spaces: [{ id: 22 }], memberId: 4 }), workspaceChanged() {} },
         './realtime': { subscribeToWorkspace: (_signal, listener) => { changed = listener; return Promise.resolve() } },
         './metadata': registry,
+        '@shared/utils/events': { takeLocalEcho: () => false },
+        '@shared/motion/usePresence': { usePresence: () => ({ mounted: false, closing: false }) },
       }).default
       Component()
       changed({ spaceId: 22, resourceId: 1, resourceType, action })
@@ -1070,6 +1074,11 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/spaces/SpacePath': { default: () => null },
     '@features/spaces/conflicts': { isEditConflict: () => false },
     '@shared/components/common/Modal': {},
+    '@shared/components/motion/CompletionCheck': { default: () => null },
+    '../utils/useArrival': { useArrival: () => false },
+    '../utils/taskDetailRefresh': {
+      detailRefreshNeeded: () => ({ refetch: false, ownToggles: 0 }),
+    },
     '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({}) },
     '../api/tasks': { createScheduleFromTask: async (...args) => calls.push(args) },
     '@shared/utils/priorityStyles': {},
@@ -1247,7 +1256,7 @@ test('Server-confirmed lost membership evicts task/schedule/series metadata and 
   assert.equal(registry.getMetadata('task', 1).version, 100)
 })
 
-test('SSE reconnect resumes at Last-Event-ID in the current subscription and still refreshes views', async () => {
+test('SSE reconnect resumes at Last-Event-ID and refreshes views only after the gap, not on the first connect', async () => {
   const controller = new AbortController(),
     calls = [],
     events = []
@@ -1287,5 +1296,5 @@ test('SSE reconnect resumes at Last-Event-ID in the current subscription and sti
   assert.equal(calls[0].init.headers['Last-Event-ID'], undefined)
   assert.equal(calls[1].init.headers['Last-Event-ID'], '40')
   assert.deepEqual(events, [40, 41])
-  assert.equal(resyncs, 2)
+  assert.equal(resyncs, 1)
 })

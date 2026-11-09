@@ -1,32 +1,60 @@
-import useReport from '@features/statistics/hooks/useReport'
+import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import {
   fetchSpaceSummaries,
   fetchSpaceSummary,
   fetchWeeklyRecord,
 } from '../api'
-import type { SpaceSummary, WeeklyRecord } from '../types'
+import type { SpaceSummaries, SpaceSummary, WeeklyRecord } from '../types'
 
-const none = () => Promise.resolve(null)
+export type HubQuery<T> = {
+  /** This key's data, or null before it first arrives. Never another space's data. */
+  data: T | null
+  error: string | null
+  isLoading: boolean
+  reload: () => void
+}
+
+const view = <T,>(query: {
+  data: T | undefined
+  error: string | null
+  isInitialLoading: boolean
+  refetch: () => void
+}): HubQuery<T> => ({
+  data: query.data ?? null,
+  error: query.error,
+  isLoading: query.isInitialLoading,
+  reload: query.refetch,
+})
+
+const HUB_EVENTS = ['task', 'schedule'] as const
 
 /**
  * 허브의 세 조회. key에 스페이스를 넣어 다른 스페이스의 응답이 잠깐이라도 보이지 않게 한다.
- * useReport는 작업·일정 변경 이벤트(실시간 changed·멤버십 변경 포함)에 다시 조회한다.
+ * 작업·일정 변경 이벤트(실시간 changed·멤버십 변경 포함)에 다시 조회한다. 다시 조회하는 동안에는
+ * 지금 숫자를 그대로 두고, 한 번 본 스페이스로 돌아오면 마지막 숫자가 바로 보인다.
  */
 export default function useHubData(
   spaceId: number | null,
   weekStart: string,
   withRecord: boolean,
 ) {
-  const summaries = useReport(() => fetchSpaceSummaries(), 'summaries')
-  const summary = useReport<SpaceSummary | null>(
-    spaceId === null ? none : () => fetchSpaceSummary(spaceId),
-    `summary:${spaceId}`,
+  const summaries = useRevalidatingQuery<SpaceSummaries>(
+    'spaces/hub/summaries',
+    (signal) => fetchSpaceSummaries(signal),
+    { invalidateOn: HUB_EVENTS, group: 'spaces/hub/' },
   )
-  const record = useReport<WeeklyRecord | null>(
+  const summary = useRevalidatingQuery<SpaceSummary>(
+    spaceId === null ? null : `spaces/hub/summary:${spaceId}`,
+    (signal) => fetchSpaceSummary(spaceId as number, signal),
+    { invalidateOn: HUB_EVENTS, group: 'spaces/hub/' },
+  )
+  const record = useRevalidatingQuery<WeeklyRecord>(
     spaceId === null || !withRecord
-      ? none
-      : () => fetchWeeklyRecord(spaceId, weekStart),
-    withRecord ? `record:${spaceId}:${weekStart}` : 'record:none',
+      ? null
+      : `spaces/hub/record:${spaceId}:${weekStart}`,
+    // The key is null without a space, so the fetcher only runs with one.
+    (signal) => fetchWeeklyRecord(spaceId as number, weekStart, signal),
+    { invalidateOn: HUB_EVENTS, group: 'spaces/hub/' },
   )
-  return { summaries, summary, record }
+  return { summaries: view(summaries), summary: view(summary), record: view(record) }
 }

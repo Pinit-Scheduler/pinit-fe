@@ -47,7 +47,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  animation: fadeIn 220ms ease;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -64,6 +63,17 @@
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;
+  /* Released cards settle back into place; a moving card dims while it saves. */
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease);
+}
+
+/* A dragged card follows the pointer a little (useScheduleDrag sets --schedule-drag-x),
+   with no transition so it never lags behind the hand. */
+.schedules-tab__item.is-dragging {
+  transform: translateX(var(--schedule-drag-x, 0px));
+  transition-property: opacity;
 }
 
 .schedules-tab__item.is-dragging,
@@ -82,8 +92,8 @@
 }
 
 .schedules-tab__item.is-dragging .schedule-card {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
+  border-color: var(--c-blue-600);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
 }
 
 .schedules-tab__item.is-moving {
@@ -101,9 +111,7 @@
   justify-content: center;
   opacity: 0;
   pointer-events: none;
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
+  transition: opacity var(--motion-base) var(--motion-ease);
   color: var(--c-blue-900);
   font-size: 12px;
   font-weight: 700;
@@ -114,6 +122,9 @@
   background: color-mix(in srgb, var(--c-surface) 90%, transparent);
   border-radius: 999px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.2);
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .schedules-tab__edge--left {
@@ -140,9 +151,13 @@
   opacity: 0.35;
 }
 
+/* The card is over a drop zone: the zone firms up and its label takes the accent. */
 .schedules-tab__edge.is-active {
   opacity: 0.85;
-  transform: scale(1.02);
+}
+.schedules-tab__edge.is-active span {
+  background-color: var(--c-blue-600);
+  color: var(--c-surface);
 }
 
 .schedules-tab__weekly-stats {
@@ -154,7 +169,16 @@
   background-color: var(--c-indigo-50);
   color: var(--c-blue-800);
   font-weight: 600;
-  animation: fadeSlideIn 220ms ease;
+}
+
+/* Loading text stays invisible briefly, so a quick load goes straight to the total. */
+.schedules-tab__stats-pending {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease)
+    var(--motion-status-delay) both;
+}
+.schedules-tab__stats-value {
+  font-variant-numeric: tabular-nums;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .schedules-tab__weekly-stats button {
@@ -164,51 +188,42 @@
   font-weight: 600;
 }
 
-.week-transition {
-  animation: fadeSlideHorizontalForward 240ms ease;
-}
-
+/* Week change only (the page sets these after the week moves, never on mount):
+   the strip and the week total slide in from the side of the week you moved to. */
 .week-transition--forward {
-  animation: fadeSlideHorizontalForward 240ms ease;
+  animation: schedules-week-forward var(--motion-enter) var(--motion-ease) both;
 }
 
 .week-transition--backward {
-  animation: fadeSlideHorizontalBackward 240ms ease;
+  animation: schedules-week-backward var(--motion-enter) var(--motion-ease) both;
 }
 
-.fade-slide {
-  animation: fadeSlideHorizontalForward 240ms ease;
-}
-
-@keyframes fadeSlideHorizontalForward {
+@keyframes schedules-week-forward {
   from {
     opacity: 0;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
+    transform: translateX(calc(var(--motion-distance) * 1.5));
   }
 }
 
-@keyframes fadeSlideHorizontalBackward {
+@keyframes schedules-week-backward {
   from {
     opacity: 0;
-    transform: translateX(-24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
+    transform: translateX(calc(var(--motion-distance) * -1.5));
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* Week and month views crossfade when you switch between them. */
+.schedules-tab__calendar-in {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+/* The overdue banner rises in when overdue schedules appear and fades when none are left. */
+.schedules-tab__overdue[data-enter] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+.schedules-tab__overdue[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
 }
 
 .schedules-tab__notice {
@@ -237,6 +252,9 @@
   color: var(--c-slate-500);
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .schedules-tab__audience button[aria-pressed='true'] {
@@ -307,6 +325,9 @@
   font-weight: 600;
   color: var(--c-slate-500);
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .schedules-tab__view-toggle button.is-active {
@@ -368,5 +389,44 @@
   .schedules-tab__list {
     padding: 12px;
     gap: 16px;
+  }
+}
+
+.schedules-tab__header-actions button {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+.schedules-tab__header-actions button:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Opacity only: the week slide becomes a fade, the drag no longer follows the pointer. */
+  .week-transition--forward,
+  .week-transition--backward {
+    animation-name: motion-fade-in;
+  }
+  .week-transition--forward,
+  .week-transition--backward,
+  .schedules-tab__calendar-in,
+  .schedules-tab__overdue[data-enter],
+  .schedules-tab__stats-value {
+    animation-duration: var(--motion-base) !important;
+  }
+  .schedules-tab__stats-pending {
+    animation-duration: var(--motion-base) !important;
+    animation-delay: var(--motion-status-delay) !important;
+  }
+  .schedules-tab__overdue[data-state='closing'] {
+    animation-duration: var(--motion-exit) !important;
+  }
+  .schedules-tab__item.is-dragging {
+    transform: none;
+  }
+  .schedules-tab__header-actions button:active {
+    transform: none;
   }
 }

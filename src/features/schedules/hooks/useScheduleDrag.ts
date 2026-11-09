@@ -5,6 +5,14 @@ import type { ScheduleSummary } from '../types/schedule'
 const EDGE_GUTTER = 72
 const DRAG_ACTIVATE_DISTANCE = 6
 const PULL_THRESHOLD = 60
+/** A dragged card follows the pointer at this fraction of the distance, up to DRAG_FOLLOW_MAX px. */
+const DRAG_FOLLOW = 0.35
+const DRAG_FOLLOW_MAX = 48
+const DRAG_OFFSET_PROPERTY = '--schedule-drag-x'
+
+/** How far a dragged card leans toward the pointer. Damped and capped, so it reads as feedback. */
+export const dragFollowOffset = (deltaX: number) =>
+  Math.max(-DRAG_FOLLOW_MAX, Math.min(DRAG_FOLLOW_MAX, Math.round(deltaX * DRAG_FOLLOW)))
 
 type Direction = 'prev' | 'next'
 
@@ -56,6 +64,8 @@ export const useScheduleDrag = ({ containerRef, hasItems, resetKey, disabled = f
   const resetDragState = useCallback(() => {
     const state = dragStateRef.current
     dragStateRef.current = null
+    // The card eases back into place (CSS transitions transform once dragging ends).
+    state?.element.style?.removeProperty(DRAG_OFFSET_PROPERTY)
     if (state?.element.hasPointerCapture(state.pointerId)) {
       state.element.releasePointerCapture(state.pointerId)
     }
@@ -116,6 +126,11 @@ export const useScheduleDrag = ({ containerRef, hasItems, resetKey, disabled = f
       pullStartY.current = null
     }
     event.preventDefault()
+    // Written to the element directly: following the pointer must not re-render the list.
+    state.element.style?.setProperty(
+      DRAG_OFFSET_PROPERTY,
+      `${dragFollowOffset(event.clientX - state.startX)}px`,
+    )
     setEdgeTarget(targetAt(event.clientX))
   }, [resetDragState, targetAt])
 

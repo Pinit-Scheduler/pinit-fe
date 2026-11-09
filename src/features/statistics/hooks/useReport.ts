@@ -1,57 +1,42 @@
-import { useCallback, useEffect, useState } from 'react'
-import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
+import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
 
 export type UseReportReturn<T> = {
   data: T | null
   error: string | null
+  /** 요청이 진행 중이다(처음 불러오기 또는 다시 불러오기). 자리 표시는 `isLoading && !data`일 때만. */
   isLoading: boolean
+  /** 이 key의 값이 화면에 있는 채로 다시 불러오는 중이다. */
+  isRefreshing: boolean
   reload: () => void
 }
+
+const reportError = (err: unknown) =>
+  err instanceof Error ? err.message : '통계를 불러오지 못했어요.'
 
 /**
  * ADR-0025 통계 조회 공통 훅. key가 바뀌거나 일정·작업이 바뀌면 다시 불러온다.
  * load는 key가 같은 동안 같은 요청을 만들어야 한다. 다른 key로 받은 응답은 돌려주지 않는다.
- * 그래서 기간을 넘기면 새 응답이 올 때까지 이전 기간 값 대신 로딩 상태가 보인다.
+ * 그래서 기간을 넘기면 새 응답이 올 때까지 data는 null이다. 화면 틀을 유지하려면 useHeldValue를 함께 쓴다.
+ *
+ * 값은 앱 전체 조회 캐시(useRevalidatingQuery)에 key별로 남는다. 다른 보기나 탭에 다녀와도
+ * 마지막 값이 바로 보이고 뒤에서 다시 불러온다. 작업·일정 변경은 한 번으로 묶여 한 번만 다시 부른다.
+ * key는 앱 전체에서 겹치지 않게 부르는 쪽이 이름을 붙인다(`period:`, `trend:` 등).
  */
 const useReport = <T,>(load: () => Promise<T>, key: string): UseReportReturn<T> => {
-  const [loaded, setLoaded] = useState<{ key: string; value: T } | null>(null)
-  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [refreshKey, setRefreshKey] = useState(0)
-  const reload = useCallback(() => setRefreshKey((value) => value + 1), [])
-
-  useEffect(() => {
-    let cancelled = false
-    setIsLoading(true)
-    setFailure(null)
-    load()
-      .then((response) => {
-        if (!cancelled) setLoaded({ key, value: response })
-      })
-      .catch((err) => {
-        if (!cancelled)
-          setFailure({
-            key,
-            message: err instanceof Error ? err.message : '통계를 불러오지 못했어요.',
-          })
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-    // load는 key로 대표한다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, refreshKey])
-
-  useEffect(() => onScheduleChanged(reload), [reload])
-  useEffect(() => onTaskChanged(reload), [reload])
-
-  const data = loaded && loaded.key === key ? loaded.value : null
-  // 다른 key에서 난 실패는 돌려주지 않는다(스페이스를 바꾼 직후 이전 실패가 보이지 않게).
-  const error = failure && failure.key === key ? failure.message : null
-  return { data, error, isLoading, reload }
+  const query = useRevalidatingQuery<T>(`report/${key}`, () => load(), {
+    invalidateOn: ['task', 'schedule'],
+    errorMessage: reportError,
+  })
+  const hasData = query.data !== undefined
+  // 값이 없는 채로 다시 시도하는 동안에는 지난 실패 대신 불러오는 중으로 보인다.
+  const error = !hasData && query.isFetching ? null : query.error
+  return {
+    data: hasData ? (query.data as T) : null,
+    error,
+    isLoading: query.isInitialLoading || query.isFetching,
+    isRefreshing: query.isRefreshing,
+    reload: query.refetch,
+  }
 }
 
 export default useReport

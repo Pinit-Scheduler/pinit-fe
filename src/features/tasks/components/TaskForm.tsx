@@ -15,6 +15,7 @@ import { FIBONACCI_DIFFICULTIES } from '@constants/difficulty'
 import type { DifficultyValue } from '@constants/difficulty'
 import { parseDurationInput } from '@shared/utils/isoDuration'
 import { DIFFICULTY_ESTIMATE_MINUTES } from '@shared/utils/taskEstimate'
+import { presenceProps, useListPresence } from '@shared/motion'
 import './TaskForm.css'
 import TaskDependencyModal from './modals/TaskDependencyModal'
 import AffiliationFields from '@features/spaces/AffiliationFields'
@@ -459,32 +460,19 @@ const TaskForm = ({
                 선택
               </button>
             </div>
-            {values.previousTaskIds.length === 0 ? (
-              <p className="task-form__note">선택된 이전 작업이 없습니다.</p>
-            ) : (
-              <div className="task-form__tags">
-                {values.previousTaskIds.map((id) => (
-                  <span key={id} className="task-form__tag">
-                    {dependencyMeta[id]?.title ?? `작업 #${id}`}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        markDirty()
-                        setValues((prev) => ({
-                          ...prev,
-                          previousTaskIds: prev.previousTaskIds.filter(
-                            (v) => v !== id,
-                          ),
-                        }))
-                      }}
-                      aria-label="이전 작업 제거"
-                    >
-                      <WorkspaceIcon name="close" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <DependencyChips
+              ids={values.previousTaskIds}
+              titleOf={(id) => dependencyMeta[id]?.title ?? `작업 #${id}`}
+              emptyText="선택된 이전 작업이 없습니다."
+              removeLabel="이전 작업 제거"
+              onRemove={(id) => {
+                markDirty()
+                setValues((prev) => ({
+                  ...prev,
+                  previousTaskIds: prev.previousTaskIds.filter((v) => v !== id),
+                }))
+              }}
+            />
           </div>
 
           <div className="task-form__dependency">
@@ -494,30 +482,20 @@ const TaskForm = ({
                 선택
               </button>
             </div>
-            {values.nextTaskIds.length === 0 ? (
-              <p className="task-form__note">선택된 이후 작업이 없습니다.</p>
-            ) : (
-              <div className="task-form__tags">
-                {values.nextTaskIds.map((id) => (
-                  <span key={id} className="task-form__tag is-next">
-                    {dependencyMeta[id]?.title ?? `작업 #${id}`}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        markDirty()
-                        setValues((prev) => ({
-                          ...prev,
-                          nextTaskIds: prev.nextTaskIds.filter((v) => v !== id),
-                        }))
-                      }}
-                      aria-label="이후 작업 제거"
-                    >
-                      <WorkspaceIcon name="close" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
+            <DependencyChips
+              ids={values.nextTaskIds}
+              next
+              titleOf={(id) => dependencyMeta[id]?.title ?? `작업 #${id}`}
+              emptyText="선택된 이후 작업이 없습니다."
+              removeLabel="이후 작업 제거"
+              onRemove={(id) => {
+                markDirty()
+                setValues((prev) => ({
+                  ...prev,
+                  nextTaskIds: prev.nextTaskIds.filter((v) => v !== id),
+                }))
+              }}
+            />
           </div>
         </>
       )}
@@ -590,6 +568,49 @@ const TaskForm = ({
         }}
       />
     </form>
+  )
+}
+
+/**
+ * Linked tasks as chips. A chip that is added rises in; a removed one fades out in place before
+ * it leaves, so the person sees which link went away.
+ */
+function DependencyChips({
+  ids,
+  next = false,
+  titleOf,
+  emptyText,
+  removeLabel,
+  onRemove,
+}: {
+  ids: number[]
+  next?: boolean
+  titleOf: (id: number) => string
+  emptyText: string
+  removeLabel: string
+  onRemove: (id: number) => void
+}) {
+  const chips = useListPresence(ids, (id) => id)
+  if (chips.length === 0) return <p className="task-form__note">{emptyText}</p>
+  return (
+    <div className="task-form__tags">
+      {chips.map(({ key, item: id, phase }) => (
+        <span
+          key={key}
+          className={'task-form__tag' + (next ? ' is-next' : '')}
+          {...presenceProps(phase)}
+        >
+          {titleOf(id)}
+          <button
+            type="button"
+            onClick={() => onRemove(id)}
+            aria-label={removeLabel}
+          >
+            <WorkspaceIcon name="close" />
+          </button>
+        </span>
+      ))}
+    </div>
   )
 }
 

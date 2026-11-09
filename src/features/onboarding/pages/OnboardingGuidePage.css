@@ -38,6 +38,13 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+
+.onboarding-guide__replay:active,
+.onboarding-guide__retry:active,
+.onboarding-guide__show:active {
+  transform: scale(0.97);
 }
 
 .onboarding-guide__list {
@@ -112,10 +119,13 @@
   font-size: 22px;
   line-height: 1;
   color: var(--c-slate-400);
-  transition: transform 150ms ease;
+  transition:
+    transform var(--motion-base) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .onboarding-guide__card.is-open .onboarding-guide__caret {
+  color: var(--c-slate-600);
   transform: rotate(90deg);
 }
 
@@ -125,6 +135,8 @@
   gap: 16px;
   padding: 0 16px 16px;
   border-top: 1px solid var(--c-slate-200);
+  /* 펼치면 안내가 제목 아래에서 살짝 올라온다. 접을 때는 바로 닫힌다. */
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 
 .onboarding-guide__panel[hidden] {
@@ -193,5 +205,8 @@
 @media (prefers-reduced-motion: reduce) {
   .onboarding-guide__caret {
     transition: none;
+  }
+  .onboarding-guide__panel {
+    animation: none;
   }
 }

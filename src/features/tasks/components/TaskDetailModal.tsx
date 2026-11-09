@@ -3,7 +3,9 @@ import { cardPath } from '@features/spaces/cardPath'
 import SpacePath from '@features/spaces/SpacePath'
 import { isEditConflict } from '@features/spaces/conflicts'
 import { useEffect, useState, useId, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import Modal from '@shared/components/common/Modal'
+import CompletionCheck from '@shared/components/motion/CompletionCheck'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import {
   completeTask,
@@ -40,6 +42,8 @@ import { isResourceUnavailable } from '@features/spaces/metadata'
 import { useSpaces } from '@features/spaces/store'
 import UnavailableNote from '@features/spaces/UnavailableNote'
 import { adminNames, unavailableLines } from '@features/spaces/unavailable'
+import { useArrival } from '../utils/useArrival'
+import { detailRefreshNeeded } from '../utils/taskDetailRefresh'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -59,62 +63,90 @@ const TaskDetailModal = ({
   const { offerTaskUndo } = useTrashUndo()
   const { open } = useRouteSurfaceNavigation()
   const { spaces, projects } = useSpaces()
-  const [task, setTaskState] = useState<Task | null>(tasksById[taskId] ?? null)
-  const [isLoading, setIsLoading] = useState(!tasksById[taskId])
-  const [error, setError] = useState<string | null>(null)
+  // What this modal read itself, for this id. The cache (seeded by lists, updated by every save)
+  // is shown first, so opening a known task never flashes a loading line (audit A6).
+  const [fetched, setFetched] = useState<{
+    id: number
+    task: Task | null
+    error: string | null
+  } | null>(null)
+  const own = fetched?.id === taskId ? fetched : null
+  const task: Task | null = tasksById[taskId] ?? own?.task ?? null
+  const error = own?.error ?? null
+  const isLoading = !task && !error
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [revision, setRevision] = useState(0)
-  useEffect(() => onTaskChanged(() => setRevision((value) => value + 1)), [])
-  const [isToggling, setIsToggling] = useState(false)
+  // Completion shown at once while the save runs; cleared when it settles (rolls back on failure).
+  const [optimistic, setOptimistic] = useState<{
+    id: number
+    done: boolean
+  } | null>(null)
+  const ownToggles = useRef(0)
+  const relatedIds = useRef<number[]>([])
+  useEffect(() => {
+    relatedIds.current = [
+      ...(task?.previousTaskIds ?? []),
+      ...(task?.nextTaskIds ?? []),
+    ]
+  })
   const recurrenceScope = useRecurrenceScope()
 
-  useEffect(() => {
-    const cached = tasksById[taskId]
-    if (cached) {
-      setTaskState(cached)
-      setIsLoading(false)
-    }
-  }, [taskId, tasksById])
+  useEffect(
+    () =>
+      onTaskChanged((_detail, details) => {
+        const next = detailRefreshNeeded(
+          details,
+          taskId,
+          relatedIds.current,
+          ownToggles.current,
+        )
+        ownToggles.current = next.ownToggles
+        if (next.refetch) setRevision((value) => value + 1)
+      }),
+    [taskId],
+  )
 
   useEffect(() => {
     let mounted = true
-    const load = async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const data = await fetchTaskDetail(taskId)
+    // A background read: whatever is on screen stays until the answer arrives.
+    fetchTaskDetail(taskId)
+      .then((data) => {
         if (!mounted) return
-        setTaskState(data)
+        setFetched({ id: taskId, task: data, error: null })
         setTask(data)
-      } catch (err) {
+      })
+      .catch((err) => {
         if (!mounted) return
-        setTaskState(null)
         if (isResourceUnavailable('task', taskId)) removeTask(taskId)
-        setError(
-          err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
-        )
-      } finally {
-        if (mounted) setIsLoading(false)
-      }
-    }
-    void load()
+        setFetched({
+          id: taskId,
+          task: null,
+          error:
+            err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
+        })
+      })
     return () => {
       mounted = false
     }
   }, [setTask, removeTask, taskId, revision])
 
+  const savedDone = task ? (task.completed ?? task.isCompleted ?? false) : false
+  const shownDone =
+    optimistic && task && optimistic.id === task.id ? optimistic.done : savedDone
+  const arriving = useArrival(isLoading, taskId)
+
   const toggleCompletion = async () => {
     if (!task || toggleLock.current) return
     toggleLock.current = true
-    setIsToggling(true)
+    setOptimistic({ id: task.id, done: !savedDone })
     try {
-      const next =
-        (task.completed ?? task.isCompleted)
-          ? await reopenTask(task.id, task.version)
-          : await completeTask(task.id, task.version)
+      const next = savedDone
+        ? await reopenTask(task.id, task.version)
+        : await completeTask(task.id, task.version)
       const nextCompleted = next.completed ?? next.isCompleted ?? false
-      setTaskState(next)
+      setFetched({ id: next.id, task: next, error: null })
       setTask(next)
+      ownToggles.current++
       dispatchTaskChanged(task.id, nextCompleted ? 'complete' : 'reopen')
       addToast(
         nextCompleted ? '작업을 완료했어요.' : '작업을 미완료로 전환했어요.',
@@ -125,7 +157,7 @@ const TaskDetailModal = ({
       addToast('완료 상태를 변경하지 못했습니다.', 'error')
     } finally {
       toggleLock.current = false
-      setIsToggling(false)
+      setOptimistic(null)
     }
   }
 
@@ -208,10 +240,13 @@ const TaskDetailModal = ({
         ariaLabel="작업 상세"
       >
         {isLoading ? (
-          <p className="task-detail-modal__loading">
+          <p
+            className="task-detail-modal__loading task-detail-modal__loading--wait"
+            role="status"
+          >
             작업 정보를 불러오는 중...
           </p>
-        ) : error || !task ? (
+        ) : !task ? (
           <div className="task-detail-modal__body">
             <p className="task-detail-modal__loading">
               작업 정보를 불러오지 못했습니다.
@@ -240,9 +275,45 @@ const TaskDetailModal = ({
                 <WorkspaceIcon name="close" />
               </button>
             </header>
-            <div className="task-detail-modal__body">
-              <section className="task-detail-modal__section">
-                <h2>{task.title}</h2>
+            <div
+              className="task-detail-modal__body"
+              data-arrive={arriving || undefined}
+            >
+              {error && (
+                <p className="task-detail-modal__notice" role="alert">
+                  {error}
+                </p>
+              )}
+              <section
+                className="task-detail-modal__section"
+                style={{ '--arrive-index': 0 } as CSSProperties}
+              >
+                <div className="task-detail-modal__title-row">
+                  <CompletionCheck
+                    className="task-detail-modal__check"
+                    checked={shownDone}
+                    disabled={
+                      !(savedDone
+                        ? task.allowedActions?.reopen
+                        : task.allowedActions?.complete)
+                    }
+                    onChange={() => void toggleCompletion()}
+                    label={task.title + (shownDone ? ' 완료 취소' : ' 완료')}
+                  />
+                  <h2
+                    className={
+                      'task-detail-modal__title' +
+                      (shownDone ? ' is-completed' : '')
+                    }
+                  >
+                    <span
+                      className="motion-strike"
+                      data-done={shownDone || undefined}
+                    >
+                      {task.title}
+                    </span>
+                  </h2>
+                </div>
                 {task.recurrence && (
                   <p className="task-detail-modal__description">
                     <span className="recurrence-badge">
@@ -266,8 +337,11 @@ const TaskDetailModal = ({
                     )}
                   />
                   <span>{task.assigneeNickname ?? '담당자 미정'}</span>
-                  <span className="task-detail-modal__badge task-detail-modal__badge--state">
-                    {(task.completed ?? task.isCompleted) ? '완료' : '미완료'}
+                  <span
+                    className="task-detail-modal__badge task-detail-modal__badge--state"
+                    data-done={shownDone || undefined}
+                  >
+                    {shownDone ? '완료' : '미완료'}
                   </span>
                   <span
                     className="task-detail-modal__badge"
@@ -305,13 +379,16 @@ const TaskDetailModal = ({
                 </div>
               </section>
 
-              <section className="task-detail-modal__section">
+              <section
+                className="task-detail-modal__section"
+                style={{ '--arrive-index': 1 } as CSSProperties}
+              >
                 <h3>의존성</h3>
                 <p className="task-detail-modal__description">
                   이전 작업: {task.previousTaskIds?.length ?? 0}개 / 이후 작업:{' '}
                   {task.nextTaskIds?.length ?? 0}개
                 </p>
-                {!(task.completed ?? task.isCompleted) &&
+                {!shownDone &&
                   (task.inboundDependencyCount ?? 0) > 0 && (
                     <p className="task-detail-modal__description">
                       아직 끝나지 않은 이전 작업이 {task.inboundDependencyCount}
@@ -320,7 +397,10 @@ const TaskDetailModal = ({
                   )}
               </section>
 
-              <footer className="task-detail-modal__actions">
+              <footer
+                className="task-detail-modal__actions"
+                style={{ '--arrive-index': 2 } as CSSProperties}
+              >
                 <button
                   type="button"
                   disabled={!task.allowedActions?.edit}
@@ -333,16 +413,16 @@ const TaskDetailModal = ({
                 </button>
                 <button
                   type="button"
-                  onClick={toggleCompletion}
+                  onClick={() => void toggleCompletion()}
                   className="task-detail-modal__action-btn task-detail-modal__action-btn--primary"
+                  aria-busy={optimistic !== null || undefined}
                   disabled={
-                    isToggling ||
-                    !(task.isCompleted
+                    !(savedDone
                       ? task.allowedActions?.reopen
                       : task.allowedActions?.complete)
                   }
                 >
-                  {task.isCompleted ? '미완료로 전환' : '완료 처리'}
+                  {shownDone ? '미완료로 전환' : '완료 처리'}
                 </button>
                 <button
                   type="button"
@@ -403,7 +483,7 @@ const TaskDetailModal = ({
         onSubmit={handleAssignSchedule}
         onConflict={async () => {
           const latest = await fetchTaskDetail(taskId)
-          setTaskState(latest)
+          setFetched({ id: taskId, task: latest, error: null })
           setTask(latest)
           return latest.version
         }}

@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import useMediaQuery from '@shared/hooks/useMediaQuery'
+import { usePresence } from '@shared/motion'
 import { useSpaces } from './store'
 import SpaceMark from './SpaceMark'
 import {
@@ -24,6 +25,8 @@ export function SpaceSwitcher({
   const navigate = useNavigate()
   const narrow = useMediaQuery('(max-width: 899px)')
   const [open, setOpen] = useState(false)
+  // The sheet stays mounted through its exit and slides or fades away instead of vanishing.
+  const sheet = usePresence(open)
   const openerRef = useRef<HTMLButtonElement>(null)
   const allWorkRef = useRef<HTMLButtonElement>(null)
   const focusAllWork = useRef(false)
@@ -95,13 +98,14 @@ export function SpaceSwitcher({
           <span aria-hidden>⌄</span>
         </button>
       )}
-      {open &&
+      {sheet.mounted &&
         createPortal(
           <Modal
             labelledBy="space-switcher-title"
             backdropClassName="space-dialog-backdrop"
             className="space-dialog space-dialog--switcher"
             onClose={() => setOpen(false)}
+            closing={sheet.closing}
           >
             <header className="space-dialog__header">
               <h2 id="space-switcher-title">스페이스 전환</h2>

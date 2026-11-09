@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { fetchProfileSettings } from '../api/profileSettings'
+import { profileSettingsCache } from './memberCache'
 
 /**
  * 앱 화면(AppShell)이 열릴 때 회원 시간대를 한 번 읽어 표시 시간대로 쓴다(ADR-0028). 다른 기기에서 바꾼 시간대도 여기서 따라간다.
  * 로그아웃하면 AppShell이 내려가므로 다음 로그인 때 다시 읽는다. 실패하면 마지막으로 저장한 시간대를 계속 쓴다.
+ * 읽은 값은 설정 화면 캐시에도 넣는다. 시간대가 달라 앱이 다시 그려져도 설정 화면이 "불러오는 중"으로 비지 않는다.
  */
 export const useMemberZoneSync = () => {
   const { zoneId, applyZone } = useTimePreferences()
@@ -15,6 +17,7 @@ export const useMemberZoneSync = () => {
     didSync.current = true
     fetchProfileSettings()
       .then((settings) => {
+        if (settings) profileSettingsCache.write(settings)
         if (settings?.zoneId && settings.zoneId !== zoneId) applyZone(settings.zoneId)
       })
       .catch((error) => {

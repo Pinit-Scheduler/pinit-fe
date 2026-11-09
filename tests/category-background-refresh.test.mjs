@@ -41,6 +41,10 @@ const load = (path, dependencies) => {
         return { moveResultMessage: () => null }
       if (name === '@features/spaces/EditConflictDialog')
         return { default: () => null }
+      if (name === '@shared/motion/usePresence')
+        return {
+          usePresence: (value) => ({ mounted: !!value, closing: false, value: value || undefined }),
+        }
       if (name === '@features/spaces/MyInputDisclosure')
         return { default: () => null }
       if (name === '@features/spaces/conflicts')
@@ -72,6 +76,7 @@ test('a loaded actor-specific category snapshot survives background fetch failur
     },
     '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
     '@shared/utils/events': {
+      onDataChanged: () => () => {},
       onTaskChanged: () => () => {},
       onScheduleChanged: () => () => {},
     },

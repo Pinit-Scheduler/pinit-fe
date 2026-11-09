@@ -70,3 +70,24 @@ test('every light palette token has a dark value in both dark selectors', () => 
     assert.deepEqual([...block(selector)].sort(), [...light].sort(), selector)
   }
 })
+
+test('the cold paint, the CSS canvas and the dark address bar all use the workspace background', () => {
+  const html = read('../index.html')
+  const css = read('../src/index.css')
+  const palette = read('../src/shared/styles/workspacePalette.css')
+  const light = /--workspace-bg: (#[0-9a-f]{6});/.exec(palette)[1]
+  const dark = [...palette.matchAll(/--workspace-bg: (#[0-9a-f]{6});/g)].map((match) => match[1]).at(-1)
+  assert.equal(light, '#f4f6fa')
+  assert.equal(dark, '#151c2a')
+  assert.equal(theme.THEME_COLOR.dark, dark)
+  assert.ok(html.includes(`setAttribute('content', '${theme.THEME_COLOR.dark}')`), 'the pre-render script sets the same dark theme-color')
+  assert.ok(html.includes(`<meta name="theme-color" content="${theme.THEME_COLOR.light}" />`))
+  assert.ok(html.includes(`:where(html) { color-scheme: light; background-color: ${light}; }`))
+  assert.ok(html.includes(`:where(html[data-theme='dark']) { color-scheme: dark; background-color: ${dark}; }`))
+  const compact = css.replace(/\s+/g, ' ')
+  assert.ok(compact.includes(`:root { --c-app-canvas: ${light}; }`))
+  assert.ok(compact.includes(`:root[data-theme='dark'] { --c-app-canvas: ${dark}; }`))
+  assert.ok(compact.includes(`:root:not([data-theme='light']) { --c-app-canvas: ${dark}; }`))
+  assert.match(css, /body \{\s*background-color: var\(--c-app-canvas\);\s*\}/)
+  assert.doesNotMatch(css, /var\(--c-page-outer\)/)
+})

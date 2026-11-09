@@ -16,8 +16,12 @@ import { dispatchScheduleChanged } from '@shared/utils/events'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 
 type UseScheduleActionsResult = {
+  /** The state to show: the one being saved while a change is pending, then the cache's. */
   currentState: ScheduleState
+  /** This schedule has a change in flight. Other schedules' changes never set it. */
   isMutating: boolean
+  /** Any schedule has a change in flight (the shared lock). Guard handlers with it; never dim with it. */
+  isLocked: boolean
   lastMessage: string | null
   lastError: string | null
   retry: () => Promise<void>
@@ -44,6 +48,9 @@ const useScheduleActions = (
   const [currentState, setCurrentState] = useState<ScheduleState>(initialState)
   const [lastMessage, setLastMessage] = useState<string | null>(null)
   const [lastError, setLastError] = useState<string | null>(null)
+  // The state being saved, shown at once. Cleared when the save settles: on success the cache
+  // holds the saved state, on failure the shown state rolls back to the cache's.
+  const [optimisticState, setOptimisticState] = useState<ScheduleState | null>(null)
   const retryRef = useRef<(() => Promise<void>) | null>(null)
   const {
     setActiveSchedule,
@@ -54,7 +61,10 @@ const useScheduleActions = (
     beginMutation,
     endMutation,
   } = useScheduleCache()
-  const isMutating = pendingScheduleId !== null
+  // One shared lock still serialises schedule changes (starting one can suspend another), but
+  // only the card whose change is in flight reports it. The other cards stay as they are.
+  const isLocked = pendingScheduleId !== null
+  const isMutating = isLocked && pendingScheduleId === scheduleId
   const { syncTaskStateWithSchedule } = useScheduleTaskSync()
   const { addToast } = useToast()
   const cachedState = scheduleId ? schedulesById[scheduleId]?.state : undefined
@@ -81,6 +91,7 @@ const useScheduleActions = (
   const mutate = async (
     handler: (id: number) => Promise<ScheduleResponse>,
     message: string,
+    target?: ScheduleState,
   ) => {
     if (!scheduleId) {
       console.warn('⚠️ scheduleId is null, cannot mutate')
@@ -88,6 +99,7 @@ const useScheduleActions = (
     }
     if (!beginMutation(scheduleId)) return false
     setLastError(null)
+    if (target) setOptimisticState(target)
 
     try {
       const saved = await handler(scheduleId)
@@ -149,6 +161,7 @@ const useScheduleActions = (
       return false
     } finally {
       endMutation(scheduleId)
+      setOptimisticState(null)
     }
   }
 
@@ -174,22 +187,24 @@ const useScheduleActions = (
   }
 
   const start = async () => {
-    if (!canStart || isMutating) return
+    if (!canStart || isLocked) return
     retryRef.current = start
     const succeeded = await mutate(
       (id) => startSchedule(id, undefined, schedule?.version),
       '일정을 시작했습니다.',
+      'IN_PROGRESS',
     )
     if (!succeeded) return
     await refreshActiveSchedule()
   }
 
   const pause = async () => {
-    if (!canPause || isMutating) return
+    if (!canPause || isLocked) return
     retryRef.current = pause
     const succeeded = await mutate(
       (id) => suspendSchedule(id, undefined, schedule?.version),
       '일정을 일시 중지했습니다.',
+      'SUSPENDED',
     )
     if (!succeeded) return
     if (scheduleId === activeScheduleId) {
@@ -198,11 +213,12 @@ const useScheduleActions = (
   }
 
   const complete = async () => {
-    if (!canComplete || isMutating) return
+    if (!canComplete || isLocked) return
     retryRef.current = complete
     const succeeded = await mutate(
       (id) => completeSchedule(id, undefined, schedule?.version),
       '일정을 완료했습니다.',
+      'COMPLETED',
     )
     if (!succeeded) return
     if (scheduleId === activeScheduleId) {
@@ -211,11 +227,12 @@ const useScheduleActions = (
   }
 
   const cancel = async () => {
-    if (!canCancel || isMutating) return
+    if (!canCancel || isLocked) return
     retryRef.current = cancel
     const succeeded = await mutate(
       (id) => cancelSchedule(id, schedule?.version),
       '일정을 취소하고 미시작 상태로 되돌렸습니다.',
+      'NOT_STARTED',
     )
     if (!succeeded) return
     if (scheduleId === activeScheduleId) {
@@ -224,8 +241,9 @@ const useScheduleActions = (
   }
 
   return {
-    currentState: cachedState ?? currentState,
+    currentState: optimisticState ?? cachedState ?? currentState,
     isMutating,
+    isLocked,
     lastMessage,
     lastError,
     retry: async () => {

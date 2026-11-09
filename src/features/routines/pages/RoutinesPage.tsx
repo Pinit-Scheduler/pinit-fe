@@ -1,11 +1,15 @@
 import WorkspaceIcon, { type WorkspaceIconName } from '@shared/components/common/WorkspaceIcon'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { presenceProps, type PresencePhase } from '@shared/motion'
+import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
+import SavedMark from '@features/settings/components/SavedMark'
 import { Link } from 'react-router-dom'
 import { ApiError } from '@shared/api/httpClient'
 import { useToast } from '@contexts/ToastContext'
 import { formatMinutesLabel } from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, writeFlag } from '@shared/utils/safeStorage'
 import usePushSubscription from '@shared/hooks/usePushSubscription'
+import PresenceList from '../components/PresenceList'
 import RoutineOverridesSection from '../components/RoutineOverridesSection'
 import { fetchRoutines, saveRoutines } from '../api/routines'
 import type { DayOfWeek, Routine, RoutineKind } from '../types/routine'
@@ -19,6 +23,7 @@ import {
   PRESET_KINDS,
   hasRoutineIssues,
   mapRoutineServerErrors,
+  reuseDraftKeys,
   sortDays,
   splitDaysForNewEntry,
   toRoutineDraft,
@@ -77,11 +82,15 @@ const summaryOf = (draft: RoutineDraft) => {
   return `${dayText} ${draft.startTime} · ${length}`
 }
 
+const draftKey = (draft: RoutineDraft) => draft.key
+
 const RoutinesPage = () => {
   const { addToast } = useToast()
   const [drafts, setDrafts] = useState<RoutineDraft[]>([])
   const [savedSnapshot, setSavedSnapshot] = useState(() => snapshotOf([]))
+  // 첫 로딩에만 자리 문구를 보인다. 최신 상태를 다시 불러올 때는 화면을 그대로 둔다.
   const [isLoading, setIsLoading] = useState(true)
+  const hasLoaded = useRef(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [serverIssues, setServerIssues] = useState<Record<string, RoutineIssue[]>>({})
@@ -113,23 +122,27 @@ const RoutinesPage = () => {
   }, [])
 
   const load = useCallback(async () => {
-    setIsLoading(true)
     setLoadError(null)
     try {
       const response = await fetchRoutines()
       const next = fromServer(response?.routines ?? [])
-      setDrafts(next)
+      // 같은 항목은 key를 이어 받아, 다시 불러와도 바뀐 항목만 움직인다.
+      setDrafts((previous) => reuseDraftKeys(next, previous))
       setSavedDrafts(next)
       setSavedSnapshot(snapshotOf(next))
       setServerIssues({})
       setGeneralErrors([])
       setConflict(false)
+      hasLoaded.current = true
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : '생활 시간을 불러오지 못했어요.')
+      const message = error instanceof Error ? error.message : '생활 시간을 불러오지 못했어요.'
+      // 이미 보이는 내용이 있으면 그대로 두고 알리기만 한다.
+      if (hasLoaded.current) addToast(message, 'error')
+      else setLoadError(message)
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [addToast])
 
   useEffect(() => {
     load()
@@ -205,7 +218,7 @@ const RoutinesPage = () => {
     setConflict(false)
     try {
       const response = await saveRoutines({ routines: sent.map(toRoutineInput) })
-      const next = fromServer(response?.routines ?? [])
+      const next = reuseDraftKeys(fromServer(response?.routines ?? []), sent)
       setDrafts(next)
       setSavedDrafts(next)
       setSavedSnapshot(snapshotOf(next))
@@ -236,7 +249,7 @@ const RoutinesPage = () => {
     }
   }
 
-  const renderEntry = (draft: RoutineDraft, removable: boolean) => {
+  const renderEntry = (draft: RoutineDraft, removable: boolean, phase: PresencePhase) => {
     const issues = [...(clientIssuesByKey[draft.key] ?? []), ...(serverIssues[draft.key] ?? [])]
     const fieldIssue = (field: RoutineIssue['field']) => issues.some((issue) => issue.field === field)
     const minutes = draft.durationMinutes ?? 0
@@ -245,7 +258,11 @@ const RoutinesPage = () => {
     const minuteOptions = MINUTE_OPTIONS.includes(restMinutes) ? MINUTE_OPTIONS : [...MINUTE_OPTIONS, restMinutes].sort((a, b) => a - b)
     const name = draft.kind === 'CUSTOM' ? draft.label.trim() || '이름 없음' : KIND_LABEL[draft.kind]
     return (
-      <li key={draft.key} className={['routines__entry', issues.length > 0 ? 'has-issue' : ''].filter(Boolean).join(' ')}>
+      <li
+        key={draft.key}
+        className={['routines__entry', issues.length > 0 ? 'has-issue' : ''].filter(Boolean).join(' ')}
+        {...presenceProps(phase)}
+      >
         {draft.kind === 'CUSTOM' && (
           <label className="routines__field">
             <span>이름</span>
@@ -353,15 +370,15 @@ const RoutinesPage = () => {
           있어요.
         </p>
         <p className="routines__description">
-          운동처럼 완료를 체크할 일은 생활 시간이 아니라 <Link to="/app/settings/recurrences">반복 일정·작업</Link>으로 등록해
+          운동처럼 완료를 체크할 일은 생활 시간이 아니라 <Link to="/app/settings/recurrences" onClick={tabLinkClick('/app/settings/recurrences')}>반복 일정·작업</Link>으로 등록해
           주세요.
         </p>
       </header>
 
       {isLoading ? (
-        <div className="routines__placeholder">생활 시간을 불러오는 중...</div>
+        <div className="routines__placeholder routines__placeholder--loading">생활 시간을 불러오는 중...</div>
       ) : loadError ? (
-        <div className="routines__placeholder" role="alert">
+        <div className="routines__placeholder routines__placeholder--notice" role="alert">
           <p>생활 시간을 불러오지 못했어요.</p>
           <p>{loadError}</p>
           <button type="button" className="routines__link-button" onClick={load}>
@@ -397,13 +414,14 @@ const RoutinesPage = () => {
                     <span />
                   </button>
                 </div>
+                {/* 켜고 끄거나 요일별 항목을 더하고 빼면 그 항목만 올라오고 사라진다. */}
+                <PresenceList items={entries} getKey={draftKey} className="routines__entries">
+                  {(draft, phase) => renderEntry(draft, entries.length > 1, phase)}
+                </PresenceList>
                 {enabled && (
-                  <>
-                    <ul className="routines__entries">{entries.map((draft) => renderEntry(draft, entries.length > 1))}</ul>
-                    <button type="button" className="routines__link-button" onClick={() => addVariant(kind)} disabled={atLimit}>
-                      ＋ 요일별로 다르게
-                    </button>
-                  </>
+                  <button type="button" className="routines__link-button" onClick={() => addVariant(kind)} disabled={atLimit}>
+                    ＋ 요일별로 다르게
+                  </button>
                 )}
               </section>
             )
@@ -418,7 +436,9 @@ const RoutinesPage = () => {
                 <p className="routines__card-sub">운동·출퇴근처럼 이름을 붙여 비워 둘 시간을 더할 수 있어요.</p>
               </div>
             </div>
-            {customDrafts.length > 0 && <ul className="routines__entries">{customDrafts.map((draft) => renderEntry(draft, true))}</ul>}
+            <PresenceList items={customDrafts} getKey={draftKey} className="routines__entries">
+              {(draft, phase) => renderEntry(draft, true, phase)}
+            </PresenceList>
             <button type="button" className="routines__link-button" onClick={() => update([...drafts, newDraft('CUSTOM')])} disabled={atLimit}>
               ＋ 직접 추가
             </button>
@@ -427,7 +447,9 @@ const RoutinesPage = () => {
           {atLimit && <p className="routines__note">생활 시간은 {MAX_ROUTINES}개까지 등록할 수 있어요.</p>}
           {pushChecked && !isPushProcessing && pushState.status !== 'subscribed' && (
             <p className="routines__note" role="status">
-              {describeStatus} 알림을 받으려면 <Link to="/app/settings">설정</Link>에서 알림을 켜 주세요.
+              {describeStatus} 알림을 받으려면 <Link to="/app/settings" onClick={tabLinkClick('/app/settings')}>
+                설정
+              </Link>에서 알림을 켜 주세요.
             </p>
           )}
 
@@ -448,11 +470,18 @@ const RoutinesPage = () => {
             ))}
             {justSaved && !isDirty && (
               <p className="routines__saved">
-                저장했어요. <Link to="/app/plan">계획 화면에서 확인하기</Link>
+                <SavedMark visible />
+                <span>
+                  저장했어요. <Link to="/app/plan" onClick={tabLinkClick('/app/plan')}>
+                    계획 화면에서 확인하기
+                  </Link>
+                </span>
               </p>
             )}
             <div className="routines__footer-row">
-              <span>{isDirty ? '저장하지 않은 변경이 있어요' : `${drafts.length}개 등록됨`}</span>
+              <span className={isDirty ? 'routines__status is-dirty' : 'routines__status'}>
+                {isDirty ? '저장하지 않은 변경이 있어요' : `${drafts.length}개 등록됨`}
+              </span>
               <button type="button" className="routines__save" onClick={handleSave} disabled={!canSave}>
                 {isSaving ? '저장하는 중...' : '저장'}
               </button>

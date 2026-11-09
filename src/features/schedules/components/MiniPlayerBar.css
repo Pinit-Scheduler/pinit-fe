@@ -56,6 +56,15 @@
   display: grid;
   place-items: center;
   cursor: pointer;
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+/* A press answers at once, before the save does. */
+.mini-player__button:active:not(:disabled) {
+  transform: scale(0.94);
 }
 .mini-player__button:hover:not(:disabled) {
   border-color: var(--c-blue-600);
@@ -195,4 +204,63 @@
   .mini-player__buttons { gap: 6px; }
   .mini-player__summary { gap: 8px; }
   .mini-player__state-icon .workspace-icon { width: 28px; height: 28px; }
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion. See docs/motion/README.md.                                  */
+/* ------------------------------------------------------------------ */
+
+/* The bar slides up when a schedule starts and slides back down when it ends. The panel moves,
+   not the wrapper: the wrapper's transform centres it on desktop. */
+.mini-player {
+  animation: mini-player-in var(--motion-enter) var(--motion-ease) both;
+  transition:
+    border-color var(--motion-base) var(--motion-ease),
+    color var(--motion-base) var(--motion-ease);
+}
+.mini-player[data-state='closing'] {
+  animation: mini-player-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+
+@keyframes mini-player-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) * 3));
+  }
+}
+
+@keyframes mini-player-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) * 3));
+  }
+}
+
+/* Running and paused recolor the edge, icon, label and the main button together. */
+.mini-player__state-icon,
+.mini-player__state-text {
+  transition: color var(--motion-base) var(--motion-ease);
+}
+.mini-player__state-icon > span,
+.mini-player__toggle-glyph {
+  display: grid;
+  place-items: center;
+}
+.mini-player__swap {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Opacity only (the distance token is 0 here, so the bar fades in place). */
+  .mini-player,
+  .mini-player__swap {
+    animation-duration: var(--motion-base) !important;
+  }
+  .mini-player[data-state='closing'] {
+    animation-duration: var(--motion-exit) !important;
+  }
+  .mini-player__button:active:not(:disabled) {
+    transform: none;
+  }
 }

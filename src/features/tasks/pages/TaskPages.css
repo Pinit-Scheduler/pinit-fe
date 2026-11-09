@@ -3,10 +3,11 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px;
-  animation: fadeIn 220ms ease;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  /* clip, not hidden: focus returning to a control must not scroll the page sideways */
+  overflow: clip;
 }
 
 .task-page__header {
@@ -73,6 +74,13 @@
   border-radius: 12px;
   background: var(--c-slate-50);
   color: var(--c-slate-500);
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+/* Like StatusPanel: a quick load shows nothing, a slow one fades the line in. */
+.task-page__placeholder--loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease)
+    var(--motion-status-delay) both;
 }
 
 .task-page__content {
@@ -93,7 +101,39 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  animation: fadeSlideIn 220ms ease;
+}
+
+/*
+ * Rows. useListPresence animates inserted and removed rows (motion.css). Rows the screen had to
+ * wait for (first load, a new filter or sort) rise in with a short stagger; a refresh replays
+ * nothing because the rows stay mounted.
+ */
+.task-page__row {
+  min-width: 0;
+}
+.task-page__row[data-arrive] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease)
+    calc(var(--arrive-index, 0) * 32ms) backwards;
+}
+/* Each card sits in its own row box, so the card's own :last-child rule matches every card. */
+.task-page__list .task-page__row > .workspace-task {
+  border-bottom: 1px solid var(--c-slate-200);
+}
+.task-page__list .task-page__row:last-child > .workspace-task {
+  border-bottom: 0;
+}
+
+/* The edit form arrives once its task has been read. It mounts once per opening.
+   Fill backwards only: a held transform would trap the form's own fixed dialogs. */
+.task-page__arrive {
+  display: contents;
+}
+.task-page__arrive > * {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) backwards;
+}
+
+.task-page__notice {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 
 .task-page__sentinel {
@@ -124,7 +164,6 @@
   border-radius: 12px;
   background: var(--c-surface);
   cursor: pointer;
-  animation: fadeSlideIn 220ms ease;
 }
 
 .task-page__item-head {
@@ -155,35 +194,13 @@
   height: 12px;
   border-radius: 4px;
   background: transparent;
-  transition:
-    background 0.15s ease,
-    transform 0.15s ease;
+  transition: background-color var(--motion-fast) var(--motion-ease);
 }
 
 .task-page__checkbox input:checked + .task-page__checkbox-mark {
   background: var(--c-green-500);
-  transform: scale(1.05);
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 
 .task-page__item-desc {
   margin: 4px 0 0;
@@ -217,12 +234,17 @@
 
 .task-search__bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
+.task-search__bar > :not(.task-search__input) {
+  white-space: nowrap;
+}
+
 .task-search__input {
-  flex: 1;
+  flex: 1 1 160px;
   min-width: 0;
   padding: 8px 12px;
   border: 1px solid var(--c-slate-300);
@@ -240,6 +262,24 @@
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.task-search__filter:hover,
+.task-search__sort:hover {
+  border-color: var(--c-slate-400);
+}
+
+.task-search__filter.is-open {
+  border-color: var(--c-slate-400);
+  background: var(--c-slate-50);
+}
+
+.task-search__input {
+  transition: border-color var(--motion-fast) var(--motion-ease);
 }
 
 .task-search__sort {
@@ -258,6 +298,8 @@
   align-items: center;
   color: var(--c-slate-600);
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .task-filter {
@@ -270,6 +312,13 @@
   border: 1px solid var(--c-slate-200);
   border-radius: 12px;
   background: var(--c-slate-50);
+  /* Hangs from the search bar that opened it. */
+  animation: motion-drop-in var(--motion-enter) var(--motion-ease) both;
+}
+
+.task-filter[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
 }
 
 .task-filter__group {
@@ -358,6 +407,19 @@
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.tag-chip:not(.is-active):not(.tag-chip--static):hover {
+  border-color: var(--c-slate-400);
+}
+
+.tag-chip:not(.tag-chip--static):active {
+  transform: scale(0.97);
 }
 
 .tag-chip.is-active {
@@ -488,5 +550,27 @@
   }
   .app-shell .task-page__header h1 {
     font-size: 26px;
+  }
+}
+
+/* Reduced motion: rows and panels still fade, nothing travels or waits on a stagger. */
+@media (prefers-reduced-motion: reduce) {
+  .task-page__row[data-arrive] {
+    animation-name: motion-fade-in;
+    animation-duration: var(--motion-base) !important;
+    animation-delay: 0ms;
+  }
+  .task-page__placeholder,
+  .task-page__arrive > *,
+  .task-search__summary,
+  .task-page__notice,
+  .task-filter {
+    animation-duration: var(--motion-base) !important;
+  }
+  .task-filter[data-state='closing'] {
+    animation-duration: var(--motion-exit) !important;
+  }
+  .tag-chip:not(.tag-chip--static):active {
+    transform: none;
   }
 }

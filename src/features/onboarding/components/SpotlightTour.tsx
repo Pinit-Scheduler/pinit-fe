@@ -13,6 +13,8 @@ type SpotlightTourProps = {
   onPrev(): void
   onNext(): void
   onSkip(): void
+  /** 투어가 끝나 사라지는 중. 덮개와 말풍선이 함께 흐려지고, 입력은 아래 화면으로 바로 돌아간다. */
+  closing?: boolean
 }
 
 const readViewport = (): Viewport => ({ width: window.innerWidth, height: window.innerHeight })
@@ -31,7 +33,7 @@ const useViewport = () => {
  * 회색 반투명 덮개 위에 앵커 요소 하나만 뚫어 강조하고, 기능의 쓰임새와 이점을 말풍선으로 보여 준다.
  * 덮개 레이어가 클릭을 모두 받으므로 투어 중에는 아래 화면을 누를 수 없다.
  */
-const SpotlightTour = ({ step, index, total, onPrev, onNext, onSkip }: SpotlightTourProps) => {
+const SpotlightTour = ({ step, index, total, onPrev, onNext, onSkip, closing = false }: SpotlightTourProps) => {
   const { rect, resolved } = useAnchorRect(step.anchor, true)
   const viewport = useViewport()
   const [calloutHeight, setCalloutHeight] = useState(0)
@@ -53,10 +55,11 @@ const SpotlightTour = ({ step, index, total, onPrev, onNext, onSkip }: Spotlight
 
   // 말풍선이 보이게 된 뒤에야 focus를 받을 수 있으므로 단계가 바뀌고 앵커가 정해졌을 때 옮긴다.
   useEffect(() => {
-    if (resolved) nextButtonRef.current?.focus({ preventScroll: true })
-  }, [index, step.key, resolved])
+    if (resolved && !closing) nextButtonRef.current?.focus({ preventScroll: true })
+  }, [index, step.key, resolved, closing])
 
   useEffect(() => {
+    if (closing) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -80,14 +83,22 @@ const SpotlightTour = ({ step, index, total, onPrev, onNext, onSkip }: Spotlight
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onSkip])
+  }, [onSkip, closing])
 
   const padded = rect ? spotlightRect(rect, viewport) : null
   const spot = padded && padded.width > 0 && padded.height > 0 ? padded : null
   const { placement, top } = calloutPlacement(spot, viewport, calloutHeight)
 
   return createPortal(
-    <div className="spotlight-tour" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={bodyId}>
+    <div
+      className="spotlight-tour"
+      role="dialog"
+      aria-modal={!closing}
+      aria-labelledby={titleId}
+      aria-describedby={bodyId}
+      data-state={closing ? 'closing' : undefined}
+      inert={closing}
+    >
       {spot ? (
         <div
           className="spotlight-tour__hole"

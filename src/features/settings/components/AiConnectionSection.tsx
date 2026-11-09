@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useToast } from '@contexts/ToastContext'
 import { StatusPanel } from '@shared/components/common'
+import { presenceProps, useListPresence } from '@shared/motion'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import type { OAuthGrant } from '@features/oauth/types/oauth'
 import { hasDeleteScope } from '@features/oauth/utils/consent'
@@ -21,8 +22,10 @@ const toRevokeErrorMessage = (error: unknown) => {
 
 const AiConnectionSection = () => {
   const { addToast } = useToast()
-  const { grants, isLoading, error, refetch, revoke } = useOAuthGrants()
+  const { grants, isLoading, hasLoaded, error, refetch, revoke } = useOAuthGrants()
   const [revokingId, setRevokingId] = useState<OAuthGrant['grantId'] | null>(null)
+  // 연결을 끊은 앱은 그 자리에서 사라진다. 처음 받은 목록은 그대로 보인다.
+  const rows = useListPresence(hasLoaded ? grants : undefined, (grant) => grant.grantId)
 
   const handleRevoke = async (grant: OAuthGrant) => {
     // 백엔드는 같은 앱의 활성 연결(기기)을 모두 끊는다.
@@ -45,10 +48,11 @@ const AiConnectionSection = () => {
   }
 
   const renderGrants = () => {
-    if (isLoading && grants.length === 0) {
+    if (isLoading) {
       return <StatusPanel variant="loading" title="연결된 앱을 불러오는 중..." />
     }
-    if (error) {
+    // 보이던 목록이 있으면 다시 읽기에 실패해도 목록을 그대로 두고 아래에 서버 문구만 보인다.
+    if (error && !hasLoaded) {
       return (
         <StatusPanel
           variant="error"
@@ -62,16 +66,16 @@ const AiConnectionSection = () => {
         />
       )
     }
-    if (grants.length === 0) {
+    if (rows.length === 0) {
       return <StatusPanel variant="empty" title="연결된 앱이 없어요." />
     }
     return (
       <ul className="ai-connection__list" aria-label="연결된 앱 목록">
-        {grants.map((grant) => {
+        {rows.map(({ key, item: grant, phase }) => {
           const isRevoking = revokingId === grant.grantId
           const connectionLabel = formatConnectionCount(grant.connectionCount)
           return (
-            <li key={grant.grantId} className="ai-connection__item">
+            <li key={key} className="ai-connection__item" {...presenceProps(phase)}>
               <div className="ai-connection__main">
                 <div className="ai-connection__title">
                   <p className="settings__label">{grant.clientName}</p>
@@ -116,6 +120,11 @@ const AiConnectionSection = () => {
 
       <h3 className="ai-connection__subheading">연결된 앱</h3>
       {renderGrants()}
+      {error && hasLoaded && (
+        <p className="settings__description settings__description--error" role="alert">
+          {error}
+        </p>
+      )}
 
       <McpActivityList />
     </section>

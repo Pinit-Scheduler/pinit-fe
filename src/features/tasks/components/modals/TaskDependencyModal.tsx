@@ -1,6 +1,9 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { usePresence } from '@shared/motion'
+import { arrivalIndex, useArrival } from '../../utils/useArrival'
 import './TaskDependencyModal.css'
 import { searchTasks } from '../../api/tasks'
 import type { Task } from '../../types/task'
@@ -25,19 +28,39 @@ const BASE_PARAMS: [string, string][] = [
   ['recurring', 'false'],
 ]
 
-const TaskDependencyModal = ({
-  isOpen,
+/** Plays its exit before unmounting. Each opening starts with a fresh search. */
+const TaskDependencyModal = (props: TaskDependencyModalProps) => {
+  const presence = usePresence(props.isOpen)
+  return presence.mounted ? (
+    <DependencyPicker {...props} closing={presence.closing} />
+  ) : null
+}
+
+const DependencyPicker = ({
   onClose,
-  selectedIds,
+  selectedIds: liveSelectedIds,
   onApply,
-  title,
+  title: liveTitle,
   excludeTaskId,
   spaceId,
-}: TaskDependencyModalProps) => {
+  closing,
+}: TaskDependencyModalProps & { closing: boolean }) => {
   const titleId = useId()
+  // The opener resets its mode as the exit starts. Keep showing what was open while it fades.
+  const [shown, setShown] = useState({
+    title: liveTitle,
+    selectedIds: liveSelectedIds,
+  })
+  if (
+    !closing &&
+    (shown.title !== liveTitle || shown.selectedIds !== liveSelectedIds)
+  )
+    setShown({ title: liveTitle, selectedIds: liveSelectedIds })
+  const { title, selectedIds } = shown
   const [tasks, setTasks] = useState<Task[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  // Each opening mounts a fresh picker that reads at once: start loading, not on an empty result.
+  const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
@@ -49,14 +72,6 @@ const TaskDependencyModal = ({
   const requestIdRef = useRef(0)
 
   useEffect(() => setLocalSelection(selectedIds), [selectedIds])
-
-  useEffect(() => {
-    if (!isOpen) {
-      setQueryInput('')
-      setQuery('')
-      pickedRef.current = new Map()
-    }
-  }, [isOpen])
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -110,10 +125,9 @@ const TaskDependencyModal = ({
   }
 
   useEffect(() => {
-    if (!isOpen) return
     load(0, true).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, query, excludeTaskId, spaceId])
+  }, [query, excludeTaskId, spaceId])
 
   const toggle = (task: Task) => {
     setLocalSelection((prev) => {
@@ -126,6 +140,9 @@ const TaskDependencyModal = ({
     })
   }
 
+  // Results the picker waited for (first read, a new search) rise in; "more" pages append.
+  const arriving = useArrival(loading, query)
+
   const handleApply = () => {
     const visible = tasks.filter((t) => localSelection.includes(t.id))
     const visibleIds = new Set(visible.map((t) => t.id))
@@ -136,14 +153,13 @@ const TaskDependencyModal = ({
     onClose()
   }
 
-  if (!isOpen) return null
-
   return (
     <Modal
       backdropClassName="task-dep-modal__backdrop"
       className="task-dep-modal__content"
       onClose={onClose}
       labelledBy={titleId}
+      closing={closing}
     >
       <header className="task-dep-modal__header">
         <h1 id={titleId}>{title}</h1>
@@ -162,7 +178,9 @@ const TaskDependencyModal = ({
       />
       <div className="task-dep-modal__body">
         {loading ? (
-          <p>불러오는 중...</p>
+          <p className="task-dep-modal__loading" role="status">
+            불러오는 중...
+          </p>
         ) : error ? (
           <p className="task-dep-modal__error">{error}</p>
         ) : tasks.length === 0 ? (
@@ -170,10 +188,21 @@ const TaskDependencyModal = ({
         ) : (
           <>
             <ul className="task-dep-modal__list">
-              {tasks.map((task) => {
+              {tasks.map((task, index) => {
                 const checked = localSelection.includes(task.id)
                 return (
-                  <li key={task.id}>
+                  <li
+                    key={task.id}
+                    data-arrive={arriving || undefined}
+                    style={
+                      arriving
+                        ? ({
+                            '--arrive-index':
+                              index < PAGE_SIZE ? arrivalIndex(index) : 0,
+                          } as CSSProperties)
+                        : undefined
+                    }
+                  >
                     <label className={checked ? 'is-checked' : ''}>
                       <input
                         type="checkbox"

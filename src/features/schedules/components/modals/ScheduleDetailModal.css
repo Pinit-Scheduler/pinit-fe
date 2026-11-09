@@ -7,7 +7,7 @@
   align-items: center;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn 180ms ease;
+  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
 }
 
 .schedule-detail-modal__content {
@@ -19,7 +19,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: modalSlideUp 220ms ease;
+  animation: modalSlideUp var(--motion-enter) var(--motion-ease) both;
 }
 
 .schedule-detail-modal__header {
@@ -48,7 +48,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .schedule-detail-modal__close:hover {
@@ -124,7 +126,10 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -136,13 +141,9 @@
   cursor: not-allowed;
 }
 
-.schedule-detail-modal__action-btn:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
+/* Hover is a color change (below); a press scales down a touch. Nothing lifts. */
 .schedule-detail-modal__action-btn:not(:disabled):active {
-  transform: translateY(0);
+  transform: scale(0.97);
 }
 
 .schedule-detail-modal__action-btn--edit {
@@ -183,22 +184,30 @@
   color: var(--c-slate-500);
 }
 
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+
+/* A refresh failed while the schedule stays on screen. The server's message, as is. */
+.schedule-detail-modal__refresh-error {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background-color: var(--c-red-50);
+  color: var(--c-red-700);
+  font-size: 14px;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
-@keyframes modalSlideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
+/* The state badge follows a change made elsewhere (the card, the mini player) with a color fade. */
+.schedule-detail-modal__badge {
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    color var(--motion-base) var(--motion-ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-detail-modal__refresh-error {
+    animation-duration: var(--motion-base) !important;
   }
-  to {
-    transform: translateY(0);
-    opacity: 1;
+  .schedule-detail-modal__action-btn:not(:disabled):active {
+    transform: none;
   }
 }

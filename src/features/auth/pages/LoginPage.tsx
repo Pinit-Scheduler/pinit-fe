@@ -5,6 +5,7 @@ import { buildAuthorizeUrl, login, type AuthProvider } from '../api/auth'
 import { clearLogoutMarker } from '@shared/api/authTokens'
 import { useToast } from '@contexts/ToastContext'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
+import AuthMessage from '../components/AuthMessage'
 import './LoginPage.css'
 import { useEffect } from 'react'
 
@@ -125,8 +126,9 @@ const LoginPage = () => {
               onMouseDown={handleTouchFocus}
               onFocus={handleTouchFocus}
               disabled={isSubmitting || !!activeProvider}
+              aria-invalid={errors.username ? true : undefined}
             />
-            {errors.username && <small>{errors.username}</small>}
+            <AuthMessage message={errors.username} />
           </label>
 
           <label className="login__field">
@@ -142,17 +144,19 @@ const LoginPage = () => {
               onMouseDown={handleTouchFocus}
               onFocus={handleTouchFocus}
               disabled={isSubmitting || !!activeProvider}
+              aria-invalid={errors.password ? true : undefined}
             />
-            {errors.password && <small>{errors.password}</small>}
+            <AuthMessage message={errors.password} />
           </label>
 
-          {errors.form && <p className="login__form-error">{errors.form}</p>}
+          <AuthMessage as="p" className="login__form-error" message={errors.form} />
 
           <div className="login__actions">
             <button
               type="submit"
               className="login__btn login__btn--primary"
               disabled={isSubmitting || !!activeProvider}
+              aria-busy={isSubmitting || undefined}
             >
               {isSubmitting ? '로그인 중...' : '로그인'}
             </button>
@@ -179,6 +183,7 @@ const LoginPage = () => {
             className="login__btn login__btn--naver"
             onClick={() => handleProviderLogin('naver')}
             disabled={!!activeProvider}
+            aria-busy={activeProvider === 'naver' || undefined}
           >
             <span className="login__icon">N</span>
             {activeProvider === 'naver' ? '네이버로 이동 중...' : '네이버로 계속하기'}

@@ -20,7 +20,12 @@
   min-height: 44px; padding: 8px 12px; border: 1px solid var(--workspace-control-line);
   border-radius: 8px; color: var(--workspace-ink); background: var(--workspace-surface); font: inherit;
 }
-.deadline-risk__toolbar button { cursor: pointer; font-weight: 600; }
+.deadline-risk__toolbar button {
+  cursor: pointer; font-weight: 600;
+  transition: border-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
+}
+.deadline-risk__toolbar button:hover:not(:disabled) { border-color: var(--workspace-blue); }
+.deadline-risk__toolbar button:active:not(:disabled) { transform: scale(0.98); }
 .deadline-risk__toolbar button:disabled { cursor: wait; opacity: .6; }
 .deadline-risk__toolbar > a { padding-block: 8px; }
 .deadline-risk :is(a, button, select, summary):focus-visible { outline: 3px solid var(--workspace-blue); outline-offset: 4px; }
@@ -30,7 +35,7 @@
 .deadline-risk__item { padding: 22px 0; border-bottom: 1px solid var(--workspace-control-line); }
 .deadline-risk__item-heading { display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; align-items: baseline; }
 .deadline-risk__item-heading h2 { overflow-wrap: anywhere; }
-.deadline-risk__status { font-size: 13px; font-weight: 700; }
+.deadline-risk__status { font-size: 13px; font-weight: 700; transition: color var(--motion-base) var(--motion-ease); }
 .deadline-risk__item--shortage .deadline-risk__status, .deadline-risk__item--overdue .deadline-risk__status { color: var(--c-red-700); }
 .deadline-risk__item--feasible .deadline-risk__status { color: var(--workspace-blue); }
 .deadline-risk__minutes { display: flex; flex-wrap: wrap; gap: 18px 36px; margin-block: 16px; }
@@ -47,7 +52,17 @@
 .deadline-risk__assumptions summary { cursor: pointer; color: var(--workspace-ink); font-size: 14px; min-height: 44px; padding-block: 10px; }
 .deadline-risk__assumptions h2 { font-size: 14px; color: var(--workspace-ink); margin-top: 16px; }
 .deadline-risk__empty { padding-block: 28px; }
-.deadline-risk__error { color: var(--c-red-700); }
+.deadline-risk__error { color: var(--c-red-700); animation: motion-fade-in var(--motion-base) var(--motion-ease) both; }
+/* The calculating line waits like StatusPanel, so a quick read shows nothing at all. */
+.deadline-risk__loading { animation: motion-fade-in var(--motion-base) var(--motion-ease) var(--motion-status-delay) both; }
+/* A forecast that the person waited for rises in once; refreshes keep it mounted, so this never replays. */
+.deadline-risk__result[data-arrive] { animation: motion-rise-in var(--motion-enter) var(--motion-ease) both; }
+.deadline-risk__personal-action { transition: color var(--motion-fast) var(--motion-ease); }
+@media (prefers-reduced-motion: reduce) {
+  /* Fades stay, travel and the press scale go. */
+  .deadline-risk__result[data-arrive], .deadline-risk__error, .deadline-risk__loading { animation-name: motion-fade-in; animation-duration: var(--motion-base) !important; }
+  .deadline-risk__toolbar button:active:not(:disabled) { transform: none; }
+}
 @media (max-width: 760px) {
   .deadline-risk { padding: 18px 16px; }
   .deadline-risk h1 { font-size: 21px; }

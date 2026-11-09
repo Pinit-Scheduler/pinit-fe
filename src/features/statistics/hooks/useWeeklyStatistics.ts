@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useMemo } from 'react'
 import type dayjs from 'dayjs'
 
 import { fetchWeeklyStatistics } from '../api/statistics'
@@ -6,7 +6,7 @@ import { toWeeklyStatisticsView } from '@shared/utils/statisticsTransform'
 import { getTodayWithOffset, toApiDateTimeWithZone } from '@shared/utils/datetime'
 import type { WeeklyStatisticsView } from '../types/statistics'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
-import { onScheduleChanged } from '@shared/utils/events'
+import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
 
 type Options = {
   weekStart?: dayjs.Dayjs
@@ -15,17 +15,28 @@ type Options = {
 type UseWeeklyStatisticsReturn = {
   current: WeeklyStatisticsView | null
   previous: WeeklyStatisticsView | null
+  /** Nothing loaded for this week yet. A refetch keeps the numbers and sets `isRefreshing`. */
   isLoading: boolean
+  isRefreshing: boolean
   error: string | null
   refetch: () => void
 }
 
+type WeeklyPair = {
+  current: WeeklyStatisticsView
+  previous: WeeklyStatisticsView | null
+}
+
+const weeklyError = (err: unknown) =>
+  err instanceof Error ? err.message : '통계를 불러오는데 실패했습니다.'
+
+/**
+ * This week's statistics and the week before, for the schedules tab.
+ * The numbers live in the app-wide query cache per week, so coming back to the tab shows them at once
+ * and refreshes in the background. A schedule change refetches once; the numbers stay on screen meanwhile.
+ * Another week's numbers are never returned.
+ */
 const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn => {
-  const [current, setCurrent] = useState<WeeklyStatisticsView | null>(null)
-  const [previous, setPrevious] = useState<WeeklyStatisticsView | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [timestamp, setTimestamp] = useState(() => Date.now())
-  const [error, setError] = useState<string | null>(null)
   const { weekStart } = options
   const { offsetMinutes } = useTimePreferences()
   const timeBase = useMemo(() => {
@@ -36,65 +47,39 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
     () => toApiDateTimeWithZone(timeBase.subtract(7, 'day')),
     [timeBase],
   )
+  // The week the shown numbers belong to. Another week never shows them.
+  const weekKey = JSON.stringify(timeParam)
 
-  useEffect(() => {
-    let isMounted = true
-    const fetchStats = async () => {
-      setIsLoading(true)
-      setError(null)
-
-      console.log('📊 Fetching weekly statistics...')
-
+  const query = useRevalidatingQuery<WeeklyPair>(
+    `weekly-statistics/${weekKey}`,
+    async () => {
+      const view = toWeeklyStatisticsView(await fetchWeeklyStatistics({ time: timeParam }))
+      let previousView: WeeklyStatisticsView | null = null
       try {
-        console.log('📊 Request params:', { time: timeParam })
-
-        const response = await fetchWeeklyStatistics({ time: timeParam })
-
-        console.log('📊 API Response:', response)
-
-        const view = toWeeklyStatisticsView(response)
-
-        console.log('📊 Transformed view:', view)
-
-        let previousView: WeeklyStatisticsView | null = null
-        try {
-          const previousResponse = await fetchWeeklyStatistics({
-            time: previousTimeParam,
-          })
-          previousView = toWeeklyStatisticsView(previousResponse)
-          console.log('📊 Previous week view:', previousView)
-        } catch (prevError) {
-          console.warn('⚠️ Failed to fetch previous week statistics:', prevError)
-        }
-
-        if (isMounted) {
-          setCurrent(view)
-          setPrevious(previousView)
-        }
-      } catch (err) {
-        console.error('❌ statistics fetch error:', err)
-        if (isMounted) setError(err instanceof Error ? err.message : '통계를 불러오는데 실패했습니다.')
-      } finally {
-        if (isMounted) setIsLoading(false)
+        previousView = toWeeklyStatisticsView(
+          await fetchWeeklyStatistics({ time: previousTimeParam }),
+        )
+      } catch (prevError) {
+        console.warn('⚠️ Failed to fetch previous week statistics:', prevError)
       }
-    }
-    fetchStats()
-    return () => {
-      isMounted = false
-    }
-  }, [timestamp, timeParam, previousTimeParam])
-
-  useEffect(() => {
-    const unsubscribe = onScheduleChanged(() => setTimestamp(Date.now()))
-    return unsubscribe
-  }, [])
+      return { current: view, previous: previousView }
+    },
+    {
+      invalidateOn: ['schedule'],
+      errorMessage: (err) => {
+        console.error('❌ statistics fetch error:', err)
+        return weeklyError(err)
+      },
+    },
+  )
 
   return {
-    current,
-    previous,
-    isLoading,
-    error,
-    refetch: () => setTimestamp(Date.now()),
+    current: query.data?.current ?? null,
+    previous: query.data?.previous ?? null,
+    isLoading: query.isInitialLoading,
+    isRefreshing: query.isRefreshing,
+    error: query.error,
+    refetch: query.refetch,
   }
 }
 

@@ -15,6 +15,13 @@ type ModalProps = {
   closeOnBackdrop?: boolean
   children: ReactNode
   embedded?: boolean
+  /**
+   * The exit is playing (see usePresence). The dialog stops trapping focus, releases the scroll
+   * lock, returns focus to its opener and ignores input while it fades out.
+   */
+  closing?: boolean
+  /** On screens under 900px the panel slides up as a full-height sheet instead of rising. */
+  sheet?: boolean
 }
 
 const FOCUSABLE =
@@ -43,6 +50,8 @@ const Modal = ({
   closeOnBackdrop = true,
   children,
   embedded = false,
+  closing = false,
+  sheet = false,
 }: ModalProps) => {
   const dialogRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -59,7 +68,7 @@ const Modal = ({
   }, [onClose])
 
   useEffect(() => {
-    if (embedded) return
+    if (embedded || closing) return
     const id = Symbol('modal')
     if (stack.length === 0) {
       previousBodyOverflow = document.body.style.overflow
@@ -126,18 +135,29 @@ const Modal = ({
       if (previous && previous.isConnected)
         previous.focus({ preventScroll: true })
     }
-  }, [embedded, opener])
+  }, [closing, embedded, opener])
 
   const handleBackdrop = (event: MouseEvent<HTMLDivElement>) => {
+    if (closing) return
     if (closeOnBackdrop && event.target === event.currentTarget) onClose?.()
   }
 
   if (embedded) return <section className={className}>{children}</section>
+  const state = closing ? 'closing' : 'open'
   return (
-    <div className={backdropClassName} onClick={handleBackdrop}>
+    <div
+      className={backdropClassName}
+      onClick={handleBackdrop}
+      data-motion-surface="backdrop"
+      data-state={state}
+      inert={closing || undefined}
+    >
       <div
         ref={dialogRef}
         className={className}
+        data-motion-surface="panel"
+        data-motion-sheet={sheet || undefined}
+        data-state={state}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}

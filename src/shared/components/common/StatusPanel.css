@@ -30,3 +30,12 @@
   background-color: var(--c-slate-200);
 }
 
+
+/* Loading waits before it shows (motion.css --motion-status-delay), then fades in. */
+.status-panel--loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) var(--motion-status-delay) both;
+}
+.status-panel--error,
+.status-panel--empty {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}

@@ -43,6 +43,10 @@ const load = (path, dependencies) => {
         return { moveResultMessage: () => null }
       if (name === '@features/spaces/EditConflictDialog')
         return { default: () => null }
+      if (name === '@shared/motion/usePresence')
+        return {
+          usePresence: (value) => ({ mounted: !!value, closing: false, value: value || undefined }),
+        }
       if (name === '@features/spaces/MyInputDisclosure')
         return { default: () => null }
       if (name === '@features/spaces/conflicts')
@@ -160,6 +164,12 @@ for (const kind of ['task', 'schedule']) {
       '@shared/utils/taskEstimate': { DIFFICULTY_ESTIMATE_MINUTES: { 2: 30 } },
       './TaskForm.css': {},
       './modals/TaskDependencyModal': { default: () => null },
+      // Dependency chips animate through list presence; the form logic does not depend on it.
+      '@shared/motion': {
+        useListPresence: (items, getKey) =>
+          items.map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+        presenceProps: () => ({}),
+      },
       dayjs: { default: () => day },
       './ScheduleForm.css': {},
       '../hooks/useScheduleForm': {
@@ -471,6 +481,7 @@ test('a committed series category write stays successful when its follow-up refr
     },
     '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
     '@shared/utils/events': {
+      onDataChanged: () => () => {},
       onTaskChanged: () => () => {},
       onScheduleChanged: () => () => {},
     },

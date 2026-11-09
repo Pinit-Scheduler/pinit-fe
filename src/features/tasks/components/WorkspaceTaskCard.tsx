@@ -16,6 +16,7 @@ import { routeScope } from '@features/spaces/scope'
 import { useSpaces } from '@features/spaces/store'
 import { useLocation } from 'react-router-dom'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
+import CompletionCheck from '@shared/components/motion/CompletionCheck'
 import './WorkspaceTaskCard.css'
 import { saveTaskCompletion } from '../utils/taskCompletion'
 export default function WorkspaceTaskCard({
@@ -35,11 +36,16 @@ export default function WorkspaceTaskCard({
   const [pending, setPending] = useState(false),
     [error, setError] = useState<string | null>(null)
   const [refreshOnly, setRefreshOnly] = useState(false)
+  // The state the person asked for, shown at once while the save runs. Cleared when the save
+  // settles: on success the cache holds the same value, on failure the check rolls back.
+  const [optimisticDone, setOptimisticDone] = useState<boolean | null>(null)
+  const shownDone = optimisticDone ?? done
   const lock = useRef(false)
   const toggle = async () => {
     if (lock.current) return
     lock.current = true
     setPending(true)
+    setOptimisticDone(!done)
     setError(null)
     setRefreshOnly(false)
     try {
@@ -73,6 +79,7 @@ export default function WorkspaceTaskCard({
     } finally {
       lock.current = false
       setPending(false)
+      setOptimisticDone(null)
     }
   }
   const refreshDetail = async () => {
@@ -91,21 +98,25 @@ export default function WorkspaceTaskCard({
     }
   }
   return (
-    <article className={'workspace-task' + (done ? ' is-completed' : '')}>
-      <input
+    <article
+      className={'workspace-task' + (shownDone ? ' is-completed' : '')}
+      aria-busy={pending || undefined}
+    >
+      {/* Permission decides disabled; a pending save does not, so the check never dims mid-stroke. */}
+      <CompletionCheck
         className="workspace-task__check"
-        type="checkbox"
-        checked={done}
+        checked={shownDone}
         disabled={
-          pending ||
           !(done ? item.allowedActions?.reopen : item.allowedActions?.complete)
         }
         onChange={() => void toggle()}
-        aria-label={item.title + (done ? ' 완료 취소' : ' 완료')}
+        label={item.title + (shownDone ? ' 완료 취소' : ' 완료')}
       />
       <div className="workspace-task__copy">
         <button className="workspace-task__title" onClick={onOpen}>
-          {item.title}
+          <span className="motion-strike" data-done={shownDone || undefined}>
+            {item.title}
+          </span>
         </button>
         <div className="workspace-task__meta">
           <SpacePath
@@ -119,7 +130,7 @@ export default function WorkspaceTaskCard({
           />
           <span>{item.assigneeNickname ?? '담당자 미정'}</span>
           {item.recurrence && <span>반복</span>}
-          {!done && (item.inboundDependencyCount ?? 0) > 0 && (
+          {!shownDone && (item.inboundDependencyCount ?? 0) > 0 && (
             <span>이전 작업 {item.inboundDependencyCount}개 남음</span>
           )}
         </div>
@@ -138,7 +149,7 @@ export default function WorkspaceTaskCard({
               '시간 미입력'}
           </summary>
           <p>{item.description || '등록된 설명이 없어요.'}</p>
-          {onAssign && !done && item.allowedActions?.schedule && (
+          {onAssign && !shownDone && item.allowedActions?.schedule && (
             <button className="workspace-button" onClick={onAssign}>
               일정 배정
             </button>
@@ -147,7 +158,7 @@ export default function WorkspaceTaskCard({
       </div>
       <div className="workspace-task__side">
         <span>
-          {done ? '완료' : formatDateWithOffset(item.dueDate, 'M/D') + ' 마감'}
+          {shownDone ? '완료' : formatDateWithOffset(item.dueDate, 'M/D') + ' 마감'}
         </span>
         <div className="workspace-task__meters">
           {[

@@ -65,8 +65,26 @@
   pointer-events: none;
 }
 
+/* A slot holds one item's place in its lane. Its position is a transform, so an edited start glides. */
+.plan-timeline__slot {
+  position: absolute;
+  top: 0;
+  transition: transform var(--motion-enter) var(--motion-ease);
+}
+
+.plan-timeline__slot--schedule {
+  left: 4px;
+  width: calc(45% - 6px);
+}
+
+.plan-timeline__slot--block {
+  left: calc(45% + 2px);
+  right: 4px;
+}
+
 .plan-timeline__item {
   position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -79,19 +97,19 @@
   text-align: left;
   font: inherit;
   font-size: 11px;
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    border-color var(--motion-base) var(--motion-ease),
+    color var(--motion-base) var(--motion-ease);
 }
 
 .plan-timeline__item--schedule {
-  left: 4px;
-  width: calc(45% - 6px);
   background: var(--c-slate-200);
   border: 1px solid var(--c-slate-400);
   color: var(--c-slate-700);
 }
 
 .plan-timeline__item--block {
-  left: calc(45% + 2px);
-  right: 4px;
   background: var(--c-blue-100);
   border: 1px solid var(--c-blue-600);
   color: var(--c-blue-900);
@@ -145,4 +163,9 @@
   font-size: 10px;
   font-weight: 600;
   color: var(--c-amber-800);
+}
+
+.plan-timeline__item:focus-visible {
+  outline: 2px solid var(--c-blue-600);
+  outline-offset: 1px;
 }

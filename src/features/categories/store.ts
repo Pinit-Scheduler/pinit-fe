@@ -8,7 +8,7 @@ import {
   type WorkspaceMetadata,
 } from '@features/spaces/metadata'
 import { getAccessToken } from '@shared/api/authTokens'
-import { onTaskChanged, onScheduleChanged } from '@shared/utils/events'
+import { onDataChanged } from '@shared/utils/events'
 
 export type Category = {
   id: number
@@ -40,7 +40,9 @@ let actor = '',
   pending: Promise<void> | null = null,
   epoch = 0,
   reloadQueued = false,
-  consumers = 0
+  consumers = 0,
+  // Nobody listened for changes for a while, so the kept snapshot may be behind the server.
+  missedEvents = false
 let stopEvents: (() => void) | null = null
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((listener) => listener())
@@ -57,8 +59,7 @@ const invalidate = () => {
   else void reloadCategories().catch(() => {})
 }
 const subscribeEvents = () => {
-  const offTask = onTaskChanged(invalidate),
-    offSchedule = onScheduleChanged(invalidate)
+  const offData = onDataChanged(invalidate)
   const auth = () => {
     if (actor !== sessionKey()) {
       resetCategories()
@@ -69,8 +70,7 @@ const subscribeEvents = () => {
   window.addEventListener('storage', auth)
   window.addEventListener('focus', invalidate)
   return () => {
-    offTask()
-    offSchedule()
+    offData()
     window.removeEventListener('auth:changed', auth)
     window.removeEventListener('storage', auth)
     window.removeEventListener('focus', invalidate)
@@ -89,6 +89,11 @@ const sessionKey = () => {
   }
 }
 const url = (suffix = '') => buildApiUrl('/categories' + suffix, 'v2')
+// A reload that returns the same content keeps the same objects, so screens that read
+// assignments (TaskListPage filters with them) do not re-render or refetch on focus.
+function same<T>(previous: T, next: T): T {
+  return JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+}
 export const reloadCategories = (): Promise<void> => {
   const key = sessionKey()
   // A refresh is not a new anonymous category session. Never fetch without a member token.
@@ -108,16 +113,35 @@ export const reloadCategories = (): Promise<void> => {
   )
     .then((data) => {
       if (actor !== key || epoch !== requestEpoch) return
-      state = {
+      const next = {
         ...data,
-        categories: (data.projects ?? data.categories ?? []).map((project) => ({
-          ...project,
-          builtIn: false,
-        })),
+        categories: same(
+          state.categories,
+          (data.projects ?? data.categories ?? []).map((project) => ({
+            ...project,
+            builtIn: false,
+          })),
+        ),
+        taskAssignments: same(state.taskAssignments, data.taskAssignments),
+        scheduleAssignments: same(
+          state.scheduleAssignments,
+          data.scheduleAssignments,
+        ),
+        seriesAssignments: same(state.seriesAssignments, data.seriesAssignments),
         isLoading: false,
         hasLoaded: true,
         error: null,
       }
+      const unchanged =
+        state.hasLoaded &&
+        !state.isLoading &&
+        state.error === null &&
+        next.categories === state.categories &&
+        next.taskAssignments === state.taskAssignments &&
+        next.scheduleAssignments === state.scheduleAssignments &&
+        next.seriesAssignments === state.seriesAssignments
+      if (unchanged) return
+      state = next
       emit()
     })
     .catch((error) => {
@@ -263,12 +287,21 @@ export function useCategories() {
   )
   const key = sessionKey()
   useEffect(() => {
-    if (consumers++ === 0) stopEvents = subscribeEvents()
+    if (consumers++ === 0) {
+      stopEvents = subscribeEvents()
+      // Changes made while no screen listened were missed. Refresh in the background and keep
+      // showing the kept snapshot meanwhile, so chips and filters never blank on a page change.
+      if (missedEvents && state.hasLoaded && !pending && actor === sessionKey())
+        invalidate()
+      missedEvents = false
+    }
     return () => {
       if (--consumers === 0) {
+        // Keep the snapshot for the session (audit B4). Another account never sees it:
+        // useCategories hides a snapshot whose actor differs, and reloadCategories replaces it.
         stopEvents?.()
         stopEvents = null
-        resetCategories()
+        missedEvents = true
       }
     }
   }, [])

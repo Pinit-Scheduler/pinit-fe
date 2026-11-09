@@ -3,7 +3,8 @@
   flex-direction: column;
   gap: 12px;
   padding: 4px 0 24px;
-  animation: pageSlideUp 240ms ease;
+  /* Nothing plays on mount: the route surface already brings the form in, and moving from the
+     detail to the edit form crossfades inside the same surface. */
 }
 
 .schedule-form-page__header {
@@ -36,15 +37,4 @@
   background: var(--c-slate-200);
   color: var(--c-slate-700);
   font-weight: 600;
-}
-
-@keyframes pageSlideUp {
-  from {
-    transform: translateY(28px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
