@@ -1,0 +1,81 @@
+/* Boot state behind AuthGuard. Motion contract: docs/motion/README.md. */
+
+.auth-boot {
+  /* A full-screen state waits twice the status delay: a quick refresh shows only the background. */
+  --auth-boot-delay: calc(var(--motion-status-delay) * 2);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px;
+}
+
+.auth-boot__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--workspace-ink);
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) var(--auth-boot-delay) both;
+}
+
+.auth-boot__logo {
+  width: 40px;
+  height: 40px;
+}
+
+.auth-boot__name {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* A hairline that draws once, decelerating, while the session is checked. It never loops. */
+.auth-boot__line {
+  position: relative;
+  width: 96px;
+  height: 2px;
+  border-radius: 1px;
+  overflow: hidden;
+  background-color: var(--workspace-line);
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) var(--auth-boot-delay) both;
+}
+
+.auth-boot__line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-color: var(--workspace-blue);
+  transform-origin: left center;
+  transform: scaleX(0.9);
+  animation: auth-boot-progress 2400ms var(--motion-ease) var(--auth-boot-delay) both;
+}
+
+@keyframes auth-boot-progress {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.auth-boot__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Opacity only: the mark and line fade in, the line does not draw. */
+  .auth-boot__mark,
+  .auth-boot__line {
+    animation-duration: var(--motion-base) !important;
+  }
+  .auth-boot__line::after {
+    animation: none;
+  }
+}
