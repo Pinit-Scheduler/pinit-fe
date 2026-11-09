@@ -705,3 +705,16 @@ button:disabled {
   max-height: 3em;
   overflow: hidden;
 }
+
+.space-mark {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--space-mark);
+}
+
+.space-mark--personal {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px #9aa3b2;
+}
