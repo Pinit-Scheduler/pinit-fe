@@ -1,6 +1,12 @@
 export type RouteScope = 'selected' | 'all' | 'personal'
 
-const selectedListPaths = ['/app/tasks', '/app/schedules', '/app/task-map']
+const selectedListPaths = [
+  '/app/tasks',
+  '/app/schedules',
+  '/app/task-map',
+  '/app/plan',
+  '/app/settings/recurrences',
+]
 const personalListPaths = ['/app/deadline-risk']
 
 function listPath(pathname: string) {
