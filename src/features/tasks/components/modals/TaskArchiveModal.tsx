@@ -1,6 +1,9 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useRef, useState, useId } from 'react'
+import type { CSSProperties } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { usePresence } from '@shared/motion'
+import { arrivalIndex, useArrival } from '../../utils/useArrival'
 import { fetchTaskArchiveByCursor } from '../../api/tasks'
 import type { Task } from '../../types/task'
 import { formatDateWithOffset } from '@shared/utils/datetime'
@@ -11,10 +14,26 @@ import './TaskArchiveModal.css'
 const PAGE_SIZE = 20
 
 type TaskArchiveModalProps = {
+  /** Keep the modal rendered and toggle this, so it can fade out. */
+  open?: boolean
   onClose: () => void
 }
 
-const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
+/** Plays its exit before unmounting. Each opening starts a fresh archive read. */
+const TaskArchiveModal = ({ open = true, onClose }: TaskArchiveModalProps) => {
+  const presence = usePresence(open)
+  return presence.mounted ? (
+    <ArchiveDialog onClose={onClose} closing={presence.closing} />
+  ) : null
+}
+
+const ArchiveDialog = ({
+  onClose,
+  closing,
+}: {
+  onClose: () => void
+  closing: boolean
+}) => {
   const titleId = useId()
   const [tasks, setTasks] = useState<Task[]>([])
   const [hasNext, setHasNext] = useState(true)
@@ -76,9 +95,16 @@ const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
   }, [hasNext, isLoading, load])
 
   const handleRetry = () => load({ reset: tasks.length === 0 })
+  const arriving = useArrival(!initialLoaded)
 
   return (
-    <Modal backdropClassName="task-archive-modal__backdrop" className="task-archive-modal__content" onClose={onClose} labelledBy={titleId}>
+    <Modal
+      backdropClassName="task-archive-modal__backdrop"
+      className="task-archive-modal__content"
+      onClose={onClose}
+      labelledBy={titleId}
+      closing={closing}
+    >
       <header className="task-archive-modal__header">
         <div>
           <p className="task-archive-modal__eyebrow">완료 · 마감 지난 작업</p>
@@ -88,20 +114,34 @@ const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
         <button type="button" className="task-archive-modal__close" onClick={onClose} aria-label="닫기"><WorkspaceIcon name="close" /></button>
       </header>
       <div className="task-archive-modal__body" ref={scrollRef}>
-        {error ? (
+        {error && tasks.length === 0 ? (
           <div className="task-archive-modal__placeholder">
             <p>아카이브를 불러오지 못했습니다.</p>
             <p className="task-archive-modal__error">{error}</p>
             <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
           </div>
-        ) : !initialLoaded && isLoading ? (
-          <div className="task-archive-modal__placeholder">불러오는 중...</div>
+        ) : !initialLoaded ? (
+          <div className="task-archive-modal__placeholder task-archive-modal__placeholder--loading">
+            불러오는 중...
+          </div>
         ) : tasks.length === 0 ? (
           <div className="task-archive-modal__placeholder">아카이브된 작업이 없습니다.</div>
         ) : (
           <ul className="task-archive-modal__list">
-            {tasks.map((task) => (
-              <li key={task.id} className="task-archive-modal__item">
+            {tasks.map((task, index) => (
+              <li
+                key={task.id}
+                className="task-archive-modal__item"
+                data-arrive={arriving || undefined}
+                style={
+                  arriving
+                    ? ({
+                        // Later pages rise in at once, without waiting on the first page's stagger.
+                        '--arrive-index': index < PAGE_SIZE ? arrivalIndex(index) : 0,
+                      } as CSSProperties)
+                    : undefined
+                }
+              >
                 <div className="task-archive-modal__item-head">
                   <strong>{task.title}</strong>
                   <p className="task-archive-modal__item-desc">{task.description}</p>
@@ -123,7 +163,13 @@ const TaskArchiveModal = ({ onClose }: TaskArchiveModalProps) => {
               </li>
             ))}
             <div className="task-archive-modal__sentinel" ref={sentinelRef}>
-              {isLoading && hasNext
+              {/* A later page failed: the rows already read stay, the message and retry go here. */}
+              {error ? (
+                <span role="alert">
+                  <span className="task-archive-modal__error">{error}</span>{' '}
+                  <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
+                </span>
+              ) : isLoading && hasNext
                 ? '추가 아카이브를 불러오는 중...'
                 : hasNext
                   ? '계속 불러옵니다...'

@@ -60,6 +60,12 @@
   margin-top: 9px;
   cursor: pointer;
 }
+.workspace-task__connection {
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+.workspace-task__connection:hover {
+  background: var(--c-blue-100);
+}
 .workspace-task__connection svg {
   width: 13px;
   height: 13px;
@@ -73,6 +79,15 @@
 .workspace-task__description summary {
   cursor: pointer;
   min-height: 28px;
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+.workspace-task__description summary:hover {
+  color: var(--c-slate-700);
+}
+/* Opening the description: its content rises in under the summary. Closing is instant,
+   as <details> unmounts the content. */
+.workspace-task__description[open] > :not(summary) {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 .workspace-task__description p {
   margin: 8px 0;
@@ -117,6 +132,14 @@
 }
 .workspace-task__error {
   grid-column: 1/-1;
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-task__description[open] > :not(summary),
+  .workspace-task__error {
+    animation-name: motion-fade-in;
+    animation-duration: var(--motion-base) !important;
+  }
 }
 @media (max-width: 600px) {
   .workspace-task {

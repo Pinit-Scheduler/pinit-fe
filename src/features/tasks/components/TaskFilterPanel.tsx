@@ -9,15 +9,27 @@ import {
 type TaskFilterPanelProps = {
   filters: TaskFilters
   onChange: (next: TaskFilters) => void
+  /** The panel is folding away (usePresence). It fades and ignores input meanwhile. */
+  closing?: boolean
 }
 
 /** 작업 탭 필터(ADR-0023 §4): 상태, 마감, 중요도 최소, 난이도 최대, 태그. */
-const TaskFilterPanel = ({ filters, onChange }: TaskFilterPanelProps) => {
+const TaskFilterPanel = ({
+  filters,
+  onChange,
+  closing = false,
+}: TaskFilterPanelProps) => {
   const set = (patch: Partial<TaskFilters>) =>
     onChange({ ...filters, ...patch })
 
   return (
-    <div className="task-filter" role="region" aria-label="작업 필터">
+    <div
+      className="task-filter"
+      role="region"
+      aria-label="작업 필터"
+      data-state={closing ? 'closing' : 'open'}
+      inert={closing || undefined}
+    >
       <div className="task-filter__group">
         <span className="task-filter__label">상태</span>
         <div className="task-filter__chips">

@@ -1,6 +1,7 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { presenceProps, useListPresence, usePresence } from '@shared/motion'
 import './TaskDependencyModal.css'
 import { ApiError } from '@shared/api/httpClient'
 import { useToast } from '@contexts/ToastContext'
@@ -8,13 +9,26 @@ import { deleteTag, fetchTags, renameTag, tagErrorMessage, TAG_NAME_MAX_LENGTH }
 import type { TaskTag } from '../../types/task'
 
 type TagManagerModalProps = {
+  /** Keep the modal rendered and toggle this, so it can fade out. Default true. */
+  open?: boolean
   onClose: () => void
   /** 이름을 바꾸거나 지운 뒤 목록을 다시 불러오게 한다 */
   onChanged: (tags: TaskTag[]) => void
 }
 
 /** 태그 이름 바꾸기와 지우기(ADR-0023 §2). 지우면 붙어 있던 작업에서 떨어진다. */
-const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
+const TagManagerModal = ({ open = true, ...props }: TagManagerModalProps) => {
+  const presence = usePresence(open)
+  return presence.mounted ? (
+    <TagManagerDialog {...props} closing={presence.closing} />
+  ) : null
+}
+
+const TagManagerDialog = ({
+  onClose,
+  onChanged,
+  closing,
+}: Omit<TagManagerModalProps, 'open'> & { closing: boolean }) => {
   const titleId = useId()
   const { addToast } = useToast()
   const [tags, setTags] = useState<TaskTag[]>([])
@@ -38,6 +52,8 @@ const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
   }, [addToast])
 
   const busy = busyId !== null
+  // A deleted tag fades out in place before its row is removed.
+  const rows = useListPresence(loading ? undefined : tags, (tag) => tag.id)
 
   const update = (next: TaskTag[]) => {
     setTags(next)
@@ -74,20 +90,28 @@ const TagManagerModal = ({ onClose, onChanged }: TagManagerModalProps) => {
   }
 
   return (
-    <Modal backdropClassName="task-dep-modal__backdrop" className="task-dep-modal__content" onClose={onClose} labelledBy={titleId}>
+    <Modal
+      backdropClassName="task-dep-modal__backdrop"
+      className="task-dep-modal__content"
+      onClose={onClose}
+      labelledBy={titleId}
+      closing={closing}
+    >
         <header className="task-dep-modal__header">
           <h1 id={titleId}>태그 관리</h1>
           <button type="button" onClick={onClose} aria-label="닫기"><WorkspaceIcon name="close" /></button>
         </header>
         <div className="task-dep-modal__body">
           {loading ? (
-            <p>불러오는 중...</p>
-          ) : tags.length === 0 ? (
+            <p className="task-dep-modal__loading" role="status">
+              불러오는 중...
+            </p>
+          ) : rows.length === 0 ? (
             <p>아직 태그가 없어요. 작업 폼에서 태그를 만들 수 있어요.</p>
           ) : (
             <ul className="task-dep-modal__list">
-              {tags.map((tag) => (
-                <li key={tag.id} className="tag-manager__row">
+              {rows.map(({ key, item: tag, phase }) => (
+                <li key={key} className="tag-manager__row" {...presenceProps(phase)}>
                   <input
                     value={drafts[tag.id] ?? ''}
                     maxLength={TAG_NAME_MAX_LENGTH}

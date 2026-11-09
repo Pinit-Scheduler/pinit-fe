@@ -339,7 +339,10 @@ const TaskEditPage = () => {
       </header>
       <div className="task-page__content">
         {isLoading || (categoryLoading && !categoryLoaded) ? (
-          <div className="task-page__placeholder">
+          <div
+            className="task-page__placeholder task-page__placeholder--loading"
+            role="status"
+          >
             <p>작업 정보를 불러오는 중...</p>
           </div>
         ) : error || (categoryLoadError && !categoryLoaded) || !task ? (
@@ -354,7 +357,7 @@ const TaskEditPage = () => {
             </button>
           </div>
         ) : (
-          <>
+          <div className="task-page__arrive">
             {categoryLoadError && (
               <div role="alert">
                 <p>
@@ -409,7 +412,7 @@ const TaskEditPage = () => {
                 return `${label} · ${task.expectedDuration ? '직접 입력' : '난이도 기준'}`
               })()}
             />
-          </>
+          </div>
         )}
       </div>
       {recurrenceScope.dialog}

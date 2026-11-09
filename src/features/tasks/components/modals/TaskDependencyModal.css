@@ -49,6 +49,27 @@
   border: 1px solid var(--c-slate-200);
   border-radius: 10px;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.task-dep-modal__list li label:not(.is-checked):hover {
+  border-color: var(--c-slate-300);
+}
+
+/* Results this picker waited for rise in with a short stagger (useArrival). */
+.task-dep-modal__list li[data-arrive] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease)
+    calc(var(--arrive-index, 0) * 24ms) backwards;
+}
+
+/* A quick search shows nothing; a slow one fades the line in. */
+.task-dep-modal__loading {
+  margin: 0;
+  color: var(--c-slate-500);
+  animation: motion-fade-in var(--motion-base) var(--motion-ease)
+    var(--motion-status-delay) both;
 }
 
 .task-dep-modal__list li label.is-checked {
@@ -84,4 +105,25 @@
   background: var(--c-surface);
   font-weight: 700;
   cursor: pointer;
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+.task-dep-modal__more:not(:disabled):hover {
+  background: var(--c-slate-50);
+}
+
+.task-dep-modal__error {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-dep-modal__list li[data-arrive] {
+    animation-name: motion-fade-in;
+    animation-duration: var(--motion-base) !important;
+    animation-delay: 0ms;
+  }
+  .task-dep-modal__loading,
+  .task-dep-modal__error {
+    animation-duration: var(--motion-base) !important;
+  }
 }

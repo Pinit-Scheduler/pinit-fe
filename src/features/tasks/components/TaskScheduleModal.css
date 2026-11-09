@@ -140,3 +140,23 @@
   box-shadow: 0 10px 24px rgba(79, 70, 229, 0.25);
 }
 
+/* Selection and hover feedback. Colors only; nothing moves. */
+.task-sched-modal__chip,
+.task-sched-modal__ghost,
+.task-sched-modal__close {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+.task-sched-modal__chip:not(.is-active):hover,
+.task-sched-modal__ghost:not(:disabled):hover {
+  border-color: var(--c-slate-300);
+  color: var(--c-slate-800);
+}
+.task-sched-modal__close:not(:disabled):hover {
+  background: var(--c-slate-300);
+}
+.task-sched-modal__body [role='alert'] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
