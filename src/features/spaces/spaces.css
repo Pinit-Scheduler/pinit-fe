@@ -493,8 +493,8 @@
   padding: 8px 12px;
   border: 1px solid var(--workspace-line);
   border-radius: 8px;
-  background: #fff;
-  color: var(--workspace-text);
+  background: var(--workspace-surface);
+  color: var(--workspace-ink);
   font: inherit;
   font-size: 14px;
   text-align: left;
@@ -870,17 +870,15 @@ button:disabled {
 }
 .space-my-input__empty {
   margin: 0 0 12px;
-  color: #5b6577;
+  color: var(--workspace-muted);
 }
 
 .space-path {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 7px;
-  border-radius: 5px;
-  background: var(--c-slate-50);
-  color: var(--c-slate-500);
+  background: transparent;
+  color: var(--workspace-muted);
   font-size: 13px;
   line-height: 1.5;
 }

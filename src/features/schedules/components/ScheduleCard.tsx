@@ -152,14 +152,14 @@ const ScheduleCard = ({
               <p className="schedule-card__subtitle">{plannedDurationLabel}</p>
             )}
             <SpacePath
-            path={cardPath(
-              routeScope(pathname),
-              { spaceId: selectedSpaceId, projectId: selectedProjectId },
-              schedule,
-              spaces,
-              projects,
-            )}
-          />
+              path={cardPath(
+                routeScope(pathname),
+                { spaceId: selectedSpaceId, projectId: selectedProjectId },
+                schedule,
+                spaces,
+                projects,
+              )}
+            />
           </div>
           {description && (
             <p className="schedule-card__description">{description}</p>

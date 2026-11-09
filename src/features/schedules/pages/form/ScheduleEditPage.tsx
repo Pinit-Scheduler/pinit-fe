@@ -13,7 +13,7 @@ import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { useToast } from '@contexts/ToastContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './ScheduleFormPage.css'
-import { updateSchedule } from '../../api/schedules'
+import { fetchScheduleDetail, updateSchedule } from '../../api/schedules'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import {
   minutesToIsoDuration,
@@ -51,13 +51,14 @@ const ScheduleEditPage = () => {
   } = useCategories()
   const { addToast } = useToast()
   // Keep the edit session's original snapshot; background events must not remount the draft.
-  const { schedule, isLoading, error, refetch } = useScheduleDetail(scheduleId, {
+  const { schedule, isLoading, error, replace } = useScheduleDetail(scheduleId, {
     refreshOnChange: false,
   })
   const { offsetMinutes } = useTimePreferences()
   const recurrenceScope = useRecurrenceScope()
   const [conflict, setConflict] = useState<{ rows: InputRow[] } | null>(null)
   const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
+  const [formKey, setFormKey] = useState(0)
   const reportConflict = (values: ScheduleFormValues) => {
     if (!schedule) return
     const show = (type: string) =>
@@ -80,10 +81,21 @@ const ScheduleEditPage = () => {
     // 이전 충돌 상태는 이번 시도의 입력으로 바꾼다.
     setConflict({ rows: changedInput(server, mine, LABELS) })
   }
-  const loadLatest = () => {
-    setKeptInput(conflict?.rows ?? null)
-    setConflict(null)
-    refetch()
+  const loadLatest = async () => {
+    const numericId = scheduleId ? Number(scheduleId) : undefined
+    if (!numericId) return
+    try {
+      const data = await fetchScheduleDetail(numericId)
+      replace(data)
+      setKeptInput(conflict?.rows ?? null)
+      setConflict(null)
+      setFormKey((key) => key + 1)
+    } catch (err) {
+      addToast(
+        err instanceof Error ? err.message : '최신 내용을 불러오지 못했어요.',
+        'error',
+      )
+    }
   }
   const affiliation = (values: ScheduleFormValues) => {
     const location = values.locationChanged || values.categoryChanged
@@ -305,7 +317,7 @@ const ScheduleEditPage = () => {
       ) : categoryLoadError && !categoryLoaded ? (
         <div className="schedule-form-page__status" role="alert">
           <p>
-            프로젝트를 불러오지 못했어요. 기존 분류를 확인한 뒤 수정할 수
+            프로젝트를 불러오지 못했어요. 기존 프로젝트를 확인한 뒤 수정할 수
             있어요.
           </p>
           <p>{categoryLoadError}</p>
@@ -335,7 +347,7 @@ const ScheduleEditPage = () => {
           <ScheduleForm
             allowedActions={schedule?.allowedActions}
             unavailableReasons={schedule?.unavailableReasons}
-            key={schedule.id}
+            key={`${schedule.id}-${formKey}`}
             initialValues={initialValues}
             onSubmit={handleSubmit}
             submitLabel="일정 수정"
@@ -348,7 +360,7 @@ const ScheduleEditPage = () => {
         <EditConflictDialog
           noun="일정"
           rows={conflict.rows}
-          onLoadLatest={loadLatest}
+          onLoadLatest={() => void loadLatest()}
         />
       )}
     </section>

@@ -34,6 +34,7 @@ export default function MyInputDisclosure({
                 <button
                   type="button"
                   className="workspace-button"
+                  aria-label={`${row.label} 복사`}
                   onClick={() => void copy(row.value)}
                 >
                   복사

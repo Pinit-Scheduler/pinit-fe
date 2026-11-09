@@ -348,7 +348,7 @@ test('SSE cancels an old actor response without publishing it to a new login', a
   assert.deepEqual(events, [])
 })
 
-test('HTTP 409 emits a conflict notice and never retries or overwrites; sensitive invite secrets stay out of logs', async () => {
+test('HTTP 409 emits no global notice from httpClient and never retries or overwrites; sensitive invite secrets stay out of logs', async () => {
   const calls = [],
     logs = [],
     window = new EventTarget()

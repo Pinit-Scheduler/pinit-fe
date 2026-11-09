@@ -76,6 +76,12 @@ export default function AffiliationFields({
   const key = `${spaceId}:${kind}:${attempt}`
   const draft = result.key === key ? result.draft : null
   const error = result.key === key ? result.error : null
+  const [seenRecordsError, setSeenRecordsError] = useState(recordsError)
+  if (recordsError !== seenRecordsError) {
+    // 오류가 새로 생기면 한 번 펼친다. 이후 접는 것은 사용자의 선택이다.
+    setSeenRecordsError(recordsError)
+    if (recordsError) setOpen(true)
+  }
   useEffect(() => {
     callback.current = onChange
     valueRef.current = value
@@ -185,7 +191,7 @@ export default function AffiliationFields({
   const needsDisclosure = destination
     ? needsRecordDisclosure({ creating, fromSpaceId, to: destination })
     : false
-  const expanded = open || Boolean(recordsError)
+  const expanded = open
   return (
     <fieldset
       className="space-affiliation"
@@ -330,13 +336,11 @@ export default function AffiliationFields({
       {noteLines.map((line) => (
         <UnavailableNote key={line} text={line} />
       ))}
-      {impact.length > 0 && (
-        <ul className="space-affiliation__impact" aria-live="polite">
-          {impact.map((line) => (
-            <li key={line.kind}>{line.text}</li>
-          ))}
-        </ul>
-      )}
+      <ul className="space-affiliation__impact" aria-live="polite">
+        {impact.map((line) => (
+          <li key={line.kind}>{line.text}</li>
+        ))}
+      </ul>
       {needsDisclosure && (
         <label className="space-affiliation__confirm">
           <input
