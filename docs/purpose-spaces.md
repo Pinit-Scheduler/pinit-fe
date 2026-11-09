@@ -63,35 +63,33 @@ MCP는 기존 `mcp:read`·`mcp:write`·`mcp:delete`를 개인·공유 스페이�
 
 - 용어: UI의 "공간"을 "스페이스"로 바꿨다(조사 포함, 예: 스페이스로·스페이스를). "저장 공간"과 "여유 공간"은 일반 단어라 유지한다. `tests/space-terminology.test.mjs`가 `src`의 `.ts`·`.tsx`·`.css`에 남은 "공간"을 검사한다. 조사가 맞는지까지 검사하지는 않는다.
 - 범위 규칙: `src/features/spaces/scope.ts`가 화면별 범위를 정한다. `tests/space-scope.test.mjs`가 검증한다.
-  - `routeScope`: `/app/tasks`·`/app/schedules`·`/app/task-map`은 `selected`, `/app/deadline-risk`는 `personal`, 그 밖은 `all`.
+  - `routeScope`: `/app/tasks`·`/app/schedules`·`/app/task-map`·`/app/plan`·`/app/settings/recurrences`는 `selected`, `/app/deadline-risk`는 `personal`, 그 밖은 `all`.
   - `projectSelectionTarget`: `selected` 화면이면 이동 없음(`null`), 아니면 `/app/tasks`.
   - `createSpaceIdFor`, `scopeCrumb`, `scheduleMineParam`, `audienceFor`, `audienceSchedules`(아래에서 설명).
 - 브레드크럼(`TopBar`, `AppShell`): 목록 화면은 "스페이스 › 프로젝트", 오늘·통계·휴지통 등은 "모든 스페이스", 마감 위험은 개인 스페이스 이름. 선택된 스페이스가 아직 없으면(불러오는 중) "스페이스"라고만 쓴다.
-- 화면 유지 전환(`SpaceChrome.tsx`): 스페이스를 바꿔도 현재 화면에서 이동하지 않는다. 프로젝트를 고르면 작업·일정·작업 맵 목록에서는 그 화면에 머물고, 그 밖(상세·폼 포함)에서는 작업 목록으로 간다.
+- 화면 유지 전환(`SpaceChrome.tsx`): 스페이스를 바꿔도 현재 화면에서 이동하지 않는다. 프로젝트를 고르면 작업·일정·작업 맵·하루 계획·반복 일정 화면에서는 그 화면에 머물고, 그 밖(상세·폼 포함)에서는 작업 목록으로 간다.
 - 일정의 내 일정/팀 전체(`SchedulesTabPage`, `useScheduleAudience`, `ScheduleCard`):
   - 개인 스페이스가 아니고 참여자가 2명 이상인 스페이스에서만 전환을 보인다. 기본은 내 일정이고 스페이스를 바꾸면 내 일정으로 돌아간다.
   - 일간 목록은 `mine` 없이 받아 `assigneeId`로 거르고, 숨긴 일정이 있으면 "이 날 팀원 일정 N개는 숨겨져 있어요."와 팀 전체 보기를 안내한다. 주간·월간 점은 `mine` 파라미터를 보낸다. 참여자가 1명인 비개인 스페이스는 전환이 없으므로 `mine`을 보내지 않는다.
   - 이 구분은 서버 정의(`mine=true`는 담당자가 호출자)에 맞춘 것이다. 근거는 pinit-monolith `WorkspaceResourceService.java:72`(5bae2b24)이며 FE가 다시 정의하지 않는다.
-  - 팀 전체에서 일정 카드는 제목 뒤 첫 항목에 담당자 이름(미정이면 "담당자 미정")을 보인다.
-- 통계: report API는 선택 스페이스·프로젝트 범위를 더 보내지 않는다. 계획 비교의 주간 일정 조회는 `allSpaces`와 `mine`을 쓴다. 통계 화면에는 "모든 스페이스에서 내 기록이에요. 팀 기록은 스페이스에서 볼 수 있어요." 안내가 있다. 하루 계획(`planner`)은 여전히 선택 스페이스를 쓴다.
+  - 팀 전체에서 일정 카드는 제목 뒤에(반복 일정이면 반복 배지 다음에) 담당자 이름(미정이면 "담당자 미정")을 보인다.
+- 통계: report API는 선택 스페이스·프로젝트 범위를 더 보내지 않는다. 계획 비교의 주간 일정 조회는 `allSpaces`와 `mine`을 쓴다. 통계 화면에는 "모든 스페이스의 내 기록이에요. 팀 기록은 스페이스에서 볼 수 있어요." 안내가 있다. 하루 계획(`planner`)은 여전히 선택 스페이스를 쓴다.
 - 오늘의 작업 추가: 오늘 화면의 버튼은 `/app/tasks/new?from=today`로 간다. 이때 기본 소속이 `defaultSpaceId`(나의 스페이스)다. 스페이스 정보를 불러오는 중이라 값이 0이거나 `null`이면 기존 기본값(선택 스페이스)을 쓴다. 폼에서 바꿀 수 있다.
 
-### 알려진 차이와 미해결 (커밋 6f42b6f 기준)
+### 알려진 차이와 미해결
 
 - 통계 보고서는 BE에서 아직 일정 `ownerId` 기준으로 센다. 확정 기준은 실제 실행한 사람이며 B단계 BE 계약 후 반영한다. 그때까지 내가 소유했지만 다른 사람이 담당인 일정은 계획 비교(담당자=나)와 보고서가 어긋날 수 있다.
-- 일정 화면의 지연 일정 안내(`useOverdueSchedulesSummary`)는 `mine` 없이 조회하므로 내 일정 보기에서도 팀원의 지연 일정을 센다.
-- 통계 화면의 컨텍스트 바는 통계가 전체 스페이스 기준인데도 선택된 스페이스의 목적을 보인다. 오늘·휴지통·마감 위험만 예외 처리돼 있다(`SpaceChrome.tsx`).
 
 ### B단계로 미룬 것
 
 - 스페이스 허브(`/app/spaces`를 목록+개관으로 교체)와 요약 API(`/v2/spaces/summaries` 등).
 - 내 통계 분해와 팀 기록(실행한 사람 기준 시간).
-- 아직 결정하지 않은 개선(761–899px 스페이스 전환, 모바일 프로젝트 목록, 비활성 버튼의 불가 사유 등).
+- 2026-11-09에 결정했지만 아직 구현하지 않은 FE 개선(899px 이하 상단 바 스페이스 버튼, 스페이스 시트의 프로젝트 목록, 허브 밖 불가 사유 표시와 회색 비활성 버튼, 편집 충돌 안내 단일화, 폼 맨 위 소속 요약과 영향 안내, 카테고리의 프로젝트 통일, 스페이스 표시 색 자동 배정) — 백엔드 변경 없음, 별도 계획.
 
 계획과 근거: https://github.com/Pinit-Scheduler/pinit-docs/pull/11
 
 ### 검증
 
-- 단위 검사 `node --test --test-concurrency=1`, `npm run lint`, `npm run build`. 시작 시점 288개, 이 브랜치 HEAD(6f42b6f)에서 301개 모두 통과, lint 오류 없음, build 성공(기존 chunk 크기 경고만).
+- 단위 검사 `node --test --test-concurrency=1`, `npm run lint`, `npm run build`. 시작 시점 288개, 최종 리뷰 수정까지 반영한 이 브랜치의 최종 커밋에서 302개 모두 통과, lint 오류 없음, build 성공(기존 chunk 크기 경고만).
 - 브라우저 확인은 로컬 Vite 개발 서버와 가짜 로컬 mock 백엔드로만 했다. 운영 API·실제 BE·DB·인증은 쓰지 않았다. 확인한 것: 팀 스페이스 일정의 전환 기본값·일간/주간 요청 파라미터·숨김 안내·팀 전체 카드, 스페이스 전환 시 화면 유지와 브레드크럼, 개인 스페이스의 전환 없음, 오늘 → 작업 추가의 기본 소속, 통계의 범위 제거와 안내, 통계에서의 프로젝트 선택 이동, 900px·375px 배치.
 - 확인하지 못한 것: 761–1100px 중 900px 외 폭, 실제 BE·인증, 필터된 목록의 드래그, 월간 보기 전환, 스페이스 탈퇴·제거 흐름, 라이트 테마 비교.
