@@ -120,7 +120,10 @@ const TrashPage = () => {
       if (message) addToast(message, 'success')
       await load()
     } catch (runError) {
-      if (reportEditConflict(runError)) return
+      if (reportEditConflict(runError)) {
+        await load()
+        return
+      }
       console.error('휴지통 작업 실패', runError)
       addToast(
         runError instanceof ApiError && runError.status === 404

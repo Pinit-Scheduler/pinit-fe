@@ -109,7 +109,12 @@ const RecurrencesPage = () => {
         await load()
       }
     } catch (runError) {
-      if (reportEditConflict(runError)) return
+      if (reportEditConflict(runError)) {
+        setEditing(null)
+        setRenaming(null)
+        await load()
+        return
+      }
       if (runError instanceof ApiError && runError.status === 400 && editing) {
         setEditing({
           ...editing,

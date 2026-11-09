@@ -133,7 +133,8 @@ function EditorDialog({
           requestAnimationFrame(() => textInput.current?.focus())
         }
       }
-      if (!reportEditConflict(failure))
+      if (reportEditConflict(failure)) close()
+      else
         setError(
           failure instanceof Error
             ? failure.message
@@ -273,7 +274,8 @@ export default function SpacesPage() {
       addToast(message, 'success')
       refresh()
     } catch (failure) {
-      if (!reportEditConflict(failure))
+      if (reportEditConflict(failure)) setConfirm(null)
+      else
         setError(
           failure instanceof Error
             ? failure.message
@@ -832,7 +834,8 @@ function ProjectMoveDialog({
       await moveProject(project.id, spaceId, project.version)
       saved()
     } catch (failure) {
-      if (!reportEditConflict(failure))
+      if (reportEditConflict(failure)) close()
+      else
         setError(
           failure instanceof Error
             ? failure.message
