@@ -24,3 +24,12 @@ export const safeBackground = (state: unknown): Location | undefined => {
     ? candidate
     : undefined
 }
+
+/** The heading of the surface shown for a surface path. */
+export const surfaceTitle = (pathname: string) => {
+  const path = pathname.replace(/\/$/, '')
+  const task = path.startsWith('/app/tasks/')
+  if (path.endsWith('/new')) return task ? '작업 추가' : '일정 추가'
+  if (path.endsWith('/edit')) return task ? '작업 수정' : '일정 수정'
+  return task ? '작업 상세' : '일정 상세'
+}

@@ -29,7 +29,7 @@ export default function WorkspaceSidebar() {
       <SpaceSwitcher />
       <nav aria-label="주 메뉴">
         {main.map(([path, label, icon]) => (
-          <NavLink key={path} to={'/app/' + path}>
+          <NavLink key={path} to={'/app/' + path} viewTransition>
             <WorkspaceIcon name={icon} />
             {label}
           </NavLink>
@@ -39,7 +39,12 @@ export default function WorkspaceSidebar() {
       <p className="workspace-nav-label">관리</p>
       <nav aria-label="관리 메뉴">
         {manage.map(([path, label, icon]) => (
-          <NavLink key={path} end={path === 'settings'} to={'/app/' + path}>
+          <NavLink
+            key={path}
+            end={path === 'settings'}
+            to={'/app/' + path}
+            viewTransition
+          >
             <WorkspaceIcon name={icon} />
             {label}
           </NavLink>

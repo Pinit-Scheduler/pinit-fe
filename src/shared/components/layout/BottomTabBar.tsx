@@ -23,6 +23,7 @@ export default function BottomTabBar({ activePath }: { activePath: string }) {
         <NavLink
           key={path}
           to={'/app/' + path}
+          viewTransition
           className={({ isActive }) =>
             'bottom-tab__item' + (isActive ? ' is-active' : '')
           }

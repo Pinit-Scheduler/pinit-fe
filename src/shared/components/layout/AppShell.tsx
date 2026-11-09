@@ -1,5 +1,5 @@
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import WorkspaceSidebar from './WorkspaceSidebar'
 import TopBar from './TopBar'
 import BottomTabBar from './BottomTabBar'
@@ -17,6 +17,10 @@ import './AppShell.css'
 import { SpaceContextBar, SpaceSwitcher } from '@features/spaces/SpaceChrome'
 import { useSpaces } from '@features/spaces/store'
 import { routeScope, scopeCrumb } from '@features/spaces/scope'
+import {
+  MOTION_ENTER_MS,
+  prefersReducedMotion,
+} from '@shared/motion/tokens'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
@@ -65,7 +69,34 @@ const AppShell = () => {
   const navigate = useNavigate()
   const pathname = location.pathname
   const didAttemptRefresh = useRef(false)
+  const contentRef = useRef<HTMLElement>(null)
+  const shownPath = useRef(pathname)
   useMemberZoneSync()
+
+  // A new page starts at the top. Without this the next page opens at the previous page's
+  // scroll offset and jumps when its content arrives. Opening a surface keeps this pathname
+  // (it is the background location), so the page behind a surface keeps its scroll.
+  useLayoutEffect(() => {
+    if (shownPath.current === pathname) return
+    shownPath.current = pathname
+    const content = contentRef.current
+    if (!content) return
+    content.scrollTop = 0
+    // Tab links use a view transition (motion.css). Where the browser has none, fade the new
+    // page in on its own so the swap is never a hard cut.
+    if (
+      !('startViewTransition' in document) &&
+      !prefersReducedMotion() &&
+      typeof content.animate === 'function'
+    )
+      content.animate(
+        [
+          { opacity: 0.4, transform: 'translateY(8px)' },
+          { opacity: 1, transform: 'none' },
+        ],
+        { duration: MOTION_ENTER_MS, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
+      )
+  }, [pathname])
   const { selectedSpace, selectedProject, spaces, defaultSpaceId } = useSpaces()
 
   useEffect(() => {
@@ -181,7 +212,7 @@ const AppShell = () => {
           showSettingsButton={showSettingsButton}
         />
         {/*  리액트 라우터 호출: app-shell__content */}
-        <main className="app-shell__content">
+        <main className="app-shell__content" ref={contentRef}>
           <OfflineBanner />
           <UpdateBanner />
           {pathname === '/app/today' && <InstallBanner />}

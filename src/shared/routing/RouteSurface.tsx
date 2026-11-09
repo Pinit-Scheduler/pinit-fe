@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -14,6 +15,8 @@ import {
   useBlocker,
   useLocation,
   useNavigate,
+  type Location,
+  type NavigateFunction,
   type NavigateOptions,
 } from 'react-router-dom'
 import { createPortal } from 'react-dom'
@@ -30,8 +33,26 @@ type SurfaceContextValue = {
   allowExit: () => void
   markDirty: () => void
   footerTarget: HTMLDivElement | null
+  /** The page behind the surface came from this session, so closing can go back to it. */
+  hasBackground: boolean
 }
 const SurfaceContext = createContext<SurfaceContextValue | null>(null)
+
+const closeSurface = (
+  navigate: NavigateFunction,
+  location: Location,
+  hasBackground: boolean,
+  fallback?: string,
+) => {
+  const historyIndex =
+    (window.history.state as { idx?: number } | null)?.idx ?? 0
+  // Go back to the page that opened the surface when this session has it, including surfaces
+  // opened with a plain link that carried no background state.
+  if ((safeBackground(location.state) || hasBackground) && historyIndex > 0)
+    navigate(-1)
+  else
+    navigate(fallback ?? surfaceFallback(location.pathname), { replace: true })
+}
 
 // The route component and its navigation API intentionally share one public module.
 // eslint-disable-next-line react-refresh/only-export-components
@@ -53,18 +74,11 @@ export const useRouteSurfaceNavigation = () => {
     },
     [location, navigate],
   )
+  const hasBackground = surface?.hasBackground ?? false
   const close = useCallback(
-    (fallback?: string) => {
-      const background = safeBackground(location.state)
-      const historyIndex =
-        (window.history.state as { idx?: number } | null)?.idx ?? 0
-      if (background && historyIndex > 0) navigate(-1)
-      else
-        navigate(fallback ?? surfaceFallback(location.pathname), {
-          replace: true,
-        })
-    },
-    [location, navigate],
+    (fallback?: string) =>
+      closeSurface(navigate, location, hasBackground, fallback),
+    [hasBackground, location, navigate],
   )
   const complete = useCallback(
     (fallback?: string) => {
@@ -94,37 +108,65 @@ export const RouteSurfaceActions = ({
     : actions
 }
 
+/**
+ * One surface (modal on desktop, sheet on mobile) for every surface route. It stays mounted while
+ * the user moves between surface paths (detail to edit, task 5 to task 6); only the page inside
+ * changes, with a short crossfade. `closing` plays the exit after the route has already left;
+ * App keeps the surface mounted for that time.
+ */
 export const RouteSurface = ({
   title,
   input = false,
+  closing = false,
+  pathname,
+  hasBackground = false,
   children,
 }: {
   title: string
   input?: boolean
+  closing?: boolean
+  /** The surface path shown. A new path starts a clean form session. */
+  pathname: string
+  hasBackground?: boolean
   children: ReactNode
 }) => {
-  const { close } = useRouteSurfaceNavigation()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const close = () => {
+    if (!closing) closeSurface(navigate, location, hasBackground)
+  }
   const [dirty, setDirty] = useState(false)
   const [footerTarget, setFooterTarget] = useState<HTMLDivElement | null>(null)
   const allowExitRef = useRef(false)
+  // A different surface path is a new form session: drop the previous page's unsaved flag.
+  const [session, setSession] = useState({ pathname, swapped: false })
+  if (session.pathname !== pathname) {
+    setSession({ pathname, swapped: true })
+    setDirty(false)
+  }
+  useEffect(() => {
+    allowExitRef.current = false
+  }, [pathname])
+  const guard = input && dirty && !closing
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      input &&
-      dirty &&
+      guard &&
       !allowExitRef.current &&
       locationHref(currentLocation) !== locationHref(nextLocation),
   )
   useBeforeUnload(
     useCallback(
       (event) => {
-        if (!input || !dirty || allowExitRef.current) return
+        if (!guard || allowExitRef.current) return
         event.preventDefault()
         event.returnValue = ''
       },
-      [dirty, input],
+      [guard],
     ),
   )
-  useEffect(() => {
+  // A layout effect, so the shell and bottom tab come back in the frame the surface starts closing.
+  useLayoutEffect(() => {
+    if (closing) return
     const shell = document.querySelector<HTMLElement>('.app-shell')
     const alreadyInert = shell?.hasAttribute('inert')
     shell?.setAttribute('inert', '')
@@ -133,7 +175,7 @@ export const RouteSurface = ({
       if (!alreadyInert) shell?.removeAttribute('inert')
       if (input) delete document.body.dataset.routeSurfaceInput
     }
-  }, [input])
+  }, [closing, input])
   const value = useMemo<SurfaceContextValue>(
     () => ({
       allowExit: () => {
@@ -141,23 +183,26 @@ export const RouteSurface = ({
       },
       markDirty: () => setDirty(true),
       footerTarget,
+      hasBackground,
     }),
-    [footerTarget],
+    [footerTarget, hasBackground],
   )
   return (
     <SurfaceContext.Provider value={value}>
       <Modal
-        onClose={() => close()}
+        onClose={close}
         ariaLabel={title}
         backdropClassName="route-surface-backdrop"
         className="route-surface"
+        closing={closing}
+        sheet
       >
         <header className="route-surface__header">
           <h1>{title}</h1>
           <button
             type="button"
             className="route-surface__close"
-            onClick={() => close()}
+            onClick={close}
             aria-label="닫기"
           >
             <WorkspaceIcon name="close" />
@@ -170,11 +215,17 @@ export const RouteSurface = ({
             if (input) setDirty(true)
           }}
         >
-          {children}
+          <div
+            key={pathname}
+            className="route-surface__page"
+            data-swapped={session.swapped || undefined}
+          >
+            {children}
+          </div>
         </div>
         <div className="route-surface__footer" ref={setFooterTarget} />
       </Modal>
-      {blocker.state === 'blocked' && (
+      {blocker.state === 'blocked' && !closing && (
         <Modal
           onClose={() => blocker.reset()}
           ariaLabel="저장하지 않은 변경"

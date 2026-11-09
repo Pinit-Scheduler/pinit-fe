@@ -123,9 +123,9 @@
   color: var(--c-slate-900);
 }
 @media (max-width: 899px) {
+  /* The sheet covers the screen once it has slid up; the dim only shows while it travels. */
   .route-surface-backdrop {
     padding: 0;
-    background: var(--c-surface);
     backdrop-filter: none;
   }
   .route-surface {
@@ -173,4 +173,17 @@
 .route-surface__body .schedule-detail-modal__body {
   padding: 0;
   overflow: visible;
+}
+
+/* The surface itself enters and leaves (motion.css, data-motion-surface). The pages inside
+   must not run their own mount animations on top of it. */
+.route-surface__body .task-page,
+.route-surface__body .schedule-form-page,
+.route-surface__body .task-detail-modal__content,
+.route-surface__body .schedule-detail-modal__content {
+  animation: none;
+}
+/* Detail to edit, or one task to another, inside an open surface: a short crossfade. */
+.route-surface__page[data-swapped] {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }

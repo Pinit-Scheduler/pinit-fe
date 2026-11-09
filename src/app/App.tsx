@@ -12,6 +12,7 @@ import {
   RouterProvider,
   Routes,
   useLocation,
+  type Location,
 } from 'react-router-dom'
 import { RouteSurface } from '@shared/routing/RouteSurface'
 import {
@@ -19,10 +20,12 @@ import {
   isSurfacePath,
   safeBackground,
   surfaceFallback,
+  surfaceTitle,
 } from '@shared/routing/routeSurfaceState'
+import { usePresence } from '@shared/motion/usePresence'
 import ScheduleDetailPage from '@features/schedules/pages/ScheduleDetailPage'
 import { TaskMapPage } from '@features/task-map'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
 import AppShell from '@shared/components/layout/AppShell'
 import { ScheduleCacheProvider } from '@contexts/ScheduleCacheContext'
@@ -67,27 +70,27 @@ const WorkspaceRoutes = () => {
   const location = useLocation()
   const background = safeBackground(location.state)
   const surface = isSurfacePath(location.pathname)
-  const base =
-    background ??
-    (surface
-      ? {
-          ...location,
-          pathname: surfaceFallback(location.pathname),
-          search: '',
-          hash: '',
-          state: null,
-          key: 'surface-base',
-        }
-      : location)
-  const wrap = (title: string, child: ReactNode) => (
-    <RouteSurface
-      key={location.pathname}
-      title={title}
-      input={isInputSurface(location.pathname)}
-    >
-      {child}
-    </RouteSurface>
+  // The last page shown in this session. A surface opened with a plain link (no background
+  // state) keeps that page behind it instead of swapping in a fixed fallback page.
+  const [lastPage, setLastPage] = useState<Location | null>(
+    surface ? null : location,
   )
+  if (!surface && lastPage !== location) setLastPage(location)
+  const fallbackPath = surfaceFallback(location.pathname)
+  const fallback = useMemo<Location>(
+    () => ({
+      pathname: fallbackPath,
+      search: '',
+      hash: '',
+      state: null,
+      key: 'surface-base',
+    }),
+    [fallbackPath],
+  )
+  const base = surface ? (background ?? lastPage ?? fallback) : location
+  // Keep the surface mounted for its exit after the route has left it.
+  const shown = usePresence(surface ? location : null)
+  const surfaceLocation = shown.value
   return (
     <div className="workspace-theme">
       <WorkspaceRealtime />
@@ -111,37 +114,27 @@ const WorkspaceRoutes = () => {
           <Route path="*" element={<Navigate to="/app/today" replace />} />
         </Route>
       </Routes>
-      {surface && (
-        <Routes>
-          <Route
-            path="schedules/new"
-            element={wrap('일정 추가', <ScheduleCreatePage />)}
-          />
-          <Route
-            path="schedules/:scheduleId/edit"
-            element={wrap('일정 수정', <ScheduleEditPage />)}
-          />
-          <Route
-            path="schedules/:scheduleId"
-            element={wrap('일정 상세', <ScheduleDetailPage />)}
-          />
-          <Route
-            path="new"
-            element={wrap('일정 추가', <ScheduleCreatePage />)}
-          />
-          <Route
-            path="tasks/new"
-            element={wrap('작업 추가', <TaskCreatePage />)}
-          />
-          <Route
-            path="tasks/:taskId/edit"
-            element={wrap('작업 수정', <TaskEditPage />)}
-          />
-          <Route
-            path="tasks/:taskId"
-            element={wrap('작업 상세', <TaskDetailPage />)}
-          />
-        </Routes>
+      {shown.mounted && surfaceLocation && (
+        <RouteSurface
+          title={surfaceTitle(surfaceLocation.pathname)}
+          input={isInputSurface(surfaceLocation.pathname)}
+          closing={shown.closing}
+          pathname={surfaceLocation.pathname}
+          hasBackground={!!(safeBackground(surfaceLocation.state) ?? lastPage)}
+        >
+          <Routes location={surfaceLocation}>
+            <Route path="schedules/new" element={<ScheduleCreatePage />} />
+            <Route
+              path="schedules/:scheduleId/edit"
+              element={<ScheduleEditPage />}
+            />
+            <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
+            <Route path="new" element={<ScheduleCreatePage />} />
+            <Route path="tasks/new" element={<TaskCreatePage />} />
+            <Route path="tasks/:taskId/edit" element={<TaskEditPage />} />
+            <Route path="tasks/:taskId" element={<TaskDetailPage />} />
+          </Routes>
+        </RouteSurface>
       )}
     </div>
   )
