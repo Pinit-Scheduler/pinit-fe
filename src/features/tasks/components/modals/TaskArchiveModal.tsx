@@ -114,13 +114,13 @@ const ArchiveDialog = ({
         <button type="button" className="task-archive-modal__close" onClick={onClose} aria-label="닫기"><WorkspaceIcon name="close" /></button>
       </header>
       <div className="task-archive-modal__body" ref={scrollRef}>
-        {error ? (
+        {error && tasks.length === 0 ? (
           <div className="task-archive-modal__placeholder">
             <p>아카이브를 불러오지 못했습니다.</p>
             <p className="task-archive-modal__error">{error}</p>
             <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
           </div>
-        ) : !initialLoaded && isLoading ? (
+        ) : !initialLoaded ? (
           <div className="task-archive-modal__placeholder task-archive-modal__placeholder--loading">
             불러오는 중...
           </div>
@@ -163,7 +163,13 @@ const ArchiveDialog = ({
               </li>
             ))}
             <div className="task-archive-modal__sentinel" ref={sentinelRef}>
-              {isLoading && hasNext
+              {/* A later page failed: the rows already read stay, the message and retry go here. */}
+              {error ? (
+                <span role="alert">
+                  <span className="task-archive-modal__error">{error}</span>{' '}
+                  <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
+                </span>
+              ) : isLoading && hasNext
                 ? '추가 아카이브를 불러오는 중...'
                 : hasNext
                   ? '계속 불러옵니다...'

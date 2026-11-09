@@ -91,7 +91,8 @@ export default function TaskListPage() {
     [managerOpen, setManagerOpen] = useState(false),
     [archiveOpen, setArchiveOpen] = useState(false)
   const sentinel = useRef<HTMLDivElement | null>(null)
-  const pagesShown = useRef(1)
+  // Pages on screen for a key. A refresh re-reads all of them, so no loaded row drops away.
+  const pagesShown = useRef<{ key: string; pages: number }>({ key: '', pages: 1 })
   const today = getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD')
   const params = JSON.stringify(toSearchParams(filters, today))
   // A project filter reads every page and narrows by assignment at render (audit A7), so a
@@ -142,10 +143,19 @@ export default function TaskListPage() {
           tasks.forEach(setTask)
           return { tasks, total: null, pages: cursor + 1, hasMore: false }
         }
-        const pages = Math.max(1, pagesShown.current)
+        const shown = () =>
+          pagesShown.current.key === key ? Math.max(1, pagesShown.current.pages) : 1
         const responses = await Promise.all(
-          Array.from({ length: pages }, (_, page) => read(page)),
+          Array.from({ length: shown() }, (_, page) => read(page)),
         )
+        // "More" may have landed while this refresh ran. Read its pages too, so the refresh
+        // does not take the rows it just added off the screen again.
+        while (
+          responses.length < shown() &&
+          !isLastPage(responses[responses.length - 1], responses.length - 1)
+        )
+          responses.push(await read(responses.length))
+        const pages = responses.length
         const tasks = responses.reduce<Task[]>(
           (merged, response) => mergePage(merged, response.content),
           [],
@@ -162,8 +172,8 @@ export default function TaskListPage() {
       { errorMessage: errorText },
     )
   useEffect(() => {
-    pagesShown.current = data?.pages ?? 1
-  }, [data])
+    pagesShown.current = { key, pages: data?.pages ?? 1 }
+  }, [data, key])
 
   // One refresh per action (events are coalesced). A completion waits for its own motion first.
   useEffect(() => {
@@ -211,6 +221,7 @@ export default function TaskListPage() {
       })
       if (controller.signal.aborted) return
       response.content.forEach(setTask)
+      pagesShown.current = { key, pages: page + 1 }
       setData((prev) =>
         prev && prev.pages === page
           ? {
@@ -366,6 +377,16 @@ export default function TaskListPage() {
         )}
       </div>
       <div className="task-page__content" aria-busy={isRefreshing || undefined}>
+        {/* A refresh that failed while results are on screen (even an empty result): keep them. */}
+        {error && visible !== undefined && (
+          <div
+            className="workspace-inline-error task-page__notice"
+            role="alert"
+          >
+            <p>{error}</p>
+            <button onClick={refetch}>다시 시도</button>
+          </div>
+        )}
         {initialLoading ? (
           <div
             className="task-page__placeholder task-page__placeholder--loading"
@@ -386,15 +407,6 @@ export default function TaskListPage() {
           </div>
         ) : (
           <>
-            {error && (
-              <div
-                className="workspace-inline-error task-page__notice"
-                role="alert"
-              >
-                <p>{error}</p>
-                <button onClick={refetch}>다시 시도</button>
-              </div>
-            )}
             <div className="task-page__list">
               {rows.map(({ key: rowKey, item: task, phase }, index) => (
                 <div

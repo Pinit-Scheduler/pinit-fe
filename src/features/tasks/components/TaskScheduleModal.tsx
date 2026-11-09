@@ -47,6 +47,9 @@ const TaskScheduleModal = ({
   const [submitting, setSubmitting] = useState(false)
   // Stays mounted through its exit; the form keeps what was entered while it fades.
   const presence = usePresence(isOpen)
+  // Callers clear the selected task as the exit starts. Keep naming the task while it fades.
+  const [shownLabel, setShownLabel] = useState(taskLabel)
+  if (isOpen && shownLabel !== taskLabel) setShownLabel(taskLabel)
 
   useEffect(() => {
     if (!isOpen) {
@@ -115,7 +118,7 @@ const TaskScheduleModal = ({
       <header className="task-sched-modal__header">
         <div>
           <p className="task-sched-modal__eyebrow">일정으로 배정</p>
-          <h1 id={titleId}>{taskLabel ?? '작업'}</h1>
+          <h1 id={titleId}>{shownLabel ?? '작업'}</h1>
         </div>
         <button
           disabled={submitting}

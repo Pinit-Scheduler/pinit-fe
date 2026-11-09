@@ -303,3 +303,25 @@ test('task and category modals play their exit instead of unmounting at once', (
   const list = src('features/tasks/pages/TaskListPage.tsx')
   assert.doesNotMatch(list, /archiveOpen &&|managerOpen &&/)
 })
+
+test('a list refresh keeps pages that "more" added meanwhile, and shows a failed refresh over an empty result', () => {
+  const page = src('features/tasks/pages/TaskListPage.tsx')
+  // Page counts belong to a key, and the refresh reads pages that landed while it ran.
+  assert.match(page, /pagesShown\.current\.key === key/)
+  assert.match(page, /responses\.length < shown\(\)/)
+  assert.match(page, /pagesShown\.current = \{ key, pages: page \+ 1 \}/)
+  // The inline refresh error is not tied to the non-empty branch.
+  assert.match(page, /\{error && visible !== undefined && \(/)
+})
+
+test('task modals show neither an empty result on opening nor a blank label while fading', () => {
+  const picker = src('features/tasks/components/modals/TaskDependencyModal.tsx')
+  assert.match(picker, /const \[loading, setLoading\] = useState\(true\)/)
+  const archive = src('features/tasks/components/modals/TaskArchiveModal.tsx')
+  assert.match(archive, /\) : !initialLoaded \? \(/)
+  // A later page that fails keeps the rows already read.
+  assert.match(archive, /\{error && tasks\.length === 0 \? \(/)
+  const schedule = src('features/tasks/components/TaskScheduleModal.tsx')
+  assert.match(schedule, /if \(isOpen && shownLabel !== taskLabel\) setShownLabel\(taskLabel\)/)
+  assert.match(schedule, /\{shownLabel \?\? '작업'\}/)
+})

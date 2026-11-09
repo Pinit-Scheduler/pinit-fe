@@ -59,7 +59,8 @@ const DependencyPicker = ({
   const { title, selectedIds } = shown
   const [tasks, setTasks] = useState<Task[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  // Each opening mounts a fresh picker that reads at once: start loading, not on an empty result.
+  const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
