@@ -25,7 +25,7 @@
         var theme = localStorage.getItem('pinit.theme')
         var dark = theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
         if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme
-        if (dark) document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0b1220')
+        if (dark) document.querySelector('meta[name="theme-color"]').setAttribute('content', '#151c2a')
       } catch (e) {}
     </script>
   </head>
