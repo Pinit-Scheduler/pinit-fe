@@ -91,3 +91,49 @@ export type ProjectInput = {
   outcome?: string | null
   expectedVersion?: number
 }
+/** ADR-0030 §3: 네 상태는 겹치지 않고 합이 total이다. */
+export type TaskStateCounts = {
+  total: number
+  completed: number
+  running: number
+  unassigned: number
+  open: number
+}
+export type SpaceSummaries = {
+  asOf: string
+  spaces: {
+    spaceId: number
+    memberCount: number
+    openTaskCount: number
+    unassignedOpenCount: number
+  }[]
+}
+export type SpaceSummary = {
+  spaceId: number
+  asOf: string
+  projects: {
+    projectId: number
+    counts: TaskStateCounts
+    nearestDueDate: string | null
+  }[]
+  withoutProject: { counts: TaskStateCounts; nearestDueDate: string | null }
+  members: {
+    memberId: number
+    openAssignedCount: number
+    nearestDueDate: string | null
+  }[]
+  unassigned: { openCount: number; nearestDueDate: string | null }
+}
+/** ADR-0030 §5. end는 다음 월요일이며 기간에 들지 않는다. 시간은 ISO-8601. */
+export type WeeklyRecord = {
+  spaceId: number
+  start: string
+  end: string
+  zoneId: string
+  current: boolean
+  completedCount: number
+  elapsed: string
+  days: { date: string; elapsed: string }[]
+  byProject: { projectId: number | null; elapsed: string }[]
+  byRunner: { memberId: number; elapsed: string }[]
+}
