@@ -2,6 +2,7 @@ import WorkspaceIcon from '../common/WorkspaceIcon'
 import './TopBar.css'
 type Props = {
   title: string
+  scopeLabel: string
   showBackButton?: boolean
   onBack?: () => void
   showSettingsButton?: boolean
@@ -9,6 +10,7 @@ type Props = {
 }
 export default function TopBar({
   title,
+  scopeLabel,
   showBackButton,
   onBack,
   showSettingsButton = true,
@@ -27,7 +29,10 @@ export default function TopBar({
           </button>
         )}
         <span className="top-bar__workspace">
-          나의 워크스페이스 <span aria-hidden="true">/</span>
+          <span className="top-bar__scope" title={scopeLabel}>
+            {scopeLabel}
+          </span>{' '}
+          <span aria-hidden="true">/</span>
         </span>
         <span className="top-bar__title" aria-live="polite">
           {title}

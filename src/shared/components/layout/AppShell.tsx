@@ -15,6 +15,8 @@ import {
 import { useMemberZoneSync } from '@features/settings/hooks/useMemberZoneSync'
 import './AppShell.css'
 import { SpaceContextBar } from '@features/spaces/SpaceChrome'
+import { useSpaces } from '@features/spaces/store'
+import { routeScope, scopeCrumb } from '@features/spaces/scope'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
@@ -64,6 +66,7 @@ const AppShell = () => {
   const pathname = location.pathname
   const didAttemptRefresh = useRef(false)
   useMemberZoneSync()
+  const { selectedSpace, selectedProject, spaces, defaultSpaceId } = useSpaces()
 
   useEffect(() => {
     const shell = document.querySelector<HTMLElement>('.app-shell')
@@ -122,6 +125,13 @@ const AppShell = () => {
   }, [navigate])
 
   const title = getPageTitle(pathname)
+  const personalSpace =
+    spaces.find((space) => space.id === defaultSpaceId) ?? null
+  const scopeLabel = scopeCrumb(
+    routeScope(pathname),
+    routeScope(pathname) === 'personal' ? personalSpace : selectedSpace,
+    selectedProject,
+  )
   const showSettingsButton = !pathname.startsWith('/app/settings')
   const isScheduleDetail =
     pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3
@@ -163,6 +173,7 @@ const AppShell = () => {
         <WorkspaceSidebar />
         <TopBar
           title={title}
+          scopeLabel={scopeLabel}
           showBackButton={showBackButton}
           onBack={handleBack}
           onSettings={() => navigate('/app/settings')}

@@ -61,3 +61,19 @@ test('today creates in the personal space only when it is known', () => {
   assert.equal(createSpaceIdFor('', -4), undefined)
   assert.equal(createSpaceIdFor('?from=tasks', -4), undefined)
 })
+test('breadcrumb names the scope the screen uses', () => {
+  const { scopeCrumb } = load('features/spaces/scope.ts')
+  const space = { name: '핀잇 개선', personal: false }
+  assert.equal(
+    scopeCrumb('selected', space, { name: '작업 카드 개선' }),
+    '핀잇 개선 › 작업 카드 개선',
+  )
+  assert.equal(scopeCrumb('selected', space, null), '핀잇 개선')
+  assert.equal(scopeCrumb('selected', null, null), '스페이스')
+  assert.equal(scopeCrumb('all', space, null), '모든 스페이스')
+  assert.equal(scopeCrumb('personal', null, null), '나의 스페이스')
+  assert.equal(
+    scopeCrumb('personal', { name: '내 공부', personal: true }, null),
+    '내 공부',
+  )
+})
