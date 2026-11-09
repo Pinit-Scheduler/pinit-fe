@@ -6,7 +6,10 @@ import type { ScheduleResponse } from '../types/schedule'
 
 type UseScheduleDetailReturn = {
   schedule: ScheduleResponse | null
+  /** Nothing loaded yet for this id. A refetch of a shown schedule is `isRefreshing` instead. */
   isLoading: boolean
+  /** A refetch is running while the schedule stays on screen. */
+  isRefreshing: boolean
   error: string | null
   refetch: () => void
   /** 이미 받아 온 최신 상세로 화면 상태만 바꾼다(로딩 상태를 거치지 않는다). */
@@ -20,6 +23,8 @@ const useScheduleDetail = (
   const numericId = scheduleId ? Number(scheduleId) : undefined
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // The id the current schedule/error belongs to. Another id never shows this one's content.
+  const [loadedId, setLoadedId] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
   const [timestamp, setTimestamp] = useState(() => Date.now())
   const { setSchedule: cacheSchedule } = useScheduleCache()
@@ -33,6 +38,7 @@ const useScheduleDetail = (
     if (!numericId) {
       setSchedule(null)
       setIsLoading(false)
+      setLoadedId(undefined)
       setError('일정 ID가 유효하지 않습니다.')
       return
     }
@@ -45,6 +51,7 @@ const useScheduleDetail = (
         const response = await fetchScheduleDetail(numericId)
         if (isMounted) {
           setSchedule(response)
+          setLoadedId(numericId)
           cacheSchedule(response)
         }
       } catch (err) {
@@ -53,6 +60,7 @@ const useScheduleDetail = (
             err instanceof Error ? err.message : '일정을 불러오지 못했습니다.'
           setError(message)
           setSchedule(null)
+          setLoadedId(numericId)
         }
       } finally {
         if (isMounted) {
@@ -95,10 +103,12 @@ const useScheduleDetail = (
     }
   }, [numericId, refreshOnChange])
 
+  const current = numericId !== undefined && loadedId === numericId
   return {
-    schedule,
-    isLoading,
-    error,
+    schedule: current ? schedule : null,
+    isLoading: numericId === undefined ? isLoading : !current,
+    isRefreshing: current && isLoading,
+    error: numericId === undefined || current ? error : null,
     refetch: () => setTimestamp((previous) => previous + 1),
     replace: (response) => {
       setError(null)

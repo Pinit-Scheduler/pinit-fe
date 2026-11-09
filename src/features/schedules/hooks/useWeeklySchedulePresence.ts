@@ -15,7 +15,10 @@ type Options = {
 type UseWeeklySchedulePresenceReturn = {
   weeklySchedules: ScheduleResponse[]
   presenceMap: DateSchedulePresence
+  /** Nothing loaded for this week and audience yet. */
   isLoading: boolean
+  /** A refetch is running while this week's presence stays on screen. */
+  isRefreshing: boolean
   error: string | null
   refetch: () => void
 }
@@ -26,11 +29,10 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate, mine }: Options): Us
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState(0)
-  // 내 일정/팀 전체를 바꾸면 이전 범위의 결과를 보여 주지 않는다.
-  const audienceKey = String(mine)
-  const [loadedKey, setLoadedKey] = useState<string | null>(null)
-
   const dateKeys = useMemo(() => getWeekDays(weekStart).map(toDateKey), [weekStart])
+  // 내 일정/팀 전체나 주를 바꾸면 이전 범위의 결과를 보여 주지 않는다.
+  const audienceKey = `${String(mine)}|${dateKeys[0]}`
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -43,7 +45,7 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate, mine }: Options): Us
         const time = toApiDateTimeWithZone(base.hour(12))
         const schedules = await fetchWeeklySchedules(time, { mine })
         if (!isMounted) return
-        setLoadedKey(String(mine))
+        setLoadedKey(`${String(mine)}|${dateKeys[0]}`)
         setWeeklySchedules(schedules)
 
         // 날짜별로 일정 그룹화
@@ -79,7 +81,7 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate, mine }: Options): Us
         }
         // 에러 시 모든 날짜를 false로 설정
         if (isMounted) {
-          setLoadedKey(String(mine))
+          setLoadedKey(`${String(mine)}|${dateKeys[0]}`)
           const emptyMap: DateSchedulePresence = {}
           dateKeys.forEach((dateKey) => {
             emptyMap[dateKey] = { hasSchedule: false, hasOverdue: false }
@@ -110,7 +112,8 @@ const useWeeklySchedulePresence = ({ weekStart, anchorDate, mine }: Options): Us
   return {
     weeklySchedules: fresh ? weeklySchedules : [],
     presenceMap: fresh ? presenceMap : {},
-    isLoading: isLoading || !fresh,
+    isLoading: !fresh,
+    isRefreshing: fresh && isLoading,
     error: fresh ? error : null,
     refetch: () => setRequestId((value) => value + 1),
   }

@@ -86,7 +86,9 @@ const useOverdueSchedulesSummary = ({ mine }: Options = {}) => {
   const fresh = loadedKey === audienceKey
   return {
     summary: fresh ? summary : { hasOverdue: false },
-    isLoading: isLoading || !fresh,
+    /** Nothing loaded for this audience yet. Refetches keep the last summary (`isRefreshing`). */
+    isLoading: !fresh,
+    isRefreshing: fresh && isLoading,
     refetch: () => setTimestamp(Date.now()),
   }
 }

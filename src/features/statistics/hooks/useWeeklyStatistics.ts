@@ -15,7 +15,9 @@ type Options = {
 type UseWeeklyStatisticsReturn = {
   current: WeeklyStatisticsView | null
   previous: WeeklyStatisticsView | null
+  /** Nothing loaded for this week yet. A refetch keeps the numbers and sets `isRefreshing`. */
   isLoading: boolean
+  isRefreshing: boolean
   error: string | null
   refetch: () => void
 }
@@ -36,6 +38,9 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
     () => toApiDateTimeWithZone(timeBase.subtract(7, 'day')),
     [timeBase],
   )
+  // The week the shown numbers belong to. Another week never shows them.
+  const weekKey = JSON.stringify(timeParam)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -70,10 +75,14 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
         if (isMounted) {
           setCurrent(view)
           setPrevious(previousView)
+          setLoadedKey(weekKey)
         }
       } catch (err) {
         console.error('❌ statistics fetch error:', err)
-        if (isMounted) setError(err instanceof Error ? err.message : '통계를 불러오는데 실패했습니다.')
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : '통계를 불러오는데 실패했습니다.')
+          setLoadedKey(weekKey)
+        }
       } finally {
         if (isMounted) setIsLoading(false)
       }
@@ -82,18 +91,20 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
     return () => {
       isMounted = false
     }
-  }, [timestamp, timeParam, previousTimeParam])
+  }, [timestamp, timeParam, previousTimeParam, weekKey])
 
   useEffect(() => {
     const unsubscribe = onScheduleChanged(() => setTimestamp(Date.now()))
     return unsubscribe
   }, [])
 
+  const fresh = loadedKey === weekKey
   return {
-    current,
-    previous,
-    isLoading,
-    error,
+    current: fresh ? current : null,
+    previous: fresh ? previous : null,
+    isLoading: !fresh,
+    isRefreshing: fresh && isLoading,
+    error: fresh ? error : null,
     refetch: () => setTimestamp(Date.now()),
   }
 }
