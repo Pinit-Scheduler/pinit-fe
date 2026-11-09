@@ -150,6 +150,7 @@ test('workspace context labels personal forecast instead of the selected team pu
     './store': { useSpaces: () => ({ ...personalSpaces, selectedSpace: { name: '선택한 팀', purpose: '팀 목적' }, selectedProject: { name: '팀 프로젝트', outcome: '팀 성과' } }) },
     'react-dom': { createPortal: (node) => node },
     './SpaceMark': { default: () => null },
+    '@shared/hooks/useMediaQuery': { default: () => false },
     './scope': load('../src/features/spaces/scope.ts'),
     './spaces.css': {},
   })

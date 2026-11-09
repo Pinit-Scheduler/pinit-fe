@@ -87,3 +87,12 @@ export function audienceSchedules<T extends { assigneeId?: number | null }>(
   const visible = schedules.filter((item) => item.assigneeId === memberId)
   return { visible, hidden: schedules.length - visible.length }
 }
+
+export function sheetProjects<
+  T extends { spaceId: number; deleted?: boolean },
+>(projects: T[], spaceId: number | null): T[] {
+  if (spaceId === null) return []
+  return projects.filter(
+    (project) => project.spaceId === spaceId && !project.deleted,
+  )
+}

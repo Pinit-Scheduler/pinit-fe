@@ -56,3 +56,15 @@ test('the bar switcher names the space, and the project only on scoped lists', (
   assert.equal(switcherLabel('selected', null, null, true), '스페이스 불러오는 중')
   assert.equal(switcherLabel('selected', null, null, false), '스페이스 선택')
 })
+
+test('the sheet lists live projects of the chosen space only', () => {
+  const { sheetProjects } = load('features/spaces/scope.ts')
+  const projects = [
+    { id: 1, spaceId: 31, name: '작업 카드 개선', deleted: false },
+    { id: 2, spaceId: 31, name: '지난 프로젝트', deleted: true },
+    { id: 3, spaceId: 44, name: '11월 대회 준비', deleted: false },
+    { id: 4, spaceId: 31, name: '온보딩 안내 정리', deleted: false },
+  ]
+  assert.deepEqual(plain(sheetProjects(projects, 31).map((p) => p.id)), [1, 4])
+  assert.deepEqual(plain(sheetProjects(projects, null)), [])
+})
