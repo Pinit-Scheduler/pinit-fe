@@ -66,7 +66,7 @@
 
 ## 갱신·오류·캐시
 
-- 요청에는 `cache: 'no-store'`와 `AbortSignal`을 전달한다. `public/sw.js`도 no-store 요청은 가로채지 않아, 같은 origin API를 사용하더라도 cache-first 예보를 반환하지 않는다. worker cache와 constants import query는 v25→v26으로 함께 올려 활성화 시 이전 캐시를 정리한다. 새 worker 적용 후의 코드 정책이며, 기존 설치본의 업데이트 완료는 별도 배포 검증 범위다.
+- 요청에는 `cache: 'no-store'`와 `AbortSignal`을 전달한다. `public/sw.js`도 no-store 요청은 가로채지 않아, 같은 origin API를 사용하더라도 cache-first 예보를 반환하지 않는다. 초기 기능 변경에서는 worker cache와 constants import query를 v25→v26으로 함께 올렸다. 아래 `3baa37ec…` master 통합 후 현재 값은 둘 다 v27이며 예보 제외 정책은 유지한다. 새 worker 적용 후의 코드 정책이며, 기존 설치본의 업데이트 완료는 별도 배포 검증 범위다.
 - 기간·시간대·재조회 revision이 바뀌면 이전 결과를 즉시 숨긴다. 이전 요청을 취소하고 늦은 성공/실패가 새 결과를 덮지 않도록 cleanup에서 배제한다.
 - 작업/일정 변경 이벤트와 창 focus, 사용자의 **다시 조회**로 갱신한다. 과거 결과를 오류 fallback으로 계속 보여 주지 않는다. 실패하면 지속 오류와 다시 조회 버튼을 제공한다. 정기 polling이나 background 알림은 없다.
 - 조회 후 흐른 시간은 자동으로 재계산되지 않는다. 화면에 기준 시각을 남기고 다시 조회할 때 반영한다고 설명한다.
@@ -100,7 +100,7 @@ React 검토에서는 effect 정리와 요청 경합, 기간/시간대 변경 �
 
 재현 스크립트는 `scripts/deadline-risk-browser-smoke.mjs`다. 별도 터미널에서 `VITE_USE_MOCK_API=false`로 `npm run dev -- --host 127.0.0.1 --port 4187 --strictPort`를 실행한다. Chrome 설치와 선택 검증 의존성 `playwright`가 필요하다. 프로젝트의 제품 의존성을 바꾸지 않으려면 별도 임시 폴더에 `npm install --no-save --ignore-scripts playwright`로 준비하고 `DEADLINE_RISK_PLAYWRIGHT_MODULE`을 해당 `playwright/index.mjs`의 `file:///` URL로 지정한다. 프로젝트에서 import 가능한 기존 Playwright가 있다면 이 변수는 생략한다. `node scripts/deadline-risk-browser-smoke.mjs`를 실행하면 `.cache/deadline-risk-browser/`에 결과 JSON과 화면을 만든다. `DEADLINE_RISK_BASE_URL`과 `DEADLINE_RISK_QA_DIR`로 로컬 주소·출력 위치를 바꿀 수 있다. 스크립트의 합성 응답은 실제 BE 계산이나 배포 환경 E2E를 검증하지 않는다. 실제 SW 실행은 이 스크립트에 포함하지 않고 위 VM 테스트에서 따로 검증한다.
 
-## 최신 공간 UI master 통합 검증 — 2026-11-09
+## 공간 UI master 통합 검증 — 2026-11-09
 
 공간 UI가 병합된 `Pinit-Scheduler/pinit-fe@c064de4a2a3a66bd190671e7853810c7d242996c`를 격리 기능 브랜치에 일반 merge했다. 통합 커밋은 `9ff4d357bdff8d20809b8949f0098156d7c8f9bd`, 후속 코드·테스트 근거는 `8dfdc33ed509451bc968917be27ce00e0df374fd`다. 파일 충돌 없이 합쳐졌으며, 기본 브랜치나 운영 배포를 변경한 작업이 아니다. 위 초기 검증 기록을 이 통합 리비전의 결과로 바꾸지 않는다.
 
@@ -117,4 +117,15 @@ React 검토에서는 effect 정리와 요청 경합, 기간/시간대 변경 �
 - 최신 `scripts/deadline-risk-browser-smoke.mjs`로 localhost Vite `4189`/headless Chrome 합성 응답 검증: 9개 흐름 검사, 가로챈 GET 37개, React 처리/uncaught 예외 0. 팀 공간 선택을 유지한 개인 예보, 실제 workspace Task wrapper 상세와 뒤로 가기, 로컬 SSE `changed` frame에 따른 예보 title 재조회, 사용자 클릭 후 개인 `spaceId=-7`·프로젝트 인자 없는 계획 요청을 확인했다. 다섯 상태·오류/빈 결과·14일·서버 시간대·390px 가로 넘침 없음도 유지했다. SSE 요청 시작 대기는 10초로 제한한다.
 - `.cache/deadline-risk-browser-workspace/result.json`과 화면은 로컬 산출물이며 브라우저 증거 폴더 prefix를 ignore했다. `git diff --check` 통과, `.cache` tracked 파일 0개. 로컬 합성 응답은 실제 BE의 SSE 발생, DB 계산, 운영 인증·배포 또는 설치된 SW 업데이트 완료를 검증하지 않는다.
 
-구현 진입점은 `src/features/deadline-risk/`이다. 기존 route·제목·PlanPage 진입 링크·SW no-store 정책에 더해 최신 공간 UI의 context 표시를 이 개인 예보 범위에 맞췄다. graph snapshot은 기존 기준을 유지하며 이 신규 API·페이지와 최신 공간 UI 관계를 포함하지 않는다.
+## MCP 동의 화면 master 통합 검증 — 2026-11-09
+
+`Pinit-Scheduler/pinit-fe@3baa37ec247324497aa4b40e8c068c447f41899e`를 격리 기능 브랜치에 일반 merge했다. 이 통합의 source 커밋은 `ebfd10a3bba6dae54b3fcad6d4f1e2af91df85fd`다. 실제 파일 충돌은 없었고 별도 예보 기능 수정은 하지 않았다. 개인 공간 이동·context 표시·예보 API/훅·로컬 합성 브라우저 스크립트와 예보/SW 회귀 테스트는 이전 `88a5797c7f1cfa1d428118624111efdbdbee9941` 대비 변경이 없음을 대조했다.
+
+- [worker import query](https://github.com/Pinit-Scheduler/pinit-fe/blob/ebfd10a3bba6dae54b3fcad6d4f1e2af91df85fd/public/sw.js#L2)와 [cache 이름](https://github.com/Pinit-Scheduler/pinit-fe/blob/ebfd10a3bba6dae54b3fcad6d4f1e2af91df85fd/public/sw/constants.js#L4)은 master의 v27을 따르고, [no-store 요청 제외](https://github.com/Pinit-Scheduler/pinit-fe/blob/ebfd10a3bba6dae54b3fcad6d4f1e2af91df85fd/public/sw.js#L31)는 유지한다. 설치된 브라우저에 새 worker가 전달됐다는 검증은 아니다.
+- `node --test --test-concurrency=1` (Node heap 256MB): **268/268 통과**, 실패·건너뜀 0. 이 리비전의 OAuth 동의·예보·SW 회귀를 포함한 로컬 전체 실행 결과다. 위 과거 리비전의 단위/브라우저 또는 원격 CI 기록과 합산하지 않는다.
+- `npm run lint`: 통과. 기존 baseline-browser-mapping 데이터 나이 안내는 남는다.
+- `npm run build`: TypeScript·Vite 통과, 350개 모듈. JS 731.11kB(압축 225.97kB), CSS 177.94kB(압축 29.10kB). 기존 500kB 청크 안내는 남는다.
+- `git diff --check` 통과. 이 master 통합에 새 브라우저 실행이나 운영/API 쓰기는 없다. 앞 절의 합성 브라우저 9개 흐름·GET 37개 결과는 당시 `8dfdc33e…` 소스의 이력으로 보존한다.
+- master가 실제 API fixture 워크플로와 관련 QA 자료를 삭제한 범위를 그대로 반영했다. 예보 README·기능 문서·검증 가이드에는 삭제된 QA 파일/워크플로를 가리키는 링크가 없음을 확인했다. 예보의 localhost 합성 스크립트는 별도로 유지한다. 과거 워크플로 실행의 `skipped`는 당시 검증 미실행을 뜻하며, 현재 워크플로 목록에서 그 job이 없어졌다는 사실로 실제 API/DB 검증 성공을 주장하지 않는다. 현재 원격 CI·PR 상태는 이 로컬 검증 기록과 별도로 확인한다.
+
+구현 진입점은 `src/features/deadline-risk/`이다. 기존 route·제목·PlanPage 진입 링크·SW no-store 정책에 더해 공간 UI의 context 표시를 이 개인 예보 범위에 맞췄다. graph snapshot과 source lock은 기존 기준을 유지하며 이 신규 API·페이지와 최신 공간 UI 관계를 포함하지 않는다.
