@@ -161,7 +161,7 @@ const SchedulesTabPage = () => {
   }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
-  const { memberId, selectedSpace } = useSpaces()
+  const { memberId, selectedSpace, selectedProjectId } = useSpaces()
   const { audience, setAudience, shared } = useScheduleAudience()
   // 주간·월간 표시는 서버의 mine 조회를 쓴다. 전환이 없는 스페이스는 서버 기본 조회를 유지한다.
   const mine = scheduleMineParam(!shared, audience)
@@ -252,7 +252,7 @@ const SchedulesTabPage = () => {
     hasDayData ? schedules : undefined,
     (schedule) => schedule.id,
     {
-      resetKey: `${selectedDateKey}|${audience}|${selectedSpace?.id ?? 'all'}`,
+      resetKey: `${selectedDateKey}|${audience}|${selectedSpace?.id ?? 'all'}|${selectedProjectId ?? 'all'}`,
     },
   )
 
@@ -416,9 +416,13 @@ const SchedulesTabPage = () => {
         expectedVersion: schedule.version,
       })
       setSchedule(updated)
-      // The handle keeps the new time while the day refreshes in the background.
+      // The handle keeps the new time while the day refreshes in the background. A shift past
+      // midnight takes the card to another day, so it leaves this one like a move does.
+      const staysOnDay = toDateKey(updated.date) === previousDateKey
       setDaySchedules((previous) =>
-        (previous ?? []).map((item) => (item.id === updated.id ? updated : item)),
+        staysOnDay
+          ? (previous ?? []).map((item) => (item.id === updated.id ? updated : item))
+          : (previous ?? []).filter((item) => item.id !== updated.id),
       )
       dispatchScheduleChanged({
         schedule: updated,

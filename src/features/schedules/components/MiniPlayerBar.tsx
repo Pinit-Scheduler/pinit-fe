@@ -74,6 +74,7 @@ const MiniPlayerBar = () => {
   if (!presence.mounted || !schedule) return null
   const isRunning = shownState === 'IN_PROGRESS'
   const leaving = presence.closing
+  const saving = scheduleActions.isMutating
 
   return (
     <div
@@ -113,8 +114,10 @@ const MiniPlayerBar = () => {
             </span>
           </span>
         </button>
-        {/* Buttons are disabled only by permission. A pending save is guarded in the actions,
-            so the bar never dims while it saves. */}
+        {/* Buttons are disabled only by permission. While this schedule saves, the cached
+            permissions still belong to the state before the change (pausing shows the resume
+            button, which the running state does not allow yet), so they stay enabled and the
+            actions' lock ignores presses. The bar never dims while it saves. */}
         <div
           className="mini-player__buttons"
           role="group"
@@ -124,7 +127,8 @@ const MiniPlayerBar = () => {
             className="mini-player__button mini-player__button--toggle"
             onClick={isRunning ? scheduleActions.pause : scheduleActions.start}
             disabled={
-              isRunning ? !scheduleActions.canPause : !scheduleActions.canStart
+              !saving &&
+              (isRunning ? !scheduleActions.canPause : !scheduleActions.canStart)
             }
             aria-label={isRunning ? '일시정지' : '재개'}
             title={isRunning ? '일시정지' : '재개'}
@@ -144,7 +148,7 @@ const MiniPlayerBar = () => {
           <button
             className="mini-player__button mini-player__button--complete"
             onClick={scheduleActions.complete}
-            disabled={!scheduleActions.canComplete}
+            disabled={!saving && !scheduleActions.canComplete}
             aria-label="완료"
             title="완료"
           >
@@ -153,7 +157,7 @@ const MiniPlayerBar = () => {
           <button
             className="mini-player__button mini-player__button--cancel"
             onClick={scheduleActions.cancel}
-            disabled={!scheduleActions.canCancel}
+            disabled={!saving && !scheduleActions.canCancel}
             aria-label="취소하고 미시작으로"
             title="취소 · 미시작으로 되돌리기"
           >

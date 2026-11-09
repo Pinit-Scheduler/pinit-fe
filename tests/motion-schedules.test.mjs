@@ -141,8 +141,11 @@ test('another schedule saving locks this card without marking it busy', async ()
 // ScheduleDetailModal: seed from the cache, keep content on a failed refresh (A7)
 // ---------------------------------------------------------------------------
 
-const detailHarness = (cached) => {
+const detailHarness = (cached, others = {}) => {
   const h = statefulReact()
+  let reads = 0
+  // One provider value, as the real context gives between renders.
+  const cache = { setSchedule() {}, schedulesById: { ...(cached ? { 8: cached } : {}), ...others } }
   const listeners = new Set()
   let response = deferred()
   const useDetail = load('features/schedules/hooks/useScheduleDetail.ts', {
@@ -150,15 +153,18 @@ const detailHarness = (cached) => {
     '@shared/utils/events': {
       onScheduleChanged: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
     },
-    '../api/schedules': { fetchScheduleDetail: () => response.promise },
+    '../api/schedules': { fetchScheduleDetail: () => { reads++; return response.promise } },
     '@contexts/ScheduleCacheContext': {
-      useScheduleCache: () => ({ setSchedule() {}, schedulesById: cached ? { 8: cached } : {} }),
+      useScheduleCache: () => cache,
     },
   }, { window: new EventTarget() }).default
   return {
     next(value) { response = deferred(); for (const listener of listeners) listener({ scheduleId: 8 }); return response },
+    fresh() { response = deferred(); return response },
+    reads: () => reads,
+    emit(details) { for (const listener of listeners) listener(details[0], details) },
     response: () => response,
-    render(options) { h.begin(); return useDetail('8', options) },
+    render(options, id = '8') { h.begin(); return useDetail(id, options) },
     cleanup: () => h.cleanup(),
   }
 }
@@ -193,6 +199,40 @@ test('a failed refresh keeps the schedule; only a gone schedule drops it', async
   h.render()
   await settle()
   assert.equal(h.render().schedule, null)
+  h.cleanup()
+})
+
+test('a failed first read for another id never shows the schedule of the previous id', async () => {
+  const h = detailHarness(null, { 9: { id: 9, title: '캐시의 9', version: 2 } })
+  h.render()
+  h.response().resolve({ id: 8, title: '여덟', version: 5 })
+  await settle()
+  assert.equal(h.render().schedule.title, '여덟')
+  h.fresh().reject(Object.assign(new Error('잠시 연결이 끊겼어요'), { status: 503 }))
+  h.render(undefined, '9')
+  await settle()
+  const failed = h.render(undefined, '9')
+  assert.equal(failed.schedule.title, '캐시의 9', 'an outage keeps the cached copy of this id, never id 8')
+  assert.equal(failed.error, '잠시 연결이 끊겼어요')
+  h.cleanup()
+})
+
+test('deleting the schedule shown does not read it again while the detail closes', async () => {
+  const h = detailHarness(null)
+  h.render()
+  h.response().resolve({ id: 8, title: '지울 일정', version: 1 })
+  await settle()
+  h.render()
+  const reads = h.reads()
+  h.emit([{ scheduleId: 8, reason: 'deleted' }])
+  h.render()
+  await settle()
+  assert.equal(h.reads(), reads, 'its own delete is not read back (it would answer 404)')
+  assert.equal(h.render().schedule.title, '지울 일정', 'the closing modal keeps its content')
+  // Any other change still refreshes it.
+  h.emit([{ scheduleId: 8, reason: 'state-mutated' }])
+  h.render()
+  assert.equal(h.reads(), reads + 1)
   h.cleanup()
 })
 
@@ -277,6 +317,9 @@ test('the schedules tab never blanks its list for a refresh, the week dots or th
     assert.match(body, /dispatchScheduleChanged\(/, handler)
     assert.doesNotMatch(body, /refetch(Schedules|Overdue|WeeklyStats)\(\)/, `${handler} refetches after its dispatch`)
   }
+  // A time shift past midnight takes the card off this day instead of leaving it here.
+  const shift = page.slice(page.indexOf('const handleShiftScheduleTime'))
+  assert.match(shift, /toDateKey\(updated\.date\) === previousDateKey/)
 })
 
 test('the schedule card completes with the shared check and strike, from the actions state', () => {
@@ -288,6 +331,13 @@ test('the schedule card completes with the shared check and strike, from the act
   assert.match(source('features/schedules/components/ScheduleCompletionMark.tsx'), /<CompletionCheck/)
   const player = source('features/schedules/components/MiniPlayerBar.tsx')
   assert.match(player, /usePresence\(/, 'the mini player slides out instead of returning null at once')
-  // The controls are disabled by permission only; a pending save never dims the bar.
+  // The controls are disabled by permission only; a pending save never dims the bar. While it
+  // saves, the cached permissions belong to the old state, so they do not disable it either.
   assert.doesNotMatch(player, /disabled=\{[^}]*isMutating \|\||\|\| scheduleActions\.isMutating/)
+  const controls = player.slice(player.indexOf('mini-player__buttons'), player.indexOf('mini-player__error'))
+  assert.equal((controls.match(/disabled=\{/g) ?? []).length, 3)
+  for (const control of controls.match(/disabled=\{[^}]*\}/g) ?? [])
+    assert.match(control, /!saving &&/, `${control} dims the bar while it saves`)
+  // The same holds for the card's completed mark: it is drawn before the save lands.
+  assert.match(card, /disabled=\{!actions\.canCancel && !actions\.isMutating\}/)
 })

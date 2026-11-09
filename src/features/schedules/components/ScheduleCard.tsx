@@ -7,7 +7,7 @@ import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
 import useScheduleActions from '../hooks/useScheduleActions'
 import ScheduleCompletionMark from './ScheduleCompletionMark'
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
@@ -67,6 +67,16 @@ const ScheduleCard = ({
 
   // The completed mark erases quickly before the state icon returns.
   const mark = usePresence(done, { exitMs: MOTION_FAST_MS })
+  // The mark only takes focus on the mount that replaced the focused quick-complete button.
+  if (focusMark && mark.closing) setFocusMark(false)
+  // A focused mark that leaves (reopened, or a completion that failed) hands focus to the state
+  // button that replaces it, so a keyboard user is not dropped onto the page body.
+  const slotRef = useRef<HTMLSpanElement>(null)
+  const refocusStateRef = useRef(false)
+  useLayoutEffect(() => {
+    if (mark.closing && slotRef.current?.contains(document.activeElement))
+      refocusStateRef.current = true
+  }, [mark.closing])
   const quickComplete = usePresence(actions.canComplete && state === 'NOT_STARTED')
 
   const handleClick = () => {
@@ -95,7 +105,9 @@ const ScheduleCard = ({
 
   // 완료 → 즉시 미시작으로 전이
   const handleReopen = () => {
-    if (done) void actions.cancel()
+    if (!done) return
+    if (slotRef.current?.contains(document.activeElement)) refocusStateRef.current = true
+    void actions.cancel()
   }
 
   const isStateClickable = state === 'NOT_STARTED'
@@ -123,7 +135,7 @@ const ScheduleCard = ({
       aria-busy={actions.isMutating || undefined}
     >
       <div className="schedule-card__main">
-        <span className="schedule-card__state-slot">
+        <span className="schedule-card__state-slot" ref={slotRef}>
           {mark.mounted ? (
             <ScheduleCompletionMark
               checked={done}
@@ -131,11 +143,19 @@ const ScheduleCard = ({
               drawOnMount={sawOpen}
               focusOnMount={focusMark}
               label={`${stateLabel.COMPLETED} 상태`}
-              disabled={!actions.canCancel}
+              // Permission only. While this card's completion saves, the cached permissions are
+              // still the open state's, so it stays enabled (cancel() guards the lock) and the
+              // freshly drawn mark never dims.
+              disabled={!actions.canCancel && !actions.isMutating}
               onUncheck={handleReopen}
             />
           ) : (
             <button
+              ref={(element) => {
+                if (!element || !refocusStateRef.current) return
+                refocusStateRef.current = false
+                if (!element.disabled) element.focus({ preventScroll: true })
+              }}
               className={[
                 'schedule-card__state-icon',
                 stateClassName,

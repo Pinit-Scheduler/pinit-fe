@@ -436,8 +436,11 @@
 .schedule-card__check {
   display: grid;
   place-items: center;
-  --check-size: 26px;
   --check-accent: var(--schedule-state-ink);
+}
+/* .completion-check sets its own default size, so the card's size goes on the check itself. */
+.schedule-card__check .completion-check {
+  --check-size: 26px;
 }
 
 /* The completed card settles into a muted title. Color only, so nothing moves. */
