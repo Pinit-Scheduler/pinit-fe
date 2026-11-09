@@ -6,7 +6,11 @@ import { scheduleTypeLabel, stateIcon, stateLabel } from '@constants/schedules'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
 import useScheduleActions from '../hooks/useScheduleActions'
-import { CategoryBadge } from '@features/categories'
+import { useLocation } from 'react-router-dom'
+import { cardPath } from '@features/spaces/cardPath'
+import SpacePath from '@features/spaces/SpacePath'
+import { routeScope } from '@features/spaces/scope'
+import { useSpaces } from '@features/spaces/store'
 
 type ScheduleCardProps = {
   schedule: ScheduleSummary
@@ -15,6 +19,8 @@ type ScheduleCardProps = {
   onStart?: (scheduleId: number) => void
   onComplete?: (scheduleId: number) => void
   onCancel?: (scheduleId: number) => void
+  /** 팀 전체 보기에서만 넘긴다. 담당자 이름 또는 담당자 미정을 일정 제목 뒤(반복 배지 다음)에 보여 준다. */
+  assignee?: { label: string; unassigned: boolean } | null
 }
 
 /**
@@ -24,15 +30,19 @@ type ScheduleCardProps = {
  * @param onDelete - 삭제 핸들러
  * @param onStart - 시작 핸들러
  * @param onCancel - 취소 핸들러
+ * @param assignee - 팀 전체 보기의 담당자 표시
  * @constructor
  */
 const ScheduleCard = ({
   schedule,
   onOpenDetail,
   onDelete,
+  assignee,
 }: ScheduleCardProps) => {
   const actions = useScheduleActions(schedule.id, schedule.state)
   const { id, title, description, scheduleType, state } = schedule
+  const { pathname } = useLocation()
+  const { selectedSpaceId, selectedProjectId, spaces, projects } = useSpaces()
   const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
 
   const handleClick = () => {
@@ -118,6 +128,21 @@ const ScheduleCard = ({
                 <WorkspaceIcon name="repeat" /> 반복
               </span>
             )}
+            {assignee && (
+              <p
+                className={[
+                  'schedule-card__subtitle',
+                  'schedule-card__assignee',
+                  assignee.unassigned
+                    ? 'schedule-card__assignee--unassigned'
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                {assignee.unassigned ? assignee.label : `담당 ${assignee.label}`}
+              </p>
+            )}
             {scheduleType && (
               <p className="schedule-card__subtitle">
                 {scheduleTypeLabel[scheduleType]}
@@ -126,14 +151,22 @@ const ScheduleCard = ({
             {plannedDurationLabel && (
               <p className="schedule-card__subtitle">{plannedDurationLabel}</p>
             )}
-            <CategoryBadge kind="schedule" itemId={id} />
+            <SpacePath
+              path={cardPath(
+                routeScope(pathname),
+                { spaceId: selectedSpaceId, projectId: selectedProjectId },
+                schedule,
+                spaces,
+                projects,
+              )}
+            />
           </div>
           {description && (
             <p className="schedule-card__description">{description}</p>
           )}
         </div>
         <div className="schedule-card__actions">
-          {state === 'NOT_STARTED' && (
+          {actions.canComplete && state === 'NOT_STARTED' && (
             <button
               type="button"
               className="schedule-card__quick-complete"
@@ -144,7 +177,7 @@ const ScheduleCard = ({
               <WorkspaceIcon name="check" /> 즉시 완료
             </button>
           )}
-          {onDelete && (
+          {onDelete && schedule.allowedActions?.delete && (
             <button
               className="schedule-card__delete-btn"
               onClick={handleDeleteClick}

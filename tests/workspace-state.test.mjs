@@ -73,9 +73,10 @@ test('task mutation succeeds even if refresh fails, and publishes known saved st
   const published = [],
     original = { id: 1, title: 'Task', completed: false, isCompleted: false }
   let mutations = 0
-  const result = await saveTaskCompletion(original, true, {
+  const result = await saveTaskCompletion(original, {
     mutate: async () => {
       mutations++
+      return { ...original, completed: true, isCompleted: true, version: 8 }
     },
     refresh: async () => {
       throw Error('offline')
@@ -86,6 +87,7 @@ test('task mutation succeeds even if refresh fails, and publishes known saved st
   assert.equal(published.length, 1)
   assert.equal(published[0].completed, true)
   assert.equal(result.task.completed, true)
+  assert.equal(result.task.version, 8)
   assert.match(result.refreshError, /상태는 저장/)
   assert.equal(original.completed, false)
 })
@@ -93,17 +95,20 @@ test('failed mutation neither publishes a fake completion nor tries detail refre
   let publishes = 0,
     refreshes = 0
   await assert.rejects(
-    saveTaskCompletion({ id: 1, completed: false }, true, {
-      mutate: async () => {
-        throw Error('rejected')
+    saveTaskCompletion(
+      { id: 1, completed: false },
+      {
+        mutate: async () => {
+          throw Error('rejected')
+        },
+        refresh: async () => {
+          refreshes++
+        },
+        onSaved: () => {
+          publishes++
+        },
       },
-      refresh: async () => {
-        refreshes++
-      },
-      onSaved: () => {
-        publishes++
-      },
-    }),
+    ),
     /rejected/,
   )
   assert.equal(publishes, 0)

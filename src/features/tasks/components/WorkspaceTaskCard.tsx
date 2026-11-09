@@ -9,7 +9,12 @@ import {
 } from '@shared/utils/events'
 import { formatDateWithOffset } from '@shared/utils/datetime'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
-import { CategoryBadge } from '@features/categories'
+import { cardPath } from '@features/spaces/cardPath'
+import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import SpacePath from '@features/spaces/SpacePath'
+import { routeScope } from '@features/spaces/scope'
+import { useSpaces } from '@features/spaces/store'
+import { useLocation } from 'react-router-dom'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import './WorkspaceTaskCard.css'
 import { saveTaskCompletion } from '../utils/taskCompletion'
@@ -23,6 +28,8 @@ export default function WorkspaceTaskCard({
   onAssign?: () => void
 }) {
   const { tasksById, setTask } = useTaskCache()
+  const { pathname } = useLocation()
+  const { selectedSpaceId, selectedProjectId, spaces, projects } = useSpaces()
   const item = tasksById[task.id] ?? task
   const done = item.completed ?? item.isCompleted ?? false
   const [pending, setPending] = useState(false),
@@ -36,7 +43,7 @@ export default function WorkspaceTaskCard({
     setError(null)
     setRefreshOnly(false)
     try {
-      const result = await saveTaskCompletion(item, !done, {
+      const result = await saveTaskCompletion(item, {
         mutate: done ? reopenTask : completeTask,
         refresh: fetchTaskDetail,
         onSaved: (saved) => {
@@ -49,7 +56,20 @@ export default function WorkspaceTaskCard({
       setError(result.refreshError)
       setRefreshOnly(result.refreshError !== null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : '작업 상태를 바꾸지 못했어요.')
+      if (isEditConflict(e)) {
+        // 다른 참여자가 먼저 바꿨다. 최신 작업을 캐시에 넣어 카드와 다음 시도가 새 버전을 쓰게 한다.
+        // 목록 전체를 다시 받으면 카드가 다시 그려져 안내가 사라지므로 이벤트는 보내지 않는다. 자동으로 다시 보내지 않는다.
+        setError(CONFLICT_RELOADED)
+        try {
+          setTask(await fetchTaskDetail(item.id))
+        } catch {
+          setError('다른 참여자가 먼저 수정했어요. 최신 내용을 불러오지 못했어요.')
+          setRefreshOnly(true)
+        }
+      } else
+        setError(
+          e instanceof Error ? e.message : '작업 상태를 바꾸지 못했어요.',
+        )
     } finally {
       lock.current = false
       setPending(false)
@@ -76,7 +96,10 @@ export default function WorkspaceTaskCard({
         className="workspace-task__check"
         type="checkbox"
         checked={done}
-        disabled={pending}
+        disabled={
+          pending ||
+          !(done ? item.allowedActions?.reopen : item.allowedActions?.complete)
+        }
         onChange={() => void toggle()}
         aria-label={item.title + (done ? ' 완료 취소' : ' 완료')}
       />
@@ -85,7 +108,16 @@ export default function WorkspaceTaskCard({
           {item.title}
         </button>
         <div className="workspace-task__meta">
-          <CategoryBadge kind="task" itemId={item.id} />
+          <SpacePath
+            path={cardPath(
+              routeScope(pathname),
+              { spaceId: selectedSpaceId, projectId: selectedProjectId },
+              item,
+              spaces,
+              projects,
+            )}
+          />
+          <span>{item.assigneeNickname ?? '담당자 미정'}</span>
           {item.recurrence && <span>반복</span>}
           {!done && (item.inboundDependencyCount ?? 0) > 0 && (
             <span>이전 작업 {item.inboundDependencyCount}개 남음</span>
@@ -106,7 +138,7 @@ export default function WorkspaceTaskCard({
               '시간 미입력'}
           </summary>
           <p>{item.description || '등록된 설명이 없어요.'}</p>
-          {onAssign && !done && (
+          {onAssign && !done && item.allowedActions?.schedule && (
             <button className="workspace-button" onClick={onAssign}>
               일정 배정
             </button>

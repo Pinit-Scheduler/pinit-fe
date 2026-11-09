@@ -10,6 +10,7 @@ import useWeeklySchedulePresence from '../../hooks/useWeeklySchedulePresence.ts'
 import useOverdueSchedulesSummary from '../../hooks/useOverdueSchedulesSummary.ts'
 import ScheduleCard from '../../components/ScheduleCard.tsx'
 import useScheduleList from '../../hooks/useScheduleList.ts'
+import useScheduleAudience from '../../hooks/useScheduleAudience'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { deleteSchedule, updateSchedule } from '../../api/schedules.ts'
@@ -38,6 +39,12 @@ import {
   previewSeriesDelete,
 } from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
+import { useSpaces } from '@features/spaces/store'
+import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import {
+  audienceSchedules,
+  scheduleMineParam,
+} from '@features/spaces/scope'
 
 const SchedulesTabPage = () => {
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -92,6 +99,10 @@ const SchedulesTabPage = () => {
   }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
+  const { memberId, selectedSpace } = useSpaces()
+  const { audience, setAudience, shared } = useScheduleAudience()
+  // 주간·월간 표시는 서버의 mine 조회를 쓴다. 전환이 없는 스페이스는 서버 기본 조회를 유지한다.
+  const mine = scheduleMineParam(!shared, audience)
   const {
     presenceMap,
     isLoading: isPresenceLoading,
@@ -100,8 +111,13 @@ const SchedulesTabPage = () => {
   } = useWeeklySchedulePresence({
     weekStart: currentWeekStart,
     anchorDate: selectedDate,
+    mine,
   })
-  const monthly = useMonthlySchedules(selectedDate, calendarView === 'month')
+  const monthly = useMonthlySchedules(
+    selectedDate,
+    calendarView === 'month',
+    mine,
+  )
   const {
     schedules: schedulesByDate,
     isLoading: isScheduleLoadingRaw,
@@ -112,7 +128,7 @@ const SchedulesTabPage = () => {
     summary: overdueSummary,
     isLoading: isOverdueLoading,
     refetch: refetchOverdue,
-  } = useOverdueSchedulesSummary()
+  } = useOverdueSchedulesSummary({ mine })
   const statsWeekStart = useMemo(
     () => currentWeekStart.add(1, 'day'),
     [currentWeekStart],
@@ -126,7 +142,7 @@ const SchedulesTabPage = () => {
   const { setSchedule, setActiveSchedule, activeScheduleId, schedulesById } =
     useScheduleCache()
 
-  const schedules = useMemo(
+  const daySchedules = useMemo(
     () =>
       schedulesByDate.map((item) => {
         const cached = schedulesById[item.id]
@@ -135,6 +151,22 @@ const SchedulesTabPage = () => {
       }),
     [schedulesByDate, schedulesById],
   )
+  // 날짜별 목록은 팀 전체를 받아 내 일정 보기에서 내가 담당자인 일정만 보여 준다(서버 mine=true와 같은 기준).
+  const { visible: schedules, hidden: hiddenScheduleCount } = useMemo(
+    () => audienceSchedules(daySchedules, shared, audience, memberId),
+    [daySchedules, shared, audience, memberId],
+  )
+  const showsAssignee = shared && audience === 'team'
+  const assigneeOf = (schedule: ScheduleSummary) => {
+    if (schedule.assigneeId === null)
+      return { label: '담당자 미정', unassigned: true }
+    const label =
+      schedule.assigneeNickname ||
+      selectedSpace?.members.find(
+        (member) => member.memberId === schedule.assigneeId,
+      )?.nickname
+    return label ? { label, unassigned: false } : null
+  }
   const isScheduleLoading = isPresenceLoading || isScheduleLoadingRaw
   const scheduleError = scheduleErrorRaw ?? presenceError
   const refetchSchedules = () => {
@@ -178,6 +210,13 @@ const SchedulesTabPage = () => {
     refetchSchedules()
     refetchWeeklyStats()
   }
+  /** 다른 참여자가 먼저 바꿨으면 알리고 목록을 다시 받는다. 자동으로 다시 보내지 않는다. */
+  const handleConflict = (error: unknown) => {
+    if (!isEditConflict(error)) return false
+    addToast(CONFLICT_RELOADED, 'error')
+    handleRefresh()
+    return true
+  }
 
   const handleDelete = async (scheduleId: number) => {
     // 반복 회차(ADR-0019)면 범위를 먼저 묻는다. 카드는 반복 회차의 삭제 확인을 이 화면에 맡긴다.
@@ -204,13 +243,14 @@ const SchedulesTabPage = () => {
             `❌ Recurrence delete failed for schedule ${scheduleId}:`,
             error,
           )
-          addToast('반복 일정을 지우지 못했어요.', 'error')
+          if (!handleConflict(error))
+            addToast('반복 일정을 지우지 못했어요.', 'error')
         }
         return
       }
     }
     try {
-      await deleteSchedule(scheduleId)
+      await deleteSchedule(scheduleId, target?.version)
       if (activeScheduleId === scheduleId) {
         setActiveSchedule(null)
       }
@@ -222,7 +262,7 @@ const SchedulesTabPage = () => {
       })
     } catch (error) {
       console.error(`❌ Delete failed for schedule ${scheduleId}:`, error)
-      addToast('일정 삭제에 실패했습니다.', 'error')
+      if (!handleConflict(error)) addToast('일정 삭제에 실패했습니다.', 'error')
     }
   }
 
@@ -230,13 +270,15 @@ const SchedulesTabPage = () => {
     schedule: ScheduleSummary,
     offset: 1 | -1,
   ) => {
-    if (movingScheduleId === schedule.id) return
+    if (movingScheduleId === schedule.id || !schedule.allowedActions?.edit)
+      return
     const previousDateKey = toDateKey(schedule.date)
     setMovingScheduleId(schedule.id)
     try {
       const nextDate = addDays(schedule.date, offset)
       const updated = await updateSchedule(schedule.id, {
         date: toApiDateTimeWithZone(nextDate),
+        expectedVersion: schedule.version,
       })
       setSchedule(updated)
       dispatchScheduleChanged({
@@ -253,7 +295,8 @@ const SchedulesTabPage = () => {
       )
     } catch (error) {
       console.error('❌ Failed to move schedule by one day:', error)
-      addToast('일정 날짜를 이동하지 못했어요.', 'error')
+      if (!handleConflict(error))
+        addToast('일정 날짜를 이동하지 못했어요.', 'error')
     } finally {
       setMovingScheduleId(null)
     }
@@ -263,13 +306,15 @@ const SchedulesTabPage = () => {
     schedule: ScheduleSummary,
     minutes: number,
   ) => {
-    if (movingScheduleId === schedule.id) return
+    if (movingScheduleId === schedule.id || !schedule.allowedActions?.edit)
+      return
     const previousDateKey = toDateKey(schedule.date)
     setMovingScheduleId(schedule.id)
     try {
       const nextDate = toDisplayDayjs(schedule.date).add(minutes, 'minute')
       const updated = await updateSchedule(schedule.id, {
         date: toApiDateTimeWithZone(nextDate),
+        expectedVersion: schedule.version,
       })
       setSchedule(updated)
       dispatchScheduleChanged({
@@ -284,7 +329,8 @@ const SchedulesTabPage = () => {
       )
     } catch (error) {
       console.error('❌ Failed to shift schedule time:', error)
-      addToast('일정 시간을 옮기지 못했어요.', 'error')
+      if (!handleConflict(error))
+        addToast('일정 시간을 옮기지 못했어요.', 'error')
     } finally {
       setMovingScheduleId(null)
     }
@@ -387,12 +433,31 @@ const SchedulesTabPage = () => {
         getTodayWithOffset().format('YYYY-MM-DD'),
       ) && (
         <p className="schedules-tab__notice" role="note">
-          <WorkspaceIcon name="repeat" /> 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가
-          가까워지면 생겨요.
+          <WorkspaceIcon name="repeat" /> 반복 회차는 오늘부터 90일 앞까지만
+          보여요. 그 뒤의 회차는 날짜가 가까워지면 생겨요.
         </p>
       )}
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
+        {shared && (
+          <div
+            className="schedules-tab__audience"
+            role="group"
+            aria-label="일정 보기 범위"
+          >
+            {(['mine', 'team'] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                data-schedule-audience={value}
+                aria-pressed={audience === value}
+                onClick={() => setAudience(value)}
+              >
+                {value === 'mine' ? '내 일정' : '팀 전체'}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="schedules-tab__header-actions">
           <button
             type="button"
@@ -421,8 +486,37 @@ const SchedulesTabPage = () => {
         </div>
       </header>
       <p className="schedules-tab__drag-hint">
-        카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로 끌어 시간을 바꿔요.
+        카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로
+        끌어 시간을 바꿔요.
       </p>
+      {shared &&
+        audience === 'mine' &&
+        hiddenScheduleCount > 0 &&
+        !isScheduleLoading &&
+        !scheduleError && (
+          <div className="schedules-tab__hidden-note" role="status">
+            <span>
+              이 날 다른 사람이 맡았거나 담당자가 없는 일정{' '}
+              {hiddenScheduleCount}개는 숨겨져 있어요.
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setAudience('team')
+                // 안내가 사라지므로 포커스를 범위 전환의 "팀 전체" 버튼으로 옮긴다.
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector<HTMLButtonElement>(
+                      '[data-schedule-audience="team"]',
+                    )
+                    ?.focus(),
+                )
+              }}
+            >
+              팀 전체 보기
+            </button>
+          </div>
+        )}
       <div
         ref={listRef}
         className={[
@@ -495,14 +589,23 @@ const SchedulesTabPage = () => {
                 schedule={schedule}
                 onOpenDetail={(id) => open(`/app/schedules/${id}`)}
                 onDelete={handleDelete}
+                assignee={showsAssignee ? assigneeOf(schedule) : null}
               />
             </div>
           ))
         ) : (
           <StatusPanel
             variant="empty"
-            title="등록된 일정이 없어요"
-            description="일정 추가 탭에서 새로운 일정을 만들어보세요."
+            title={
+              shared && audience === 'mine' && hiddenScheduleCount > 0
+                ? '이 날 내 일정이 없어요'
+                : '등록된 일정이 없어요'
+            }
+            description={
+              shared && audience === 'mine' && hiddenScheduleCount > 0
+                ? '팀 전체 보기에서 다른 사람의 일정을 볼 수 있어요.'
+                : '일정 추가 탭에서 새로운 일정을 만들어보세요.'
+            }
           />
         )}
       </div>

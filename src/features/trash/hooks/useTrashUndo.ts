@@ -1,6 +1,9 @@
 import { useCallback } from 'react'
 import { useToast } from '@contexts/ToastContext'
-import { dispatchScheduleChanged, dispatchTaskChanged } from '@shared/utils/events'
+import {
+  dispatchScheduleChanged,
+  dispatchTaskChanged,
+} from '@shared/utils/events'
 import { restoreSchedule, restoreTask } from '../api/trash'
 import { restoreTaskMessage } from '../utils/trashLabels'
 
@@ -25,11 +28,19 @@ export const useTrashUndo = () => {
                 dispatchTaskChanged(taskId, 'restore')
                 dispatchScheduleChanged({ reason: 'restore' })
                 onRestored?.()
-                addToast(restoreTaskMessage(result.skippedDependencies), 'success')
+                addToast(
+                  result
+                    ? restoreTaskMessage(result.skippedDependencies)
+                    : '작업을 복구했어요.',
+                  'success',
+                )
               })
               .catch((error) => {
                 console.error('작업 되돌리기 실패', error)
-                addToast('작업을 되돌리지 못했어요. 설정 → 휴지통에서 다시 시도해 주세요.', 'error')
+                addToast(
+                  '작업을 되돌리지 못했어요. 설정 → 휴지통에서 다시 시도해 주세요.',
+                  'error',
+                )
               })
           },
         },
@@ -54,7 +65,10 @@ export const useTrashUndo = () => {
               })
               .catch((error) => {
                 console.error('일정 되돌리기 실패', error)
-                addToast('일정을 되돌리지 못했어요. 설정 → 휴지통에서 다시 시도해 주세요.', 'error')
+                addToast(
+                  '일정을 되돌리지 못했어요. 설정 → 휴지통에서 다시 시도해 주세요.',
+                  'error',
+                )
               })
           },
         },

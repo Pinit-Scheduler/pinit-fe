@@ -41,6 +41,7 @@ import {
 import { applyDayPlan } from '../api/plans'
 import useDayPlan from '../hooks/useDayPlan'
 import PlanTimeline from '../components/PlanTimeline'
+import DayReplanningPanel from '../components/DayReplanningPanel'
 import type { PlanTimelineItem } from '../components/PlanTimeline'
 import type { PlanApplyBlock, PlannedBlock } from '../types/plan'
 import {
@@ -59,6 +60,7 @@ import type {
 import './PlanPage.css'
 
 type DraftBlock = {
+  expectedVersion?: number
   taskId: number
   title: string
   /** 제안이 정한 길이. 승인 전 수정할 수 없다 */
@@ -98,6 +100,7 @@ const toDraft = (block: PlannedBlock, zoneId: string): DraftBlock => {
   const endMs = toMs(block.end.dateTime, block.end.zoneId || zoneId) ?? startMs
   return {
     taskId: block.taskId,
+    expectedVersion: block.expectedVersion,
     title: block.title,
     durationMinutes:
       parseIsoDurationMinutes(block.duration) ??
@@ -124,7 +127,7 @@ const scheduleSpan = (schedule: ScheduleResponse) => {
 const PlanPage = () => {
   const { offsetMinutes, zoneId } = useTimePreferences()
   const { addToast } = useToast()
-  const { upsertSchedule } = useScheduleCache()
+  const { upsertSchedule, invalidateSchedules } = useScheduleCache()
   const [searchParams, setSearchParams] = useSearchParams()
   const today = useMemo(
     () => getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD'),
@@ -316,6 +319,7 @@ const PlanPage = () => {
       validatePlanSelection(
         selectedSpans.map(({ draft, startMs, endMs }) => ({
           taskId: draft.taskId,
+          expectedVersion: draft.expectedVersion,
           title: draft.title,
           startMs,
           endMs,
@@ -356,6 +360,7 @@ const PlanPage = () => {
       findRoutineConflicts(
         selectedSpans.map(({ draft, startMs, endMs }) => ({
           taskId: draft.taskId,
+          expectedVersion: draft.expectedVersion,
           title: draft.title,
           startMs,
           endMs,
@@ -418,6 +423,7 @@ const PlanPage = () => {
     const submitted = drafts.filter((draft) => draft.selected)
     const blocks: PlanApplyBlock[] = submitted.map((draft) => ({
       taskId: draft.taskId,
+      expectedVersion: draft.expectedVersion,
       startTime: `${draft.startLocal}:00`,
       scheduleType: draft.scheduleType,
     }))
@@ -548,7 +554,22 @@ const PlanPage = () => {
           마감·중요도·난이도·선후관계로 배치한 제안이에요. 고른 블록만 승인하면
           일정이 되고, 그 전에는 아무것도 저장되지 않아요.
         </p>
+        <Link to="/app/deadline-risk">마감 전에 시간이 충분한지 예보 보기</Link>
       </header>
+
+      {date === today && (
+        <DayReplanningPanel
+          key={`${today}@${zoneId}`}
+          date={today}
+          zoneId={zoneId}
+          disabled={isApplying || isUpdatingCalibration}
+          onApplied={(ids) => {
+            invalidateSchedules(ids)
+            ids.forEach((scheduleId) => dispatchScheduleChanged({ scheduleId, reason: 'day-replanned' }))
+            setRefreshKey((key) => key + 1)
+          }}
+        />
+      )}
 
       <div
         className="plan-page__controls"
@@ -666,8 +687,8 @@ const PlanPage = () => {
           !dismissed.calibrationCard && (
             <div className="plan-page__nudge" role="note">
               <p>
-                <WorkspaceIcon name="clock" /> 지난 기록으로 보면 예상과 실제 걸린
-                시간이 달라요. 보정하면 블록 길이를 기록에 맞춰요.
+                <WorkspaceIcon name="clock" /> 지난 기록으로 보면 예상과 실제
+                걸린 시간이 달라요. 보정하면 블록 길이를 기록에 맞춰요.
               </p>
               <div className="plan-page__nudge-actions">
                 <button
@@ -702,8 +723,11 @@ const PlanPage = () => {
         {routineCount === 0 && !dismissed.routinesCard && (
           <div className="plan-page__nudge" role="note">
             <p>
-              <span aria-hidden><WorkspaceIcon name="meal" /><WorkspaceIcon name="moon" /> </span>식사·수면 시간을 알려 주시면 그
-              시간은 비워 두고 계획해요.
+              <span aria-hidden>
+                <WorkspaceIcon name="meal" />
+                <WorkspaceIcon name="moon" />{' '}
+              </span>
+              식사·수면 시간을 알려 주시면 그 시간은 비워 두고 계획해요.
             </p>
             <div className="plan-page__nudge-actions">
               <Link to="/app/settings/routines">생활 시간 설정하기</Link>

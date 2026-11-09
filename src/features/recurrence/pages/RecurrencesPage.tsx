@@ -1,5 +1,12 @@
+import {
+  onTaskChanged,
+  onScheduleChanged,
+  dispatchTaskChanged,
+  dispatchScheduleChanged,
+} from '@shared/utils/events'
+import { reportEditConflict } from '@features/spaces/conflicts'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useRecurrenceScope } from '../components/RecurrenceScopeDialog'
 import { useToast } from '@contexts/ToastContext'
@@ -37,6 +44,7 @@ const RecurrencesPage = () => {
   const confirmation = useRecurrenceScope()
   const [renaming, setRenaming] = useState<{
     id: number
+    version?: number
     title: string
   } | null>(null)
   const [status, setStatus] = useState<RecurrenceStatus>('ACTIVE')
@@ -44,17 +52,23 @@ const RecurrencesPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<{
     id: number
+    version?: number
     draft: RuleDraft
     errors: Record<string, string>
   } | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
 
+  // 스페이스를 바꿔도 이 화면에 머물므로, 늦게 도착한 이전 범위의 응답이 새 목록을 덮지 않게 한다.
+  const requestRef = useRef(0)
   const load = useCallback(async () => {
+    const request = ++requestRef.current
     setError(null)
     try {
       const response = await fetchRecurrences(status)
+      if (request !== requestRef.current) return
       setItems(response.recurrences)
     } catch (loadError) {
+      if (request !== requestRef.current) return
       console.error('반복 목록 조회 실패', loadError)
       setError('반복 목록을 불러오지 못했어요.')
     }
@@ -63,6 +77,15 @@ const RecurrencesPage = () => {
   useEffect(() => {
     setItems(null)
     void load()
+  }, [load])
+
+  useEffect(() => {
+    const offTask = onTaskChanged(() => void load())
+    const offSchedule = onScheduleChanged(() => void load())
+    return () => {
+      offTask()
+      offSchedule()
+    }
   }, [load])
 
   useEffect(() => {
@@ -81,9 +104,17 @@ const RecurrencesPage = () => {
         addToast(done, 'success')
         setEditing(null)
         setRenaming(null)
+        dispatchTaskChanged({ reason: 'recurrence' })
+        dispatchScheduleChanged({ reason: 'recurrence' })
         await load()
       }
     } catch (runError) {
+      if (reportEditConflict(runError)) {
+        setEditing(null)
+        setRenaming(null)
+        await load()
+        return
+      }
       if (runError instanceof ApiError && runError.status === 400 && editing) {
         setEditing({
           ...editing,
@@ -109,7 +140,11 @@ const RecurrencesPage = () => {
     void run(
       series,
       async (id) => {
-        const payload = { scope: 'ALL' as const, changes: { title } }
+        const payload = {
+          expectedVersion: renaming?.version ?? series.version,
+          scope: 'ALL' as const,
+          changes: { title },
+        }
         const chosen = await confirmation.ask('edit', series.title, {
           scopes: ['ALL'],
           preview: async () =>
@@ -136,6 +171,7 @@ const RecurrencesPage = () => {
       series,
       async (id) => {
         const payload = {
+          expectedVersion: editing.version,
           scope: 'ALL' as const,
           changes: { rule: toRule(editing.draft) },
         }
@@ -162,11 +198,19 @@ const RecurrencesPage = () => {
           scopes: ['ALL'],
           preview: async () =>
             deleteImpactMessage(
-              (await deleteRecurrence(id, 'ALL', undefined, true)).impact,
+              (
+                await deleteRecurrence(
+                  id,
+                  'ALL',
+                  undefined,
+                  true,
+                  series.version,
+                )
+              ).impact,
             ),
         })
         if (chosen === null) return false
-        await deleteRecurrence(id, 'ALL', undefined, false)
+        await deleteRecurrence(id, 'ALL', undefined, false, series.version)
         return true
       },
       '반복을 끝냈어요.',
@@ -270,9 +314,12 @@ const RecurrencesPage = () => {
                     setRenaming({
                       id: series.id as number,
                       title: series.title,
+                      version: series.version,
                     })
                   }
-                  disabled={busyId === series.id}
+                  disabled={
+                    busyId === series.id || !series.allowedActions?.edit
+                  }
                 >
                   제목 바꾸기
                 </button>
@@ -285,11 +332,14 @@ const RecurrencesPage = () => {
                         : {
                             id: series.id as number,
                             draft: toRuleDraft(series.rule),
+                            version: series.version,
                             errors: {},
                           },
                     )
                   }
-                  disabled={busyId === series.id}
+                  disabled={
+                    busyId === series.id || !series.allowedActions?.edit
+                  }
                 >
                   규칙 바꾸기
                 </button>
@@ -297,7 +347,9 @@ const RecurrencesPage = () => {
                   type="button"
                   className="is-danger"
                   onClick={() => end(series)}
-                  disabled={busyId === series.id}
+                  disabled={
+                    busyId === series.id || !series.allowedActions?.delete
+                  }
                 >
                   끝내기
                 </button>

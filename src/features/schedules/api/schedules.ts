@@ -1,75 +1,216 @@
 import type dayjs from 'dayjs'
+import dayjsFactory from 'dayjs'
 import type { ScheduleResponse } from '../types/schedule'
 import type { DateTimeWithZone } from '@shared/types/datetime'
-import { toApiDateTimeWithZone } from '@shared/utils/datetime'
-import { withTimeZoneParams } from '@shared/utils/timeParams'
+import {
+  toApiDateTimeWithZone,
+  toDateFromApi,
+  toDisplayDayjs,
+} from '@shared/utils/datetime'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import { getSelectedScope } from '@features/spaces/store'
+import {
+  getMetadata,
+  rememberMetadata,
+  getResourceRevision,
+  handleResourceReadError,
+  isResourceUnavailable,
+  rejectResourceResponse,
+  type WorkspaceScheduleView,
+} from '@features/spaces/metadata'
 
 export const SCHEDULE_API_VERSION = 'v2'
-
-const buildTimeQuery = (time: dayjs.Dayjs | DateTimeWithZone | string | Date) => withTimeZoneParams(time)
-
-export const fetchSchedules = (time: dayjs.Dayjs | DateTimeWithZone | string | Date) => {
-  const query = buildTimeQuery(time)
-  return httpClient<ScheduleResponse[]>(buildApiUrl(`/schedules?${query}`, SCHEDULE_API_VERSION))
+type Time = dayjs.Dayjs | DateTimeWithZone | string | Date
+type Scope = { allSpaces?: boolean; mine?: boolean }
+const url = (path = '') => buildApiUrl('/workspace/schedules' + path, 'v2')
+export const normalizeSchedule = (
+  view: WorkspaceScheduleView<ScheduleResponse>,
+  revision = getResourceRevision(),
+): ScheduleResponse => {
+  const { schedule, ...metadata } = view
+  const result = {
+    ...schedule,
+    ...metadata,
+    recurrence: schedule.recurrence
+      ? {
+          ...schedule.recurrence,
+          version: metadata.recurrenceVersion ?? undefined,
+        }
+      : null,
+  }
+  if (!rememberMetadata('schedule', schedule.id,
+    { ...metadata, linkedTaskId: schedule.taskId }, revision)) rejectResourceResponse(result)
+  return result
 }
-
-export const fetchWeeklySchedules = (time: dayjs.Dayjs | DateTimeWithZone | string | Date) => {
-  const query = buildTimeQuery(time)
-  return httpClient<ScheduleResponse[]>(buildApiUrl(`/schedules/week?${query}`, SCHEDULE_API_VERSION))
+function queryFor(time: Time, days: number, scope: Scope = {}) {
+  const local = toApiDateTimeWithZone(time)
+  const date = toDisplayDayjs(time)
+  const first =
+    days === 7
+      ? date.isoWeekday(1).format('YYYY-MM-DD')
+      : date.format('YYYY-MM-DD')
+  const next = dayjsFactory(first).add(days, 'day').format('YYYY-MM-DD')
+  const start = toDateFromApi({
+    dateTime: `${first}T00:00:00`,
+    zoneId: local.zoneId,
+  }).toISOString()
+  const end = toDateFromApi({
+    dateTime: `${next}T00:00:00`,
+    zoneId: local.zoneId,
+  }).toISOString()
+  const query = new URLSearchParams({ start, end })
+  const selected = getSelectedScope()
+  if (!scope.allSpaces && selected.spaceId !== null)
+    query.set('spaceId', String(selected.spaceId))
+  if (!scope.allSpaces && selected.projectId !== null)
+    query.set('projectId', String(selected.projectId))
+  if (scope.mine !== undefined) query.set('mine', String(scope.mine))
+  return query
 }
-
+async function readSchedules(query: URLSearchParams) {
+  const revision = getResourceRevision()
+  const views = await httpClient<WorkspaceScheduleView<ScheduleResponse>[]>(url(`?${query}`))
+  return views.map((view) => normalizeSchedule(view, revision))
+    .filter((schedule) => !isResourceUnavailable('schedule', schedule.id, schedule))
+}
+export const fetchSchedules = (time: Time, scope?: Scope) =>
+  readSchedules(queryFor(time, 1, scope))
+export const fetchWeeklySchedules = (time: Time, scope?: Scope) =>
+  readSchedules(queryFor(time, 7, scope))
 export type ScheduleSimpleRequest = {
   title: string
   description: string
   date: DateTimeWithZone
   scheduleType: 'DEEP_WORK' | 'QUICK_TASK' | 'ADMIN_TASK'
-  /** 계획 길이(ISO-8601, 5분~24시간). 생략하면 생성은 30분, 수정은 기존 값 유지 */
   plannedDuration?: string
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
+  expectedVersion?: number
 }
-
 export type ScheduleSimplePatchRequest = Partial<ScheduleSimpleRequest>
-
-export const createSchedule = (payload: ScheduleSimpleRequest) =>
-  httpClient<ScheduleResponse>(buildApiUrl('/schedules', SCHEDULE_API_VERSION), {
-    method: 'POST',
-    json: {
-      ...payload,
-      date: toApiDateTimeWithZone(payload.date),
-    },
-  })
-
-export const updateSchedule = (scheduleId: number, payload: ScheduleSimplePatchRequest) =>
-  httpClient<ScheduleResponse>(buildApiUrl(`/schedules/${scheduleId}`, SCHEDULE_API_VERSION), {
-    method: 'PATCH',
-    json: payload.date ? { ...payload, date: toApiDateTimeWithZone(payload.date) } : payload,
-  })
-
-export const deleteSchedule = (scheduleId: number) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}`, SCHEDULE_API_VERSION), {
-    method: 'DELETE',
-  })
-
-export const fetchScheduleDetail = (scheduleId: number) =>
-  httpClient<ScheduleResponse>(buildApiUrl(`/schedules/${scheduleId}`, SCHEDULE_API_VERSION))
-
-export const startSchedule = (scheduleId: number, at: DateTimeWithZone | string | Date = new Date()) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/start?${buildTimeQuery(at)}`, SCHEDULE_API_VERSION), {
-    method: 'POST',
-  })
-
-export const suspendSchedule = (scheduleId: number, at: DateTimeWithZone | string | Date = new Date()) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/suspend?${buildTimeQuery(at)}`, SCHEDULE_API_VERSION), {
-    method: 'POST',
-  })
-
-export const completeSchedule = (scheduleId: number, at: DateTimeWithZone | string | Date = new Date()) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/complete?${buildTimeQuery(at)}`, SCHEDULE_API_VERSION), {
-    method: 'POST',
-  })
-
-export const cancelSchedule = (scheduleId: number) =>
-  httpClient<void>(buildApiUrl(`/schedules/${scheduleId}/cancel`, SCHEDULE_API_VERSION), {
-    method: 'POST',
-  })
+export async function createSchedule(payload: ScheduleSimpleRequest) {
+  const revision = getResourceRevision()
+  const selected = getSelectedScope()
+  const {
+    spaceId = selected.spaceId,
+    projectId = selected.projectId,
+    assigneeId,
+    expectedVersion: _version,
+    ...schedule
+  } = payload
+  void _version
+  return normalizeSchedule(
+    await httpClient<WorkspaceScheduleView<ScheduleResponse>>(url(), {
+      method: 'POST',
+      json: {
+        schedule: { ...schedule, date: toApiDateTimeWithZone(schedule.date) },
+        ...(spaceId === undefined || spaceId === null
+          ? {}
+          : { location: { spaceId, projectId } }),
+        ...(assigneeId !== undefined
+          ? { assignee: { memberId: assigneeId ?? null } }
+          : {}),
+      },
+    }),
+    revision,
+  )
+}
+export async function updateSchedule(
+  scheduleId: number,
+  payload: ScheduleSimplePatchRequest,
+) {
+  const revision = getResourceRevision()
+  const { spaceId, projectId, assigneeId, expectedVersion, ...schedule } =
+    payload
+  const version =
+    expectedVersion ?? getMetadata('schedule', scheduleId)?.version
+  if (version === undefined)
+    throw new Error('일정을 다시 열어 최신 상태를 확인해 주세요.')
+  return normalizeSchedule(
+    await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
+      url(`/${scheduleId}`),
+      {
+        method: 'PATCH',
+        json: {
+          expectedVersion: version,
+          schedule: {
+            ...schedule,
+            ...(schedule.date
+              ? { date: toApiDateTimeWithZone(schedule.date) }
+              : {}),
+          },
+          ...(spaceId === undefined
+            ? {}
+            : { location: { spaceId, projectId: projectId ?? null } }),
+          ...(assigneeId !== undefined
+            ? { assignee: { memberId: assigneeId ?? null } }
+            : {}),
+        },
+      },
+    ),
+    revision,
+  )
+}
+export async function fetchScheduleDetail(scheduleId: number) {
+  const revision = getResourceRevision()
+  try {
+    const schedule = normalizeSchedule(await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
+      url(`/${scheduleId}`)), revision)
+    if (isResourceUnavailable('schedule', scheduleId, schedule))
+      throw new Error('일정 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+    return schedule
+  } catch (error) {
+    handleResourceReadError('schedule', scheduleId, error, revision)
+    throw error
+  }
+}
+async function versionOf(id: number, expectedVersion?: number) {
+  if (expectedVersion !== undefined) return expectedVersion
+  const current = getMetadata('schedule', id) ?? (await fetchScheduleDetail(id))
+  if (current.version === undefined)
+    throw new Error('일정을 다시 열어 최신 상태를 확인해 주세요.')
+  return current.version
+}
+export async function deleteSchedule(id: number, expectedVersion?: number) {
+  return httpClient<void>(
+    url(`/${id}?expectedVersion=${await versionOf(id, expectedVersion)}`),
+    { method: 'DELETE' },
+  )
+}
+async function changeScheduleState(
+  id: number,
+  action: 'START' | 'SUSPEND' | 'COMPLETE' | 'CANCEL',
+  expectedVersion?: number,
+) {
+  const version = await versionOf(id, expectedVersion)
+  const revision = getResourceRevision()
+  return normalizeSchedule(
+    await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
+      url(`/${id}/state`),
+      {
+        method: 'POST',
+        json: { action, expectedVersion: version },
+      },
+    ),
+    revision,
+  )
+}
+export const startSchedule = (
+  id: number,
+  _at?: Time,
+  expectedVersion?: number,
+) => changeScheduleState(id, 'START', expectedVersion)
+export const suspendSchedule = (
+  id: number,
+  _at?: Time,
+  expectedVersion?: number,
+) => changeScheduleState(id, 'SUSPEND', expectedVersion)
+export const completeSchedule = (
+  id: number,
+  _at?: Time,
+  expectedVersion?: number,
+) => changeScheduleState(id, 'COMPLETE', expectedVersion)
+export const cancelSchedule = (id: number, expectedVersion?: number) =>
+  changeScheduleState(id, 'CANCEL', expectedVersion)

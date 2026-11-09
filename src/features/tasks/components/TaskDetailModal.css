@@ -117,6 +117,11 @@
   margin-top: 16px;
 }
 
+.task-detail-modal__actions .unavailable-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .task-detail-modal__action-btn {
   padding: 12px 16px;
   border-radius: 12px;
@@ -131,9 +136,17 @@
   gap: 6px;
 }
 
-.task-detail-modal__action-btn:disabled {
-  opacity: 0.5;
+.task-detail-modal__action-btn:disabled,
+.task-detail-modal__action-btn--edit:disabled,
+.task-detail-modal__action-btn--primary:disabled,
+.task-detail-modal__action-btn--delete:disabled {
+  background: #eef1f5;
+  border-color: #e3e7ee;
+  color: #9aa3b2;
+  opacity: 1;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .task-detail-modal__action-btn:not(:disabled):hover {

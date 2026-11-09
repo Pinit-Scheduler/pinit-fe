@@ -10,6 +10,7 @@ import StatisticCard from './StatisticCard'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import './ReportSections.css'
 import DonutChart from './DonutChart'
+import SpaceTimeSection from './SpaceTimeSection'
 import { parseIsoDurationMinutes } from '@shared/utils/isoDuration'
 
 type Props = {
@@ -87,6 +88,7 @@ const PeriodSummarySection = ({ unit, start }: Props) => {
         adminWorkRatio={elapsedMinutes ? adminMinutes / elapsedMinutes : 0}
         totalMinutes={elapsedMinutes}
       />
+      <SpaceTimeSection bySpace={data.bySpace} start={data.start} end={data.end} />
       <section className="report-section">
         <div className="report-section__head">
           <h2>마감 작업</h2>

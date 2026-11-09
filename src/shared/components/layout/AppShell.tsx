@@ -14,10 +14,15 @@ import {
 } from '@shared/api/authTokens'
 import { useMemberZoneSync } from '@features/settings/hooks/useMemberZoneSync'
 import './AppShell.css'
+import { SpaceContextBar, SpaceSwitcher } from '@features/spaces/SpaceChrome'
+import { useSpaces } from '@features/spaces/store'
+import { routeScope, scopeCrumb } from '@features/spaces/scope'
 
 const TAB_TITLES: Record<string, string> = {
-  '/app/today': '오늘 할당된 일',
+  '/app/today': '오늘의 내 작업',
+  '/app/spaces': '스페이스',
   '/app/plan': '하루 계획',
+  '/app/deadline-risk': '마감 위험 예보',
   '/app/schedules': '일정',
   '/app/schedules/new': '일정 추가',
   '/app/new': '일정 추가',
@@ -61,6 +66,7 @@ const AppShell = () => {
   const pathname = location.pathname
   const didAttemptRefresh = useRef(false)
   useMemberZoneSync()
+  const { selectedSpace, selectedProject, spaces, defaultSpaceId } = useSpaces()
 
   useEffect(() => {
     const shell = document.querySelector<HTMLElement>('.app-shell')
@@ -119,6 +125,13 @@ const AppShell = () => {
   }, [navigate])
 
   const title = getPageTitle(pathname)
+  const personalSpace =
+    spaces.find((space) => space.id === defaultSpaceId) ?? null
+  const scopeLabel = scopeCrumb(
+    routeScope(pathname),
+    routeScope(pathname) === 'personal' ? personalSpace : selectedSpace,
+    selectedProject,
+  )
   const showSettingsButton = !pathname.startsWith('/app/settings')
   const isScheduleDetail =
     pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3
@@ -160,6 +173,8 @@ const AppShell = () => {
         <WorkspaceSidebar />
         <TopBar
           title={title}
+          scopeLabel={scopeLabel}
+          leading={<SpaceSwitcher variant="bar" />}
           showBackButton={showBackButton}
           onBack={handleBack}
           onSettings={() => navigate('/app/settings')}
@@ -170,6 +185,7 @@ const AppShell = () => {
           <OfflineBanner />
           <UpdateBanner />
           {pathname === '/app/today' && <InstallBanner />}
+          <SpaceContextBar />
           <Outlet />
         </main>
         <MiniPlayerBar />

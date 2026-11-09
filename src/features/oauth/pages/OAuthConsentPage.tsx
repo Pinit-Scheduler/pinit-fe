@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { rememberReturnTo } from '@features/auth/utils/returnTo'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
-import { fetchAuthorizationRequest, submitAuthorizationDecision } from '../api/oauth'
+import {
+  fetchAuthorizationRequest,
+  submitAuthorizationDecision,
+} from '../api/oauth'
 import type { OAuthAuthorizationRequest } from '../types/oauth'
 import {
   EXPIRED_REQUEST_MESSAGE,
@@ -34,6 +37,7 @@ const OAuthConsentPage = () => {
   const requestId = searchParams.get('request')?.trim() ?? ''
   const [framed] = useState(isFramed)
 
+  const decisionLock = useRef(false)
   const [phase, setPhase] = useState<Phase>('loading')
   const [request, setRequest] = useState<OAuthAuthorizationRequest | null>(null)
   const [error, setError] = useState<ConsentError | null>(null)
@@ -58,7 +62,12 @@ const OAuthConsentPage = () => {
         const response = await fetchAuthorizationRequest(requestId)
         if (!isMounted) return
         setRequest(response)
-        setSelectedScopes(getDefaultSelectedScopes(response.requestedScopes, response.optInScopes ?? []))
+        setSelectedScopes(
+          getDefaultSelectedScopes(
+            response.requestedScopes,
+            response.optInScopes ?? [],
+          ),
+        )
         setPhase('ready')
       } catch (err) {
         if (!isMounted) return
@@ -78,23 +87,32 @@ const OAuthConsentPage = () => {
   }, [framed, requestId, attempt, goToLogin])
 
   const handleDecision = async (approve: boolean) => {
-    if (!request || phase !== 'ready') return
+    if (!request || phase !== 'ready' || decisionLock.current) return
     if (isRequestExpired(request.expiresAt)) {
       setError({ kind: 'expired', message: EXPIRED_REQUEST_MESSAGE })
       setPhase('error')
       return
     }
 
+    decisionLock.current = true
     setPhase('submitting')
     setDecisionError(null)
     try {
       const { redirectUri } = await submitAuthorizationDecision({
         requestId: request.requestId,
         approve,
-        scopes: approve ? toDecisionScopes(request.requestedScopes, request.optInScopes ?? [], selectedScopes) : [],
+        scopes: approve
+          ? toDecisionScopes(
+              request.requestedScopes,
+              request.optInScopes ?? [],
+              selectedScopes,
+            )
+          : [],
       })
       if (!isNavigableRedirectUri(redirectUri)) {
-        setDecisionError('앱으로 돌아갈 주소가 올바르지 않아요. AI 클라이언트에서 연결을 다시 시작해주세요.')
+        setDecisionError(
+          '앱으로 돌아갈 주소가 올바르지 않아요. AI 클라이언트에서 연결을 다시 시작해주세요.',
+        )
         setPhase('ready')
         return
       }
@@ -114,6 +132,8 @@ const OAuthConsentPage = () => {
       }
       setDecisionError(next.message)
       setPhase('ready')
+    } finally {
+      decisionLock.current = false
     }
   }
 
@@ -123,7 +143,11 @@ const OAuthConsentPage = () => {
         <div className="consent__state" role="alert">
           <h1>이 화면은 다른 사이트 안에서 열 수 없어요</h1>
           <p>
-            <a href={window.location.href} target="_blank" rel="noopener noreferrer">
+            <a
+              href={window.location.href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               새 창에서 열기
             </a>
           </p>
@@ -135,7 +159,9 @@ const OAuthConsentPage = () => {
       return (
         <div className="consent__state" role="alert">
           <h1>연결 요청을 열 수 없어요</h1>
-          <p>연결 요청 정보가 없어요. AI 클라이언트에서 연결을 다시 시작해주세요.</p>
+          <p>
+            연결 요청 정보가 없어요. AI 클라이언트에서 연결을 다시 시작해주세요.
+          </p>
         </div>
       )
     }
@@ -151,14 +177,26 @@ const OAuthConsentPage = () => {
     if (phase === 'error' && error) {
       return (
         <div className="consent__state" role="alert">
-          <h1>{error.kind === 'expired' ? '연결 요청이 만료됐어요' : '연결 요청을 열 수 없어요'}</h1>
+          <h1>
+            {error.kind === 'expired'
+              ? '연결 요청이 만료됐어요'
+              : '연결 요청을 열 수 없어요'}
+          </h1>
           <p>{error.message}</p>
           {error.kind !== 'expired' && (
-            <button type="button" className="consent__btn consent__btn--secondary" onClick={() => setAttempt((n) => n + 1)}>
+            <button
+              type="button"
+              className="consent__btn consent__btn--secondary"
+              onClick={() => setAttempt((n) => n + 1)}
+            >
               다시 시도
             </button>
           )}
-          <button type="button" className="consent__btn consent__btn--ghost" onClick={() => navigate('/app', { replace: true })}>
+          <button
+            type="button"
+            className="consent__btn consent__btn--ghost"
+            onClick={() => navigate('/app', { replace: true })}
+          >
             Pinit으로 가기
           </button>
         </div>
@@ -172,23 +210,34 @@ const OAuthConsentPage = () => {
         <div className="consent__state" role="status">
           <h1>{request.clientName}(으)로 돌아가는 중...</h1>
           <p>
-            <strong>{request.redirectHost}</strong>(으)로 이동하고 있어요. 이동하지 않으면 이 창을 닫고 AI 클라이언트를 확인해주세요.
+            <strong>{request.redirectHost}</strong>(으)로 이동하고 있어요.
+            이동하지 않으면 이 창을 닫고 AI 클라이언트를 확인해주세요.
           </p>
         </div>
       )
     }
 
-    const scopeOptions = buildConsentScopeOptions(request.requestedScopes, request.optInScopes ?? [])
+    const scopeOptions = buildConsentScopeOptions(
+      request.requestedScopes,
+      request.optInScopes ?? [],
+    )
     const isBusy = phase === 'submitting'
-    const deleteRequested = scopeOptions.some((option) => option.scope === DELETE_SCOPE)
+    const deleteRequested = scopeOptions.some(
+      (option) => option.scope === DELETE_SCOPE,
+    )
     const toggleScope = (scope: string, checked: boolean) =>
-      setSelectedScopes((prev) => (checked ? [...new Set([...prev, scope])] : prev.filter((item) => item !== scope)))
+      setSelectedScopes((prev) =>
+        checked
+          ? [...new Set([...prev, scope])]
+          : prev.filter((item) => item !== scope),
+      )
 
     return (
       <>
         <p className="consent__eyebrow">AI 앱 연결 요청</p>
         <h1 className="consent__title">
-          <span className="consent__client">{request.clientName}</span>이(가) 내 Pinit 계정에 접근하려고 해요
+          <span className="consent__client">{request.clientName}</span>이(가) 내
+          Pinit 계정에 접근하려고 해요
         </h1>
 
         <dl className="consent__facts">
@@ -206,8 +255,9 @@ const OAuthConsentPage = () => {
           <div className="consent__warning" role="note">
             <strong>이 컴퓨터에서 실행 중인 앱이에요</strong>
             <p>
-              허용하면 이 컴퓨터의 프로그램({request.redirectHost})이 Pinit에 접근하게 돼요. Claude Code처럼 내가 직접 시작한 앱일
-              때만 계속하세요.
+              허용하면 이 컴퓨터의 프로그램({request.redirectHost})이 Pinit에
+              접근하게 돼요. Claude Code처럼 내가 직접 시작한 앱일 때만
+              계속하세요.
             </p>
           </div>
         )}
@@ -215,26 +265,48 @@ const OAuthConsentPage = () => {
         <fieldset className="consent__scopes" disabled={isBusy}>
           <legend>허용할 권한</legend>
           {scopeOptions.map((option) => {
-            const checked = option.required || selectedScopes.includes(option.scope)
+            const checked =
+              option.required || selectedScopes.includes(option.scope)
             return (
               <label
                 key={option.scope}
-                className={['consent__scope', option.warning && 'consent__scope--caution'].filter(Boolean).join(' ')}
+                className={[
+                  'consent__scope',
+                  option.warning && 'consent__scope--caution',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
               >
                 <input
                   type="checkbox"
                   checked={checked}
                   disabled={option.required}
-                  onChange={(event) => toggleScope(option.scope, event.target.checked)}
+                  onChange={(event) =>
+                    toggleScope(option.scope, event.target.checked)
+                  }
                 />
                 <span>
-                  <span className={option.unknown ? 'consent__scope-label consent__scope-label--raw' : 'consent__scope-label'}>
+                  <span
+                    className={
+                      option.unknown
+                        ? 'consent__scope-label consent__scope-label--raw'
+                        : 'consent__scope-label'
+                    }
+                  >
                     {option.label}
                   </span>
                   <span className="consent__scope-meta">
-                    {option.required ? '필수' : option.unknown ? '선택 · 이 화면이 모르는 권한이에요' : '선택'}
+                    {option.required
+                      ? '필수'
+                      : option.unknown
+                        ? '선택 · 이 화면이 모르는 권한이에요'
+                        : '선택'}
                   </span>
-                  {option.warning && <span className="consent__scope-warning">{option.warning}</span>}
+                  {option.warning && (
+                    <span className="consent__scope-warning">
+                      {option.warning}
+                    </span>
+                  )}
                 </span>
               </label>
             )
@@ -243,12 +315,19 @@ const OAuthConsentPage = () => {
 
         <ul className="consent__notes">
           <li>
+            허용한 권한은 내가 접근할 수 있는 개인·공유 스페이스에 적용돼요. 스페이스
+            참여 여부와 관리자 권한은 Pinit에서 확인해요.
+          </li>
+          <li>
             {deleteRequested
-              ? '삭제를 체크하지 않으면 AI 앱은 일정이나 작업을 삭제할 수 없어요.'
-              : 'AI 앱은 Pinit을 통해 일정이나 작업을 삭제할 수 없어요.'}
+              ? '삭제를 체크하지 않으면 AI 앱은 삭제·초대 철회·참여자 제외·스페이스 나가기를 요청할 수 없어요.'
+              : 'AI 앱은 삭제·초대 철회·참여자 제외·스페이스 나가기를 요청할 수 없어요.'}
           </li>
           <li>연결은 설정 &gt; 연결된 앱에서 언제든 끊을 수 있어요.</li>
-          <li>이 요청은 {formatDateTimeWithZone(request.expiresAt, 'HH:mm')}까지 유효해요.</li>
+          <li>
+            이 요청은 {formatDateTimeWithZone(request.expiresAt, 'HH:mm')}까지
+            유효해요.
+          </li>
         </ul>
 
         {decisionError && (

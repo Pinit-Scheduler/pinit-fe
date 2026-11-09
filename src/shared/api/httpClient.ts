@@ -1,5 +1,10 @@
 import { API_BASE_URL, AUTH_BASE_URL, buildUrl } from './config'
-import { getAccessToken, getTokenSubject, isAccessTokenExpired, setAuthTokens } from './authTokens'
+import {
+  getAccessToken,
+  getTokenSubject,
+  isAccessTokenExpired,
+  setAuthTokens,
+} from './authTokens'
 import { debugLog } from './httpClientHelpers'
 import { refreshAccessTokenFromCookie } from './authSession'
 import { getApiErrorMessage } from './errorMessage'
@@ -8,7 +13,7 @@ import { getApiErrorMessage } from './errorMessage'
 debugLog('🔌 API Configuration:', {
   apiBaseUrl: API_BASE_URL,
   authBaseUrl: AUTH_BASE_URL,
-  timestamp: new Date().toISOString()
+  timestamp: new Date().toISOString(),
 })
 
 export class ApiError extends Error {
@@ -29,21 +34,56 @@ export type HttpClientOptions = RequestInit & {
   json?: unknown
   /** 응답 본문에 비밀값(예: OAuth authorization code가 담긴 redirectUri)이 있어 성공 응답 데이터를 로그에 남기지 않는다. */
   sensitiveResponse?: boolean
+  /** 초대 링크처럼 요청 경로/본문에 bearer 비밀값이 있을 때 로그에서 제외한다. */
+  sensitiveRequest?: boolean
 }
 
-export const httpClient = async <T>(path: string, options: HttpClientOptions = {}): Promise<T> => {
-  const { json, headers, credentials, sensitiveResponse, ...rest } = options
+export const httpClient = async <T>(
+  path: string,
+  options: HttpClientOptions = {},
+): Promise<T> => {
+  const {
+    json,
+    headers,
+    credentials,
+    sensitiveResponse: explicitSensitiveResponse,
+    sensitiveRequest: explicitSensitiveRequest,
+    ...rest
+  } = options
   const url = path.startsWith('http') ? path : buildUrl(API_BASE_URL, path)
+  // Login/signup callers must not accidentally log passwords, OAuth codes or returned tokens.
+  const requestPath = url.split(/[?#]/, 1)[0].replace(/^https?:\/\/[^/]+/, '')
+  const authenticationFlow =
+    /^\/v0\/(?:login(?:\/.*)?|signup|refresh)\/?$/.test(requestPath) ||
+    /^\/oauth\/(?:token|register|revoke|authorize\/decision)\/?$/.test(requestPath)
+  const sensitiveRequest = explicitSensitiveRequest || authenticationFlow
+  const sensitiveResponse = explicitSensitiveResponse || authenticationFlow
+  const logUrl = explicitSensitiveRequest
+    ? '[sensitive request]'
+    : authenticationFlow ? url.split(/[?#]/, 1)[0] : url
   let accessToken = getAccessToken()
   const body = json ? JSON.stringify(json) : undefined
 
   let refreshAttempted = false
-  const sameActor = (next: string) => !accessToken || next === accessToken ||
-    (getTokenSubject(accessToken) !== null && getTokenSubject(accessToken) === getTokenSubject(next))
+  const sameActor = (next: string) =>
+    !accessToken ||
+    next === accessToken ||
+    (getTokenSubject(accessToken) !== null &&
+      getTokenSubject(accessToken) === getTokenSubject(next))
+  const assertCurrentActor = () => {
+    const current = getAccessToken()
+    if (accessToken && (!current || !sameActor(current)))
+      throw new ApiError(
+        '계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.',
+        401, null, logUrl,
+      )
+  }
 
   const performFetch = async (token?: string) => {
     const nextToken = token ?? accessToken
-    const nextAuth = nextToken ? { Authorization: `Bearer ${nextToken}` } : undefined
+    const nextAuth = nextToken
+      ? { Authorization: `Bearer ${nextToken}` }
+      : undefined
     return fetch(url, {
       headers: {
         'Content-Type': 'application/json',
@@ -64,7 +104,12 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
     const refreshed = await refreshAccessTokenFromCookie()
     if (!refreshed || !sameActor(refreshed)) {
       if (getAccessToken() === accessToken) setAuthTokens({ accessToken: null })
-      throw new ApiError('로그인이 필요합니다. 다시 로그인해 주세요.', 401, null, url)
+      throw new ApiError(
+        '로그인이 필요합니다. 다시 로그인해 주세요.',
+        401,
+        null,
+        logUrl,
+      )
     }
     return refreshed
   }
@@ -77,9 +122,9 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
   // 요청 로깅
   debugLog(`📡 [${new Date().toISOString()}] API Request:`, {
     method: options.method || 'GET',
-    url,
-    body: json || undefined,
-    hasAuthHeader: !!accessToken
+    url: logUrl,
+    body: sensitiveRequest ? '[redacted]' : json || undefined,
+    hasAuthHeader: !!accessToken,
   })
 
   try {
@@ -90,7 +135,11 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
       const current = getAccessToken()
       // A delayed 401 must not erase or refresh a token already renewed by another request.
       let refreshed: string | null = null
-      if (current && current !== accessToken && !isAccessTokenExpired(current)) {
+      if (
+        current &&
+        current !== accessToken &&
+        !isAccessTokenExpired(current)
+      ) {
         if (sameActor(current)) refreshed = current
       } else if (!refreshAttempted && current === accessToken) {
         refreshAttempted = true
@@ -101,16 +150,22 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
         accessToken = refreshed
         response = await performFetch(refreshed)
       }
-      if (response.status === 401 && accessToken && getAccessToken() === accessToken) {
+      if (
+        response.status === 401 &&
+        accessToken &&
+        getAccessToken() === accessToken
+      ) {
         setAuthTokens({ accessToken: null })
       }
     }
+
+    assertCurrentActor()
 
     // 응답 로깅
     debugLog(`📥 [${new Date().toISOString()}] API Response:`, {
       status: response.status,
       statusText: response.statusText,
-      url
+      url: logUrl,
     })
 
     if (!response.ok) {
@@ -122,24 +177,32 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
         } catch {
           payload = rawPayload
         }
-      } catch { /* 응답 본문을 읽지 못하면 기본 오류 메시지를 사용 */ }
-      console.error(`❌ API Error:`, { status: response.status, url, payload })
+      } catch {
+        /* 응답 본문을 읽지 못하면 기본 오류 메시지를 사용 */
+      }
+      assertCurrentActor()
+      console.error(`❌ API Error:`, {
+        status: response.status,
+        url: logUrl,
+        payload: sensitiveRequest || sensitiveResponse ? '[redacted]' : payload,
+      })
       throw new ApiError(
         getApiErrorMessage(payload),
         response.status,
         payload,
-        url
+        logUrl,
       )
     }
 
     if (response.status === 204) {
-      debugLog(`✅ Success (No Content):`, url)
+      debugLog(`✅ Success (No Content):`, logUrl)
       return undefined as T
     }
 
     const rawBody = await response.text()
+    assertCurrentActor()
     if (!rawBody) {
-      debugLog(`✅ Success (Empty Body):`, url)
+      debugLog(`✅ Success (Empty Body):`, logUrl)
       return undefined as T
     }
 
@@ -149,9 +212,14 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
       : (rawBody as unknown as T)
 
     debugLog(`✅ Success:`, {
-      url,
+      url: logUrl,
       dataType: Array.isArray(data) ? `Array[${data.length}]` : typeof data,
-      sampleData: sensitiveResponse ? '[redacted]' : Array.isArray(data) && data.length > 0 ? data[0] : data
+      sampleData:
+        sensitiveResponse || sensitiveRequest
+          ? '[redacted]'
+          : Array.isArray(data) && data.length > 0
+            ? data[0]
+            : data,
     })
     return data
   } catch (error) {
@@ -160,16 +228,19 @@ export const httpClient = async <T>(path: string, options: HttpClientOptions = {
         message: error.message,
         status: error.status,
         url: error.url,
-        data: error.data,
+        data: sensitiveRequest || sensitiveResponse ? '[redacted]' : error.data,
       })
       throw error
     }
-    console.error(`🔥 Network Error:`, { url, error })
+    console.error(`🔥 Network Error:`, {
+      url: logUrl,
+      error: sensitiveRequest ? '[redacted]' : error,
+    })
     throw new ApiError(
       error instanceof Error ? error.message : '네트워크 오류',
       0,
       error,
-      url
+      logUrl,
     )
   }
 }

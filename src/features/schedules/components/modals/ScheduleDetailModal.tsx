@@ -1,5 +1,7 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { CategoryBadge } from '@features/categories'
+import { cardPath } from '@features/spaces/cardPath'
+import SpacePath from '@features/spaces/SpacePath'
+import { useSpaces } from '@features/spaces/store'
 import { useId } from 'react'
 import Modal from '@shared/components/common/Modal'
 import useScheduleDetail from '../../hooks/useScheduleDetail'
@@ -47,6 +49,7 @@ const ScheduleDetailModal = ({
     scheduleId.toString(),
   )
   const { open } = useRouteSurfaceNavigation()
+  const { spaces, projects } = useSpaces()
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
   const { activeScheduleId, setActiveSchedule } = useScheduleCache()
@@ -91,7 +94,7 @@ const ScheduleDetailModal = ({
       )
     ) {
       try {
-        await deleteSchedule(schedule.id)
+        await deleteSchedule(schedule.id, schedule.version)
         console.log(`✅ Schedule deleted: ${schedule.id}`)
         if (activeScheduleId === schedule.id) {
           setActiveSchedule(null)
@@ -185,7 +188,15 @@ const ScheduleDetailModal = ({
             {schedule.description}
           </p>
           <div className="schedule-detail-modal__meta">
-            <CategoryBadge kind="schedule" itemId={schedule.id} />
+            <SpacePath
+              path={cardPath(
+                'all',
+                { spaceId: null, projectId: null },
+                schedule,
+                spaces,
+                projects,
+              )}
+            />
             <span className="schedule-detail-modal__badge schedule-detail-modal__badge--state">
               {stateLabel[schedule.state]}
             </span>
@@ -225,12 +236,14 @@ const ScheduleDetailModal = ({
                 open(`/app/schedules/${schedule.id}/edit`)
               }
             }}
+            disabled={!schedule?.allowedActions?.edit}
             className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--edit"
           >
             <WorkspaceIcon name="edit" /> 수정
           </button>
           <button
             type="button"
+            disabled={!schedule?.allowedActions?.delete}
             onClick={handleDelete}
             className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
           >

@@ -1,3 +1,4 @@
+import type { AllowedActions, UnavailableReasons } from '@features/spaces/types'
 import type { DateTimeWithZone, DateWithOffset } from '@shared/types/datetime'
 import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
 
@@ -9,6 +10,11 @@ export type TrashedTaskSchedule = {
 }
 
 export type TrashedTask = {
+  spaceId?: number
+  projectId?: number | null
+  version?: number
+  allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
   taskId: number
   title: string
   dueDate: DateWithOffset
@@ -21,6 +27,11 @@ export type TrashedTask = {
 }
 
 export type TrashedSchedule = {
+  spaceId?: number
+  projectId?: number | null
+  version?: number
+  allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
   scheduleId: number
   title: string
   date: DateTimeWithZone

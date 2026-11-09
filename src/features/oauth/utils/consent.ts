@@ -17,24 +17,34 @@ export type ConsentScopeOption = {
 type KnownScope = Omit<ConsentScopeOption, 'scope' | 'unknown'>
 
 const KNOWN_SCOPES: Record<string, KnownScope> = {
-  [READ_SCOPE]: { label: '일정·작업 보기', required: true, defaultChecked: true },
-  [WRITE_SCOPE]: { label: '일정·작업 만들기·수정·상태 변경 (삭제는 불가)', required: false, defaultChecked: true },
+  [READ_SCOPE]: {
+    label: '개인·공유 스페이스의 일정·작업·프로젝트·참여자 보기',
+    required: true,
+    defaultChecked: true,
+  },
+  [WRITE_SCOPE]: {
+    label: '개인·공유 스페이스의 내용 만들기·수정·상태 변경 (삭제는 불가)',
+    required: false,
+    defaultChecked: true,
+  },
   // 요청돼도 기본은 해제. 사용자가 직접 체크해야만 허용한다.
   [DELETE_SCOPE]: {
-    label: '일정·작업 삭제 (AI가 삭제할 때마다 미리보기 후 확인)',
+    label: '스페이스·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
     required: false,
     defaultChecked: false,
     warning:
-      '허용하면 AI 앱이 일정이나 작업 삭제를 요청할 수 있어요. 삭제마다 미리보기를 확인한 뒤에만 지워지고, 지운 뒤에는 되돌릴 수 없어요.',
+      '삭제·초대 철회·참여자 제외·스페이스 나가기는 미리보기를 확인한 뒤에만 실행돼요. 영구 삭제와 반복 범위 삭제는 되돌릴 수 없어요.',
   },
 }
 
 const KNOWN_SCOPE_ORDER = [READ_SCOPE, WRITE_SCOPE, DELETE_SCOPE]
 
-export const describeScope = (scope: string) => KNOWN_SCOPES[scope]?.label ?? scope
-
 const normalizeScopes = (scopes: readonly string[] | null | undefined) =>
-  new Set((Array.isArray(scopes) ? scopes : []).map((scope) => scope.trim()).filter(Boolean))
+  new Set(
+    (Array.isArray(scopes) ? scopes : [])
+      .map((scope) => scope.trim())
+      .filter(Boolean),
+  )
 
 /**
  * 동의 화면 체크박스. 읽기는 항상 필요(쓰기·삭제가 읽기를 포함하는 백엔드 규칙과 같음)하고,
@@ -50,12 +60,26 @@ export const buildConsentScopeOptions = (
   const offered = new Set([...normalizeScopes(requestedScopes), ...optIn])
   const toOption = (scope: string): ConsentScopeOption => {
     const known = KNOWN_SCOPES[scope]
-    const base = known ? { scope, ...known } : { scope, label: scope, required: false, defaultChecked: false, unknown: true }
+    const base = known
+      ? { scope, ...known }
+      : {
+          scope,
+          label: scope,
+          required: false,
+          defaultChecked: false,
+          unknown: true,
+        }
     // opt-in scope는 사용자가 직접 체크해야만 허용한다.
-    return optIn.has(scope) && !base.required ? { ...base, defaultChecked: false } : base
+    return optIn.has(scope) && !base.required
+      ? { ...base, defaultChecked: false }
+      : base
   }
-  const known = KNOWN_SCOPE_ORDER.filter((scope) => scope === READ_SCOPE || offered.has(scope)).map(toOption)
-  const unknown = [...offered].filter((scope) => !(scope in KNOWN_SCOPES)).map(toOption)
+  const known = KNOWN_SCOPE_ORDER.filter(
+    (scope) => scope === READ_SCOPE || offered.has(scope),
+  ).map(toOption)
+  const unknown = [...offered]
+    .filter((scope) => !(scope in KNOWN_SCOPES))
+    .map(toOption)
   return [...known, ...unknown]
 }
 
@@ -83,7 +107,8 @@ export const toDecisionScopes = (
     .map((option) => option.scope)
 }
 
-export const hasDeleteScope = (scopes: readonly string[]) => scopes.includes(DELETE_SCOPE)
+export const hasDeleteScope = (scopes: readonly string[]) =>
+  scopes.includes(DELETE_SCOPE)
 
 /** 서버가 준 redirectUri로만 이동하되, javascript: 같은 스킴은 막는다. */
 export const isNavigableRedirectUri = (uri: unknown): uri is string => {
@@ -96,12 +121,19 @@ export const isNavigableRedirectUri = (uri: unknown): uri is string => {
   }
 }
 
-export const isRequestExpired = (expiresAt: string, now: number = Date.now()) => {
+export const isRequestExpired = (
+  expiresAt: string,
+  now: number = Date.now(),
+) => {
   const expiry = Date.parse(expiresAt)
   return Number.isNaN(expiry) || expiry <= now
 }
 
-export type ConsentErrorKind = 'expired' | 'unauthorized' | 'network' | 'unknown'
+export type ConsentErrorKind =
+  | 'expired'
+  | 'unauthorized'
+  | 'network'
+  | 'unknown'
 
 export type ConsentError = {
   kind: ConsentErrorKind
@@ -109,12 +141,18 @@ export type ConsentError = {
 }
 
 const readStatus = (error: unknown) => {
-  const status = error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined
+  const status =
+    error && typeof error === 'object'
+      ? (error as { status?: unknown }).status
+      : undefined
   return typeof status === 'number' ? status : undefined
 }
 
 const readMessage = (error: unknown) => {
-  const message = error && typeof error === 'object' ? (error as { message?: unknown }).message : undefined
+  const message =
+    error && typeof error === 'object'
+      ? (error as { message?: unknown }).message
+      : undefined
   return typeof message === 'string' && message.trim() ? message : undefined
 }
 
@@ -124,10 +162,24 @@ export const EXPIRED_REQUEST_MESSAGE =
 // ApiError(status 0 = fetch 실패)를 import 없이 구조로 판별한다.
 export const toConsentError = (error: unknown): ConsentError => {
   const status = readStatus(error)
-  if (status === 404 || status === 410) return { kind: 'expired', message: EXPIRED_REQUEST_MESSAGE }
-  if (status === 401) return { kind: 'unauthorized', message: '로그인이 만료됐어요. 다시 로그인한 뒤 이어서 진행해주세요.' }
+  if (status === 404 || status === 410)
+    return { kind: 'expired', message: EXPIRED_REQUEST_MESSAGE }
+  if (status === 401)
+    return {
+      kind: 'unauthorized',
+      message: '로그인이 만료됐어요. 다시 로그인한 뒤 이어서 진행해주세요.',
+    }
   if (status === 0) {
-    return { kind: 'network', message: '서버에 연결하지 못했어요. 네트워크 상태를 확인한 뒤 다시 시도해주세요.' }
+    return {
+      kind: 'network',
+      message:
+        '서버에 연결하지 못했어요. 네트워크 상태를 확인한 뒤 다시 시도해주세요.',
+    }
   }
-  return { kind: 'unknown', message: readMessage(error) ?? '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.' }
+  return {
+    kind: 'unknown',
+    message:
+      readMessage(error) ??
+      '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
+  }
 }

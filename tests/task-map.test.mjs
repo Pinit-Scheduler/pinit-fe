@@ -284,18 +284,37 @@ test('task APIs propagate AbortSignal and preserve unknown server readiness', as
       ? { data: [] }
       : url.includes('/search') || /\/tasks\?/.test(url)
         ? { content: [] }
-        : { ...task(1), inboundDependencyCount: null }
+        : {
+            task: { ...task(1), inboundDependencyCount: null },
+            spaceId: -1,
+            projectId: null,
+            assigneeId: 1,
+            assigneeNickname: '나',
+            version: 0,
+            allowedActions: {},
+          }
   }
   vm.runInNewContext(outputText, {
     module,
     exports: module.exports,
     URLSearchParams,
     require: (name) =>
-      name.includes('httpClient')
-        ? { httpClient: client }
-        : name.includes('config')
-          ? { buildApiUrl: (path) => path }
-          : { toApiDateTimeWithZone: (date) => date },
+      name === '@features/spaces/store'
+        ? { getSelectedScope: () => ({ spaceId: null, projectId: null }) }
+        : name === '@features/spaces/metadata'
+          ? (() => {
+              const registry = { exports: {} }
+              const source = readFileSync(new URL('../src/features/spaces/metadata.ts', import.meta.url), 'utf8')
+              vm.runInNewContext(ts.transpileModule(source, { compilerOptions: {
+                module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022,
+              } }).outputText, { module: registry, exports: registry.exports })
+              return registry.exports
+            })()
+          : name.includes('httpClient')
+            ? { httpClient: client }
+            : name.includes('config')
+              ? { buildApiUrl: (path) => path }
+              : { toApiDateTimeWithZone: (date) => date },
   })
   const api = module.exports,
     signal = new AbortController().signal

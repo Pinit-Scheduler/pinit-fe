@@ -1,0 +1,12 @@
+{
+  "name": "pinit-spaces-browser-qa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node canonical-postdeploy.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}

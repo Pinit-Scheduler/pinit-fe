@@ -1,4 +1,9 @@
 import './App.css'
+import SpacesPage from '@features/spaces/SpacesPage'
+import InvitationPage from '@features/spaces/InvitationPage'
+import ConflictNotice from '@features/spaces/ConflictNotice'
+import WorkspaceRealtime from '@features/spaces/WorkspaceRealtime'
+import { useWorkspaceEvents } from '@features/spaces/store'
 import '@shared/styles/workspacePalette.css'
 import {
   createBrowserRouter,
@@ -17,7 +22,8 @@ import {
 } from '@shared/routing/routeSurfaceState'
 import ScheduleDetailPage from '@features/schedules/pages/ScheduleDetailPage'
 import { TaskMapPage } from '@features/task-map'
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
 import AppShell from '@shared/components/layout/AppShell'
 import { ScheduleCacheProvider } from '@contexts/ScheduleCacheContext'
 import { ScheduleViewStateProvider } from '@contexts/ScheduleViewStateContext'
@@ -43,6 +49,7 @@ import {
 } from '@features/schedules'
 import { TodayPage } from '@features/today'
 import { PlanPage } from '@features/planner'
+import DeadlineRiskPage from '@features/deadline-risk/pages/DeadlineRiskPage'
 import {
   TaskListPage,
   TaskCreatePage,
@@ -58,6 +65,7 @@ import { OAuthConsentPage } from '@features/oauth'
 import { OnboardingGuidePage } from '@features/onboarding'
 
 const WorkspaceRoutes = () => {
+  useWorkspaceEvents()
   const location = useLocation()
   const background = safeBackground(location.state)
   const surface = isSurfacePath(location.pathname)
@@ -84,13 +92,17 @@ const WorkspaceRoutes = () => {
   )
   return (
     <div className="workspace-theme">
+      <WorkspaceRealtime />
+      <ConflictNotice />
       <Routes location={base}>
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/app/today" replace />} />
           <Route path="today" element={<TodayPage />} />
           <Route path="plan" element={<PlanPage />} />
+          <Route path="deadline-risk" element={<DeadlineRiskPage />} />
           <Route path="schedules" element={<SchedulesTabPage />} />
           <Route path="tasks" element={<TaskListPage />} />
+          <Route path="spaces" element={<SpacesPage />} />
           <Route path="task-map" element={<TaskMapPage />} />
           <Route path="statistics" element={<StatisticsTabPage />} />
           <Route path="settings" element={<SettingsPage />} />
@@ -145,6 +157,7 @@ const AppRoutes = () => (
     <Route path="/forgot-password" element={<ForgotPasswordPage />} />
     <Route path="/login/callback/:provider" element={<SocialCallbackPage />} />
     <Route element={<AuthGuard />}>
+      <Route path="/spaces/join/:token" element={<InvitationPage />} />
       <Route path="/oauth/consent" element={<OAuthConsentPage />} />
       <Route path="/email-registration" element={<EmailRegistrationPage />} />
       <Route path="/app/*" element={<WorkspaceRoutes />} />
@@ -167,6 +180,20 @@ const InitialLoadingScreen = () => {
 }
 
 const AppContent = () => {
+  const currentActor = () => {
+    const token = getAccessToken()
+    return token ? getTokenSubject(token) : null
+  }
+  const [actor, setActor] = useState(currentActor)
+  useEffect(() => {
+    const sync = () => setActor(currentActor())
+    window.addEventListener('auth:changed', sync)
+    window.addEventListener('storage', sync)
+    return () => {
+      window.removeEventListener('auth:changed', sync)
+      window.removeEventListener('storage', sync)
+    }
+  }, [])
   const { offsetMinutes, zoneId, isLoading } = useTimePreferences()
 
   if (isLoading) {
@@ -177,7 +204,7 @@ const AppContent = () => {
   // 토스트는 그 밖에 두어 "시간대를 바꿨어요" 안내가 다시 그릴 때 사라지지 않게 한다.
   return (
     <ToastProvider>
-      <TaskCacheProvider key={zoneId}>
+      <TaskCacheProvider key={`${zoneId}:${actor ?? 'guest'}`}>
         <ScheduleCacheProvider>
           <ScheduleViewStateProvider key={offsetMinutes}>
             <RouterProvider router={router} />

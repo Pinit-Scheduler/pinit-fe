@@ -5,9 +5,9 @@ export type OAuthAuthorizationRequest = {
   clientId: string
   redirectHost: string
   localhostRedirect: boolean
-  /** 기본으로 허용할 scope */
+  /** 연결 요청의 scope. 선택 상태는 동의 옵션 규칙과 optInScopes로 결정한다. */
   requestedScopes: string[]
-  /** ADR-0014: 체크 해제 상태로 보여 주고 사용자가 체크해야만 허용하는 scope(예: mcp:delete). 이전 백엔드는 보내지 않는다. */
+  /** ADR-0014: 체크 해제 상태로 보여 주고 사용자가 체크해야만 허용하는 scope(예: mcp:delete). */
   optInScopes?: string[]
   expiresAt: string
 }

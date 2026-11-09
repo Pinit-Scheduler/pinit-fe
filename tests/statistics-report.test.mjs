@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
+import { createRequire } from 'node:module'
 import ts from 'typescript'
+
+const requireFromHere = createRequire(import.meta.url)
+const dayjsLib = requireFromHere('dayjs')
+dayjsLib.extend(requireFromHere('dayjs/plugin/isoWeek'))
 
 const loadModule = (relativePath, dependencies = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -13,6 +18,7 @@ const loadModule = (relativePath, dependencies = {}) => {
   vm.runInNewContext(outputText, {
     module,
     exports: module.exports,
+    URLSearchParams,
     require: (name) => {
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
@@ -80,4 +86,103 @@ test('streak lines count occurrences and pending today invites keeping the strea
     report.streakLine({ currentStreak: 0, longestStreak: 0, pendingToday: true, completedCount: 0, missedCount: 0 }),
     '아직 기록 없음',
   )
+})
+
+const loadWithRequests = (relativePath, selection, extra = {}) => {
+  const urls = []
+  const exports = loadModule(relativePath, {
+    '@features/spaces/store': { getSelectedScope: () => selection },
+    '@shared/api/config': { buildApiUrl: (path) => `https://api.test${path}` },
+    '@shared/api/httpClient': {
+      httpClient: async (url) => {
+        urls.push(url)
+        return []
+      },
+    },
+    ...extra,
+  })
+  return { exports, urls }
+}
+
+const selected = { spaceId: 31, projectId: 88 }
+const queryOf = (url) => new URL(url).searchParams
+
+test('statistics requests ignore the selected space and project', async () => {
+  const { exports, urls } = loadWithRequests('../src/features/statistics/api/report.ts', selected)
+  await exports.fetchPeriodStatistics('WEEK')
+  await exports.fetchStatisticsTrend('WEEK')
+  await exports.fetchRecurrenceStatistics('ACTIVE')
+  assert.equal(urls.length, 3)
+  for (const url of urls) {
+    assert.equal(queryOf(url).has('spaceId'), false, url)
+    assert.equal(queryOf(url).has('projectId'), false, url)
+  }
+  assert.equal(queryOf(urls[0]).get('unit'), 'WEEK')
+})
+
+test('plan comparison reads planned time across spaces for me only', async () => {
+  const { exports, urls } = loadWithRequests('../src/features/schedules/api/schedules.ts', selected, {
+    dayjs: { __esModule: true, default: dayjsLib },
+    '../types/schedule': {},
+    '@shared/utils/datetime': {
+      toApiDateTimeWithZone: () => ({ zoneId: 'Asia/Seoul' }),
+      toDisplayDayjs: (time) => dayjsLib(time),
+      toDateFromApi: ({ dateTime }) => new Date(`${dateTime}Z`),
+    },
+    '@features/spaces/metadata': {
+      getResourceRevision: () => 1,
+      isResourceUnavailable: () => false,
+    },
+  })
+  await exports.fetchWeeklySchedules('2026-10-28T12:00:00', { allSpaces: true, mine: true })
+  const query = queryOf(urls[0])
+  assert.equal(query.has('spaceId'), false)
+  assert.equal(query.has('projectId'), false)
+  assert.equal(query.get('mine'), 'true')
+})
+
+test('the plan comparison section asks for my schedules across spaces', () => {
+  const source = readFileSync(
+    new URL('../src/features/statistics/components/PlanComparisonSection.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(source, /fetchWeeklySchedules\(anchor, \{ allSpaces: true, mine: true \}\)/)
+})
+
+test('the day plan preview still follows the selected space', async () => {
+  const { exports, urls } = loadWithRequests('../src/features/planner/api/plans.ts', selected)
+  await exports.fetchDayPlan({ date: '2026-10-28', zoneId: 'Asia/Seoul' })
+  assert.equal(queryOf(urls[0]).get('spaceId'), '31')
+  assert.equal(queryOf(urls[0]).get('projectId'), '88')
+})
+
+test('space time rows keep the server order and name unknown items', () => {
+  const { spaceTimeRows } = loadModule('../src/features/statistics/utils/spaceTime.ts', {
+    '@shared/utils/isoDuration': {
+      parseIsoDurationMinutes: (value) => ({ PT30M: 30, PT1H: 60 })[value] ?? 0,
+    },
+  })
+  const rows = spaceTimeRows(
+    [
+      {
+        spaceId: 31,
+        elapsed: 'PT1H',
+        projects: [
+          { projectId: 88, elapsed: 'PT30M' },
+          { projectId: null, elapsed: 'PT30M' },
+        ],
+      },
+      { spaceId: 77, elapsed: 'PT30M', projects: [{ projectId: 5, elapsed: 'PT30M' }] },
+    ],
+    [{ id: 31, name: '핀잇 개선', personal: false }],
+    [{ id: 88, name: '작업 카드 개선' }],
+  )
+  assert.deepEqual(plain(rows.map((row) => [row.name, row.minutes, row.child])), [
+    ['핀잇 개선', 60, false],
+    ['작업 카드 개선', 30, true],
+    ['프로젝트 없음', 30, true],
+    ['알 수 없는 스페이스', 30, false],
+    ['삭제된 프로젝트', 30, true],
+  ])
+  assert.deepEqual(plain(spaceTimeRows(undefined, [], [])), [])
 })

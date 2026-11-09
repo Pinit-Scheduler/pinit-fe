@@ -1,0 +1,35 @@
+name: Canonical postdeploy smoke
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-read-only:
+    if: github.repository == 'Pinit-Scheduler/pinit-fe' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      VITE_API_BASE_URL: https://mono.pinit.go-gradually.me
+      VITE_AUTH_BASE_URL: https://mono.pinit.go-gradually.me
+      VITE_NOTIFICATION_API_BASE_URL: https://mono.pinit.go-gradually.me
+      VITE_USE_MOCK_API: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: npm ci --prefix qa/browser
+      - name: Install official Chromium
+        working-directory: qa/browser
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Wait for genuine canonical assets and verify SW and mobile login
+        # Read-only, fresh browser; no accounts or production fixture writes.
+        run: node qa/browser/canonical-postdeploy.mjs

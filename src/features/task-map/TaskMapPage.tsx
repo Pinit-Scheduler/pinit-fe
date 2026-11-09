@@ -1,3 +1,4 @@
+import { useProjectFilter } from '@features/spaces/store'
 import {
   useEffect,
   useId,
@@ -12,10 +13,10 @@ import Modal from '@shared/components/common/Modal'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import useCurrentDay from '@shared/hooks/useCurrentDay'
 import {
-  CategoryBadge,
   CategoryFilter,
   useCategories,
 } from '@features/categories'
+import type { Category } from '@features/categories'
 import type { Task } from '@features/tasks/types/task'
 import {
   buildTaskGraph,
@@ -61,6 +62,10 @@ const useMobileMap = () => {
     return () => media.removeEventListener('change', update)
   }, [])
   return mobile
+}
+
+function CategoryName({ category }: { category?: Category | null }) {
+  return <span className="category-badge">{category?.name ?? '없음'}</span>
 }
 
 function TaskMetrics({ task }: { task: Task }) {
@@ -344,7 +349,7 @@ function SequenceMap({
               }}
             >
               <div className="tm-node-top">
-                <CategoryBadge category={categoryFor(node.id)} />
+                <CategoryName category={categoryFor(node.id)} />
                 <time dateTime={taskDateKey(node.task) ?? undefined}>
                   {taskDateKey(node.task)?.slice(5).replace('-', '/') ??
                     '기한 없음'}
@@ -460,7 +465,7 @@ export default function TaskMapPage() {
   const [mode, setMode] = useState<'sequence' | 'matrix'>('sequence')
   const [sort, setSort] = useState<GraphSort>('priority')
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<number | 'none' | 'all'>('all')
+  const [category, setCategory] = useProjectFilter()
   const [state, setState] = useState('all')
   const [urgentDays, setUrgentDays] = useState(2)
   const { data, isLoading, error, count, reload } =
@@ -583,7 +588,7 @@ export default function TaskMapPage() {
       </div>
       {categories.error && (
         <p className="tm-warning" role="status">
-          카테고리를 불러오지 못했습니다.{' '}
+          프로젝트를 불러오지 못했습니다.{' '}
           <button
             type="button"
             onClick={() => {
@@ -689,7 +694,7 @@ export default function TaskMapPage() {
                         {items.map((task) => (
                           <article className="tm-matrix-task" key={task.id}>
                             <div>
-                              <CategoryBadge
+                              <CategoryName
                                 category={categories.taskCategory(task.id)}
                               />
                               <time dateTime={taskDateKey(task) ?? undefined}>

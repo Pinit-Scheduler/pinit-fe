@@ -1,5 +1,5 @@
 importScripts(
-  '/sw/constants.js?cache=pinit-cache-v25',
+  '/sw/constants.js?cache=pinit-cache-v27',
   '/sw/cache.js',
   '/sw/time.js',
   '/sw/idempotency.js',
@@ -27,6 +27,8 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
+  // Time-sensitive forecasts explicitly opt out of both browser and SW caches.
+  if (event.request.cache === 'no-store') return
   if (!cache.isSameOriginGet(event.request)) return
   event.respondWith(
     event.request.mode === 'navigate'

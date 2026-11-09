@@ -5,6 +5,7 @@ import {
   fetchTasks,
   fetchTasksByDeadline,
   createScheduleFromTask,
+  fetchTaskDetail,
 } from '@features/tasks/api/tasks'
 import {
   formatDateTimeWithZone,
@@ -42,8 +43,18 @@ export default function TodayPage() {
   useEffect(() => {
     let cancelled = false
     Promise.allSettled([
-      fetchSchedules(toApiDateTimeWithZone(today)),
-      fetchTasks({ page: 0, size: 10, readyOnly: true }),
+      fetchSchedules(toApiDateTimeWithZone(today), {
+        allSpaces: true,
+        mine: true,
+      }),
+      fetchTasks({
+        page: 0,
+        size: 10,
+        readyOnly: true,
+        mine: true,
+        spaceId: null,
+        projectId: null,
+      }),
       fetchTasksByDeadline(today.format('YYYY-MM-DD')),
     ]).then(([s, r, d]) => {
       if (cancelled) return
@@ -77,9 +88,10 @@ export default function TodayPage() {
   }, [])
   const assign = async (
     payload: Parameters<typeof createScheduleFromTask>[1],
+    expectedVersion?: number,
   ) => {
     if (selectedTaskId === null) return
-    await createScheduleFromTask(selectedTaskId, payload)
+    await createScheduleFromTask(selectedTaskId, payload, expectedVersion)
     dispatchScheduleChanged({ reason: 'task-assigned' })
     dispatchTaskChanged({ taskId: selectedTaskId, reason: 'assigned' })
     setSelectedTaskId(null)
@@ -113,8 +125,11 @@ export default function TodayPage() {
           <div className="today-page__date">
             {today.format('YYYY년 M월 D일 dddd')}
           </div>
-          <h1>오늘 할당된 일</h1>
-          <p>오늘 일정과 마감 작업, 바로 시작할 수 있는 작업을 확인하세요.</p>
+          <h1>오늘의 내 작업</h1>
+          <p>
+            모든 스페이스에서 내게 배정된 일정과 작업을 확인하세요. 오늘 마감과 시작
+            가능한 작업은 함께 표시될 수 있어요.
+          </p>
         </div>
         <div className="workspace-page-actions">
           <Link className="workspace-button" to="/app/plan">
@@ -134,7 +149,7 @@ export default function TodayPage() {
           </button>
           <button
             className="workspace-button workspace-button--primary"
-            onClick={() => open('/app/tasks/new')}
+            onClick={() => open('/app/tasks/new?from=today')}
           >
             <WorkspaceIcon name="plus" />
             작업 추가
@@ -233,8 +248,15 @@ export default function TodayPage() {
       </div>
       <TaskScheduleModal
         isOpen={selectedTaskId !== null}
+        expectedVersion={selected?.version}
         onClose={() => setSelectedTaskId(null)}
         onSubmit={assign}
+        onConflict={async () => {
+          if (selectedTaskId === null) return undefined
+          const latest = await fetchTaskDetail(selectedTaskId)
+          setTask(latest)
+          return latest.version
+        }}
         defaultTitle={selected?.title}
         defaultDescription={selected?.description}
         taskLabel={selected?.title}
