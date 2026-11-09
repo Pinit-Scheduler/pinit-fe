@@ -82,3 +82,23 @@ test('unavailable copy comes from the server reason, not from roles', () => {
     { memberId: 2, nickname: '나', role: 'MEMBER' },
   ]), ['서연'])
 })
+
+test('unavailableLines skips enabled actions and collapses identical texts in order', () => {
+  const { unavailableLines } = load('features/spaces/unavailable.ts')
+  assert.deepEqual(
+    plain(
+      unavailableLines(
+        [
+          { off: false, reason: 'ADMIN_ONLY' },
+          { off: true, reason: undefined },
+          { off: true, reason: 'ADMIN_ONLY' },
+          { off: true, reason: undefined },
+          { off: true, reason: 'SPACE_DELETED' },
+        ],
+        ['서연'],
+      ),
+    ),
+    ['지금은 할 수 없어요.', '관리자 서연님만 할 수 있어요.', '휴지통에 있는 스페이스라 할 수 없어요.'],
+  )
+  assert.deepEqual(plain(unavailableLines([{ off: false, reason: undefined }], [])), [])
+})

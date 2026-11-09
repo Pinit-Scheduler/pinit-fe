@@ -247,7 +247,7 @@ body:has(.workspace-theme) > .spotlight-tour .spotlight-tour__next {
     .trash__button,
     .task-detail-modal__action-btn,
     .task-detail-modal__action-btn--primary
-  ):disabled {
+  ):disabled:disabled {
   background: #eef1f5;
   border-color: #e3e7ee;
   color: #9aa3b2;
