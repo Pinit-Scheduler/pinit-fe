@@ -7,11 +7,27 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { KeyboardEvent, PointerEvent } from 'react'
+import type {
+  FocusEvent,
+  KeyboardEvent,
+  MouseEvent,
+  PointerEvent,
+  ReactNode,
+} from 'react'
 import { Link } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import useCurrentDay from '@shared/hooks/useCurrentDay'
+import {
+  MOTION_BASE_MS,
+  MOTION_ENTER_MS,
+  presenceProps,
+  prefersReducedMotion,
+  useListPresence,
+  usePresence,
+  useTweenedNumber,
+} from '@shared/motion'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import {
   CategoryFilter,
   useCategories,
@@ -22,8 +38,10 @@ import {
   buildTaskGraph,
   compareGraphTasks,
   fitGraph,
+  graphEdgePaths,
   isTaskCompleted,
   matrixQuadrant,
+  movedEdgeKeys,
   taskDateKey,
   taskReadiness,
   zoomGraph,
@@ -64,6 +82,58 @@ const useMobileMap = () => {
   return mobile
 }
 
+type OpenSurface = (path: string) => void
+
+/**
+ * A task link that opens the task surface over the map instead of swapping the page behind it.
+ * It stays a real link, so a modified click or "open in new tab" still works.
+ */
+function TaskSurfaceLink({
+  taskId,
+  open,
+  className,
+  onFocus,
+  children,
+}: {
+  taskId: number | 'new'
+  open: OpenSurface
+  className?: string
+  onFocus?: (event: FocusEvent<HTMLAnchorElement>) => void
+  children: ReactNode
+}) {
+  const path = `/app/tasks/${taskId}`
+  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return
+    event.preventDefault()
+    open(path)
+  }
+  return (
+    <Link to={path} className={className} onFocus={onFocus} onClick={onClick}>
+      {children}
+    </Link>
+  )
+}
+
+/** A title that draws the completion strike when a refresh brings the task back completed. */
+function TaskTitle({ task }: { task: Task }) {
+  return (
+    <span
+      className="motion-strike"
+      data-done={isTaskCompleted(task) || undefined}
+    >
+      {task.title}
+    </span>
+  )
+}
+
 function CategoryName({ category }: { category?: Category | null }) {
   return <span className="category-badge">{category?.name ?? '없음'}</span>
 }
@@ -85,24 +155,41 @@ function SequenceMap({
   graph,
   matches,
   categoryFor,
+  layoutKey,
+  presenceKey,
+  open,
 }: {
   graph: TaskGraph
   matches: Set<number>
   categoryFor: ReturnType<typeof useCategories>['taskCategory']
+  /** Changes when the layout is rebuilt (completed toggle, sort, mobile). Only then does the viewport refit. */
+  layoutKey: string
+  /** Changes when the map shows a different selection. Nodes and edges then start a new baseline. */
+  presenceKey: string
+  open: OpenSurface
 }) {
+  // The person's pan and zoom belong to the layout, not to one snapshot: a refresh keeps them.
   const [viewOverride, setViewOverride] = useState<{
-    graph: TaskGraph
+    layoutKey: string
     width: number
     height: number
     view: GraphView
   } | null>(null)
   const [size, setSize] = useState({ width: 800, height: 440 })
   const [expanded, setExpanded] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const [placeholderHeight, setPlaceholderHeight] = useState(0)
   const [selected, setSelectedId] = useState<number | null>(null)
+  const fullscreen = usePresence(expanded)
   const selectedId = graph.nodes.some((node) => node.id === selected)
     ? selected
     : (graph.nodes[0]?.id ?? null)
+  const panelRef = useRef<HTMLElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
+  const expandButtonRef = useRef<HTMLButtonElement>(null)
+  const restoreExpandFocus = useRef(false)
+  const edgeElements = useRef(new Map<string, SVGPathElement>())
+  const drawnEdges = useRef(new Map<string, string>())
   const drag = useRef<{
     id: number
     x: number
@@ -122,14 +209,14 @@ function SequenceMap({
         }
       : fitted
   const view =
-    viewOverride?.graph === graph &&
+    viewOverride?.layoutKey === layoutKey &&
     viewOverride.width === size.width &&
     viewOverride.height === size.height
       ? viewOverride.view
       : initialView
   const setView = (next: GraphView | ((prior: GraphView) => GraphView)) =>
     setViewOverride({
-      graph,
+      layoutKey,
       ...size,
       view: typeof next === 'function' ? next(view) : next,
     })
@@ -144,15 +231,69 @@ function SequenceMap({
   useLayoutEffect(() => {
     const element = viewportRef.current
     if (!element) return
-    const observer = new ResizeObserver(([entry]) =>
+    let settle: ReturnType<typeof setTimeout> | undefined
+    const observer = new ResizeObserver(([entry]) => {
+      // A resize (and the first measurement) refits at once. Only changes the person makes,
+      // or a refreshed layout, glide.
+      element.dataset.resizing = ''
+      clearTimeout(settle)
+      settle = setTimeout(() => {
+        delete element.dataset.resizing
+      }, MOTION_ENTER_MS)
       setSize({
         width: entry.contentRect.width,
         height: entry.contentRect.height,
-      }),
-    )
+      })
+    })
     observer.observe(element)
-    return () => observer.disconnect()
-  }, [expanded])
+    return () => {
+      observer.disconnect()
+      clearTimeout(settle)
+    }
+  }, [fullscreen.mounted])
+
+  const edgePaths = useMemo(() => graphEdgePaths(graph), [graph])
+  const nodeRows = useListPresence(graph.nodes, (node) => node.id, {
+    resetKey: presenceKey,
+  })
+  const edgeRows = useListPresence(edgePaths, (edge) => edge.key, {
+    resetKey: presenceKey,
+  })
+  // An edge whose ends moved waits for the nodes to travel, then fades in along its new curve.
+  useLayoutEffect(() => {
+    const moved = movedEdgeKeys(drawnEdges.current, edgePaths)
+    drawnEdges.current = new Map(edgePaths.map((edge) => [edge.key, edge.d]))
+    if (!moved.length || viewportRef.current?.dataset.resizing !== undefined)
+      return
+    const reduced = prefersReducedMotion()
+    for (const key of moved)
+      edgeElements.current
+        .get(key)
+        ?.animate?.(
+          reduced
+            ? [{ opacity: 0 }, { opacity: 1 }]
+            : [{ opacity: 0 }, { opacity: 0, offset: 0.45 }, { opacity: 1 }],
+          {
+            duration: reduced ? MOTION_BASE_MS : MOTION_ENTER_MS,
+            easing: 'cubic-bezier(0.2, 0, 0, 1)',
+          },
+        )
+  }, [edgePaths])
+
+  useEffect(() => {
+    if (fullscreen.mounted || !restoreExpandFocus.current) return
+    // The opener lived in the inline map, which was replaced while the dialog was open.
+    restoreExpandFocus.current = false
+    expandButtonRef.current?.focus({ preventScroll: true })
+  }, [fullscreen.mounted])
+  const openFullscreen = () => {
+    setPlaceholderHeight(panelRef.current?.offsetHeight ?? 0)
+    setExpanded(true)
+  }
+  const closeFullscreen = () => {
+    restoreExpandFocus.current = true
+    setExpanded(false)
+  }
 
   const moveSelection = (direction: number) => {
     const index = Math.max(
@@ -207,6 +348,7 @@ function SequenceMap({
       y: event.clientY,
       view,
     }
+    setDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
@@ -219,7 +361,10 @@ function SequenceMap({
     })
   }
   const finishDrag = (event: PointerEvent<HTMLDivElement>) => {
-    if (drag.current?.id === event.pointerId) drag.current = null
+    if (drag.current?.id === event.pointerId) {
+      drag.current = null
+      setDragging(false)
+    }
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId)
   }
@@ -235,8 +380,20 @@ function SequenceMap({
   const visibleIds = new Set(visibleNodes.map((node) => node.id)),
     byId = new Map(graph.nodes.map((node) => [node.id, node]))
   const selectedIndex = graph.nodes.findIndex((node) => node.id === selectedId)
+  // Leaving nodes and edges fade out where they were, even when culling would drop them.
+  const shownNodes = nodeRows.filter(
+    ({ item, phase }) => phase === 'exit' || visibleIds.has(item.id),
+  )
+  const shownEdges = edgeRows.filter(
+    ({ item, phase }) =>
+      phase === 'exit' || visibleIds.has(item.from) || visibleIds.has(item.to),
+  )
   const surface = (
-    <section className="tm-canvas-panel" aria-labelledby={titleId}>
+    <section
+      ref={panelRef}
+      className="tm-canvas-panel"
+      aria-labelledby={titleId}
+    >
       <header className="tm-canvas-toolbar">
         <h2 id={titleId}>작업 순서</h2>
         <label className="tm-task-jump">
@@ -255,8 +412,12 @@ function SequenceMap({
             ))}
           </select>
         </label>
-        <button type="button" onClick={() => setExpanded(!expanded)}>
-          {expanded ? '큰 화면 닫기' : '큰 화면'}
+        <button
+          ref={expandButtonRef}
+          type="button"
+          onClick={fullscreen.mounted ? closeFullscreen : openFullscreen}
+        >
+          {fullscreen.mounted ? '큰 화면 닫기' : '큰 화면'}
         </button>
       </header>
       <div
@@ -273,6 +434,7 @@ function SequenceMap({
       >
         <div
           className="tm-world"
+          data-dragging={dragging || undefined}
           style={{
             width: graph.width,
             height: graph.height,
@@ -313,81 +475,84 @@ function SequenceMap({
                 <path d="M0 0 L8 4 L0 8 Z" />
               </marker>
             </defs>
-            {graph.edges
-              .filter(
-                (edge) => visibleIds.has(edge.from) || visibleIds.has(edge.to),
-              )
-              .map((edge) => {
-                const a = byId.get(edge.from)!,
-                  b = byId.get(edge.to)!,
-                  vertical = graph.mobile && a.rank !== b.rank
-                const x1 = vertical ? a.x + a.width / 2 : a.x + a.width,
-                  y1 = vertical ? a.y + a.height : a.y + a.height / 2
-                const x2 = vertical ? b.x + b.width / 2 : b.x,
-                  y2 = vertical ? b.y : b.y + b.height / 2
-                const path = vertical
-                  ? `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`
-                  : `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`
-                return (
-                  <path
-                    key={`${edge.from}:${edge.to}`}
-                    d={path}
-                    markerEnd={`url(#${markerId})`}
-                  />
-                )
-              })}
+            {shownEdges.map(({ key, item: edge, phase }) => (
+              <path
+                key={key}
+                ref={(element) => {
+                  if (element) edgeElements.current.set(key, element)
+                  else edgeElements.current.delete(key)
+                }}
+                className={
+                  phase !== 'exit' &&
+                  (edge.from === selectedId || edge.to === selectedId)
+                    ? 'tm-edge--active'
+                    : undefined
+                }
+                data-presence={phase === 'present' ? undefined : phase}
+                d={edge.d}
+                markerEnd={`url(#${markerId})`}
+              />
+            ))}
           </svg>
-          {visibleNodes.map((node) => (
-            <article
-              key={node.id}
-              className={`tm-node${matches.has(node.id) ? '' : ' tm-node--context'}${selectedId === node.id ? ' tm-node--selected' : ''}`}
+          {shownNodes.map(({ key, item: node, phase }) => (
+            <div
+              key={key}
+              className="tm-node-slot"
+              data-selected={
+                (phase !== 'exit' && selectedId === node.id) || undefined
+              }
               style={{
-                left: node.x,
-                top: node.y,
                 width: node.width,
                 height: node.height,
+                transform: `translate(${node.x}px,${node.y}px)`,
               }}
             >
-              <div className="tm-node-top">
-                <CategoryName category={categoryFor(node.id)} />
-                <time dateTime={taskDateKey(node.task) ?? undefined}>
-                  {taskDateKey(node.task)?.slice(5).replace('-', '/') ??
-                    '기한 없음'}
-                </time>
-              </div>
-              <Link
-                to={`/app/tasks/${node.id}`}
-                onFocus={(event) => {
-                  if (event.currentTarget.matches(':focus-visible'))
-                    focusNode(node)
-                }}
-                className="tm-node-title"
+              <article
+                className={`tm-node${matches.has(node.id) ? '' : ' tm-node--context'}${selectedId === node.id ? ' tm-node--selected' : ''}${isTaskCompleted(node.task) ? ' tm-node--completed' : ''}`}
+                {...presenceProps(phase)}
               >
-                {node.task.title}
-              </Link>
-              <span
-                className={`tm-readiness tm-readiness--${taskReadiness(node.task)}`}
-              >
-                {node.unresolvedOrder
-                  ? '연결 순서 확인 필요'
-                  : statusLabel[taskReadiness(node.task)]}
-              </span>
-              <div className="tm-predecessors">
-                {node.completedPredecessors.length > 0 && (
-                  <span
-                    title={node.completedPredecessors
-                      .map((task) => task.title)
-                      .join(', ')}
-                  >
-                    선행 완료 {node.completedPredecessors.length}개
-                  </span>
-                )}
-                {node.missingPredecessors.length > 0 && (
-                  <span>연결 미확인 {node.missingPredecessors.length}개</span>
-                )}
-              </div>
-              <TaskMetrics task={node.task} />
-            </article>
+                <div className="tm-node-top">
+                  <CategoryName category={categoryFor(node.id)} />
+                  <time dateTime={taskDateKey(node.task) ?? undefined}>
+                    {taskDateKey(node.task)?.slice(5).replace('-', '/') ??
+                      '기한 없음'}
+                  </time>
+                </div>
+                <TaskSurfaceLink
+                  taskId={node.id}
+                  open={open}
+                  onFocus={(event) => {
+                    if (event.currentTarget.matches(':focus-visible'))
+                      focusNode(node)
+                  }}
+                  className="tm-node-title"
+                >
+                  <TaskTitle task={node.task} />
+                </TaskSurfaceLink>
+                <span
+                  className={`tm-readiness tm-readiness--${taskReadiness(node.task)}`}
+                >
+                  {node.unresolvedOrder
+                    ? '연결 순서 확인 필요'
+                    : statusLabel[taskReadiness(node.task)]}
+                </span>
+                <div className="tm-predecessors">
+                  {node.completedPredecessors.length > 0 && (
+                    <span
+                      title={node.completedPredecessors
+                        .map((task) => task.title)
+                        .join(', ')}
+                    >
+                      선행 완료 {node.completedPredecessors.length}개
+                    </span>
+                  )}
+                  {node.missingPredecessors.length > 0 && (
+                    <span>연결 미확인 {node.missingPredecessors.length}개</span>
+                  )}
+                </div>
+                <TaskMetrics task={node.task} />
+              </article>
+            </div>
           ))}
         </div>
       </div>
@@ -446,17 +611,104 @@ function SequenceMap({
       </footer>
     </section>
   )
-  return expanded ? (
-    <Modal
-      onClose={() => setExpanded(false)}
-      labelledBy={titleId}
-      backdropClassName="tm-fullscreen-backdrop"
-      className="tm-fullscreen"
-    >
-      {surface}
-    </Modal>
+  return fullscreen.mounted ? (
+    <>
+      {/* Holds the map's place on the page while it is open full screen, so nothing below jumps. */}
+      <div
+        className="tm-canvas-placeholder"
+        style={{ height: placeholderHeight || undefined }}
+        aria-hidden="true"
+      />
+      <Modal
+        closing={fullscreen.closing}
+        onClose={closeFullscreen}
+        labelledBy={titleId}
+        backdropClassName="tm-fullscreen-backdrop"
+        className="tm-fullscreen"
+      >
+        {surface}
+      </Modal>
+    </>
   ) : (
     surface
+  )
+}
+
+function MatrixQuadrant({
+  index,
+  items,
+  resetKey,
+  categoryFor,
+  open,
+}: {
+  index: number
+  items: Task[]
+  /** Filters and the urgency rule: changing them starts a new baseline instead of animating the swap. */
+  resetKey: string
+  categoryFor: ReturnType<typeof useCategories>['taskCategory']
+  open: OpenSurface
+}) {
+  // A task that a refresh moves to another quadrant leaves this one and rises into the other.
+  const rows = useListPresence(items, (task) => task.id, { resetKey })
+  const shownCount = Math.round(useTweenedNumber(items.length))
+  return (
+    <section className={`tm-quadrant tm-quadrant--${index}`}>
+      <header>
+        <span>{quadrantHints[index]}</span>
+        <h2>
+          {quadrantNames[index]} <small>{shownCount}</small>
+        </h2>
+      </header>
+      <div className="tm-matrix-list">
+        {rows.map(({ key, item: task, phase }) => (
+          <article className="tm-matrix-task" key={key} {...presenceProps(phase)}>
+            <div>
+              <CategoryName category={categoryFor(task.id)} />
+              <time dateTime={taskDateKey(task) ?? undefined}>
+                {taskDateKey(task) ?? '기한 없음'}
+              </time>
+            </div>
+            <TaskSurfaceLink taskId={task.id} open={open}>
+              {task.title}
+            </TaskSurfaceLink>
+            <span
+              className={`tm-readiness tm-readiness--${taskReadiness(task)}`}
+            >
+              {statusLabel[taskReadiness(task)]}
+            </span>
+            <TaskMetrics task={task} />
+          </article>
+        ))}
+        {rows.length === 0 && (
+          <p className="tm-empty-quadrant">이 구역의 작업이 없습니다.</p>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function CompletedTaskList({
+  tasks,
+  resetKey,
+  open,
+}: {
+  tasks: Task[]
+  resetKey: string
+  open: OpenSurface
+}) {
+  // A task completed elsewhere arrives here already struck through; a reopened one fades out.
+  const rows = useListPresence(tasks, (task) => task.id, { resetKey })
+  return (
+    <details className="tm-completed-list">
+      <summary>완료 작업 {tasks.length}개</summary>
+      {rows.map(({ key, item: task, phase }) => (
+        <span className="tm-completed-row" key={key} {...presenceProps(phase)}>
+          <TaskSurfaceLink taskId={task.id} open={open}>
+            <TaskTitle task={task} />
+          </TaskSurfaceLink>
+        </span>
+      ))}
+    </details>
   )
 }
 
@@ -468,11 +720,16 @@ export default function TaskMapPage() {
   const [category, setCategory] = useProjectFilter()
   const [state, setState] = useState('all')
   const [urgentDays, setUrgentDays] = useState(2)
-  const { data, isLoading, error, count, reload } =
+  const { data, isLoading, isRefreshing, error, count, reload } =
     useTaskGraph(includeCompleted)
+  const { open } = useRouteSurfaceNavigation()
   const categories = useCategories(),
     mobile = useMobileMap(),
     today = useCurrentDay().format('YYYY-MM-DD')
+  // A map that the person waited for rises in once. A cached one shows at once, and a refresh
+  // keeps it mounted, so the entrance never replays.
+  const [waited, setWaited] = useState(false)
+  if (isLoading && !waited) setWaited(true)
   const graph = useMemo(
     () =>
       buildTaskGraph(data?.tasks ?? [], {
@@ -505,6 +762,18 @@ export default function TaskMapPage() {
     .sort(compareGraphTasks(sort, today))
   const unfinished = matching.filter((task) => !isTaskCompleted(task)),
     completed = matching.filter(isTaskCompleted)
+  const layoutKey = `${includeCompleted}:${mobile}:${sort}`,
+    presenceKey = `${includeCompleted}:${mobile}`,
+    matrixKey = `${presenceKey}:${urgentDays}:${query.trim()}:${category}:${state}`
+  // A failed refresh keeps the map; the server's message shows above it.
+  const refreshError = error && data ? (
+    <p className="tm-warning tm-refresh-error" role="alert">
+      {error}{' '}
+      <button type="button" onClick={reload}>
+        다시 시도
+      </button>
+    </p>
+  ) : null
   return (
     <section className="task-map-page">
       <header className="tm-page-header">
@@ -513,9 +782,13 @@ export default function TaskMapPage() {
           <h1>작업 맵</h1>
           <p>목록의 페이지·필터와 관계없이 모든 미완료 작업을 불러옵니다.</p>
         </div>
-        <Link className="tm-primary-link" to="/app/tasks/new">
+        <TaskSurfaceLink
+          taskId="new"
+          open={open}
+          className="tm-primary-link"
+        >
           + 작업 추가
-        </Link>
+        </TaskSurfaceLink>
       </header>
       <div className="tm-page-tools">
         <div className="tm-view-switch" role="group" aria-label="작업 맵 보기">
@@ -546,7 +819,12 @@ export default function TaskMapPage() {
           />
           완료 작업 포함
         </label>
-        <button type="button" disabled={isLoading} onClick={reload}>
+        <button
+          type="button"
+          disabled={isLoading}
+          aria-busy={isRefreshing || undefined}
+          onClick={reload}
+        >
           새로고침
         </button>
       </div>
@@ -605,7 +883,7 @@ export default function TaskMapPage() {
           title="전체 작업과 연결을 불러오는 중"
           description={`${count}개 작업 확인 중입니다. 완료 작업을 포함하면 시간이 더 걸릴 수 있어요.`}
         />
-      ) : error ? (
+      ) : error && !data ? (
         <StatusPanel
           variant="error"
           title="작업 맵을 불러오지 못했어요"
@@ -617,13 +895,21 @@ export default function TaskMapPage() {
           }
         />
       ) : graph.nodes.length === 0 ? (
-        <StatusPanel
-          variant="empty"
-          title="아직 표시할 작업이 없어요"
-          description="새 작업을 만들거나 완료 작업 포함을 선택해 보세요."
-        />
-      ) : (
         <>
+          {refreshError}
+          <StatusPanel
+            variant="empty"
+            title="아직 표시할 작업이 없어요"
+            description="새 작업을 만들거나 완료 작업 포함을 선택해 보세요."
+          />
+        </>
+      ) : (
+        <div
+          className="tm-content"
+          data-arrive={waited || undefined}
+          aria-busy={isRefreshing || undefined}
+        >
+          {refreshError}
           <p className="tm-summary" role="status">
             전체 {graph.nodes.length}개 · 조건 일치 {matches.size}개
             {mode === 'sequence' &&
@@ -652,6 +938,9 @@ export default function TaskMapPage() {
               graph={graph}
               matches={matches}
               categoryFor={categories.taskCategory}
+              layoutKey={layoutKey}
+              presenceKey={presenceKey}
+              open={open}
             />
           ) : (
             <>
@@ -675,66 +964,30 @@ export default function TaskMapPage() {
                 </label>
               </div>
               <div className="tm-matrix">
-                {quadrantNames.map((name, index) => {
-                  const items = unfinished.filter(
-                    (task) => matrixQuadrant(task, today, urgentDays) === index,
-                  )
-                  return (
-                    <section
-                      className={`tm-quadrant tm-quadrant--${index}`}
-                      key={name}
-                    >
-                      <header>
-                        <span>{quadrantHints[index]}</span>
-                        <h2>
-                          {name} <small>{items.length}</small>
-                        </h2>
-                      </header>
-                      <div className="tm-matrix-list">
-                        {items.map((task) => (
-                          <article className="tm-matrix-task" key={task.id}>
-                            <div>
-                              <CategoryName
-                                category={categories.taskCategory(task.id)}
-                              />
-                              <time dateTime={taskDateKey(task) ?? undefined}>
-                                {taskDateKey(task) ?? '기한 없음'}
-                              </time>
-                            </div>
-                            <Link to={`/app/tasks/${task.id}`}>
-                              {task.title}
-                            </Link>
-                            <span
-                              className={`tm-readiness tm-readiness--${taskReadiness(task)}`}
-                            >
-                              {statusLabel[taskReadiness(task)]}
-                            </span>
-                            <TaskMetrics task={task} />
-                          </article>
-                        ))}
-                        {!items.length && (
-                          <p className="tm-empty-quadrant">
-                            이 구역의 작업이 없습니다.
-                          </p>
-                        )}
-                      </div>
-                    </section>
-                  )
-                })}
+                {quadrantNames.map((name, index) => (
+                  <MatrixQuadrant
+                    key={name}
+                    index={index}
+                    items={unfinished.filter(
+                      (task) =>
+                        matrixQuadrant(task, today, urgentDays) === index,
+                    )}
+                    resetKey={matrixKey}
+                    categoryFor={categories.taskCategory}
+                    open={open}
+                  />
+                ))}
               </div>
               {includeCompleted && (
-                <details className="tm-completed-list">
-                  <summary>완료 작업 {completed.length}개</summary>
-                  {completed.map((task) => (
-                    <Link key={task.id} to={`/app/tasks/${task.id}`}>
-                      {task.title}
-                    </Link>
-                  ))}
-                </details>
+                <CompletedTaskList
+                  tasks={completed}
+                  resetKey={matrixKey}
+                  open={open}
+                />
               )}
             </>
           )}
-        </>
+        </div>
       )}
     </section>
   )
