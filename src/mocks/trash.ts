@@ -5,6 +5,7 @@ import type { Task } from '../features/tasks/types/task'
 import type { ScheduleResponse } from '../features/schedules/types/schedule'
 import type { TrashContents } from '../features/trash/types/trash'
 import { activeScheduleId, mockSchedules, mockTasks, setActiveScheduleId } from './db'
+import { placementOf } from './workspaceState'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -67,9 +68,16 @@ export const moveScheduleToTrash = (scheduleId: number) => {
   return true
 }
 
+/** 워크스페이스 복구·영구 삭제가 확인하는 위치와 버전(`/v2/workspace/{kind}/{id}/restore`). */
+const rowMetadata = (kind: 'task' | 'schedule', id: number) => {
+  const { spaceId, projectId, version } = placementOf(kind, id)
+  return { spaceId, projectId, version, allowedActions: { restore: true, delete: true } }
+}
+
 const contents = (): TrashContents => ({
   retentionDays: RETENTION_DAYS,
   tasks: trashedTasks.map(({ task, deletedAt, schedules }) => ({
+    ...rowMetadata('task', task.id),
     taskId: task.id,
     title: task.title,
     dueDate: task.dueDate,
@@ -80,6 +88,7 @@ const contents = (): TrashContents => ({
     schedules: schedules.map((schedule) => ({ scheduleId: schedule.id, title: schedule.title, date: schedule.date })),
   })),
   schedules: trashedSchedules.map(({ schedule, deletedAt }) => ({
+    ...rowMetadata('schedule', schedule.id),
     scheduleId: schedule.id,
     title: schedule.title,
     date: schedule.date,

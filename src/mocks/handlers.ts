@@ -32,6 +32,8 @@ import {
   vapidPublicKey,
 } from './db'
 import { effectiveExpectedMinutes, handlePlans } from './planner'
+import { formatIsoMinutes, toTaskResponse } from './taskResponse'
+import { handleWorkspace } from './workspace'
 import { handleOnboarding } from './onboarding'
 import { handleRecurrences } from './recurrences'
 import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
@@ -93,13 +95,6 @@ const parseDurationMinutes = (value?: string | null) => {
   return 0
 }
 
-const formatIsoMinutes = (minutes: number) => {
-  const safe = Math.max(0, Math.floor(minutes))
-  const h = Math.floor(safe / 60)
-  const m = safe % 60
-  return `PT${h}H${m}M`
-}
-
 const getTargetDateFromQuery = (
   searchParams: URLSearchParams,
 ): DateTimeWithZone => {
@@ -114,29 +109,6 @@ const getTargetDateFromQuery = (
 
 const findTask = (id: number) => mockTasks.find((task) => task.id === id)
 
-const toTaskResponse = (task: Task) => ({
-  id: task.id,
-  title: task.title,
-  description: task.description,
-  dueDate: task.dueDate,
-  importance: task.importance,
-  difficulty: task.difficulty,
-  expectedDuration:
-    task.expectedDuration && task.expectedDuration !== 'PT0S'
-      ? task.expectedDuration
-      : null,
-  effectiveExpectedDuration: formatIsoMinutes(effectiveExpectedMinutes(task)),
-  completed: task.completed ?? task.isCompleted ?? false,
-  inboundDependencyCount: task.inboundDependencyCount ?? 0,
-  previousTaskIds: task.previousTaskIds ?? [],
-  nextTaskIds: task.nextTaskIds ?? [],
-  ownerId: task.ownerId ?? 1,
-  createdAt: task.createdAt ?? new Date().toISOString(),
-  updatedAt: task.updatedAt ?? new Date().toISOString(),
-  recurrence: task.recurrence ?? null,
-  missed: task.missed ?? false,
-  tags: task.tags ?? [],
-})
 const findSchedule = (id: number) =>
   mockSchedules.find((schedule) => schedule.id === id)
 
@@ -862,6 +834,10 @@ export const handleMockRequest = async (
 
   const auth = await handleAuth(path, method, request)
   if (auth) return auth
+
+  // 스페이스·워크스페이스 경로. 작업·일정 화면은 모두 이 경로로 읽고 쓴다.
+  const workspace = await handleWorkspace(path, method, searchParams, request)
+  if (workspace) return workspace
 
   const categories = await handleCategories(path, method, request)
   if (categories) return categories
