@@ -18,7 +18,17 @@ type TaskCacheValue = {
 
 const TaskCacheContext = createContext<TaskCacheValue | null>(null)
 
-export const TaskCacheProvider = ({ children }: { children: ReactNode }) => {
+export const TaskCacheProvider = ({
+  children,
+  resetKey,
+}: {
+  children: ReactNode
+  /**
+   * Changing this empties the cache in place, in the same render, so nothing below ever reads
+   * the previous entries. App passes the display time zone: day boundaries differ per zone.
+   */
+  resetKey?: string
+}) => {
   const [tasksById, setTasksById] = useState<Record<number, Task>>({})
 
   useEffect(() => {
@@ -68,6 +78,12 @@ export const TaskCacheProvider = ({ children }: { children: ReactNode }) => {
       return next
     })
   }, [])
+
+  const [shownResetKey, setShownResetKey] = useState(resetKey)
+  if (shownResetKey !== resetKey) {
+    setShownResetKey(resetKey)
+    setTasksById({})
+  }
 
   const value = useMemo(
     () => ({

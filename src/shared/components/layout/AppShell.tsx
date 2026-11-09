@@ -13,6 +13,7 @@ import {
   isLoggedOut,
 } from '@shared/api/authTokens'
 import { useMemberZoneSync } from '@features/settings/hooks/useMemberZoneSync'
+import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './AppShell.css'
 import { SpaceContextBar, SpaceSwitcher } from '@features/spaces/SpaceChrome'
 import { useSpaces } from '@features/spaces/store'
@@ -72,6 +73,8 @@ const AppShell = () => {
   const contentRef = useRef<HTMLElement>(null)
   const shownPath = useRef(pathname)
   useMemberZoneSync()
+  // A new display zone remounts only the page (see AppContent in App.tsx). The shell stays.
+  const { zoneKey } = useTimePreferences()
 
   // A new page starts at the top. Without this the next page opens at the previous page's
   // scroll offset and jumps when its content arrives. Opening a surface keeps this pathname
@@ -217,7 +220,7 @@ const AppShell = () => {
           <UpdateBanner />
           {pathname === '/app/today' && <InstallBanner />}
           <SpaceContextBar />
-          <Outlet />
+          <Outlet key={zoneKey} />
         </main>
         <MiniPlayerBar />
         <BottomTabBar activePath={pathname} />

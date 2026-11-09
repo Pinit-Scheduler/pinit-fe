@@ -49,8 +49,15 @@ const sameRevision = (a: ScheduleResponse, b: ScheduleResponse) => {
 
 export const ScheduleCacheProvider = ({
   children,
+  resetKey,
 }: {
   children: ReactNode
+  /**
+   * Changing this empties the cache in place, in the same render. The running schedule is kept:
+   * it is one self-describing record (its time carries its own zone), and dropping it would
+   * make the mini player slide out and back in.
+   */
+  resetKey?: string
 }) => {
   const [schedulesById, setSchedulesById] = useState<
     Record<number, ScheduleResponse>
@@ -147,6 +154,16 @@ export const ScheduleCacheProvider = ({
     if (scheduleId !== null && isResourceUnavailable('schedule', scheduleId)) return
     setActiveScheduleId(scheduleId)
   }, [])
+
+  const [shownResetKey, setShownResetKey] = useState(resetKey)
+  if (shownResetKey !== resetKey) {
+    setShownResetKey(resetKey)
+    setSchedulesById((previous) =>
+      activeScheduleId !== null && previous[activeScheduleId]
+        ? { [activeScheduleId]: previous[activeScheduleId] }
+        : {},
+    )
+  }
 
   const value = useMemo(
     () => ({

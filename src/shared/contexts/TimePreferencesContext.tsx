@@ -12,6 +12,11 @@ type TimePreferencesContextValue = {
   offsetMinutes: number
   offsetLabel: string
   zoneId: string
+  /**
+   * Changes whenever the display zone or its offset does. Zone-scoped state (caches, the
+   * schedule view, the pages' own state) resets when it changes. See App.tsx.
+   */
+  zoneKey: string
   isLoading: boolean
   error: string | null
   refresh: () => void
@@ -42,6 +47,7 @@ export const TimePreferencesProvider = ({ children }: { children: ReactNode }) =
     () => ({
       offsetMinutes,
       zoneId,
+      zoneKey: `${zoneId}@${offsetMinutes}`,
       offsetLabel: `${zoneId} (${formatOffsetLabel(offsetMinutes)})`,
       isLoading: false,
       error: null,
@@ -62,6 +68,7 @@ export const useTimePreferences = () => {
       offsetMinutes: getDisplayOffsetMinutes(),
       offsetLabel: `${getDisplayZoneId() || 'Asia/Seoul'} (${formatOffsetLabel(getDisplayOffsetMinutes())})`,
       zoneId: getDisplayZoneId() || 'Asia/Seoul',
+      zoneKey: `${getDisplayZoneId() || 'Asia/Seoul'}@${getDisplayOffsetMinutes()}`,
       isLoading: false,
       error: null,
       refresh: () => {},
