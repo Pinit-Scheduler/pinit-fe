@@ -35,6 +35,9 @@ import {
 } from '@features/recurrence/utils/seriesMutations'
 import { useTrashUndo } from '@features/trash'
 import { isResourceUnavailable } from '@features/spaces/metadata'
+import { useSpaces } from '@features/spaces/store'
+import UnavailableNote from '@features/spaces/UnavailableNote'
+import { adminNames, unavailableLines } from '@features/spaces/unavailable'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -53,6 +56,7 @@ const TaskDetailModal = ({
   const { addToast } = useToast()
   const { offerTaskUndo } = useTrashUndo()
   const { open } = useRouteSurfaceNavigation()
+  const { spaces } = useSpaces()
   const [task, setTaskState] = useState<Task | null>(tasksById[taskId] ?? null)
   const [isLoading, setIsLoading] = useState(!tasksById[taskId])
   const [error, setError] = useState<string | null>(null)
@@ -345,6 +349,36 @@ const TaskDetailModal = ({
                 >
                   <WorkspaceIcon name="trash" /> 삭제
                 </button>
+                {unavailableLines(
+                  [
+                    {
+                      off: task.allowedActions?.edit === false,
+                      reason: task.unavailableReasons?.edit,
+                    },
+                    {
+                      off: task.isCompleted
+                        ? task.allowedActions?.reopen === false
+                        : task.allowedActions?.complete === false,
+                      reason: task.isCompleted
+                        ? task.unavailableReasons?.reopen
+                        : task.unavailableReasons?.complete,
+                    },
+                    {
+                      off: task.allowedActions?.schedule === false,
+                      reason: task.unavailableReasons?.schedule,
+                    },
+                    {
+                      off: task.allowedActions?.delete === false,
+                      reason: task.unavailableReasons?.delete,
+                    },
+                  ],
+                  adminNames(
+                    spaces.find((space) => space.id === task.spaceId)
+                      ?.members ?? [],
+                  ),
+                ).map((line) => (
+                  <UnavailableNote key={line} text={line} />
+                ))}
               </footer>
             </div>
           </>

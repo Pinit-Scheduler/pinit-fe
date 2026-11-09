@@ -1,4 +1,7 @@
-import type { AllowedActions } from '@features/spaces/types'
+import type {
+  AllowedActions,
+  UnavailableReasons,
+} from '@features/spaces/types'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useState, useId, useRef } from 'react'
 import {
@@ -49,6 +52,7 @@ export type TaskFormValues = {
 
 type TaskFormProps = {
   allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
   initialValues?: Partial<TaskFormValues>
   /** rule은 "반복"을 켰을 때만 있다. 첫 회차 날짜는 마감 날짜다 */
   onSubmit: (values: TaskFormValues, rule?: RuleDraft | null) => Promise<void>
@@ -86,6 +90,7 @@ const buildDefaultValues = (
 const TaskForm = ({
   initialValues,
   allowedActions,
+  unavailableReasons,
   onSubmit,
   submitLabel = '저장',
   effectiveExpectedDurationLabel,
@@ -366,6 +371,7 @@ const TaskForm = ({
 
       <AffiliationFields
         allowedActions={allowedActions}
+        unavailableReasons={unavailableReasons}
         value={values}
         onChange={(affiliation) =>
           setValues((previous) => ({ ...previous, ...affiliation }))

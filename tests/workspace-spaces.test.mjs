@@ -1084,6 +1084,9 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/recurrence/utils/seriesMutations': {},
     '@features/trash': { useTrashUndo: () => ({}) },
     '@features/spaces/metadata': metadata(),
+    '@features/spaces/store': { useSpaces: () => ({ spaces: [] }) },
+    '@features/spaces/UnavailableNote': { default: () => null },
+    '@features/spaces/unavailable': { adminNames: () => [], unavailableLines: () => [] },
   }).default
   const find = (node) => {
     if (!node || typeof node !== 'object') return null

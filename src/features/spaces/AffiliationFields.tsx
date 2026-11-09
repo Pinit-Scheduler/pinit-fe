@@ -2,7 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
 import { useSpaces } from './store'
-import type { AllowedActions, SpaceMember } from './types'
+import UnavailableNote from './UnavailableNote'
+import { adminNames, unavailableLines } from './unavailable'
+import type {
+  AllowedActions,
+  SpaceMember,
+  UnavailableReasons,
+} from './types'
 import './spaces.css'
 export type AffiliationValues = {
   spaceId?: number
@@ -14,6 +20,7 @@ type Draft = {
   defaultAssignee: { memberId: number; nickname: string }
   members: SpaceMember[]
   allowedActions: AllowedActions
+  unavailableReasons?: UnavailableReasons
 }
 export default function AffiliationFields({
   value,
@@ -22,6 +29,7 @@ export default function AffiliationFields({
   creating,
   kind = 'task',
   allowedActions,
+  unavailableReasons,
 }: {
   value: AffiliationValues
   onChange: (value: AffiliationValues) => void
@@ -29,6 +37,7 @@ export default function AffiliationFields({
   creating: boolean
   kind?: 'task' | 'schedule'
   allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
 }) {
   const workspace = useSpaces()
   const spaceId = value.spaceId ?? workspace.selectedSpaceId
@@ -95,6 +104,22 @@ export default function AffiliationFields({
   const selectedMemberExists =
     value.assigneeId == null ||
     draft?.members.some((member) => member.memberId === value.assigneeId)
+  const moveOff = !creating && allowedActions?.move === false
+  const assignOff =
+    allowedActions?.assign === false || draft?.allowedActions.assign === false
+  const admins = adminNames(
+    workspace.spaces.find((space) => space.id === spaceId)?.members ?? [],
+  )
+  const noteLines = unavailableLines(
+    [
+      { off: moveOff, reason: unavailableReasons?.move },
+      {
+        off: assignOff,
+        reason: unavailableReasons?.assign ?? draft?.unavailableReasons?.assign,
+      },
+    ],
+    admins,
+  )
   return (
     <fieldset
       className="space-affiliation"
@@ -122,7 +147,7 @@ export default function AffiliationFields({
         <label>
           스페이스
           <select
-            disabled={!creating && allowedActions?.move === false}
+            disabled={moveOff}
             value={spaceId ?? ''}
             onChange={(event) => {
               request.current?.abort()
@@ -149,7 +174,7 @@ export default function AffiliationFields({
         <label>
           프로젝트
           <select
-            disabled={!creating && allowedActions?.move === false}
+            disabled={moveOff}
             value={value.categoryId ?? ''}
             onChange={(event) =>
               onChange({
@@ -179,8 +204,7 @@ export default function AffiliationFields({
             disabled={
               !draft ||
               disabled ||
-              allowedActions?.assign === false ||
-              draft.allowedActions.assign === false
+              assignOff
             }
             value={
               value.assigneeId === undefined
@@ -221,6 +245,9 @@ export default function AffiliationFields({
           </select>
         </label>
       </div>
+      {noteLines.map((line) => (
+        <UnavailableNote key={line} text={line} />
+      ))}
       {!draft && !error && (
         <p className="space-help" role="status">
           서버의 소속·담당자 정보를 확인하고 있어요…

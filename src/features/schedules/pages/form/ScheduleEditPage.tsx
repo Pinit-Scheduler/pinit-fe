@@ -290,6 +290,7 @@ const ScheduleEditPage = () => {
           )}
           <ScheduleForm
             allowedActions={schedule?.allowedActions}
+            unavailableReasons={schedule?.unavailableReasons}
             key={schedule.id}
             initialValues={initialValues}
             onSubmit={handleSubmit}

@@ -1,4 +1,7 @@
-import type { AllowedActions } from '@features/spaces/types'
+import type {
+  AllowedActions,
+  UnavailableReasons,
+} from '@features/spaces/types'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import AffiliationFields from '@features/spaces/AffiliationFields'
 import dayjs from 'dayjs'
@@ -22,6 +25,7 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 
 type ScheduleFormProps = {
   allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
   initialValues?: Partial<ScheduleFormValues>
   /** rule은 "반복"을 켰을 때만 있다. 시작일은 시작 시간의 날짜다 */
   onSubmit: (
@@ -57,6 +61,7 @@ const parseDateTimeLocalValue = (value: string, offsetMinutes: number) =>
 const ScheduleForm = ({
   initialValues,
   allowedActions,
+  unavailableReasons,
   onSubmit,
   submitLabel = '일정 저장',
   plannedDurationHint,
@@ -173,6 +178,7 @@ const ScheduleForm = ({
 
       <AffiliationFields
         allowedActions={allowedActions}
+        unavailableReasons={unavailableReasons}
         kind="schedule"
         value={{ ...form.values, categoryId: form.values.categoryId ?? null }}
         creating={initialValues?.expectedVersion === undefined}

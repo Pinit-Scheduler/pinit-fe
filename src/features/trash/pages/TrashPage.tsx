@@ -1,5 +1,8 @@
 import { isEditConflict } from '@features/spaces/conflicts'
 import { useSpaces } from '@features/spaces/store'
+import UnavailableNote from '@features/spaces/UnavailableNote'
+import { adminNames, unavailableLines } from '@features/spaces/unavailable'
+import type { UnavailableReasons } from '@features/spaces/types'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useState, useRef } from 'react'
 import dayjs from 'dayjs'
@@ -36,6 +39,34 @@ import './TrashPage.css'
 const STATE_LABEL: Record<string, string> = {
   NOT_STARTED: '시작 전',
   COMPLETED: '완료',
+}
+
+const TrashNotes = ({
+  item,
+}: {
+  item: {
+    spaceId?: number
+    allowedActions?: { restore?: boolean; delete?: boolean }
+    unavailableReasons?: UnavailableReasons
+  }
+}) => {
+  const { spaces } = useSpaces()
+  const admins = adminNames(
+    spaces.find((space) => space.id === item.spaceId)?.members ?? [],
+  )
+  return unavailableLines(
+    [
+      {
+        off: item.allowedActions?.restore === false,
+        reason: item.unavailableReasons?.restore,
+      },
+      {
+        off: item.allowedActions?.delete === false,
+        reason: item.unavailableReasons?.delete,
+      },
+    ],
+    admins,
+  ).map((line) => <UnavailableNote key={line} text={line} />)
 }
 
 const purgeLabel = (purgeAt: DateTimeWithZone) =>
@@ -277,6 +308,7 @@ const TrashPage = () => {
                       영구 삭제
                     </button>
                   </div>
+                  <TrashNotes item={task} />
                 </li>
               )
             })}
@@ -336,6 +368,7 @@ const TrashPage = () => {
                       영구 삭제
                     </button>
                   </div>
+                  <TrashNotes item={schedule} />
                 </li>
               )
             })}

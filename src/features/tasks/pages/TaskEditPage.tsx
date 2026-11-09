@@ -313,6 +313,7 @@ const TaskEditPage = () => {
             <TaskForm
               key={task.id}
               allowedActions={task.allowedActions}
+              unavailableReasons={task.unavailableReasons}
               initialValues={{
                 spaceId: task.spaceId,
                 assigneeId: task.assigneeId,

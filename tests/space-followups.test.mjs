@@ -68,3 +68,17 @@ test('the sheet lists live projects of the chosen space only', () => {
   assert.deepEqual(plain(sheetProjects(projects, 31).map((p) => p.id)), [1, 4])
   assert.deepEqual(plain(sheetProjects(projects, null)), [])
 })
+
+test('unavailable copy comes from the server reason, not from roles', () => {
+  const { unavailableText, adminNames } = load('features/spaces/unavailable.ts')
+  assert.equal(unavailableText('ADMIN_ONLY', ['서연']), '관리자 서연님만 할 수 있어요.')
+  assert.equal(unavailableText('ADMIN_ONLY', ['서연', '도현']), '관리자 서연·도현님만 할 수 있어요.')
+  assert.equal(unavailableText('ADMIN_ONLY', []), '관리자만 할 수 있어요.')
+  assert.equal(unavailableText('SPACE_DELETED', []), '휴지통에 있는 스페이스라 할 수 없어요.')
+  assert.equal(unavailableText('SCHEDULE_RUNNING', ['서연']), '진행 중이거나 멈춘 일정은 삭제할 수 없어요.')
+  assert.equal(unavailableText(undefined, ['서연']), '지금은 할 수 없어요.')
+  assert.deepEqual(adminNames([
+    { memberId: 1, nickname: '서연', role: 'ADMIN' },
+    { memberId: 2, nickname: '나', role: 'MEMBER' },
+  ]), ['서연'])
+})
