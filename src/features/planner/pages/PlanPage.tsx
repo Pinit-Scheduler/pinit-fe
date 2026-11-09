@@ -163,6 +163,27 @@ const toDraft = (block: PlannedBlock, zoneId: string): DraftBlock => {
 const stagger = (name: string, index: number) =>
   ({ [name]: index }) as CSSProperties
 
+/**
+ * The footer count and minutes. They glide when the selection changes while the footer is on
+ * screen. The footer mounts with the first proposal of a request, so that value shows as is
+ * instead of counting up from 0.
+ */
+const SelectionSummary = ({
+  count,
+  minutes,
+}: {
+  count: number
+  minutes: number
+}) => {
+  const shownCount = Math.round(useTweenedNumber(count))
+  const shownMinutes = Math.round(useTweenedNumber(minutes))
+  return (
+    <span>
+      {shownCount}개 선택 · {formatMinutesLabel(shownMinutes)}
+    </span>
+  )
+}
+
 const scheduleSpan = (schedule: ScheduleResponse) => {
   const startMs = toMs(schedule.date.dateTime, schedule.date.zoneId)
   if (startMs === null) return null
@@ -212,6 +233,8 @@ const PlanPage = () => {
   /** 승인으로 만든 일정과 그 계획일 */
   const [created, setCreated] = useState<{
     date: string
+    /** 승인한 제안. 이 제안이 화면에 있는 동안만 만든 일정을 타임라인과 겹침 검사에 더한다 */
+    plan: DayPlanResponse
     schedules: ScheduleResponse[]
   } | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -383,8 +406,14 @@ const PlanPage = () => {
   const planZoneId = plan?.zoneId ?? zoneId
 
   // 방금 승인해 만든 일정은 다시 불러오기 전에도 기존 일정으로 그리고 겹침 검사에 넣는다.
+  // 다시 불러온 제안(또는 다른 조건의 제안)이 오면 서버가 읽은 일정만 쓴다.
   const knownSchedules = useMemo(
-    () => withCreatedSchedules(schedules, created, plan?.date ?? null),
+    () =>
+      withCreatedSchedules(
+        schedules,
+        created && created.plan === plan ? created : null,
+        plan?.date ?? null,
+      ),
     [schedules, created, plan],
   )
 
@@ -493,8 +522,6 @@ const PlanPage = () => {
   const tooMany = selectedCount > MAX_APPLY_BLOCKS
   const canApply =
     selectedCount > 0 && !hasClientIssues && !tooMany && !isApplying
-  const shownSelectedCount = Math.round(useTweenedNumber(selectedCount))
-  const shownSelectedMinutes = Math.round(useTweenedNumber(selectedMinutes))
 
   const calibrationNudge = usePresence(
     Boolean(
@@ -547,6 +574,7 @@ const PlanPage = () => {
 
   const handleApply = async () => {
     if (!plan || !canApply) return
+    const appliedPlan = plan
     const submitted = drafts.filter((draft) => draft.selected)
     const blocks: PlanApplyBlock[] = submitted.map((draft) => ({
       taskId: draft.taskId,
@@ -572,15 +600,25 @@ const PlanPage = () => {
         dispatchTaskChanged({ taskId: draft.taskId, reason: 'plan-applied' }),
       )
       // 승인한 블록은 새 제안이 올 때까지 일정이 된 모습으로 남고, 다시 고를 수 없다.
+      // 승인하는 동안 날짜·범위가 바뀌어 다른 제안이 들어왔다면 그 제안의 블록은 건드리지 않는다.
       const appliedIds = new Set(submitted.map((draft) => draft.taskId))
-      setDrafts((prev) =>
-        prev.map((draft) =>
-          appliedIds.has(draft.taskId)
-            ? { ...draft, selected: false, applied: true }
-            : draft,
-        ),
+      setEditing((prev) =>
+        prev.plan !== appliedPlan
+          ? prev
+          : {
+              ...prev,
+              drafts: prev.drafts.map((draft) =>
+                appliedIds.has(draft.taskId)
+                  ? { ...draft, selected: false, applied: true }
+                  : draft,
+              ),
+            },
       )
-      setCreated({ date: plan.date, schedules: schedulesCreated })
+      setCreated({
+        date: appliedPlan.date,
+        plan: appliedPlan,
+        schedules: schedulesCreated,
+      })
       addToast(`${schedulesCreated.length}개 일정을 만들었어요.`, 'success')
       setRefreshKey((key) => key + 1)
     } catch (err) {
@@ -859,7 +897,9 @@ const PlanPage = () => {
                 <Link
                   to="/app/statistics"
                   onClick={tabLinkClick('/app/statistics')}
-                >주간 리뷰 보기</Link>
+                >
+                  주간 리뷰 보기
+                </Link>
                 <button
                   type="button"
                   aria-label="보정 안내 닫기"
@@ -892,9 +932,11 @@ const PlanPage = () => {
             </p>
             <div className="plan-page__nudge-actions">
               <Link
-                  to="/app/settings/routines"
-                  onClick={tabLinkClick('/app/settings/routines')}
-                >생활 시간 설정하기</Link>
+                to="/app/settings/routines"
+                onClick={tabLinkClick('/app/settings/routines')}
+              >
+                생활 시간 설정하기
+              </Link>
               <button
                 type="button"
                 aria-label="생활 시간 안내 닫기"
@@ -983,18 +1025,22 @@ const PlanPage = () => {
                 <p className="plan-page__hint">
                   블록 길이에 내 예상 대비 실제 기록을 반영했어요 ·{' '}
                   <Link
-                  to="/app/statistics"
-                  onClick={tabLinkClick('/app/statistics')}
-                >주간 리뷰에서 끄기</Link>
+                    to="/app/statistics"
+                    onClick={tabLinkClick('/app/statistics')}
+                  >
+                    주간 리뷰에서 끄기
+                  </Link>
                 </p>
               )}
               {plan.windowSource === 'PROFILE' && !dismissed.windowHint && (
                 <p className="plan-page__hint plan-page__hint--nudge">
                   기본값 07:00–23:00 ·{' '}
                   <Link
-                  to="/app/settings/routines"
-                  onClick={tabLinkClick('/app/settings/routines')}
-                >수면 시간 설정하기</Link>
+                    to="/app/settings/routines"
+                    onClick={tabLinkClick('/app/settings/routines')}
+                  >
+                    수면 시간 설정하기
+                  </Link>
                   <button
                     type="button"
                     className="plan-page__dismiss"
@@ -1220,9 +1266,11 @@ const PlanPage = () => {
                             {KIND_LABEL[mealHint]}시간이에요.{' '}
                             {KIND_LABEL[mealHint]}을 등록하면 피해서 배치해요.{' '}
                             <Link
-                  to="/app/settings/routines"
-                  onClick={tabLinkClick('/app/settings/routines')}
-                >등록하기</Link>
+                              to="/app/settings/routines"
+                              onClick={tabLinkClick('/app/settings/routines')}
+                            >
+                              등록하기
+                            </Link>
                             <button
                               type="button"
                               className="plan-page__dismiss"
@@ -1314,10 +1362,7 @@ const PlanPage = () => {
             </p>
           )}
           <div className="plan-page__footer-row">
-            <span>
-              {shownSelectedCount}개 선택 ·{' '}
-              {formatMinutesLabel(shownSelectedMinutes)}
-            </span>
+            <SelectionSummary count={selectedCount} minutes={selectedMinutes} />
             <button
               type="button"
               className="plan-page__apply"
