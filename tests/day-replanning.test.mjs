@@ -352,6 +352,7 @@ test('rendered preview exposes before/after, protected reasons and original-slot
       selectedSpace: { id: 10, name: '공유 공간', version: 1, members: [{ memberId: 1, role: 'MEMBER' }], allowedActions: { edit: false } }, selectedProject: null }) },
     '../hooks/useDayReplan': () => ({ delay: '30', preview: preview(), phase: 'idle', selectedIds: [101], appliedCount: null }),
     '../utils/replanning': utils, './DayReplanningPanel.css': {},
+    '@shared/motion/usePresence': { usePresence: (value) => ({ mounted: Boolean(value), closing: false, value: value || undefined }) },
   }).default
   const html = renderToStaticMarkup(React.createElement(panel, { date: '2026-11-09', zoneId: 'Asia/Seoul', onApplied() {} }))
   assert.match(html, /변경 전/)

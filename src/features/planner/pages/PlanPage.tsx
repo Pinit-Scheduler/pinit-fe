@@ -1,5 +1,12 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import StatusPanel from '@shared/components/common/StatusPanel'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
@@ -14,6 +21,15 @@ import {
   parseIsoDurationMinutes,
 } from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, readFlag, writeFlag } from '@shared/utils/safeStorage'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
+import {
+  presenceProps,
+  useListPresence,
+} from '@shared/motion/useListPresence'
+import { usePresence } from '@shared/motion/usePresence'
+import { useTweenedNumber } from '@shared/motion/useTweenedNumber'
+import { prefersReducedMotion } from '@shared/motion/tokens'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
@@ -43,7 +59,11 @@ import useDayPlan from '../hooks/useDayPlan'
 import PlanTimeline from '../components/PlanTimeline'
 import DayReplanningPanel from '../components/DayReplanningPanel'
 import type { PlanTimelineItem } from '../components/PlanTimeline'
-import type { PlanApplyBlock, PlannedBlock } from '../types/plan'
+import type {
+  DayPlanResponse,
+  PlanApplyBlock,
+  PlannedBlock,
+} from '../types/plan'
 import {
   MAX_APPLY_BLOCKS,
   findRoutineConflicts,
@@ -57,6 +77,12 @@ import type {
   RoutineSpan,
   SelectionObstacle,
 } from '../utils/planMapping'
+import {
+  movedSuggestions,
+  staggerIndex,
+  surfaceLinkClick,
+  withCreatedSchedules,
+} from '../utils/planMotion'
 import './PlanPage.css'
 
 type DraftBlock = {
@@ -76,7 +102,24 @@ type DraftBlock = {
   calibrationNote: string | null
   /** ADR-0019: 반복 작업의 회차인지 */
   recurring: boolean
+  /** 이번 승인으로 일정이 됐다. 새 제안이 오면 목록에서 빠진다 */
+  applied: boolean
 }
+
+type PlanDrafts = {
+  /** 이 편집 상태를 만든 제안. 새 제안이 오면 편집 상태를 제안 그대로 되돌린다 */
+  plan: DayPlanResponse | null
+  planKey: string | null
+  drafts: DraftBlock[]
+  /** 다시 제안받은 뒤 시각이나 유형이 바뀐 블록, 또는 타임라인에서 고른 블록. 잠깐 강조한다 */
+  flashed: ReadonlySet<number>
+  /** 이 조건의 첫 제안이다. 블록이 차례로 들어온다 */
+  arrival: boolean
+}
+
+const NO_IDS: ReadonlySet<number> = new Set()
+/** The row highlight runs this long (see .plan-page__block[data-flash] in PlanPage.css). */
+const FLASH_MS = 1200
 
 const HORIZON_OPTIONS = [0, 1, 3, 7, 14, 30]
 const DEFAULT_HORIZON_DAYS = 7
@@ -113,7 +156,32 @@ const toDraft = (block: PlannedBlock, zoneId: string): DraftBlock => {
     suggestedType: block.scheduleType,
     calibrationNote: blockCalibrationNote(block),
     recurring: Boolean(block.recurrenceSeriesId),
+    applied: false,
   }
+}
+
+const stagger = (name: string, index: number) =>
+  ({ [name]: index }) as CSSProperties
+
+/**
+ * The footer count and minutes. They glide when the selection changes while the footer is on
+ * screen. The footer mounts with the first proposal of a request, so that value shows as is
+ * instead of counting up from 0.
+ */
+const SelectionSummary = ({
+  count,
+  minutes,
+}: {
+  count: number
+  minutes: number
+}) => {
+  const shownCount = Math.round(useTweenedNumber(count))
+  const shownMinutes = Math.round(useTweenedNumber(minutes))
+  return (
+    <span>
+      {shownCount}개 선택 · {formatMinutesLabel(shownMinutes)}
+    </span>
+  )
 }
 
 const scheduleSpan = (schedule: ScheduleResponse) => {
@@ -128,6 +196,7 @@ const PlanPage = () => {
   const { offsetMinutes, zoneId } = useTimePreferences()
   const { addToast } = useToast()
   const { upsertSchedule, invalidateSchedules } = useScheduleCache()
+  const { open } = useRouteSurfaceNavigation()
   const [searchParams, setSearchParams] = useSearchParams()
   const today = useMemo(
     () => getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD'),
@@ -141,14 +210,21 @@ const PlanPage = () => {
       : today
   const [horizonDays, setHorizonDays] = useState(DEFAULT_HORIZON_DAYS)
   const [refreshKey, setRefreshKey] = useState(0)
-  const { plan, schedules, isLoading, error } = useDayPlan({
-    date,
-    zoneId,
-    horizonDays,
-    refreshKey,
-  })
+  const { plan, planKey, schedules, isLoading, isInitialLoading, error } =
+    useDayPlan({
+      date,
+      zoneId,
+      horizonDays,
+      refreshKey,
+    })
 
-  const [drafts, setDrafts] = useState<DraftBlock[]>([])
+  const [editing, setEditing] = useState<PlanDrafts>({
+    plan: null,
+    planKey: null,
+    drafts: [],
+    flashed: NO_IDS,
+    arrival: false,
+  })
   const [serverIssues, setServerIssues] = useState<
     Record<number, BlockIssue[]>
   >({})
@@ -157,6 +233,8 @@ const PlanPage = () => {
   /** 승인으로 만든 일정과 그 계획일 */
   const [created, setCreated] = useState<{
     date: string
+    /** 승인한 제안. 이 제안이 화면에 있는 동안만 만든 일정을 타임라인과 겹침 검사에 더한다 */
+    plan: DayPlanResponse
     schedules: ScheduleResponse[]
   } | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -174,6 +252,8 @@ const PlanPage = () => {
   const [calibrationRefresh, setCalibrationRefresh] = useState(0)
   const calibrationRequest = useRef(0)
   const calibrationMutation = useRef(false)
+  /** 설정을 한 번 받았으면, 다시 확인하는 동안에도 그 값을 보여 주고 조작할 수 있게 둔다 */
+  const hasCalibration = useRef(false)
   const [dismissed, setDismissed] = useState(() => ({
     calibrationCard: readFlag(NUDGE_KEYS.planCalibrationCardDismissed),
     routinesCard: readFlag(NUDGE_KEYS.planRoutinesCardDismissed),
@@ -203,17 +283,26 @@ const PlanPage = () => {
   useEffect(() => {
     let cancelled = false
     const requestId = ++calibrationRequest.current
+    const background = hasCalibration.current
     const load = async () => {
-      setIsLoadingCalibration(true)
-      setCalibrationError(null)
-      setCalibrationRetryValue(null)
+      if (!background) {
+        setIsLoadingCalibration(true)
+        setCalibrationError(null)
+        setCalibrationRetryValue(null)
+      }
       try {
         const response = await fetchTimeCalibration()
-        if (!cancelled && requestId === calibrationRequest.current)
+        if (!cancelled && requestId === calibrationRequest.current) {
+          hasCalibration.current = Boolean(response)
           setCalibration(response ?? null)
+          setCalibrationError(null)
+          setCalibrationRetryValue(null)
+        }
       } catch (err) {
         if (!cancelled && requestId === calibrationRequest.current) {
-          setCalibration(null)
+          // 다시 확인하다 실패하면 마지막으로 받은 설정을 그대로 두고 오류만 알린다.
+          if (!background) setCalibration(null)
+          setCalibrationRetryValue(null)
           setCalibrationError(
             err instanceof Error
               ? err.message
@@ -245,7 +334,9 @@ const PlanPage = () => {
     setCalibrationError(null)
     setCalibrationRetryValue(null)
     try {
-      setCalibration(await updateTimeCalibration(enabled))
+      const saved = await updateTimeCalibration(enabled)
+      hasCalibration.current = Boolean(saved)
+      setCalibration(saved)
       addToast(
         enabled
           ? '기록 기반 보정을 켰어요. 다시 제안해요.'
@@ -264,14 +355,44 @@ const PlanPage = () => {
     }
   }
 
-  // 새 제안을 받으면 편집 상태를 제안 그대로 되돌린다.
-  useEffect(() => {
-    setDrafts(
-      plan ? plan.blocks.map((block) => toDraft(block, plan.zoneId)) : [],
-    )
+  // 새 제안을 받으면 편집 상태를 제안 그대로 되돌린다. 렌더 중에 맞춰서, 새 제안과 지난
+  // 블록이 한 번이라도 같이 그려지거나 빈 목록이 잠깐 보이는 일이 없게 한다.
+  let current = editing
+  if (editing.plan !== plan) {
+    const nextDrafts = plan
+      ? plan.blocks.map((block) => toDraft(block, plan.zoneId))
+      : []
+    const sameRequest =
+      editing.plan !== null && plan !== null && editing.planKey === planKey
+    current = {
+      plan,
+      planKey,
+      drafts: nextDrafts,
+      flashed: sameRequest
+        ? movedSuggestions(editing.drafts, nextDrafts)
+        : NO_IDS,
+      arrival: plan !== null && !sameRequest,
+    }
+    setEditing(current)
     setServerIssues({})
     setApplyError(null)
-  }, [plan])
+  }
+  const drafts = current.drafts
+  const setDrafts = (update: (prev: DraftBlock[]) => DraftBlock[]) =>
+    setEditing((prev) => ({ ...prev, drafts: update(prev.drafts) }))
+
+  const flashed = current.flashed
+  useEffect(() => {
+    if (flashed.size === 0) return
+    const timer = window.setTimeout(
+      () =>
+        setEditing((prev) =>
+          prev.flashed === flashed ? { ...prev, flashed: NO_IDS } : prev,
+        ),
+      FLASH_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [flashed])
 
   useEffect(() => {
     setCreated(null)
@@ -284,15 +405,27 @@ const PlanPage = () => {
 
   const planZoneId = plan?.zoneId ?? zoneId
 
+  // 방금 승인해 만든 일정은 다시 불러오기 전에도 기존 일정으로 그리고 겹침 검사에 넣는다.
+  // 다시 불러온 제안(또는 다른 조건의 제안)이 오면 서버가 읽은 일정만 쓴다.
+  const knownSchedules = useMemo(
+    () =>
+      withCreatedSchedules(
+        schedules,
+        created && created.plan === plan ? created : null,
+        plan?.date ?? null,
+      ),
+    [schedules, created, plan],
+  )
+
   const obstacles = useMemo<SelectionObstacle[]>(
     () =>
-      schedules.flatMap((schedule) => {
+      knownSchedules.flatMap((schedule) => {
         // 진행 중 일정의 점유(지금 + 남은 시간)는 서버만 정확히 안다. 승인할 때 서버가 검사한다.
         if (schedule.state === 'IN_PROGRESS') return []
         const span = scheduleSpan(schedule)
         return span ? [{ title: schedule.title, ...span }] : []
       }),
-    [schedules],
+    [knownSchedules],
   )
 
   const draftSpans = useMemo(
@@ -390,6 +523,25 @@ const PlanPage = () => {
   const canApply =
     selectedCount > 0 && !hasClientIssues && !tooMany && !isApplying
 
+  const calibrationNudge = usePresence(
+    Boolean(
+      plan &&
+        plan.calibrationApplied === false &&
+        calibration?.enabled === false &&
+        hasUsableFactor(calibration) &&
+        !dismissed.calibrationCard,
+    ),
+  )
+  const routinesNudge = usePresence(
+    routineCount === 0 && !dismissed.routinesCard,
+  )
+
+  const draftRows = useListPresence(
+    plan ? drafts : undefined,
+    (draft) => draft.taskId,
+    { resetKey: planKey },
+  )
+
   const updateDraft = (taskId: number, patch: Partial<DraftBlock>) => {
     setDrafts((prev) =>
       prev.map((draft) =>
@@ -406,7 +558,9 @@ const PlanPage = () => {
   }
 
   const setAllSelected = (selected: boolean) => {
-    setDrafts((prev) => prev.map((draft) => ({ ...draft, selected })))
+    setDrafts((prev) =>
+      prev.map((draft) => (draft.applied ? draft : { ...draft, selected })),
+    )
   }
 
   const handleDateChange = (value: string) => {
@@ -420,6 +574,7 @@ const PlanPage = () => {
 
   const handleApply = async () => {
     if (!plan || !canApply) return
+    const appliedPlan = plan
     const submitted = drafts.filter((draft) => draft.selected)
     const blocks: PlanApplyBlock[] = submitted.map((draft) => ({
       taskId: draft.taskId,
@@ -444,7 +599,26 @@ const PlanPage = () => {
       submitted.forEach((draft) =>
         dispatchTaskChanged({ taskId: draft.taskId, reason: 'plan-applied' }),
       )
-      setCreated({ date: plan.date, schedules: schedulesCreated })
+      // 승인한 블록은 새 제안이 올 때까지 일정이 된 모습으로 남고, 다시 고를 수 없다.
+      // 승인하는 동안 날짜·범위가 바뀌어 다른 제안이 들어왔다면 그 제안의 블록은 건드리지 않는다.
+      const appliedIds = new Set(submitted.map((draft) => draft.taskId))
+      setEditing((prev) =>
+        prev.plan !== appliedPlan
+          ? prev
+          : {
+              ...prev,
+              drafts: prev.drafts.map((draft) =>
+                appliedIds.has(draft.taskId)
+                  ? { ...draft, selected: false, applied: true }
+                  : draft,
+              ),
+            },
+      )
+      setCreated({
+        date: appliedPlan.date,
+        plan: appliedPlan,
+        schedules: schedulesCreated,
+      })
       addToast(`${schedulesCreated.length}개 일정을 만들었어요.`, 'success')
       setRefreshKey((key) => key + 1)
     } catch (err) {
@@ -475,9 +649,19 @@ const PlanPage = () => {
   }
 
   const scrollToBlock = (key: string) => {
-    document
-      .getElementById(`plan-block-${key}`)
-      ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    document.getElementById(`plan-block-${key}`)?.scrollIntoView({
+      behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+      block: 'center',
+    })
+    // 타임라인에서 고른 블록이 목록의 어느 줄인지 잠깐 강조한다.
+    const taskId = Number(key)
+    // The arrival ends here, so the row does not replay its entrance once the highlight is over.
+    if (Number.isFinite(taskId))
+      setEditing((prev) => ({
+        ...prev,
+        flashed: new Set([taskId]),
+        arrival: false,
+      }))
   }
 
   const windowStartMs = plan
@@ -492,7 +676,7 @@ const PlanPage = () => {
     windowEndMs <= windowStartMs
 
   const timelineItems: PlanTimelineItem[] = [
-    ...schedules.flatMap((schedule) => {
+    ...knownSchedules.flatMap((schedule) => {
       const span = scheduleSpan(schedule)
       return span
         ? [
@@ -506,7 +690,8 @@ const PlanPage = () => {
         : []
     }),
     ...draftSpans.flatMap(({ draft, startMs, endMs }) =>
-      startMs === null || endMs === null
+      // 승인한 블록 자리에는 만든 일정이 들어선다.
+      startMs === null || endMs === null || draft.applied
         ? []
         : [
             {
@@ -554,7 +739,12 @@ const PlanPage = () => {
           마감·중요도·난이도·선후관계로 배치한 제안이에요. 고른 블록만 승인하면
           일정이 되고, 그 전에는 아무것도 저장되지 않아요.
         </p>
-        <Link to="/app/deadline-risk">마감 전에 시간이 충분한지 예보 보기</Link>
+        <Link
+          to="/app/deadline-risk"
+          onClick={tabLinkClick('/app/deadline-risk')}
+        >
+          마감 전에 시간이 충분한지 예보 보기
+        </Link>
       </header>
 
       {date === today && (
@@ -680,12 +870,13 @@ const PlanPage = () => {
       </section>
 
       <div className="plan-page__content">
-        {plan &&
-          plan.calibrationApplied === false &&
-          calibration?.enabled === false &&
-          hasUsableFactor(calibration) &&
-          !dismissed.calibrationCard && (
-            <div className="plan-page__nudge" role="note">
+        {calibrationNudge.mounted && (
+            <div
+              className="plan-page__nudge"
+              role="note"
+              data-state={calibrationNudge.closing ? 'closing' : undefined}
+              inert={calibrationNudge.closing || undefined}
+            >
               <p>
                 <WorkspaceIcon name="clock" /> 지난 기록으로 보면 예상과 실제
                 걸린 시간이 달라요. 보정하면 블록 길이를 기록에 맞춰요.
@@ -703,7 +894,12 @@ const PlanPage = () => {
                 >
                   {isUpdatingCalibration ? '저장 중...' : '보정 적용하기'}
                 </button>
-                <Link to="/app/statistics">주간 리뷰 보기</Link>
+                <Link
+                  to="/app/statistics"
+                  onClick={tabLinkClick('/app/statistics')}
+                >
+                  주간 리뷰 보기
+                </Link>
                 <button
                   type="button"
                   aria-label="보정 안내 닫기"
@@ -720,8 +916,13 @@ const PlanPage = () => {
             </div>
           )}
 
-        {routineCount === 0 && !dismissed.routinesCard && (
-          <div className="plan-page__nudge" role="note">
+        {routinesNudge.mounted && (
+          <div
+            className="plan-page__nudge"
+            role="note"
+            data-state={routinesNudge.closing ? 'closing' : undefined}
+            inert={routinesNudge.closing || undefined}
+          >
             <p>
               <span aria-hidden>
                 <WorkspaceIcon name="meal" />
@@ -730,7 +931,12 @@ const PlanPage = () => {
               식사·수면 시간을 알려 주시면 그 시간은 비워 두고 계획해요.
             </p>
             <div className="plan-page__nudge-actions">
-              <Link to="/app/settings/routines">생활 시간 설정하기</Link>
+              <Link
+                to="/app/settings/routines"
+                onClick={tabLinkClick('/app/settings/routines')}
+              >
+                생활 시간 설정하기
+              </Link>
               <button
                 type="button"
                 aria-label="생활 시간 안내 닫기"
@@ -764,24 +970,40 @@ const PlanPage = () => {
                 )
               })}
             </ul>
-            <Link to={`/app/schedules?date=${created.date}`}>
+            <Link
+              to={`/app/schedules?date=${created.date}`}
+              onClick={tabLinkClick(`/app/schedules?date=${created.date}`)}
+            >
               일정 탭에서 보기
             </Link>
           </div>
         )}
 
-        {isLoading && !plan ? (
-          <div className="plan-page__placeholder">
-            <p>계획을 만드는 중...</p>
-          </div>
-        ) : error ? (
-          <div className="plan-page__placeholder" role="alert">
-            <p>계획을 불러오지 못했어요.</p>
-            <p>{error}</p>
+        {isInitialLoading ? (
+          <StatusPanel variant="loading" title="계획을 만드는 중..." />
+        ) : error && !plan ? (
+          <div role="alert">
+            <StatusPanel
+              variant="error"
+              title="계획을 불러오지 못했어요."
+              description={error}
+            />
           </div>
         ) : plan ? (
-          <>
-            <section className="plan-page__section">
+          <div
+            className="plan-page__result"
+            aria-busy={isLoading || undefined}
+            data-arrive={current.arrival || undefined}
+          >
+            {error && (
+              <p className="plan-page__refresh-error" role="alert">
+                계획을 불러오지 못했어요. {error}
+              </p>
+            )}
+            <section
+              className="plan-page__section"
+              style={stagger('--plan-order', 0)}
+            >
               <h2>하루 목표</h2>
               <p className="plan-page__objective">
                 목표 {formatDuration(plan.objective.dailyObjectiveWork)} · 기존
@@ -802,13 +1024,23 @@ const PlanPage = () => {
               {plan.calibrationApplied && (
                 <p className="plan-page__hint">
                   블록 길이에 내 예상 대비 실제 기록을 반영했어요 ·{' '}
-                  <Link to="/app/statistics">주간 리뷰에서 끄기</Link>
+                  <Link
+                    to="/app/statistics"
+                    onClick={tabLinkClick('/app/statistics')}
+                  >
+                    주간 리뷰에서 끄기
+                  </Link>
                 </p>
               )}
               {plan.windowSource === 'PROFILE' && !dismissed.windowHint && (
                 <p className="plan-page__hint plan-page__hint--nudge">
                   기본값 07:00–23:00 ·{' '}
-                  <Link to="/app/settings/routines">수면 시간 설정하기</Link>
+                  <Link
+                    to="/app/settings/routines"
+                    onClick={tabLinkClick('/app/settings/routines')}
+                  >
+                    수면 시간 설정하기
+                  </Link>
                   <button
                     type="button"
                     className="plan-page__dismiss"
@@ -826,9 +1058,13 @@ const PlanPage = () => {
             {(timelineItems.length > 0 || !isWindowEmpty) &&
               windowStartMs !== null &&
               windowEndMs !== null && (
-                <section className="plan-page__section">
+                <section
+                  className="plan-page__section"
+                  style={stagger('--plan-order', 1)}
+                >
                   <h2>타임라인</h2>
                   <PlanTimeline
+                    resetKey={planKey}
                     zoneId={planZoneId}
                     items={timelineItems}
                     windowStartMs={windowStartMs}
@@ -838,7 +1074,10 @@ const PlanPage = () => {
                 </section>
               )}
 
-            <section className="plan-page__section">
+            <section
+              className="plan-page__section"
+              style={stagger('--plan-order', 2)}
+            >
               <div className="plan-page__section-head">
                 <h2>제안 블록 ({drafts.length})</h2>
                 {drafts.length > 0 && (
@@ -852,14 +1091,19 @@ const PlanPage = () => {
                   </div>
                 )}
               </div>
-              {drafts.length === 0 ? (
+              {draftRows.length === 0 ? (
                 <p className="plan-page__placeholder">
                   제안할 블록이 없어요. 아직 일정이 없는 미완료 작업 중 마감이
                   범위 안에 있는 작업만 후보가 돼요.
                 </p>
               ) : (
                 <ul className="plan-page__blocks">
-                  {draftSpans.map(({ draft, startMs, endMs }) => {
+                  {draftRows.map(({ key, item: draft, phase }, index) => {
+                    const startMs = toMs(draft.startLocal, planZoneId)
+                    const endMs =
+                      startMs === null
+                        ? null
+                        : startMs + draft.durationMinutes * 60000
                     const issues = draft.selected
                       ? [
                           ...(clientIssues[draft.taskId] ?? []),
@@ -885,21 +1129,33 @@ const PlanPage = () => {
                       draft.scheduleType !== draft.suggestedType
                     return (
                       <li
-                        key={draft.taskId}
-                        id={`plan-block-${draft.taskId}`}
+                        key={key}
+                        id={
+                          phase === 'exit'
+                            ? undefined
+                            : `plan-block-${draft.taskId}`
+                        }
                         className={[
                           'plan-page__block',
                           draft.selected ? 'is-selected' : '',
+                          draft.applied ? 'is-applied' : '',
                           issues.length > 0 ? 'has-issue' : '',
                         ]
                           .filter(Boolean)
                           .join(' ')}
+                        style={stagger('--plan-stagger', staggerIndex(index))}
+                        data-flash={
+                          (phase !== 'exit' && flashed.has(draft.taskId)) ||
+                          undefined
+                        }
+                        {...presenceProps(phase)}
                       >
                         <label className="plan-page__block-head">
                           <input
                             type="checkbox"
                             aria-label={`${draft.title} 승인에 포함`}
                             checked={draft.selected}
+                            disabled={draft.applied}
                             onChange={(event) =>
                               updateDraft(draft.taskId, {
                                 selected: event.target.checked,
@@ -907,7 +1163,12 @@ const PlanPage = () => {
                             }
                           />
                           <span className="plan-page__block-title">
-                            {draft.title}
+                            <span
+                              className="motion-strike"
+                              data-done={draft.applied || undefined}
+                            >
+                              {draft.title}
+                            </span>
                           </span>
                           {draft.recurring && (
                             <span
@@ -945,6 +1206,7 @@ const PlanPage = () => {
                               type="datetime-local"
                               aria-label={`${draft.title} 시작 시각`}
                               value={draft.startLocal}
+                              disabled={draft.applied}
                               onChange={(event) =>
                                 updateDraft(draft.taskId, {
                                   startLocal: event.target.value,
@@ -957,6 +1219,7 @@ const PlanPage = () => {
                             <select
                               aria-label={`${draft.title} 일정 유형`}
                               value={draft.scheduleType}
+                              disabled={draft.applied}
                               onChange={(event) =>
                                 updateDraft(draft.taskId, {
                                   scheduleType: event.target
@@ -974,7 +1237,7 @@ const PlanPage = () => {
                               ))}
                             </select>
                           </label>
-                          {isEdited && (
+                          {isEdited && !draft.applied && (
                             <button
                               type="button"
                               className="plan-page__reset"
@@ -1002,7 +1265,12 @@ const PlanPage = () => {
                           <p className="plan-page__meal-hint">
                             {KIND_LABEL[mealHint]}시간이에요.{' '}
                             {KIND_LABEL[mealHint]}을 등록하면 피해서 배치해요.{' '}
-                            <Link to="/app/settings/routines">등록하기</Link>
+                            <Link
+                              to="/app/settings/routines"
+                              onClick={tabLinkClick('/app/settings/routines')}
+                            >
+                              등록하기
+                            </Link>
                             <button
                               type="button"
                               className="plan-page__dismiss"
@@ -1035,7 +1303,10 @@ const PlanPage = () => {
               )}
             </section>
 
-            <section className="plan-page__section">
+            <section
+              className="plan-page__section"
+              style={stagger('--plan-order', 3)}
+            >
               <h2>배치하지 못한 작업 ({plan.unplaced.length})</h2>
               {plan.unplaced.length === 0 ? (
                 <p className="plan-page__hint">배치하지 못한 작업이 없어요.</p>
@@ -1047,6 +1318,10 @@ const PlanPage = () => {
                         <Link
                           to={`/app/tasks/${task.taskId}`}
                           className="plan-page__unplaced-title"
+                          onClick={surfaceLinkClick(
+                            open,
+                            `/app/tasks/${task.taskId}`,
+                          )}
                         >
                           {task.title}
                         </Link>
@@ -1065,7 +1340,7 @@ const PlanPage = () => {
                 </ul>
               )}
             </section>
-          </>
+          </div>
         ) : null}
       </div>
 
@@ -1087,9 +1362,7 @@ const PlanPage = () => {
             </p>
           )}
           <div className="plan-page__footer-row">
-            <span>
-              {selectedCount}개 선택 · {formatMinutesLabel(selectedMinutes)}
-            </span>
+            <SelectionSummary count={selectedCount} minutes={selectedMinutes} />
             <button
               type="button"
               className="plan-page__apply"
