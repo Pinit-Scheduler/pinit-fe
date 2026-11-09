@@ -189,10 +189,15 @@ export const acceptInvitation = (token: string) =>
 // ADR-0030 읽기 전용 요약. 숫자는 BE가 정의하고 FE는 그대로 보여 준다.
 export const fetchSpaceSummaries = (signal?: AbortSignal) =>
   httpClient<SpaceSummaries>(url('/spaces/summaries'), { signal })
-export const fetchSpaceSummary = (spaceId: number) =>
-  httpClient<SpaceSummary>(url(`/spaces/${spaceId}/summary`))
+export const fetchSpaceSummary = (spaceId: number, signal?: AbortSignal) =>
+  httpClient<SpaceSummary>(url(`/spaces/${spaceId}/summary`), { signal })
 /** start는 호출자 시간대의 월요일(YYYY-MM-DD). 월요일이 아니면 BE가 400을 준다. */
-export const fetchWeeklyRecord = (spaceId: number, start: string) =>
+export const fetchWeeklyRecord = (
+  spaceId: number,
+  start: string,
+  signal?: AbortSignal,
+) =>
   httpClient<WeeklyRecord>(
     url(`/spaces/${spaceId}/weekly-record?start=${encodeURIComponent(start)}`),
+    { signal },
   )

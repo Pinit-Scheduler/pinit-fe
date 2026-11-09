@@ -1,7 +1,14 @@
 import { ApiError } from '@shared/api/httpClient'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
+import StatusPanel from '@shared/components/common/StatusPanel'
+import {
+  MOTION_ENTER_MS,
+  MOTION_EXIT_MS,
+  MOTION_FAST_MS,
+  usePresence,
+} from '@shared/motion'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useToast } from '@contexts/ToastContext'
 import useCurrentDay from '@shared/hooks/useCurrentDay'
@@ -33,6 +40,7 @@ import HubRail from './hub/HubRail'
 import HubSettings from './hub/HubSettings'
 import TeamRecord from './hub/TeamRecord'
 import useHubData from './hub/useHubData'
+import { hubPaneToAnimate, riseIn } from './motion'
 import { selectSpace, useSpaces, workspaceChanged } from './store'
 import type { Invitation, Project, Space } from './types'
 import './spaces.css'
@@ -48,10 +56,12 @@ function EditorDialog({
   editor,
   close,
   saved,
+  closing = false,
 }: {
   editor: Editor
   close: () => void
   saved: (spaceId?: number) => void
+  closing?: boolean
 }) {
   const titleId = useId()
   const initialName =
@@ -163,6 +173,7 @@ function EditorDialog({
       backdropClassName="space-dialog-backdrop"
       className="space-dialog"
       onClose={busy ? undefined : close}
+      closing={closing}
     >
       <header className="space-dialog__header">
         <h2 id={titleId}>{title}</h2>
@@ -295,8 +306,11 @@ export default function SpacesPage() {
     withRecord,
   )
   const refresh = workspaceChanged
-  const run = async (action: () => Promise<unknown>, message: string) => {
-    if (mutationLock.current) return
+  const run = async (
+    action: () => Promise<unknown>,
+    message: string,
+  ): Promise<boolean> => {
+    if (mutationLock.current) return false
     mutationLock.current = true
     setBusy(true)
     setError(null)
@@ -305,6 +319,7 @@ export default function SpacesPage() {
       setConfirm(null)
       addToast(message, 'success')
       refresh()
+      return true
     } catch (failure) {
       if (reportEditConflict(failure)) setConfirm(null)
       else
@@ -313,10 +328,56 @@ export default function SpacesPage() {
             ? failure.message
             : '요청을 처리하지 못했어요. 다시 시도해 주세요.',
         )
+      return false
     } finally {
       mutationLock.current = false
       setBusy(false)
     }
+  }
+  // 프로젝트 완료 표시는 응답 전에 줄을 그어 보이고, 실패하면 되돌린다. 줄이 다 그어진 뒤에
+  // 다른 목록으로 옮겨 가도록 저장 결과 반영을 그만큼 기다린다(다시 열기는 더 짧게).
+  const [settling, setSettling] = useState<{
+    id: number
+    completed: boolean
+  } | null>(null)
+  const settledProject = settling
+    ? workspace.projects.find((project) => project.id === settling.id)
+    : undefined
+  const settled =
+    settling !== null &&
+    (!settledProject || settledProject.completed === settling.completed)
+  useEffect(() => {
+    if (!settling) return
+    // Once the server shows the new state, keep it through the row's exit, then let go.
+    // A save that never shows up (someone changed it again) lets go as well.
+    const timer = setTimeout(
+      () => setSettling((current) => (current === settling ? null : current)),
+      settled ? MOTION_EXIT_MS + MOTION_FAST_MS : 8000,
+    )
+    return () => clearTimeout(timer)
+  }, [settling, settled])
+  const toggleProject = async (project: Project) => {
+    if (mutationLock.current) return
+    const next = { id: project.id, completed: !project.completed }
+    setSettling(next)
+    const started = Date.now()
+    // The strike draws over 80ms + --motion-enter; retracting takes --motion-fast.
+    const settle = next.completed ? 80 + MOTION_ENTER_MS : MOTION_FAST_MS
+    const ok = await run(
+      async () => {
+        const result = await updateProject(project.id, {
+          completed: next.completed,
+          expectedVersion: project.version,
+        })
+        const left = settle - (Date.now() - started)
+        if (left > 0) await new Promise((resolve) => setTimeout(resolve, left))
+        return result
+      },
+      project.completed
+        ? '프로젝트를 다시 열었어요.'
+        : '프로젝트를 완료로 표시했어요.',
+    )
+    if (!ok) setSettling((current) => (current === next ? null : current))
   }
   const saved = (spaceId?: number) => {
     setEditor(null)
@@ -361,6 +422,19 @@ export default function SpacesPage() {
   }
   // 같은 경로로 다시 들어오면(스페이스 시트의 "모든 스페이스 보기" 등) 좁은 화면은 목록부터 보인다.
   const location = useLocation()
+  // Choosing another space swaps the overview's content in place; on a narrow screen the
+  // list and the overview take turns. Either way the pane that changed rises in.
+  const overview = useRef<HTMLElement>(null)
+  const spaceId = space?.id ?? null
+  const pane = useRef({ spaceId, detail })
+  useLayoutEffect(() => {
+    const before = pane.current
+    pane.current = { spaceId, detail }
+    const narrow = Boolean(window.matchMedia?.('(max-width: 760px)').matches)
+    const target = hubPaneToAnimate(before, { spaceId, detail }, narrow)
+    if (target === 'overview') riseIn(overview.current)
+    if (target === 'rail') riseIn(rail.current)
+  }, [spaceId, detail])
   const entry = useRef(location.key)
   useEffect(() => {
     if (entry.current === location.key) return
@@ -376,6 +450,14 @@ export default function SpacesPage() {
     target.scrollIntoView({ block: 'start' })
   }, [tab, space])
   const liveSpaces = workspace.spaces.filter((item) => !item.deleted)
+  // Every dialog stays mounted through its exit and fades out instead of vanishing.
+  const editing = usePresence(editor)
+  const confirming = usePresence(confirm)
+  const inviting = usePresence(invitation)
+  const moving = usePresence(movingProject)
+  const assigningDialog = usePresence(
+    space && !space.personal && assigningSpaceId === space.id ? space : null,
+  )
   return (
     <section className="spaces-page">
       <header className="workspace-page-header">
@@ -390,7 +472,9 @@ export default function SpacesPage() {
           스페이스 만들기
         </button>
       </header>
-      {workspace.loading && <p role="status">스페이스를 불러오는 중…</p>}
+      {workspace.loading && liveSpaces.length === 0 && (
+        <StatusPanel variant="loading" title="스페이스를 불러오는 중…" />
+      )}
       {(workspace.error || error) && (
         <div className="workspace-inline-error" role="alert">
           <span>{error ?? workspace.error}</span>
@@ -416,7 +500,11 @@ export default function SpacesPage() {
           />
         </div>
         {space && (
-          <article className="hub-overview" aria-labelledby="hub-space-title">
+          <article
+            ref={overview}
+            className="hub-overview"
+            aria-labelledby="hub-space-title"
+          >
             <button
               ref={backButton}
               type="button"
@@ -448,24 +536,14 @@ export default function SpacesPage() {
                 failed={Boolean(summary.error) && !summary.data}
                 onRetry={summary.reload}
                 busy={busy}
+                settling={settling}
                 onOpen={(project) => {
                   workspace.selectProject(project.id)
                   navigate('/app/tasks')
                 }}
                 onCreate={() => setEditor({ kind: 'create-project', space })}
                 onEdit={(project) => setEditor({ kind: 'project', project })}
-                onToggle={(project) =>
-                  void run(
-                    () =>
-                      updateProject(project.id, {
-                        completed: !project.completed,
-                        expectedVersion: project.version,
-                      }),
-                    project.completed
-                      ? '프로젝트를 다시 열었어요.'
-                      : '프로젝트를 완료로 표시했어요.',
-                  )
-                }
+                onToggle={(project) => void toggleProject(project)}
                 onMove={setMovingProject}
                 onDelete={(project) =>
                   setConfirm({
@@ -565,9 +643,10 @@ export default function SpacesPage() {
           </article>
         )}
       </div>
-      {movingProject && (
+      {moving.mounted && moving.value && (
         <ProjectMoveDialog
-          project={movingProject}
+          project={moving.value}
+          closing={moving.closing}
           close={() => setMovingProject(null)}
           saved={() => {
             setMovingProject(null)
@@ -575,21 +654,27 @@ export default function SpacesPage() {
           }}
         />
       )}
-      {editor && (
+      {editing.mounted && editing.value && (
         <EditorDialog
-          editor={editor}
+          editor={editing.value}
+          closing={editing.closing}
           close={() => setEditor(null)}
           saved={saved}
         />
       )}
-      {space && !space.personal && assigningSpaceId === space.id && (
+      {assigningDialog.mounted && assigningDialog.value && (
         <AssignUnassignedDialog
-          space={space}
+          space={assigningDialog.value}
+          closing={assigningDialog.closing}
           meId={workspace.memberId}
           projects={workspace.projects.filter(
-            (project) => project.spaceId === space.id,
+            (project) => project.spaceId === assigningDialog.value?.id,
           )}
-          openCount={summary.data?.unassigned.openCount ?? null}
+          openCount={
+            assigningDialog.value.id === space?.id
+              ? (summary.data?.unassigned.openCount ?? null)
+              : null
+          }
           onClose={() => setAssigningSpaceId(null)}
           onAssigned={() => {
             addToast('배정했어요.', 'success')
@@ -598,16 +683,17 @@ export default function SpacesPage() {
           onStale={refresh}
         />
       )}
-      {confirm && (
+      {confirming.mounted && confirming.value && (
         <Modal
           labelledBy="space-confirm-title"
           backdropClassName="space-dialog-backdrop"
           className="space-dialog space-dialog--notice"
           onClose={busy ? undefined : () => setConfirm(null)}
+          closing={confirming.closing}
         >
-          <h2 id="space-confirm-title">{confirm.title}</h2>
+          <h2 id="space-confirm-title">{confirming.value.title}</h2>
           <div className="space-dialog__body">
-            <p>{confirm.description}</p>
+            <p>{confirming.value.description}</p>
           </div>
           {error && (
             <p role="alert" className="space-error">
@@ -625,87 +711,40 @@ export default function SpacesPage() {
             <button
               className="workspace-button workspace-button--primary"
               disabled={busy}
-              onClick={() => void run(confirm.action, '처리했어요.')}
+              onClick={() => {
+                if (confirm) void run(confirm.action, '처리했어요.')
+              }}
             >
               {busy ? '처리 중…' : '확인'}
             </button>
           </div>
         </Modal>
       )}
-      {invitation && (
-        <Modal
-          labelledBy="space-invite-title"
-          backdropClassName="space-dialog-backdrop"
-          className="space-dialog"
+      {inviting.mounted && inviting.value && (
+        <InvitationDialog
+          invitation={inviting.value}
+          closing={inviting.closing}
+          busy={busy}
+          copied={copied}
+          error={error}
           onClose={() => setInvitation(null)}
-        >
-          <header className="space-dialog__header">
-            <h2 id="space-invite-title">초대 링크</h2>
-            <button
-              className="space-icon-button"
-              aria-label="닫기"
-              onClick={() => setInvitation(null)}
-            >
-              <WorkspaceIcon name="close" />
-            </button>
-          </header>
-          <div className="space-dialog__body">
-            <p>
-              {invitation.spaceName}의 프로젝트와 공유 작업을 함께 관리할 수
-              있어요.
-            </p>
-            <p className="space-notice">
-              이동 전 과거 기록도 참여자에게 표시됩니다. 링크는 생성 후 1시간
-              동안 사용할 수 있어요.
-            </p>
-            <label className="space-copy-field">
-              초대 링크
-              <input
-                readOnly
-                value={invitation.inviteUrl ?? ''}
-                onFocus={(event) => event.target.select()}
-              />
-            </label>
-            <p className="space-help">
-              만료: {new Date(invitation.expiresAt).toLocaleString('ko-KR')}
-            </p>
-            {copied && <p role="status">링크를 복사했어요.</p>}
-            {error && (
-              <p role="alert" className="space-error">
-                {error}
-              </p>
-            )}
-          </div>
-          <footer className="space-dialog__actions">
-            <button
-              className="workspace-button"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await revokeInvitation(invitation.spaceId, invitation.id)
-                  setInvitation(null)
-                }, '초대 링크를 취소했어요.')
-              }
-            >
-              링크 취소
-            </button>
-            <button
-              className="workspace-button workspace-button--primary"
-              onClick={() => {
-                void navigator.clipboard
-                  .writeText(invitation.inviteUrl ?? '')
-                  .then(() => setCopied(true))
-                  .catch(() =>
-                    setError(
-                      '복사하지 못했어요. 링크를 선택해 직접 복사해 주세요.',
-                    ),
-                  )
-              }}
-            >
-              링크 복사
-            </button>
-          </footer>
-        </Modal>
+          onRevoke={(shown) =>
+            void run(async () => {
+              await revokeInvitation(shown.spaceId, shown.id)
+              setInvitation(null)
+            }, '초대 링크를 취소했어요.')
+          }
+          onCopy={(shown) => {
+            void navigator.clipboard
+              .writeText(shown.inviteUrl ?? '')
+              .then(() => setCopied(true))
+              .catch(() =>
+                setError(
+                  '복사하지 못했어요. 링크를 선택해 직접 복사해 주세요.',
+                ),
+              )
+          }}
+        />
       )}
     </section>
   )
@@ -715,10 +754,12 @@ function ProjectMoveDialog({
   project,
   close,
   saved,
+  closing = false,
 }: {
   project: Project
   close: () => void
   saved: () => void
+  closing?: boolean
 }) {
   const { spaces } = useSpaces()
   const [spaceId, setSpaceId] = useState<number | null>(null)
@@ -752,6 +793,7 @@ function ProjectMoveDialog({
       backdropClassName="space-dialog-backdrop"
       className="space-dialog"
       onClose={busy ? undefined : close}
+      closing={closing}
     >
       <header className="space-dialog__header">
         <h2 id="project-move-title">프로젝트 스페이스 이동</h2>
@@ -802,6 +844,93 @@ function ProjectMoveDialog({
           onClick={() => void submit()}
         >
           {busy ? '이동 중…' : '확인하고 이동'}
+        </button>
+      </footer>
+    </Modal>
+  )
+}
+
+function InvitationDialog({
+  invitation,
+  closing,
+  busy,
+  copied,
+  error,
+  onClose,
+  onRevoke,
+  onCopy,
+}: {
+  invitation: Invitation
+  closing: boolean
+  busy: boolean
+  copied: boolean
+  error: string | null
+  onClose: () => void
+  onRevoke: (invitation: Invitation) => void
+  onCopy: (invitation: Invitation) => void
+}) {
+  return (
+    <Modal
+      labelledBy="space-invite-title"
+      backdropClassName="space-dialog-backdrop"
+      className="space-dialog"
+      onClose={onClose}
+      closing={closing}
+    >
+      <header className="space-dialog__header">
+        <h2 id="space-invite-title">초대 링크</h2>
+        <button
+          className="space-icon-button"
+          aria-label="닫기"
+          onClick={onClose}
+        >
+          <WorkspaceIcon name="close" />
+        </button>
+      </header>
+      <div className="space-dialog__body">
+        <p>
+          {invitation.spaceName}의 프로젝트와 공유 작업을 함께 관리할 수
+          있어요.
+        </p>
+        <p className="space-notice">
+          이동 전 과거 기록도 참여자에게 표시됩니다. 링크는 생성 후 1시간
+          동안 사용할 수 있어요.
+        </p>
+        <label className="space-copy-field">
+          초대 링크
+          <input
+            readOnly
+            value={invitation.inviteUrl ?? ''}
+            onFocus={(event) => event.target.select()}
+          />
+        </label>
+        <p className="space-help">
+          만료: {new Date(invitation.expiresAt).toLocaleString('ko-KR')}
+        </p>
+        {copied && (
+          <p role="status" className="space-copied">
+            링크를 복사했어요.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="space-error">
+            {error}
+          </p>
+        )}
+      </div>
+      <footer className="space-dialog__actions">
+        <button
+          className="workspace-button"
+          disabled={busy}
+          onClick={() => onRevoke(invitation)}
+        >
+          링크 취소
+        </button>
+        <button
+          className="workspace-button workspace-button--primary"
+          onClick={() => onCopy(invitation)}
+        >
+          링크 복사
         </button>
       </footer>
     </Modal>

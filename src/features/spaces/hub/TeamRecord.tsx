@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { formatIsoDurationLabel, formatMinutesLabel } from '@shared/utils/isoDuration'
 import TimeBars from '../TimeBars'
 import { dayBars, recordRows, weekRange } from '../hub'
@@ -37,7 +38,10 @@ export default function TeamRecord({
         </button>
       </p>
     )
-  else if (!record) body = <p className="hub-quiet">팀 기록을 불러오는 중…</p>
+  else if (!record)
+    body = (
+      <p className="hub-quiet hub-record__loading">팀 기록을 불러오는 중…</p>
+    )
   else if (record.completedCount === 0)
     body = <p className="hub-empty">이번 주에 완료한 일정이 아직 없어요.</p>
   else {
@@ -50,8 +54,11 @@ export default function TeamRecord({
       ]),
     )
     if (meId !== null) memberNames.set(meId, '나')
+    // The body mounts once per space and week, when its record arrives; a refetch keeps it.
+    // Keyed by space and week so a cached record for another space never glides its bars
+    // from this one's lengths: it arrives as its own record.
     body = (
-      <>
+      <div className="hub-record__body" key={`${record.spaceId}:${record.start}`}>
         <p className="hub-record__total">
           완료한 일정 {record.completedCount}개,{' '}
           {formatIsoDurationLabel(record.elapsed) ?? '–'}
@@ -66,10 +73,11 @@ export default function TeamRecord({
             })
             .join(', ')}
         >
-          {bars.map((bar) => (
+          {bars.map((bar, index) => (
             <span
               key={bar.date}
               className={`hub-day${bar.today ? ' is-today' : ''}`}
+              style={{ '--hub-day-index': index } as CSSProperties}
             >
               <i style={{ height: `${bar.height}px` }} />
               <small>{bar.label}</small>
@@ -104,7 +112,7 @@ export default function TeamRecord({
           완료한 일정의 실제 실행 시간 기준이에요. 사람별 시간은 일정을 실제로
           실행한 사람으로 나눠요.
         </p>
-      </>
+      </div>
     )
   }
   return (

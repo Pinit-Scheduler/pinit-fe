@@ -1,23 +1,27 @@
 import { useEffect, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { usePresence } from '@shared/motion'
 import { EVENT } from './conflicts'
 import { useSpaces } from './store'
 
 export default function ConflictNotice() {
   const [open, setOpen] = useState(false)
   const { reload } = useSpaces()
+  // Stays mounted through its exit, so the notice fades out once the latest content is in.
+  const presence = usePresence(open)
   useEffect(() => {
     const show = () => setOpen(true)
     window.addEventListener(EVENT, show)
     return () => window.removeEventListener(EVENT, show)
   }, [])
-  if (!open) return null
+  if (!presence.mounted) return null
   return (
     <Modal
       labelledBy="workspace-conflict-title"
       backdropClassName="space-dialog-backdrop space-conflict-backdrop"
       className="space-dialog space-dialog--notice"
       closeOnBackdrop={false}
+      closing={presence.closing}
     >
       <h2 id="workspace-conflict-title">다른 참여자가 먼저 수정했어요</h2>
       <p>
