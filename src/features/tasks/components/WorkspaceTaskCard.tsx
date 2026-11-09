@@ -9,7 +9,11 @@ import {
 } from '@shared/utils/events'
 import { formatDateWithOffset } from '@shared/utils/datetime'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
-import { CategoryBadge } from '@features/categories'
+import { cardPath } from '@features/spaces/cardPath'
+import SpacePath from '@features/spaces/SpacePath'
+import { routeScope } from '@features/spaces/scope'
+import { useSpaces } from '@features/spaces/store'
+import { useLocation } from 'react-router-dom'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import './WorkspaceTaskCard.css'
 import { saveTaskCompletion } from '../utils/taskCompletion'
@@ -23,6 +27,8 @@ export default function WorkspaceTaskCard({
   onAssign?: () => void
 }) {
   const { tasksById, setTask } = useTaskCache()
+  const { pathname } = useLocation()
+  const { selectedSpaceId, selectedProjectId, spaces, projects } = useSpaces()
   const item = tasksById[task.id] ?? task
   const done = item.completed ?? item.isCompleted ?? false
   const [pending, setPending] = useState(false),
@@ -88,7 +94,15 @@ export default function WorkspaceTaskCard({
           {item.title}
         </button>
         <div className="workspace-task__meta">
-          <CategoryBadge kind="task" itemId={item.id} />
+          <SpacePath
+            path={cardPath(
+              routeScope(pathname),
+              { spaceId: selectedSpaceId, projectId: selectedProjectId },
+              item,
+              spaces,
+              projects,
+            )}
+          />
           <span>{item.assigneeNickname ?? '담당자 미정'}</span>
           {item.recurrence && <span>반복</span>}
           {!done && (item.inboundDependencyCount ?? 0) > 0 && (

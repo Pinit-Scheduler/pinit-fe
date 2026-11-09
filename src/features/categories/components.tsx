@@ -3,51 +3,9 @@ import { useSpaces } from '@features/spaces/store'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
-import { useCategories, type Category, type CategoryFilterValue } from './store'
+import { useCategories, type CategoryFilterValue } from './store'
 import './categories.css'
 
-function ConnectedCategoryBadge({
-  kind,
-  itemId,
-}: {
-  kind: 'task' | 'schedule'
-  itemId: number
-}) {
-  const store = useCategories()
-  const value =
-    kind === 'task'
-      ? store.taskCategory(itemId)
-      : store.scheduleCategory(itemId)
-  return (
-    <span className="category-badge" title={store.error ?? undefined}>
-      {store.isLoading
-        ? '분류 확인 중'
-        : store.error
-          ? '분류 확인 실패'
-          : (value?.name ??
-            ((kind === 'task'
-              ? store.taskAssignments[itemId]
-              : store.scheduleAssignments[itemId]) !== undefined
-              ? '프로젝트 정보 없음'
-              : '프로젝트 없음'))}
-    </span>
-  )
-}
-export function CategoryBadge({
-  category,
-  kind,
-  itemId,
-}: {
-  category?: Category | null
-  kind?: 'task' | 'schedule'
-  itemId?: number
-}) {
-  return kind && itemId !== undefined ? (
-    <ConnectedCategoryBadge kind={kind} itemId={itemId} />
-  ) : (
-    <span className="category-badge">{category?.name ?? '없음'}</span>
-  )
-}
 export function CategoryFilter({
   value,
   onChange,

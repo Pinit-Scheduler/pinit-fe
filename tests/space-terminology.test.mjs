@@ -21,3 +21,10 @@ test('user-facing copy says 스페이스, not 공간', () => {
     .map((file) => file.replaceAll(String.fromCharCode(92), '/'))
   assert.deepEqual(offenders, [])
 })
+
+test('no placeholder classification copy remains', () => {
+  const offenders = sourceFiles('src')
+    .filter((file) => readFileSync(file, 'utf8').includes('분류 확인'))
+    .map((file) => file.replaceAll(String.fromCharCode(92), '/'))
+  assert.deepEqual(offenders, [])
+})

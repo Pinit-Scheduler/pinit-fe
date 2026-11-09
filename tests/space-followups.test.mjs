@@ -151,3 +151,15 @@ test('the record disclosure is asked only when moving into a shared space', () =
   assert.equal(needsRecordDisclosure({ creating: true, fromSpaceId: undefined, to: impactTo }), false)
   assert.equal(needsRecordDisclosure({ creating: false, fromSpaceId: 31, to: { ...impactTo, personal: true } }), false)
 })
+
+test('card paths name only what lies beyond the scope', () => {
+  const { cardPath } = load('features/spaces/cardPath.ts')
+  const spaces = [{ id: 31, name: '핀잇 개선', personal: false }, { id: -4, name: '나의 스페이스', personal: true }]
+  const projects = [{ id: 88, name: '작업 카드 개선' }]
+  const item = { spaceId: 31, projectId: 88 }
+  assert.deepEqual(plain(cardPath('all', { spaceId: 31, projectId: null }, item, spaces, projects)), { spaceId: 31, text: '핀잇 개선 › 작업 카드 개선' })
+  assert.deepEqual(plain(cardPath('selected', { spaceId: 31, projectId: null }, item, spaces, projects)), { spaceId: null, text: '작업 카드 개선' })
+  assert.equal(cardPath('selected', { spaceId: 31, projectId: 88 }, item, spaces, projects), null)
+  assert.deepEqual(plain(cardPath('all', { spaceId: 31, projectId: null }, { spaceId: -4, projectId: null }, spaces, projects)), { spaceId: -4, text: '나의 스페이스' })
+  assert.equal(cardPath('all', { spaceId: 31, projectId: null }, { spaceId: 99, projectId: null }, spaces, projects), null)
+})

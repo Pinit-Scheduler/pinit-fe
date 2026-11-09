@@ -1,5 +1,6 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { CategoryBadge } from '@features/categories'
+import { cardPath } from '@features/spaces/cardPath'
+import SpacePath from '@features/spaces/SpacePath'
 import { useEffect, useState, useId, useRef } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
@@ -56,7 +57,7 @@ const TaskDetailModal = ({
   const { addToast } = useToast()
   const { offerTaskUndo } = useTrashUndo()
   const { open } = useRouteSurfaceNavigation()
-  const { spaces } = useSpaces()
+  const { spaces, projects } = useSpaces()
   const [task, setTaskState] = useState<Task | null>(tasksById[taskId] ?? null)
   const [isLoading, setIsLoading] = useState(!tasksById[taskId])
   const [error, setError] = useState<string | null>(null)
@@ -253,7 +254,15 @@ const TaskDetailModal = ({
                   {task.description}
                 </p>
                 <div className="task-detail-modal__meta">
-                  <CategoryBadge kind="task" itemId={task.id} />
+                  <SpacePath
+                    path={cardPath(
+                      'all',
+                      { spaceId: null, projectId: null },
+                      task,
+                      spaces,
+                      projects,
+                    )}
+                  />
                   <span>{task.assigneeNickname ?? '담당자 미정'}</span>
                   <span className="task-detail-modal__badge task-detail-modal__badge--state">
                     {(task.completed ?? task.isCompleted) ? '완료' : '미완료'}

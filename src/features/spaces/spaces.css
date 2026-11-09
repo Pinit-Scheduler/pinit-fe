@@ -872,3 +872,15 @@ button:disabled {
   margin: 0 0 12px;
   color: #5b6577;
 }
+
+.space-path {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: var(--c-slate-50);
+  color: var(--c-slate-500);
+  font-size: 13px;
+  line-height: 1.5;
+}

@@ -1066,7 +1066,8 @@ test('Task schedule assignment still writes the captured identity/version when d
     react: { useEffect() {}, useState: (value) => [value, () => {}], useRef: (current) => ({ current }), useId: () => 'title' },
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     '@shared/components/common/WorkspaceIcon': {},
-    '@features/categories': {},
+    '@features/spaces/cardPath': { cardPath: () => null },
+    '@features/spaces/SpacePath': { default: () => null },
     '@shared/components/common/Modal': {},
     '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({}) },
     '../api/tasks': { createScheduleFromTask: async (...args) => calls.push(args) },
@@ -1084,7 +1085,7 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/recurrence/utils/seriesMutations': {},
     '@features/trash': { useTrashUndo: () => ({}) },
     '@features/spaces/metadata': metadata(),
-    '@features/spaces/store': { useSpaces: () => ({ spaces: [] }) },
+    '@features/spaces/store': { useSpaces: () => ({ spaces: [], projects: [] }) },
     '@features/spaces/UnavailableNote': { default: () => null },
     '@features/spaces/unavailable': { adminNames: () => [], unavailableLines: () => [] },
   }).default
