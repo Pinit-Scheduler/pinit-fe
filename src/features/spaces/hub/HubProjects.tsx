@@ -27,11 +27,12 @@ function Row({
 }) {
   const { project, counts } = row
   const actions = project.allowedActions
+  const reasons = project.unavailableReasons
   const notes = unavailableLines(
     [
-      { off: actions.update === false, reason: undefined },
-      { off: actions.move === false, reason: undefined },
-      { off: actions.delete === false, reason: undefined },
+      { off: actions.update === false, reason: reasons?.update },
+      { off: actions.move === false, reason: reasons?.move },
+      { off: actions.delete === false, reason: reasons?.delete },
     ],
     admins,
   )
