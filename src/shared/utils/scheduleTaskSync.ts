@@ -1,4 +1,4 @@
-import { completeTask, fetchTaskDetail, reopenTask } from '@features/tasks/api/tasks'
+import { fetchTaskDetail } from '@features/tasks/api/tasks'
 import { dispatchTaskChanged } from './events'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import type { ScheduleState } from '@features/schedules/types/schedule'
@@ -9,7 +9,10 @@ import type { ScheduleState } from '@features/schedules/types/schedule'
 export const useScheduleTaskSync = () => {
   const { setTask } = useTaskCache()
 
-  const refreshTaskIfLinked = async (taskId?: number | null, reason?: string) => {
+  const refreshTaskIfLinked = async (
+    taskId?: number | null,
+    reason?: string,
+  ) => {
     if (taskId == null) return
     try {
       const task = await fetchTaskDetail(taskId)
@@ -20,32 +23,18 @@ export const useScheduleTaskSync = () => {
     }
   }
 
-  /**
-   * 일정 상태 변화에 맞춰 Task 상태를 자동 동기화
-   * - 일정 완료 → Task 완료
-   * - 일정 취소/미시작 → Task 미완료로 되돌림 (이미 완료된 경우만)
-   */
-  const syncTaskStateWithSchedule = async (taskId?: number | null, scheduleState?: ScheduleState) => {
-    if (taskId == null || !scheduleState) return
-    try {
-      const current = await fetchTaskDetail(taskId)
-
-      const currentCompleted = current.completed ?? current.isCompleted ?? false
-      if (scheduleState === 'COMPLETED' && !currentCompleted) {
-        await completeTask(taskId)
-      } else if (scheduleState === 'NOT_STARTED' && currentCompleted) {
-        await reopenTask(taskId)
-      }
-
-      const updated = scheduleState === 'COMPLETED' || scheduleState === 'NOT_STARTED'
-        ? await fetchTaskDetail(taskId)
-        : current
-
-      setTask(updated)
-      dispatchTaskChanged(taskId, `schedule-${scheduleState.toLowerCase()}`)
-    } catch (err) {
-      console.error('Failed to sync task with schedule state', err)
-    }
+  // 상태 전이와 연결 Task 동기화는 서버 도메인이 한 트랜잭션에서 처리한다.
+  // UI는 이미 저장된 결과를 재조회하며 추가 complete/reopen 명령을 만들지 않는다.
+  const syncTaskStateWithSchedule = async (
+    taskId?: number | null,
+    scheduleState?: ScheduleState,
+  ) => {
+    await refreshTaskIfLinked(
+      taskId,
+      scheduleState
+        ? `schedule-${scheduleState.toLowerCase()}`
+        : 'schedule-state-updated',
+    )
   }
 
   return { refreshTaskIfLinked, syncTaskStateWithSchedule }

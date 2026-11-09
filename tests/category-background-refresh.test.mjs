@@ -19,6 +19,38 @@ const load = (path, dependencies) => {
     exports: module.exports,
     Error,
     require: (name) => {
+      if (name === '@features/spaces/metadata') {
+        const source = readFileSync(
+          new URL('../src/features/spaces/metadata.ts', import.meta.url),
+          'utf8',
+        )
+        const output = ts.transpileModule(source, {
+          compilerOptions: {
+            module: ts.ModuleKind.CommonJS,
+            target: ts.ScriptTarget.ES2022,
+          },
+        }).outputText
+        const registry = { exports: {} }
+        vm.runInNewContext(output, {
+          module: registry,
+          exports: registry.exports,
+        })
+        return registry.exports
+      }
+      if (name === '@features/spaces/useMoveConfirmation')
+        return {
+          useMoveConfirmation: () => ({
+            dialog: null,
+            confirm: async (from, to) => {
+              assert.ok(
+                from === undefined || to === undefined || from === to,
+                'Cross-space confirmation requires its own dialog test',
+              )
+              return true
+            },
+          }),
+          moveResultMessage: () => null,
+        }
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     },

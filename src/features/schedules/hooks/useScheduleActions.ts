@@ -1,3 +1,4 @@
+import { getMetadata } from '@features/spaces/metadata'
 import {
   startSchedule,
   suspendSchedule,
@@ -6,21 +7,12 @@ import {
   fetchScheduleDetail,
 } from '../api/schedules.ts'
 import { fetchActiveScheduleId } from '@features/auth/api/member'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ScheduleState } from '../types/schedule'
+import { useEffect, useRef, useState } from 'react'
+import type { ScheduleState, ScheduleResponse } from '../types/schedule'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useToast } from '@contexts/ToastContext'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
-
-const allowedStartStates: ScheduleState[] = ['NOT_STARTED', 'SUSPENDED']
-const allowedPauseStates: ScheduleState[] = ['IN_PROGRESS']
-const allowedCompleteStates: ScheduleState[] = ['NOT_STARTED', 'IN_PROGRESS']
-const allowedCancelStates: ScheduleState[] = [
-  'IN_PROGRESS',
-  'SUSPENDED',
-  'COMPLETED',
-]
 
 type UseScheduleActionsResult = {
   currentState: ScheduleState
@@ -53,7 +45,6 @@ const useScheduleActions = (
   const [lastError, setLastError] = useState<string | null>(null)
   const retryRef = useRef<(() => Promise<void>) | null>(null)
   const {
-    updateScheduleState,
     setActiveSchedule,
     setSchedule,
     activeScheduleId,
@@ -77,29 +68,17 @@ const useScheduleActions = (
     }
   }, [cachedState, currentState])
 
-  const canStart = useMemo(
-    () => allowedStartStates.includes(currentState),
-    [currentState],
-  )
-
-  const canPause = useMemo(
-    () => allowedPauseStates.includes(currentState),
-    [currentState],
-  )
-
-  const canComplete = useMemo(
-    () => allowedCompleteStates.includes(currentState),
-    [currentState],
-  )
-
-  const canCancel = useMemo(
-    () => allowedCancelStates.includes(currentState),
-    [currentState],
-  )
+  const schedule =
+    scheduleId == null
+      ? undefined
+      : (schedulesById[scheduleId] ?? getMetadata('schedule', scheduleId))
+  const canStart = schedule?.allowedActions?.start === true
+  const canPause = schedule?.allowedActions?.suspend === true
+  const canComplete = schedule?.allowedActions?.complete === true
+  const canCancel = schedule?.allowedActions?.cancel === true
 
   const mutate = async (
-    handler: (id: number) => Promise<void>,
-    nextState: ScheduleState,
+    handler: (id: number) => Promise<ScheduleResponse>,
     message: string,
   ) => {
     if (!scheduleId) {
@@ -110,26 +89,37 @@ const useScheduleActions = (
     setLastError(null)
 
     try {
-      await handler(scheduleId)
-      setCurrentState(nextState)
-      updateScheduleState(scheduleId, nextState)
+      const saved = await handler(scheduleId)
+      setCurrentState(saved.state)
+      setSchedule(saved)
       setLastMessage(message)
       try {
         const detail = await fetchScheduleDetail(scheduleId)
         setSchedule(detail)
         if (options.syncTask !== false && detail.taskId != null) {
-          await syncTaskStateWithSchedule(detail.taskId, nextState)
+          await syncTaskStateWithSchedule(detail.taskId, detail.state)
         }
       } catch (error) {
         console.error(
           'Failed to refresh schedule detail after mutation:',
           error,
         )
+        setLastError(
+          '상태는 저장되었지만 최신 정보를 불러오지 못했어요. 다시 확인해 주세요.',
+        )
+        retryRef.current = async () => {
+          const detail = await fetchScheduleDetail(scheduleId)
+          setSchedule(detail)
+          if (options.syncTask !== false && detail.taskId != null)
+            await syncTaskStateWithSchedule(detail.taskId, detail.state)
+          setLastError(null)
+          dispatchScheduleChanged({ scheduleId, reason: 'state-verified' })
+        }
       }
       dispatchScheduleChanged({
         scheduleId,
         reason: 'state-mutated',
-        payload: { state: nextState },
+        payload: { state: saved.state },
       })
       return true
     } catch (error) {
@@ -170,8 +160,7 @@ const useScheduleActions = (
     if (!canStart || isMutating) return
     retryRef.current = start
     const succeeded = await mutate(
-      startSchedule,
-      'IN_PROGRESS',
+      (id) => startSchedule(id, undefined, schedule?.version),
       '일정을 시작했습니다.',
     )
     if (!succeeded) return
@@ -182,8 +171,7 @@ const useScheduleActions = (
     if (!canPause || isMutating) return
     retryRef.current = pause
     const succeeded = await mutate(
-      suspendSchedule,
-      'SUSPENDED',
+      (id) => suspendSchedule(id, undefined, schedule?.version),
       '일정을 일시 중지했습니다.',
     )
     if (!succeeded) return
@@ -196,8 +184,7 @@ const useScheduleActions = (
     if (!canComplete || isMutating) return
     retryRef.current = complete
     const succeeded = await mutate(
-      completeSchedule,
-      'COMPLETED',
+      (id) => completeSchedule(id, undefined, schedule?.version),
       '일정을 완료했습니다.',
     )
     if (!succeeded) return
@@ -210,8 +197,7 @@ const useScheduleActions = (
     if (!canCancel || isMutating) return
     retryRef.current = cancel
     const succeeded = await mutate(
-      cancelSchedule,
-      'NOT_STARTED',
+      (id) => cancelSchedule(id, schedule?.version),
       '일정을 취소하고 미시작 상태로 되돌렸습니다.',
     )
     if (!succeeded) return
@@ -221,7 +207,7 @@ const useScheduleActions = (
   }
 
   return {
-    currentState,
+    currentState: cachedState ?? currentState,
     isMutating,
     lastMessage,
     lastError,

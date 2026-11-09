@@ -1,6 +1,11 @@
+import { getSelectedScope } from '@features/spaces/store'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
-import type { DayPlanResponse, PlanApplyRequest, PlanApplyResponse } from '../types/plan'
+import type {
+  DayPlanResponse,
+  PlanApplyRequest,
+  PlanApplyResponse,
+} from '../types/plan'
 
 const PLAN_API_VERSION = 'v2'
 
@@ -16,8 +21,13 @@ type DayPlanParams = {
 /** 하루 계획 제안. 서버는 아무것도 저장하지 않는다. */
 export const fetchDayPlan = ({ date, zoneId, horizonDays }: DayPlanParams) => {
   const query = new URLSearchParams({ date, zoneId })
+  const { spaceId, projectId } = getSelectedScope()
+  if (spaceId !== null) query.set('spaceId', String(spaceId))
+  if (projectId !== null) query.set('projectId', String(projectId))
   if (horizonDays !== undefined) query.set('horizonDays', String(horizonDays))
-  return httpClient<DayPlanResponse>(buildApiUrl(`/plans?${query.toString()}`, PLAN_API_VERSION))
+  return httpClient<DayPlanResponse>(
+    buildApiUrl(`/plans?${query.toString()}`, PLAN_API_VERSION),
+  )
 }
 
 /**

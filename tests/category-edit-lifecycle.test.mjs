@@ -21,6 +21,38 @@ const load = (path, dependencies) => {
     Error,
     console: { error() {} },
     require: (name) => {
+      if (name === '@features/spaces/metadata') {
+        const source = readFileSync(
+          new URL('../src/features/spaces/metadata.ts', import.meta.url),
+          'utf8',
+        )
+        const output = ts.transpileModule(source, {
+          compilerOptions: {
+            module: ts.ModuleKind.CommonJS,
+            target: ts.ScriptTarget.ES2022,
+          },
+        }).outputText
+        const registry = { exports: {} }
+        vm.runInNewContext(output, {
+          module: registry,
+          exports: registry.exports,
+        })
+        return registry.exports
+      }
+      if (name === '@features/spaces/useMoveConfirmation')
+        return {
+          useMoveConfirmation: () => ({
+            dialog: null,
+            confirm: async (from, to) => {
+              assert.ok(
+                from === undefined || to === undefined || from === to,
+                'Cross-space confirmation requires its own dialog test',
+              )
+              return true
+            },
+          }),
+          moveResultMessage: () => null,
+        }
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     },
@@ -93,6 +125,10 @@ for (const kind of ['task', 'schedule']) {
       title: 'draft',
       description: 'details',
       categoryId: 7,
+      spaceId: -4,
+      assigneeId: null,
+      expectedVersion: 7,
+      recurrenceVersion: 9,
       date: new Date(),
       scheduleType: 'DEEP_WORK',
     }
@@ -108,6 +144,7 @@ for (const kind of ['task', 'schedule']) {
         useTimePreferences: () => ({ offsetMinutes: 540 }),
       },
       '@features/categories': { CategoryPicker },
+      '@features/spaces/AffiliationFields': { default: CategoryPicker },
       '@shared/utils/datetime': {
         getTodayWithOffset: () => day,
         toDateKey: () => '2026-11-03',
@@ -147,34 +184,74 @@ for (const kind of ['task', 'schedule']) {
       title: 'draft',
       description: 'details',
       categoryId: 7,
+      spaceId: -4,
+      assigneeId: null,
+      expectedVersion: 7,
+      recurrenceVersion: 9,
     }
+    let waitForSubmit = null
     const render = () => {
       hooks.begin()
       return Form({
         initialValues,
         onSubmit: async (values) => {
           submitted.push(values)
+          if (waitForSubmit) await waitForSubmit
           return false
         },
       })
     }
     render()
-    initialValues = { ...initialValues, categoryId: 8 }
+    initialValues = {
+      ...initialValues,
+      categoryId: 8,
+      assigneeId: 88,
+      expectedVersion: 11,
+      recurrenceVersion: 13,
+    }
     let tree = render()
     await tree.props.onSubmit({ preventDefault() {} })
     assert.equal(submitted.at(-1).categoryId, 7)
     assert.equal(submitted.at(-1).categoryChanged, false)
+    assert.equal(submitted.at(-1).expectedVersion, 7)
+    assert.equal(submitted.at(-1).recurrenceVersion, 9)
+    assert.equal(submitted.at(-1).assigneeId, null)
+    assert.equal(submitted.at(-1).locationChanged, false)
+    assert.equal(submitted.at(-1).assigneeChanged, false)
     tree = render()
-    find(tree, CategoryPicker).props.onChange(8)
+    find(tree, CategoryPicker).props.onChange({
+      categoryId: 8,
+      spaceId: -4,
+      assigneeId: null,
+    })
     tree = render()
     await tree.props.onSubmit({ preventDefault() {} })
     assert.equal(submitted.at(-1).categoryId, 8)
     assert.equal(submitted.at(-1).categoryChanged, true)
     tree = render()
-    find(tree, CategoryPicker).props.onChange(7)
+    find(tree, CategoryPicker).props.onChange({
+      categoryId: 7,
+      spaceId: -4,
+      assigneeId: null,
+    })
     tree = render()
     await tree.props.onSubmit({ preventDefault() {} })
     assert.equal(submitted.at(-1).categoryChanged, false)
+    let release
+    waitForSubmit = new Promise((resolve) => {
+      release = resolve
+    })
+    tree = render()
+    const before = submitted.length
+    const first = tree.props.onSubmit({ preventDefault() {} })
+    const duplicate = tree.props.onSubmit({ preventDefault() {} })
+    assert.equal(
+      submitted.length,
+      before + 1,
+      'Synchronous duplicate submissions must be locked before rendering',
+    )
+    release()
+    await Promise.all([first, duplicate])
   })
 }
 
@@ -198,7 +275,8 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     events = [],
     toasts = [],
     exits = [],
-    seriesAssigned = []
+    seriesAssigned = [],
+    seriesUpdated = []
   let categoryId = 7,
     failCategory = false,
     failContent = false
@@ -257,8 +335,9 @@ const createTaskEdit = ({ recurring = false } = {}) => {
       useRecurrenceScope: () => ({ dialog: null, ask: async () => 'ALL' }),
     },
     '@features/recurrence/utils/seriesMutations': {
-      confirmAndUpdateSeries: async () => {
+      confirmAndUpdateSeries: async (...args) => {
         if (failContent) throw new Error('content failed')
+        seriesUpdated.push(args)
         return 'updated'
       },
     },
@@ -277,6 +356,7 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     toasts,
     exits,
     seriesAssigned,
+    seriesUpdated,
     refreshCategory: (value) => {
       categoryId = value
     },
@@ -300,10 +380,12 @@ test('task title-only saves do not overwrite a category changed in a background 
     categoryChanged: false,
   })
   assert.equal(h.saved.length, 1)
+  assert.equal(Object.hasOwn(h.saved[0][1], 'projectId'), false)
+  assert.equal(Object.hasOwn(h.saved[0][1], 'assigneeId'), false)
   assert.deepEqual(h.assigned, [])
 })
 
-test('task content success is published before a failing category write and category retry preserves the editor', async () => {
+test('task content and project save atomically; a rejected save keeps the editor and the draft', async () => {
   const h = createTaskEdit()
   const form = h.render()
   const values = {
@@ -312,42 +394,43 @@ test('task content success is published before a failing category write and cate
     categoryId: 8,
     categoryChanged: true,
   }
-  h.failCategory(true)
+  h.failContent(true)
   await form.props.onSubmit(values)
-  assert.equal(h.saved.length, 1)
-  assert.deepEqual(h.events, [[9, 'update']])
+  assert.equal(h.saved.length, 0)
+  assert.deepEqual(h.events, [])
   assert.deepEqual(h.exits, [])
-  assert.match(
-    h.toasts.at(-1)[0],
-    /작업 내용은 저장됐지만 카테고리는 저장하지 못했어요/,
-  )
-  h.failCategory(false)
+  assert.match(h.toasts.at(-1)[0], /content failed/)
+  h.failContent(false)
   await h.render().props.onSubmit(values)
-  assert.deepEqual(h.assigned, [[9, 8]])
+  assert.equal(h.saved.length, 1)
+  assert.equal(h.saved[0][1].projectId, 8)
+  assert.equal(h.saved[0][1].title, 'draft')
+  assert.deepEqual(h.assigned, [])
+  assert.deepEqual(h.events, [[9, 'update']])
   assert.deepEqual(h.exits, ['/app/tasks'])
 })
 
-test('recurring task category success is published when content fails and can be reverted on retry', async () => {
+test('recurring task content and project scope commit atomically and a rejection keeps the draft', async () => {
   const h = createTaskEdit({ recurring: true })
   const form = h.render()
-  h.failContent(true)
-  await form.props.onSubmit({
+  const values = {
     ...form.props.initialValues,
     categoryId: 8,
     categoryChanged: true,
-  })
-  assert.deepEqual(h.seriesAssigned, [[4, 8, 'ALL', '2026-11-03']])
-  assert.equal(h.events[0][0].reason, 'category')
+  }
+  h.failContent(true)
+  await form.props.onSubmit(values)
+  assert.deepEqual(h.seriesAssigned, [])
+  assert.deepEqual(h.seriesUpdated, [])
+  assert.deepEqual(h.events, [])
   assert.deepEqual(h.exits, [])
-  assert.match(
-    h.toasts.at(-1)[0],
-    /카테고리는 저장됐지만 반복 작업 내용은 저장하지 못했어요/,
-  )
+  assert.match(h.toasts.at(-1)[0], /content failed/)
   h.failContent(false)
-  await h
-    .render()
-    .props.onSubmit({ ...form.props.initialValues, categoryChanged: false })
-  assert.deepEqual(h.seriesAssigned[1], [4, 7, 'ALL', '2026-11-03'])
+  await h.render().props.onSubmit(values)
+  assert.equal(h.seriesUpdated.length, 1)
+  assert.equal(h.seriesUpdated[0][1], 'ALL')
+  assert.equal(h.seriesUpdated[0][4].projectId, 8)
+  assert.deepEqual(h.seriesAssigned, [])
   assert.deepEqual(h.exits, ['/app/tasks'])
 })
 
@@ -364,9 +447,23 @@ test('a committed series category write stays successful when its follow-up refr
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': {
       httpClient: async (_url, options) => {
-        if (options?.method === 'PUT') {
+        if (_url.startsWith('/workspace/recurrences/') && !options?.method)
+          return {
+            spaceId: -1,
+            projectId: 7,
+            version: 2,
+            assigneeId: null,
+            allowedActions: {},
+          }
+        if (options?.method === 'PATCH') {
           writes.push(options.json)
-          return
+          return {
+            spaceId: -1,
+            projectId: options.json.location.projectId,
+            version: 3,
+            assigneeId: null,
+            allowedActions: {},
+          }
         }
         if (fail) throw new Error('refresh failed')
         return snapshot
@@ -382,6 +479,8 @@ test('a committed series category write stays successful when its follow-up refr
   fail = true
   await store.assignSeriesCategory(4, 8, 'ALL', '2026-11-03')
   assert.equal(writes.length, 1)
+  assert.equal(writes[0].expectedVersion, 2)
+  assert.equal(writes[0].location.projectId, 8)
   assert.equal(store.useCategories().hasLoaded, true)
   assert.equal(store.useCategories().error, 'refresh failed')
 })
