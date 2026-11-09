@@ -33,6 +33,17 @@ export type PeriodStatisticsResponse = {
     completedCount: number
     completionRate: number | null
   }
+  /**
+   * 내 완료 시간을 스페이스와 그 안의 프로젝트로 나눈 값(ADR-0030 §6).
+   * 시간 내림차순, 시간이 0인 스페이스는 없다. 이전 BE 응답에는 없다.
+   */
+  bySpace?: SpaceTime[]
+}
+
+export type SpaceTime = {
+  spaceId: number
+  elapsed: string
+  projects: { projectId: number | null; elapsed: string }[]
 }
 
 export type StatisticsTrendResponse = {

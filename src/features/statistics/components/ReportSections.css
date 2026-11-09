@@ -148,3 +148,8 @@
 .recurrence-stats__pending {
   color: var(--c-orange-700);
 }
+
+.space-time .time-bars {
+  max-width: 640px;
+  margin-top: 12px;
+}
