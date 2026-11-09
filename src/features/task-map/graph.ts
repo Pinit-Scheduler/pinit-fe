@@ -299,3 +299,35 @@ export const zoomGraph = (
     y: point.y - (point.y - view.y) * ratio,
   }
 }
+
+export type GraphEdgePath = GraphEdge & { key: string; d: string }
+
+/** The drawn curve of every edge, keyed by direction, so the map can tell an edge that moved from one that is new. */
+export const graphEdgePaths = (graph: TaskGraph): GraphEdgePath[] => {
+  const byId = new Map(graph.nodes.map((node) => [node.id, node]))
+  const paths: GraphEdgePath[] = []
+  for (const edge of graph.edges) {
+    const a = byId.get(edge.from),
+      b = byId.get(edge.to)
+    if (!a || !b) continue
+    const vertical = graph.mobile && a.rank !== b.rank
+    const x1 = vertical ? a.x + a.width / 2 : a.x + a.width,
+      y1 = vertical ? a.y + a.height : a.y + a.height / 2
+    const x2 = vertical ? b.x + b.width / 2 : b.x,
+      y2 = vertical ? b.y : b.y + b.height / 2
+    const d = vertical
+      ? `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`
+      : `M${x1},${y1} C${(x1 + x2) / 2},${y1} ${(x1 + x2) / 2},${y2} ${x2},${y2}`
+    paths.push({ ...edge, key: `${edge.from}:${edge.to}`, d })
+  }
+  return paths
+}
+
+/** Keys of edges whose curve changed between two layouts. New and removed edges are not "moved". */
+export const movedEdgeKeys = (
+  previous: ReadonlyMap<string, string>,
+  next: readonly GraphEdgePath[],
+) =>
+  next
+    .filter((edge) => previous.has(edge.key) && previous.get(edge.key) !== edge.d)
+    .map((edge) => edge.key)

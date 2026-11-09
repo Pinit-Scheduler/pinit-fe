@@ -36,6 +36,10 @@
   border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+.tm-primary-link:active {
+  transform: scale(0.98);
 }
 .task-map-page button,
 .tm-fullscreen button {
@@ -48,6 +52,15 @@
   border-radius: 7px;
   padding: 7px 12px;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+.task-map-page button:active:not(:disabled),
+.tm-fullscreen button:active:not(:disabled) {
+  transform: scale(0.98);
 }
 .task-map-page button:hover:not(:disabled),
 .tm-fullscreen button:hover:not(:disabled) {
@@ -86,6 +99,20 @@
   color: var(--c-blue-600);
   font-weight: 600;
   border-bottom: 2px solid var(--c-blue-600);
+}
+/* The page content: the map or matrix and the notes above it. */
+.tm-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+/* Content the person waited for rises in once. A refresh keeps it mounted, so this never replays. */
+.tm-content[data-arrive] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+.tm-refresh-error {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 .tm-completed-toggle {
   display: flex;
@@ -209,6 +236,13 @@
   left: 0;
   transform-origin: 0 0;
   will-change: transform;
+  /* Zoom, fit, arrow keys and jumping to a task glide; dragging and resizing follow at once. */
+  transition: transform var(--motion-enter) var(--motion-ease);
+}
+.tm-world[data-dragging],
+.tm-viewport[data-resizing] .tm-world,
+.tm-viewport[data-resizing] .tm-node-slot {
+  transition: none;
 }
 .tm-flow-group {
   position: absolute;
@@ -235,12 +269,45 @@
   fill: none;
   stroke: var(--c-slate-400);
   stroke-width: 1.8;
+  transition: stroke var(--motion-base) var(--motion-ease);
+}
+/* The selected task's connections take the accent, so its place in the sequence reads at once. */
+.tm-edges > path.tm-edge--active {
+  stroke: var(--c-blue-500);
+}
+/* A new edge waits for its nodes to travel, then fades in along its curve, like a moved one. */
+.tm-edges > path[data-presence='enter'] {
+  animation-name: motion-fade-in;
+  animation-delay: calc(var(--motion-enter) * 0.45);
 }
 .tm-edges marker path {
   fill: var(--c-slate-400);
+  fill: context-stroke;
+}
+/* Positions a node. Moving it (a refresh or a new sort) glides it to its new place. */
+.tm-node-slot {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: transform var(--motion-enter) var(--motion-ease);
+}
+.tm-node-slot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9px;
+  box-shadow: 0 0 0 2px var(--c-blue-100);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+.tm-node-slot[data-selected]::after {
+  opacity: 1;
 }
 .tm-node {
-  position: absolute;
+  position: relative;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -251,10 +318,12 @@
   box-shadow: 0 2px 5px #0f172a06;
   overflow: hidden;
   cursor: auto;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-base) var(--motion-ease);
 }
 .tm-node--selected {
   border-color: var(--c-blue-400);
-  box-shadow: 0 0 0 2px var(--c-blue-100);
 }
 .tm-node--context {
   border-style: dashed;
@@ -283,6 +352,10 @@
   overflow: hidden;
   overflow-wrap: anywhere;
   min-height: 24px;
+  transition: color var(--motion-base) var(--motion-ease);
+}
+.tm-node--completed .tm-node-title {
+  color: var(--c-slate-500);
 }
 .tm-node-title:hover,
 .tm-matrix-task > a:hover {
@@ -293,6 +366,7 @@
   font-size: 12px;
   color: var(--c-slate-500);
   line-height: 1.5;
+  transition: color var(--motion-base) var(--motion-ease);
 }
 .tm-readiness--ready {
   color: var(--c-blue-600);
@@ -354,6 +428,13 @@
   line-height: 1.7;
   color: var(--c-slate-500);
   margin: 2px 0 0;
+}
+/* Keeps the map's place on the page while it is open full screen. */
+.tm-canvas-placeholder {
+  min-height: 200px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-slate-200);
+  border-radius: 12px;
 }
 .tm-fullscreen-backdrop {
   position: fixed;
@@ -480,6 +561,7 @@
   text-decoration: none;
   line-height: 1.55;
   overflow-wrap: anywhere;
+  transition: color var(--motion-fast) var(--motion-ease);
 }
 .tm-empty-quadrant {
   font-size: 14px;
@@ -499,9 +581,11 @@
   color: var(--c-slate-600);
   font-size: 14px;
 }
-.tm-completed-list > a {
+.tm-completed-row {
   display: block;
   margin-top: 12px;
+}
+.tm-completed-row > a {
   font-size: 14px;
   color: var(--c-slate-600);
 }
@@ -606,5 +690,16 @@
 @media (prefers-reduced-motion: reduce) {
   .tm-world {
     will-change: auto;
+  }
+  /* Fades stay; travel, gliding and the press scale go. */
+  .tm-content[data-arrive],
+  .tm-refresh-error {
+    animation-name: motion-fade-in;
+    animation-duration: var(--motion-base) !important;
+  }
+  .task-map-page button:active:not(:disabled),
+  .tm-fullscreen button:active:not(:disabled),
+  .tm-primary-link:active {
+    transform: none;
   }
 }
