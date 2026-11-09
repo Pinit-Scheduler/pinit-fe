@@ -1,6 +1,7 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { cardPath } from '@features/spaces/cardPath'
 import SpacePath from '@features/spaces/SpacePath'
+import { isEditConflict } from '@features/spaces/conflicts'
 import { useEffect, useState, useId, useRef } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
@@ -190,7 +191,8 @@ const TaskDetailModal = ({
       setShowScheduleModal(false)
     } catch (err) {
       console.error('작업 일정 배정 실패', err)
-      addToast('일정으로 배정하지 못했습니다.', 'error')
+      // 충돌은 배정 창이 안내하고 최신 버전을 받는다.
+      if (!isEditConflict(err)) addToast('일정으로 배정하지 못했습니다.', 'error')
       throw err
     }
   }
@@ -399,6 +401,12 @@ const TaskDetailModal = ({
         expectedVersion={task?.version}
         onClose={() => setShowScheduleModal(false)}
         onSubmit={handleAssignSchedule}
+        onConflict={async () => {
+          const latest = await fetchTaskDetail(taskId)
+          setTaskState(latest)
+          setTask(latest)
+          return latest.version
+        }}
         defaultTitle={task?.title}
         defaultDescription={task?.description}
         taskLabel={task ? `작업 #${task.id}` : undefined}

@@ -5,6 +5,7 @@ import {
   fetchTasks,
   fetchTasksByDeadline,
   createScheduleFromTask,
+  fetchTaskDetail,
 } from '@features/tasks/api/tasks'
 import {
   formatDateTimeWithZone,
@@ -250,6 +251,12 @@ export default function TodayPage() {
         expectedVersion={selected?.version}
         onClose={() => setSelectedTaskId(null)}
         onSubmit={assign}
+        onConflict={async () => {
+          if (selectedTaskId === null) return undefined
+          const latest = await fetchTaskDetail(selectedTaskId)
+          setTask(latest)
+          return latest.version
+        }}
         defaultTitle={selected?.title}
         defaultDescription={selected?.description}
         taskLabel={selected?.title}

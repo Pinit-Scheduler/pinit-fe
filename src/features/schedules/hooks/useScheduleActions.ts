@@ -1,4 +1,5 @@
 import { getMetadata } from '@features/spaces/metadata'
+import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
 import {
   startSchedule,
   suspendSchedule,
@@ -124,6 +125,22 @@ const useScheduleActions = (
       return true
     } catch (error) {
       console.error(`❌ Mutation failed for schedule ${scheduleId}:`, error)
+      if (isEditConflict(error)) {
+        // 다른 참여자가 먼저 바꿨다. 최신 일정을 받아 버전을 맞추고, 자동으로 다시 보내지 않는다.
+        retryRef.current = null
+        setLastMessage(CONFLICT_RELOADED)
+        setLastError(null)
+        addToast(CONFLICT_RELOADED, 'error')
+        try {
+          const latest = await fetchScheduleDetail(scheduleId)
+          setSchedule(latest)
+          setCurrentState(latest.state)
+        } catch (refreshError) {
+          console.error('Failed to reload schedule after conflict:', refreshError)
+        }
+        dispatchScheduleChanged({ scheduleId, reason: 'conflict-reloaded' })
+        return false
+      }
       const message =
         error instanceof Error ? error.message : '일정 상태를 바꾸지 못했어요.'
       setLastMessage(message)

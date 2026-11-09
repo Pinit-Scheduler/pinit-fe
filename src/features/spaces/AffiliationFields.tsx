@@ -192,11 +192,10 @@ export default function AffiliationFields({
     ? needsRecordDisclosure({ creating, fromSpaceId, to: destination })
     : false
   const expanded = open
+  // 입력만 잠근다. 요약 버튼과 다시 시도는 눌려야 불가 사유·영향 안내를 볼 수 있다.
+  const locked = disabled || workspace.loading || unavailable
   return (
-    <fieldset
-      className="space-affiliation"
-      disabled={disabled || workspace.loading || unavailable}
-    >
+    <fieldset className="space-affiliation">
       <legend>소속·담당자</legend>
       {workspace.error && (
         <p className="space-error" role="alert">
@@ -231,7 +230,7 @@ export default function AffiliationFields({
         </span>
       </button>
       <div id={bodyId} className="space-affiliation__body" hidden={!expanded}>
-      <div className="space-affiliation__fields">
+      <fieldset className="space-affiliation__fields" disabled={locked}>
         <label>
           스페이스
           <select
@@ -332,7 +331,7 @@ export default function AffiliationFields({
             ))}
           </select>
         </label>
-      </div>
+      </fieldset>
       {noteLines.map((line) => (
         <UnavailableNote key={line} text={line} />
       ))}
@@ -346,6 +345,7 @@ export default function AffiliationFields({
           <input
             id={recordsInputId}
             type="checkbox"
+            disabled={locked}
             checked={recordsConfirmed}
             aria-invalid={Boolean(recordsError)}
             onChange={(event) =>

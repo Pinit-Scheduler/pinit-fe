@@ -1,7 +1,12 @@
 import { moveResultMessage } from '@features/spaces/moveResult'
 import EditConflictDialog from '@features/spaces/EditConflictDialog'
+import type { ConflictState } from '@features/spaces/EditConflictDialog'
 import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
-import { changedInput, isEditConflict } from '@features/spaces/conflicts'
+import {
+  changedInput,
+  isEditConflict,
+  latestLoadError,
+} from '@features/spaces/conflicts'
 import type { InputRow } from '@features/spaces/conflicts'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -60,7 +65,7 @@ const TaskEditPage = () => {
   const { setTask: cacheSetTask } = useTaskCache()
   const { addToast } = useToast()
   const recurrenceScope = useRecurrenceScope()
-  const [conflict, setConflict] = useState<{ rows: InputRow[] } | null>(null)
+  const [conflict, setConflict] = useState<ConflictState | null>(null)
   const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
   const [formKey, setFormKey] = useState(0)
   const reportConflict = (values: TaskFormValues) => {
@@ -80,20 +85,23 @@ const TaskEditPage = () => {
     setConflict({ rows: changedInput(server, { ...values }, LABELS) })
   }
   const loadLatest = async () => {
-    if (!numericId) return
+    if (!numericId || !conflict) return
+    setConflict({ ...conflict, loading: true, loadError: null })
     try {
       const data = await fetchTaskDetail(numericId)
       setTask(data)
       setInitialPrevIds(data.previousTaskIds ?? [])
       setInitialNextIds(data.nextTaskIds ?? [])
-      setKeptInput(conflict?.rows ?? null)
+      setKeptInput(conflict.rows)
       setConflict(null)
       setFormKey((key) => key + 1)
     } catch (err) {
-      addToast(
-        err instanceof Error ? err.message : '최신 내용을 불러오지 못했어요.',
-        'error',
-      )
+      console.error('충돌 뒤 작업 다시 불러오기 실패', err)
+      setConflict({
+        ...conflict,
+        loading: false,
+        loadError: latestLoadError(err, '작업'),
+      })
     }
   }
   const affiliation = (values: TaskFormValues) => {
@@ -409,7 +417,11 @@ const TaskEditPage = () => {
         <EditConflictDialog
           noun="작업"
           rows={conflict.rows}
+          loading={conflict.loading}
+          loadError={conflict.loadError}
           onLoadLatest={() => void loadLatest()}
+          onClose={() => setConflict(null)}
+          onBackToList={() => complete('/app/tasks')}
         />
       )}
     </section>

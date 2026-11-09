@@ -40,6 +40,7 @@ import {
 } from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
 import { useSpaces } from '@features/spaces/store'
+import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
 import {
   audienceSchedules,
   scheduleMineParam,
@@ -209,6 +210,13 @@ const SchedulesTabPage = () => {
     refetchSchedules()
     refetchWeeklyStats()
   }
+  /** 다른 참여자가 먼저 바꿨으면 알리고 목록을 다시 받는다. 자동으로 다시 보내지 않는다. */
+  const handleConflict = (error: unknown) => {
+    if (!isEditConflict(error)) return false
+    addToast(CONFLICT_RELOADED, 'error')
+    handleRefresh()
+    return true
+  }
 
   const handleDelete = async (scheduleId: number) => {
     // 반복 회차(ADR-0019)면 범위를 먼저 묻는다. 카드는 반복 회차의 삭제 확인을 이 화면에 맡긴다.
@@ -235,7 +243,8 @@ const SchedulesTabPage = () => {
             `❌ Recurrence delete failed for schedule ${scheduleId}:`,
             error,
           )
-          addToast('반복 일정을 지우지 못했어요.', 'error')
+          if (!handleConflict(error))
+            addToast('반복 일정을 지우지 못했어요.', 'error')
         }
         return
       }
@@ -253,7 +262,7 @@ const SchedulesTabPage = () => {
       })
     } catch (error) {
       console.error(`❌ Delete failed for schedule ${scheduleId}:`, error)
-      addToast('일정 삭제에 실패했습니다.', 'error')
+      if (!handleConflict(error)) addToast('일정 삭제에 실패했습니다.', 'error')
     }
   }
 
@@ -286,7 +295,8 @@ const SchedulesTabPage = () => {
       )
     } catch (error) {
       console.error('❌ Failed to move schedule by one day:', error)
-      addToast('일정 날짜를 이동하지 못했어요.', 'error')
+      if (!handleConflict(error))
+        addToast('일정 날짜를 이동하지 못했어요.', 'error')
     } finally {
       setMovingScheduleId(null)
     }
@@ -319,7 +329,8 @@ const SchedulesTabPage = () => {
       )
     } catch (error) {
       console.error('❌ Failed to shift schedule time:', error)
-      addToast('일정 시간을 옮기지 못했어요.', 'error')
+      if (!handleConflict(error))
+        addToast('일정 시간을 옮기지 못했어요.', 'error')
     } finally {
       setMovingScheduleId(null)
     }

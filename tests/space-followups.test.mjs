@@ -114,6 +114,51 @@ test('my input keeps only the fields I changed', () => {
   ])
   assert.deepEqual(plain(changedInput(before, before, labels)), [])
 })
+test('a failed reload after a conflict names why', () => {
+  const { latestLoadError } = load('features/spaces/conflicts.ts', { '@shared/api/httpClient': { ApiError: class {} } })
+  assert.equal(latestLoadError({ status: 404 }, '작업'), '이 작업을 찾을 수 없어요. 삭제됐을 수 있어요.')
+  assert.equal(latestLoadError({ status: 403 }, '일정'), '이 일정을 볼 수 없어요. 참여 권한이 바뀌었을 수 있어요.')
+  assert.equal(latestLoadError(new Error('Failed to fetch'), '작업'), '연결을 확인한 뒤 다시 시도하세요.')
+})
+const conflictDialog = (props) => {
+  const jsx = (type, elementProps) => ({ type, props: elementProps })
+  const Modal = () => null
+  const Dialog = load('features/spaces/EditConflictDialog.tsx', {
+    'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+    '@shared/components/common/Modal': { default: Modal },
+    './MyInputDisclosure': { default: () => null },
+  }).default
+  const tree = Dialog({ rows: [], noun: '작업', onLoadLatest() {}, onClose() {}, onBackToList() {}, ...props })
+  const nodes = []
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.forEach(walk)
+    if (!node || typeof node !== 'object') return
+    nodes.push(node)
+    walk(node.props?.children)
+  }
+  walk(tree)
+  const text = (node) => [node.props?.children].flat(Infinity).filter((part) => typeof part === 'string').join('')
+  return { tree, buttons: nodes.filter((node) => node.type === 'button').map((node) => ({ label: text(node), ...node.props })), alerts: nodes.filter((node) => node.props?.role === 'alert').map(text) }
+}
+test('the conflict dialog can always be closed, and a failed reload offers retry and the list', () => {
+  const closed = []
+  const plainDialog = conflictDialog({ onClose: () => closed.push('close') })
+  assert.equal(typeof plainDialog.tree.props.onClose, 'function', 'Esc closes')
+  assert.deepEqual(plainDialog.buttons.map((button) => button.label), ['닫기', '최신 내용 불러오기'])
+  plainDialog.buttons[0].onClick()
+  assert.deepEqual(closed, ['close'])
+  const failed = conflictDialog({ loadError: '이 작업을 찾을 수 없어요.' })
+  assert.deepEqual(failed.buttons.map((button) => button.label), ['닫기', '목록으로', '다시 시도'])
+  assert.equal(failed.alerts.length, 1)
+  assert.match(failed.alerts[0], /찾을 수 없어요/)
+  const loading = conflictDialog({ loading: true })
+  assert.equal(loading.buttons.at(-1).disabled, true)
+})
+test('the affiliation summary stays pressable when only the inputs are locked', () => {
+  const source = readFileSync(new URL('../src/features/spaces/AffiliationFields.tsx', import.meta.url), 'utf8')
+  assert.match(source, /<fieldset className="space-affiliation">/)
+  assert.match(source, /<fieldset className="space-affiliation__fields" disabled={locked}>/)
+})
 test('the http client no longer raises a global conflict dialog', () => {
   const source = readFileSync(new URL('../src/shared/api/httpClient.ts', import.meta.url), 'utf8')
   assert.equal(source.includes('workspace:edit-conflict'), false)

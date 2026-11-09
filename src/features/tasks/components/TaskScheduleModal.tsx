@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import './TaskScheduleModal.css'
 import { toApiDateTimeWithZone } from '@shared/utils/datetime'
 import type { TaskScheduleRequest } from '../types/task'
+import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
 
 type TaskScheduleModalProps = {
   isOpen: boolean
@@ -17,6 +18,8 @@ type TaskScheduleModalProps = {
   defaultTitle?: string
   defaultDescription?: string
   taskLabel?: string
+  /** 409 뒤 작업을 다시 받아 최신 버전을 돌려준다. 입력은 그대로 두고 자동으로 다시 보내지 않는다. */
+  onConflict?: () => Promise<number | undefined>
 }
 
 const TaskScheduleModal = ({
@@ -27,6 +30,7 @@ const TaskScheduleModal = ({
   defaultDescription,
   expectedVersion,
   taskLabel,
+  onConflict,
 }: TaskScheduleModalProps) => {
   const titleId = useId()
   const dateId = useId()
@@ -76,11 +80,21 @@ const TaskScheduleModal = ({
       )
       onClose()
     } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : '일정을 배정하지 못했어요. 입력한 내용은 유지됩니다.',
-      )
+      if (isEditConflict(failure) && onConflict) {
+        try {
+          capturedVersion.current = await onConflict()
+          setError(CONFLICT_RELOADED)
+        } catch {
+          setError(
+            '다른 참여자가 먼저 수정했어요. 최신 내용을 불러오지 못했으니 닫았다가 다시 열어 주세요.',
+          )
+        }
+      } else
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : '일정을 배정하지 못했어요. 입력한 내용은 유지됩니다.',
+        )
     } finally {
       submissionLock.current = false
       setSubmitting(false)

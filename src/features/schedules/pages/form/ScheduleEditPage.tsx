@@ -1,7 +1,12 @@
 import { moveResultMessage } from '@features/spaces/moveResult'
 import EditConflictDialog from '@features/spaces/EditConflictDialog'
+import type { ConflictState } from '@features/spaces/EditConflictDialog'
 import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
-import { changedInput, isEditConflict } from '@features/spaces/conflicts'
+import {
+  changedInput,
+  isEditConflict,
+  latestLoadError,
+} from '@features/spaces/conflicts'
 import type { InputRow } from '@features/spaces/conflicts'
 import { scheduleTypeLabel } from '@constants/schedules'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -56,7 +61,7 @@ const ScheduleEditPage = () => {
   })
   const { offsetMinutes } = useTimePreferences()
   const recurrenceScope = useRecurrenceScope()
-  const [conflict, setConflict] = useState<{ rows: InputRow[] } | null>(null)
+  const [conflict, setConflict] = useState<ConflictState | null>(null)
   const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
   const [formKey, setFormKey] = useState(0)
   const reportConflict = (values: ScheduleFormValues) => {
@@ -83,18 +88,21 @@ const ScheduleEditPage = () => {
   }
   const loadLatest = async () => {
     const numericId = scheduleId ? Number(scheduleId) : undefined
-    if (!numericId) return
+    if (!numericId || !conflict) return
+    setConflict({ ...conflict, loading: true, loadError: null })
     try {
       const data = await fetchScheduleDetail(numericId)
       replace(data)
-      setKeptInput(conflict?.rows ?? null)
+      setKeptInput(conflict.rows)
       setConflict(null)
       setFormKey((key) => key + 1)
     } catch (err) {
-      addToast(
-        err instanceof Error ? err.message : '최신 내용을 불러오지 못했어요.',
-        'error',
-      )
+      console.error('충돌 뒤 일정 다시 불러오기 실패', err)
+      setConflict({
+        ...conflict,
+        loading: false,
+        loadError: latestLoadError(err, '일정'),
+      })
     }
   }
   const affiliation = (values: ScheduleFormValues) => {
@@ -360,7 +368,11 @@ const ScheduleEditPage = () => {
         <EditConflictDialog
           noun="일정"
           rows={conflict.rows}
+          loading={conflict.loading}
+          loadError={conflict.loadError}
           onLoadLatest={() => void loadLatest()}
+          onClose={() => setConflict(null)}
+          onBackToList={handleClose}
         />
       )}
     </section>

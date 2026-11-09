@@ -475,6 +475,10 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 .space-affiliation label {
   display: grid;
