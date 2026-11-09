@@ -26,6 +26,7 @@ import {
 import { reportEditConflict } from './conflicts'
 import { memberRows, projectRows } from './hub'
 import HubIdentity from './hub/HubIdentity'
+import AssignUnassignedDialog from './hub/AssignUnassignedDialog'
 import HubPeople from './hub/HubPeople'
 import HubProjects from './hub/HubProjects'
 import HubRail from './hub/HubRail'
@@ -271,6 +272,8 @@ export default function SpacesPage() {
   const [invitation, setInvitation] = useState<Invitation | null>(null)
   const [copied, setCopied] = useState(false)
   const [movingProject, setMovingProject] = useState<Project | null>(null)
+  // 배정 대화상자를 연 스페이스. 다른 스페이스로 바뀌면 그 대화상자는 보이지 않는다.
+  const [assigningSpaceId, setAssigningSpaceId] = useState<number | null>(null)
   const backButton = useRef<HTMLButtonElement>(null)
   const rail = useRef<HTMLDivElement>(null)
   const today = useCurrentDay().format('YYYY-MM-DD')
@@ -490,6 +493,7 @@ export default function SpacesPage() {
                       '관리자 역할을 바꿨어요.',
                     )
                   }
+                  onAssign={() => setAssigningSpaceId(space.id)}
                   onRemove={(member) =>
                     setConfirm({
                       title: '참여자 제외',
@@ -569,6 +573,21 @@ export default function SpacesPage() {
           editor={editor}
           close={() => setEditor(null)}
           saved={saved}
+        />
+      )}
+      {space && !space.personal && assigningSpaceId === space.id && (
+        <AssignUnassignedDialog
+          space={space}
+          meId={workspace.memberId}
+          projects={workspace.projects.filter(
+            (project) => project.spaceId === space.id,
+          )}
+          openCount={summary.data?.unassigned.openCount ?? null}
+          onClose={() => setAssigningSpaceId(null)}
+          onAssigned={() => {
+            addToast('배정했어요.', 'success')
+            refresh()
+          }}
         />
       )}
       {confirm && (

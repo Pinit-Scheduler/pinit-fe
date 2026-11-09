@@ -133,6 +133,50 @@ export async function searchTasks({
     revision,
   )
 }
+/**
+ * 그 스페이스의 담당자 없는 미완료 작업, 마감 순. 요약의 `unassigned.openCount`와 같은 작업이다
+ * (BE 계약 `unassigned=true`, ADR-0030 §3 보충). 선택한 프로젝트로 좁히지 않는다.
+ */
+export async function fetchUnassignedTasks({
+  spaceId,
+  page = 0,
+  size = 50,
+  signal,
+}: {
+  spaceId: number
+  page?: number
+  size?: number
+  signal?: AbortSignal
+}): Promise<TaskListResponse> {
+  const revision = getResourceRevision()
+  const query = new URLSearchParams({
+    spaceId: String(spaceId),
+    status: 'OPEN',
+    unassigned: 'true',
+    sort: 'DEADLINE_ASC',
+    page: String(page),
+    size: String(size),
+  })
+  return normalizePage(
+    await httpClient<PageResponse>(url(`?${query}`), { signal }),
+    revision,
+  )
+}
+/** 담당자만 바꾼다. 작업 내용과 위치는 보내지 않으므로 그대로 남는다. */
+export async function assignTask(
+  taskId: number,
+  memberId: number,
+  expectedVersion: number,
+): Promise<Task> {
+  const revision = getResourceRevision()
+  return normalizeTask(
+    await httpClient<WorkspaceTaskView<TaskApiResponse>>(url(`/${taskId}`), {
+      method: 'PATCH',
+      json: { expectedVersion, assignee: { memberId } },
+    }),
+    revision,
+  )
+}
 export async function fetchTasksByDeadline(
   date: string,
   zoneId?: string,
