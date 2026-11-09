@@ -10,8 +10,10 @@ import {
   ASSIGN_PAGE_SIZE,
   assigneeOptions,
   assignRows,
+  chosenAssignee,
   mergeTasks,
   nextAssignPage,
+  offsetAfter,
 } from './assign'
 
 /**
@@ -42,6 +44,11 @@ export default function AssignUnassignedDialog({
   const [busyId, setBusyId] = useState<number | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
+  // 서버 목록에서 아직 안 본 첫 위치. 배정하면 하나 당겨진다.
+  const offset = useRef(0)
+  const closeButton = useRef<HTMLButtonElement>(null)
+  // 배정해 빠진 줄 대신 초점을 줄 곳. 버튼이 다시 켜진 뒤(busyId가 비면) 옮긴다.
+  const focusAfter = useRef<number | 'close' | null>(null)
 
   const load = useCallback(
     (page: number, replace: boolean) => {
@@ -58,6 +65,7 @@ export default function AssignUnassignedDialog({
       })
         .then((response) => {
           if (controller.signal.aborted) return
+          offset.current = offsetAfter(response)
           setTasks((current) =>
             replace ? response.content : mergeTasks(current, response.content),
           )
@@ -82,18 +90,38 @@ export default function AssignUnassignedDialog({
     }
   }, [load])
 
+  useEffect(() => {
+    if (busyId !== null || focusAfter.current === null) return
+    const target =
+      focusAfter.current === 'close'
+        ? closeButton.current
+        : document.getElementById(`hub-assign-${focusAfter.current}`)
+    focusAfter.current = null
+    target?.focus()
+  }, [busyId, tasks])
+
   const options = assigneeOptions(space.members, meId)
   const rows = assignRows(tasks, projects)
   const admins = adminNames(space.members)
 
   const assign = async (row: (typeof rows)[number]) => {
-    const memberId = picked[row.id] ?? options[0]?.value
-    if (memberId === undefined || row.version === undefined || busyId !== null)
+    const memberId = chosenAssignee(picked[row.id], options)
+    if (
+      memberId === undefined ||
+      row.version === undefined ||
+      busyId !== null ||
+      loading
+    )
       return
     setBusyId(row.id)
     setNotice(null)
     try {
       await assignTask(row.id, memberId, row.version)
+      offset.current -= 1
+      // 빠진 줄 대신 다음 줄(없으면 앞 줄, 그것도 없으면 닫기)로 초점을 옮긴다.
+      const index = rows.findIndex((item) => item.id === row.id)
+      const neighbour = rows[index + 1] ?? rows[index - 1]
+      focusAfter.current = neighbour ? neighbour.id : 'close'
       setTasks((current) => current.filter((task) => task.id !== row.id))
       onAssigned()
     } catch (failure) {
@@ -167,7 +195,7 @@ export default function AssignUnassignedDialog({
                     </label>
                     <select
                       id={selectId}
-                      value={picked[row.id] ?? options[0]?.value ?? ''}
+                      value={chosenAssignee(picked[row.id], options) ?? ''}
                       disabled={!row.canAssign || busyId !== null}
                       onChange={(event) =>
                         setPicked((current) => ({
@@ -190,6 +218,7 @@ export default function AssignUnassignedDialog({
                     disabled={
                       !row.canAssign ||
                       busyId !== null ||
+                      loading ||
                       row.version === undefined ||
                       options.length === 0
                     }
@@ -212,7 +241,8 @@ export default function AssignUnassignedDialog({
           <button
             type="button"
             className="workspace-button hub-assign__more"
-            onClick={() => load(nextAssignPage(tasks.length), false)}
+            disabled={busyId !== null}
+            onClick={() => load(nextAssignPage(offset.current), false)}
           >
             더 보기
           </button>
@@ -220,6 +250,7 @@ export default function AssignUnassignedDialog({
       </div>
       <div className="space-dialog__actions">
         <button
+          ref={closeButton}
           type="button"
           className="workspace-button"
           disabled={busyId !== null}

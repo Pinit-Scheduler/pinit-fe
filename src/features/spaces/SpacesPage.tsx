@@ -274,6 +274,13 @@ export default function SpacesPage() {
   const [movingProject, setMovingProject] = useState<Project | null>(null)
   // 배정 대화상자를 연 스페이스. 다른 스페이스로 바뀌면 그 대화상자는 보이지 않는다.
   const [assigningSpaceId, setAssigningSpaceId] = useState<number | null>(null)
+  // 다른 스페이스로 바뀌면 배정 대화상자를 닫는다(돌아와도 저절로 열리지 않게). 다시 불러오는 동안 비는 것은 무시한다.
+  if (
+    assigningSpaceId !== null &&
+    workspace.selectedSpace &&
+    workspace.selectedSpace.id !== assigningSpaceId
+  )
+    setAssigningSpaceId(null)
   const backButton = useRef<HTMLButtonElement>(null)
   const rail = useRef<HTMLDivElement>(null)
   const today = useCurrentDay().format('YYYY-MM-DD')

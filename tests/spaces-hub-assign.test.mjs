@@ -141,14 +141,31 @@ test('assignee choices put me first as 나 and keep the member order', () => {
   )
 })
 
-test('more pages start at the first unseen task and never repeat one', () => {
-  const { mergeTasks, nextAssignPage, ASSIGN_PAGE_SIZE } = assignModule()
+test('more pages start at the first unseen server row and never repeat one', () => {
+  const { mergeTasks, nextAssignPage, offsetAfter, ASSIGN_PAGE_SIZE } = assignModule()
   assert.equal(ASSIGN_PAGE_SIZE, 50)
-  assert.equal(nextAssignPage(50), 1)
-  // 50개 중 3개를 배정하면 서버의 두 번째 쪽 앞 3개는 이미 보이는 작업이다. 첫 쪽부터 다시 받는다.
-  assert.equal(nextAssignPage(47), 0)
+  // 서버가 50행을 보냈으면 화면에서 하나가 걸러져 49개만 보여도 다음은 두 번째 쪽이다.
+  const first = { number: 0, size: 50, numberOfElements: 50, content: new Array(49) }
+  assert.equal(offsetAfter(first), 50)
+  assert.equal(nextAssignPage(offsetAfter(first)), 1)
+  // 그중 3개를 배정하면 서버 목록이 3칸 당겨져 안 본 첫 작업은 첫 쪽 끝에 있다.
+  assert.equal(nextAssignPage(offsetAfter(first) - 3), 0)
+  // 두 번째 쪽까지 받은 뒤 위치.
+  assert.equal(offsetAfter({ number: 1, size: 50, numberOfElements: 5, content: [] }), 55)
+  // numberOfElements가 없는 응답은 받은 줄 수로 센다.
+  assert.equal(offsetAfter({ content: [1, 2] }), 2)
+  assert.equal(nextAssignPage(-1), 0)
   const merged = mergeTasks([{ id: 1 }, { id: 2 }], [{ id: 2 }, { id: 3 }])
   assert.deepEqual(plain(merged.map((task) => task.id)), [1, 2, 3])
+})
+
+test('a choice for a member who has left falls back to the first option', () => {
+  const { chosenAssignee } = assignModule()
+  const options = [{ value: 7 }, { value: 2 }]
+  assert.equal(chosenAssignee(2, options), 2)
+  assert.equal(chosenAssignee(3, options), 7)
+  assert.equal(chosenAssignee(undefined, options), 7)
+  assert.equal(chosenAssignee(undefined, []), undefined)
 })
 
 const space = (actions = {}) => ({

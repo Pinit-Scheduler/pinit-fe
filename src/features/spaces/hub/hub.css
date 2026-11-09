@@ -697,7 +697,8 @@
     grid-column: 1 / -1;
   }
   .hub-assign select,
-  .hub-assign button {
+  .hub-assign button,
+  .hub-assign-dialog .hub-assign__more {
     min-height: 44px;
   }
   .hub-assign select {

@@ -53,8 +53,30 @@ export const mergeTasks = (current: Task[], next: Task[]): Task[] => {
 }
 
 /**
- * 더 볼 때 받을 쪽. 보이는 작업은 서버 목록의 앞부분과 같으므로(배정한 것은 서버에서도 빠졌다)
+ * 받은 쪽 뒤의 "서버 목록에서 아직 안 본 첫 위치". 화면에서 걸러진 작업이 있어도
+ * 서버가 보낸 행 수로 센다.
+ */
+export const offsetAfter = (response: {
+  number?: number
+  size?: number
+  numberOfElements?: number
+  content: unknown[]
+}): number =>
+  (response.number ?? 0) * (response.size ?? ASSIGN_PAGE_SIZE) +
+  (response.numberOfElements ?? response.content.length)
+
+/**
+ * 더 볼 때 받을 쪽. 배정한 작업은 서버 목록에서도 빠지므로 위치를 배정한 수만큼 당긴 값(offset)으로
  * 아직 안 본 첫 작업이 든 쪽을 받는다.
  */
-export const nextAssignPage = (shown: number): number =>
-  Math.floor(shown / ASSIGN_PAGE_SIZE)
+export const nextAssignPage = (offset: number): number =>
+  Math.floor(Math.max(0, offset) / ASSIGN_PAGE_SIZE)
+
+/** 고른 담당자가 지금 선택지에 없으면(나간 참여자) 첫 선택지를 쓴다. */
+export const chosenAssignee = (
+  picked: number | undefined,
+  options: { value: number }[],
+): number | undefined =>
+  options.some((option) => option.value === picked)
+    ? picked
+    : options[0]?.value
