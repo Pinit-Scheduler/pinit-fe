@@ -6,7 +6,10 @@ import { oauthGrantsCache } from './memberCache'
 
 type UseOAuthGrantsReturn = {
   grants: OAuthGrant[]
+  /** 받은 목록이 아직 없는 첫 로딩(또는 실패 뒤 다시 시도)일 때만 참. 다시 읽는 동안에는 거짓이다. */
   isLoading: boolean
+  /** 목록을 한 번이라도 받았다(캐시 포함). 빈 목록도 받은 목록이다. */
+  hasLoaded: boolean
   error: string | null
   refetch: () => void
   revoke: (grantId: OAuthGrant['grantId']) => Promise<void>
@@ -19,6 +22,7 @@ type UseOAuthGrantsReturn = {
 const useOAuthGrants = (): UseOAuthGrantsReturn => {
   const [grants, setGrants] = useState<OAuthGrant[]>(() => oauthGrantsCache.read() ?? [])
   const [isLoading, setIsLoading] = useState(() => oauthGrantsCache.read() === undefined)
+  const [hasLoaded, setHasLoaded] = useState(() => oauthGrantsCache.read() !== undefined)
   const [error, setError] = useState<string | null>(null)
   const [timestamp, setTimestamp] = useState(() => Date.now())
 
@@ -31,6 +35,7 @@ const useOAuthGrants = (): UseOAuthGrantsReturn => {
         const response = await fetchOAuthGrants()
         if (!isMounted) return
         setGrants(response ?? [])
+        setHasLoaded(true)
         oauthGrantsCache.write(response ?? [])
       } catch (err) {
         if (isMounted) setError(err instanceof Error ? err.message : '연결된 앱을 불러오지 못했어요.')
@@ -59,7 +64,8 @@ const useOAuthGrants = (): UseOAuthGrantsReturn => {
     [refetch],
   )
 
-  return { grants, isLoading, error, refetch, revoke }
+  // 마지막 앱을 끊은 뒤 다시 읽을 때 목록이 비었다고 "불러오는 중"으로 바뀌지 않게, 받은 적이 있으면 로딩이 아니다.
+  return { grants, isLoading: isLoading && !hasLoaded, hasLoaded, error, refetch, revoke }
 }
 
 export default useOAuthGrants

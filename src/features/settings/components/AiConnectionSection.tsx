@@ -22,10 +22,10 @@ const toRevokeErrorMessage = (error: unknown) => {
 
 const AiConnectionSection = () => {
   const { addToast } = useToast()
-  const { grants, isLoading, error, refetch, revoke } = useOAuthGrants()
+  const { grants, isLoading, hasLoaded, error, refetch, revoke } = useOAuthGrants()
   const [revokingId, setRevokingId] = useState<OAuthGrant['grantId'] | null>(null)
   // 연결을 끊은 앱은 그 자리에서 사라진다. 처음 받은 목록은 그대로 보인다.
-  const rows = useListPresence(isLoading && grants.length === 0 ? undefined : grants, (grant) => grant.grantId)
+  const rows = useListPresence(hasLoaded ? grants : undefined, (grant) => grant.grantId)
 
   const handleRevoke = async (grant: OAuthGrant) => {
     // 백엔드는 같은 앱의 활성 연결(기기)을 모두 끊는다.
@@ -48,11 +48,11 @@ const AiConnectionSection = () => {
   }
 
   const renderGrants = () => {
-    if (isLoading && grants.length === 0) {
+    if (isLoading) {
       return <StatusPanel variant="loading" title="연결된 앱을 불러오는 중..." />
     }
     // 보이던 목록이 있으면 다시 읽기에 실패해도 목록을 그대로 두고 아래에 서버 문구만 보인다.
-    if (error && grants.length === 0) {
+    if (error && !hasLoaded) {
       return (
         <StatusPanel
           variant="error"
@@ -120,7 +120,7 @@ const AiConnectionSection = () => {
 
       <h3 className="ai-connection__subheading">연결된 앱</h3>
       {renderGrants()}
-      {error && grants.length > 0 && (
+      {error && hasLoaded && (
         <p className="settings__description settings__description--error" role="alert">
           {error}
         </p>

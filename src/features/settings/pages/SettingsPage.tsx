@@ -43,6 +43,8 @@ const SettingsPage = () => {
   // select·시각 입력은 막으면 키보드 편집 중 포커스를 잃는다.
   const toggleLock = useRef(false)
   const { flash, isFlashing } = useSavedFlash()
+  // 시각 입력은 이 화면에서 알림을 켰을 때만 스며든다. 화면을 다시 열 때마다 다시 움직이지 않게 한다.
+  const [revealDeadlineTime, setRevealDeadlineTime] = useState(false)
   // 시각은 입력하는 동안 화면에만 두고, 입력을 마치면(blur) 저장한다.
   const [deadlineTimeDraft, setDeadlineTimeDraft] = useState<string | null>(null)
   const profileSettings = useProfileSettings()
@@ -277,7 +279,7 @@ const SettingsPage = () => {
             {preferences.taskDeadlineEnabled && (
               <input
                 type="time"
-                className="settings__time"
+                className={revealDeadlineTime ? 'settings__time settings__time--reveal' : 'settings__time'}
                 value={deadlineTimeDraft ?? preferences.taskDeadlineTime}
                 disabled={isPreferencesUnavailable}
                 onChange={(event) => setDeadlineTimeDraft(event.target.value)}
@@ -289,9 +291,11 @@ const SettingsPage = () => {
               type="button"
               className={['settings__toggle', preferences.taskDeadlineEnabled && 'is-active'].filter(Boolean).join(' ')}
               disabled={isPreferencesUnavailable}
-              onClick={() =>
+              onClick={() => {
+                if (toggleLock.current) return
+                if (!preferences.taskDeadlineEnabled) setRevealDeadlineTime(true)
                 void togglePreference({ taskDeadlineEnabled: !preferences.taskDeadlineEnabled }, 'taskDeadline')
-              }
+              }}
               aria-pressed={preferences.taskDeadlineEnabled}
               aria-label="작업 마감일 알림"
             >

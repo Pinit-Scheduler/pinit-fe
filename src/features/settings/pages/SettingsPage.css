@@ -283,8 +283,8 @@
     opacity var(--motion-base) var(--motion-ease);
 }
 
-/* 마감일 알림을 켜면 시각 입력이 옆에서 스며든다. */
-.settings__time {
+/* 마감일 알림을 켜면 시각 입력이 옆에서 스며든다. 화면을 열 때 이미 켜져 있으면 움직이지 않는다. */
+.settings__time--reveal {
   animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 

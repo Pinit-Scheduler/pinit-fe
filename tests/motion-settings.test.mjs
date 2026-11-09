@@ -180,6 +180,28 @@ test('notification toggles use a ref lock instead of disabling while a save is p
   assert.match(source, /<SavedMark visible=\{isFlashing\('scheduleStart'\)\} \/>/)
 })
 
+test('saving the daily objective never dims the time zone select', () => {
+  const source = read('features/settings/components/ProfileSettingRows.tsx')
+  const zoneRow = source.slice(source.indexOf('export const TimeZoneSetting'))
+  // The zone row tracks only its own save; the shared isSaving prop is set by every row.
+  assert.match(zoneRow, /\(\{ settings, isLoading, save \}: RowProps\)/)
+  assert.match(zoneRow, /const \[isSaving, setIsSaving\] = useState\(false\)/)
+})
+
+test('revoking the last connected app keeps the list instead of showing the loading panel', () => {
+  const hook = read('features/settings/hooks/useOAuthGrants.ts')
+  assert.match(hook, /isLoading: isLoading && !hasLoaded/)
+  const section = read('features/settings/components/AiConnectionSection.tsx')
+  assert.match(section, /useListPresence\(hasLoaded \? grants : undefined/)
+  assert.doesNotMatch(section, /isLoading && grants\.length === 0/)
+})
+
+test('the deadline time input only fades in when the toggle turns it on', () => {
+  const css = read('features/settings/pages/SettingsPage.css')
+  assert.doesNotMatch(css, /\.settings__time \{[^}]*animation/)
+  assert.match(css, /\.settings__time--reveal \{[^}]*animation: motion-fade-in/)
+})
+
 // ---------------------------------------------------------------------------
 // Motion hygiene for every stylesheet this area owns
 // ---------------------------------------------------------------------------

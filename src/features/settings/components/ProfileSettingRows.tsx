@@ -99,7 +99,10 @@ const supportedZones = (): string[] => {
 const zoneLabel = (zoneId: string) => `${zoneId} (${formatOffsetLabel(getZoneOffsetMinutes(zoneId))})`
 
 /** 회원 시간대(ADR-0028 §3). 영향이 커서 고른 뒤 "바꾸기"를 눌러야 저장한다. */
-export const TimeZoneSetting = ({ settings, isLoading, isSaving, save }: RowProps) => {
+/**
+ * 저장 중 표시는 이 줄의 저장에만 묶는다. 하루 목표를 저장할 때 시간대 select가 함께 흐려지지 않게 한다.
+ */
+export const TimeZoneSetting = ({ settings, isLoading, save }: RowProps) => {
   const { addToast } = useToast()
   const { applyZone } = useTimePreferences()
   const current = settings?.zoneId ?? null
@@ -109,8 +112,11 @@ export const TimeZoneSetting = ({ settings, isLoading, isSaving, save }: RowProp
   const [draft, setDraft] = useState<string | null>(null)
   const selected = draft ?? current ?? ''
   const suggestion = suggestedDeviceZone(current, device)
+  const [isSaving, setIsSaving] = useState(false)
 
   const apply = async (zoneId: string) => {
+    if (isSaving) return
+    setIsSaving(true)
     try {
       const saved = await save({ zoneId })
       setDraft(null)
@@ -119,6 +125,8 @@ export const TimeZoneSetting = ({ settings, isLoading, isSaving, save }: RowProp
       applyZone(saved.zoneId)
     } catch (error) {
       addToast(errorMessage(error, '시간대를 바꾸지 못했어요.'), 'error')
+    } finally {
+      setIsSaving(false)
     }
   }
 

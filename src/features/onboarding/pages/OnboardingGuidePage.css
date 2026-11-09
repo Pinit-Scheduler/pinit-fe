@@ -126,9 +126,6 @@
 
 .onboarding-guide__card.is-open .onboarding-guide__caret {
   color: var(--c-slate-600);
-}
-
-.onboarding-guide__card.is-open .onboarding-guide__caret {
   transform: rotate(90deg);
 }
 
