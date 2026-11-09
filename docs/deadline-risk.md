@@ -6,7 +6,7 @@
 
 - 하루 계획 상단의 **마감 전에 시간이 충분한지 예보 보기** → `/app/deadline-risk`에서 오늘부터 7일 또는 14일을 선택한다. 기존 계획 생성·승인 코드는 바꾸지 않는다.
 - 상단에 개인 공간의 작업과 일정만 반영하며 팀·다른 공간의 작업과 일정은 포함하지 않는다고 표시한다. 모든 공간을 합친 가용 시간 예보가 아닌 **개인 공간 시나리오**다.
-- 작업별 마감 기준, 필요한 시간, 사용 가능 시간의 **상한**, 부족한 시간과 이유를 읽는다. 선행 작업 링크와 작업 상세, 하루 계획 링크로 이어진다. 작업 상세는 현재 예보를 background로 유지하므로 닫으면 예보로 돌아온다.
+- 작업별 마감 기준, 필요한 시간, 사용 가능 시간의 **상한**, 부족한 시간과 이유를 읽는다. 선행 작업 링크와 작업 상세, 개인 공간의 하루 계획으로 이어진다. 작업 상세는 현재 예보를 background로 유지하므로 닫으면 예보로 돌아온다. 계획·빈 결과의 작업 목록 이동은 사용자가 버튼을 누를 때 기존 공간 선택 API로 개인 공간을 선택하고 프로젝트 필터를 비운 뒤 이동한다. 개인 공간 snapshot을 아직 읽지 못했으면 이 이동을 막으며 선택된 팀으로 대체하지 않는다.
 - 조회 시각·종료 경계·서버 시간대·보정 적용 여부를 표시한다. 현재 기기의 시간대 대신 응답 `zoneId`로 모든 instant를 표시한다. `deadline`은 작업에 저장한 마감 날짜의 다음 자정이라는 **제외 경계**다. 화면에는 이 instant를 예보 시간대로 바꾸어 “마감 기준 … 전”으로 표시한다.
 - 예보 자체는 작업·일정·설정을 쓰지 않는다. 보정 설정도 여기서 변경하지 않는다. 선행 작업을 공유하는 항목의 필요 시간은 겹치므로 전체 필요/부족 시간 합계를 만들지 않는다.
 
@@ -46,7 +46,7 @@
 | 값 | 의미와 표시 |
 | --- | --- |
 | `generatedAt` / `horizonEnd` | UTC offset/Z가 있는 instant. 종료는 회원 시간대의 오늘+days 자정(제외)이다. |
-| `requiredMinutes` | 해당 작업과 미완료 선행 체인의 남은 시간. 체인 안의 공유 선행 작업은 1회만 센다. |
+| `requiredMinutes` | 해당 작업과 미완료 선행 체인의 남은 시간. 체인 안의 공유 선행 작업은 1회만 센다. 범위 밖/미조회 선행이 있어 `UNKNOWN`이면 확인된 개인 범위의 시간만 포함하며, 미확인 선행의 추가 시간은 빠진다. 화면은 `UNKNOWN` 숫자를 숨긴다. |
 | `availableMinutes` | 해당 체인이 마감 전 쓸 수 있는 시간의 상한과 필요 시간 중 작은 값. 생활 시간·고정 일정·일일 목표를 반영하고, 체인의 이미 연결된 예약은 1회 포함한다. 실제 배치 성공 시간이나 아무 때나 쓸 수 있는 시간의 보장은 아니다. |
 | `shortageMinutes` | `max(requiredMinutes - availableMinutes, 0)`. `AT_RISK`에서도 0일 수 있다. |
 | `predecessorTaskIds` | 미완료 선행 체인 ID. 화면은 응답에 없는 제목을 추정하지 않고 작업 링크를 제공한다. |
@@ -100,4 +100,21 @@ React 검토에서는 effect 정리와 요청 경합, 기간/시간대 변경 �
 
 재현 스크립트는 `scripts/deadline-risk-browser-smoke.mjs`다. 별도 터미널에서 `VITE_USE_MOCK_API=false`로 `npm run dev -- --host 127.0.0.1 --port 4187 --strictPort`를 실행한다. Chrome 설치와 선택 검증 의존성 `playwright`가 필요하다. 프로젝트의 제품 의존성을 바꾸지 않으려면 별도 임시 폴더에 `npm install --no-save --ignore-scripts playwright`로 준비하고 `DEADLINE_RISK_PLAYWRIGHT_MODULE`을 해당 `playwright/index.mjs`의 `file:///` URL로 지정한다. 프로젝트에서 import 가능한 기존 Playwright가 있다면 이 변수는 생략한다. `node scripts/deadline-risk-browser-smoke.mjs`를 실행하면 `.cache/deadline-risk-browser/`에 결과 JSON과 화면을 만든다. `DEADLINE_RISK_BASE_URL`과 `DEADLINE_RISK_QA_DIR`로 로컬 주소·출력 위치를 바꿀 수 있다. 스크립트의 합성 응답은 실제 BE 계산이나 배포 환경 E2E를 검증하지 않는다. 실제 SW 실행은 이 스크립트에 포함하지 않고 위 VM 테스트에서 따로 검증한다.
 
-구현 진입점은 `src/features/deadline-risk/`이고 기존 파일은 route 1개, 제목 1개, PlanPage 진입 링크 1개 및 SW no-store 정책만 추가했다. graph snapshot은 기존 기준을 유지하며 이 신규 API와 페이지를 포함하지 않는다.
+## 최신 공간 UI master 통합 검증 — 2026-11-09
+
+공간 UI가 병합된 `Pinit-Scheduler/pinit-fe@c064de4a2a3a66bd190671e7853810c7d242996c`를 격리 기능 브랜치에 일반 merge했다. 통합 커밋은 `9ff4d357bdff8d20809b8949f0098156d7c8f9bd`, 후속 코드·테스트 근거는 `8dfdc33ed509451bc968917be27ce00e0df374fd`다. 파일 충돌 없이 합쳐졌으며, 기본 브랜치나 운영 배포를 변경한 작업이 아니다. 위 초기 검증 기록을 이 통합 리비전의 결과로 바꾸지 않는다.
+
+- 기존 [하루 계획 API](https://github.com/Pinit-Scheduler/pinit-fe/blob/c064de4a2a3a66bd190671e7853810c7d242996c/src/features/planner/api/plans.ts#L22)는 현재 선택 공간·프로젝트를 읽는다. 예보의 일반 `/app/plan` 링크는 팀 선택을 그대로 이어갈 수 있어 [명시적 개인 공간 이동](https://github.com/Pinit-Scheduler/pinit-fe/blob/8dfdc33ed509451bc968917be27ce00e0df374fd/src/features/deadline-risk/pages/DeadlineRiskPage.tsx#L15) 버튼으로 바꿨다. 서버 snapshot에 실제 개인 공간이 있을 때만 [기존 `selectSpace`](https://github.com/Pinit-Scheduler/pinit-fe/blob/c064de4a2a3a66bd190671e7853810c7d242996c/src/features/spaces/store.ts#L60)를 호출한다. 이는 계정별 세션의 보기 설정이며 작업·일정 저장이 아니다. 예보를 읽는 것만으로 팀 선택을 바꾸지 않는다.
+- [작업 상세 GET](https://github.com/Pinit-Scheduler/pinit-fe/blob/c064de4a2a3a66bd190671e7853810c7d242996c/src/features/tasks/api/tasks.ts#L188)은 선택된 팀 query 없이 `/v2/workspace/tasks/{id}`의 실제 ID·권한·버전 wrapper를 읽는다. 예보의 작업/선행 링크는 이 경로와 background 복귀를 유지한다. 최신 캐시는 새 metadata의 접근 제거·버전 정책을 사용한다. 상세 조회 자체가 과거 예보 시점의 소속을 고정하는 것은 아니다.
+- 상위 [공간 context](https://github.com/Pinit-Scheduler/pinit-fe/blob/8dfdc33ed509451bc968917be27ce00e0df374fd/src/features/spaces/SpaceChrome.tsx#L144)도 이 화면에서는 “개인 공간 · 마감 위험 예보”로 표시하고, 선택된 팀의 목적/프로젝트 설명을 예보 범위처럼 표시하지 않는다. 공간 전환기는 유지한다.
+- 새 `WorkspaceRealtime`의 `workspaceChanged`는 기존 `task:changed`/`schedule:changed`를 보내므로 [예보 훅](https://github.com/Pinit-Scheduler/pinit-fe/blob/8dfdc33ed509451bc968917be27ce00e0df374fd/src/features/deadline-risk/hooks/useDeadlineRisk.ts#L19)의 무효화·재조회와 연결된다. 공간 선택·프로젝트 선택 이벤트도 같은 경로를 쓴다. 예보 API에는 공간/프로젝트 인자를 추가하지 않았다.
+
+검증 결과:
+
+- `node --test --test-concurrency=1` (Node heap 256MB): 통합 및 개인 이동 보완 후 266/266 통과. 이후 개인 공간 미조회 guard와 context 표시 회귀를 추가하고 `node --test tests/deadline-risk.test.mjs`로 최종 12/12 통과했다. 최종 추가 검사 뒤 전체 검사를 반복한 결과로 268개 통과를 주장하지 않는다.
+- `npm run lint`: 통과. 최종 브라우저 스크립트 보완 뒤 해당 파일의 ESLint도 통과. 기존 baseline-browser-mapping 데이터 나이 안내는 남는다.
+- `npm run build`: TypeScript·Vite 통과, 350개 모듈. JS 731.50kB(압축 226.10kB), CSS 177.94kB(압축 29.10kB). 500kB 청크 안내를 숨기지 않았다.
+- 최신 `scripts/deadline-risk-browser-smoke.mjs`로 localhost Vite `4189`/headless Chrome 합성 응답 검증: 9개 흐름 검사, 가로챈 GET 37개, React 처리/uncaught 예외 0. 팀 공간 선택을 유지한 개인 예보, 실제 workspace Task wrapper 상세와 뒤로 가기, 로컬 SSE `changed` frame에 따른 예보 title 재조회, 사용자 클릭 후 개인 `spaceId=-7`·프로젝트 인자 없는 계획 요청을 확인했다. 다섯 상태·오류/빈 결과·14일·서버 시간대·390px 가로 넘침 없음도 유지했다. SSE 요청 시작 대기는 10초로 제한한다.
+- `.cache/deadline-risk-browser-workspace/result.json`과 화면은 로컬 산출물이며 브라우저 증거 폴더 prefix를 ignore했다. `git diff --check` 통과, `.cache` tracked 파일 0개. 로컬 합성 응답은 실제 BE의 SSE 발생, DB 계산, 운영 인증·배포 또는 설치된 SW 업데이트 완료를 검증하지 않는다.
+
+구현 진입점은 `src/features/deadline-risk/`이다. 기존 route·제목·PlanPage 진입 링크·SW no-store 정책에 더해 최신 공간 UI의 context 표시를 이 개인 예보 범위에 맞췄다. graph snapshot은 기존 기준을 유지하며 이 신규 API·페이지와 최신 공간 UI 관계를 포함하지 않는다.
