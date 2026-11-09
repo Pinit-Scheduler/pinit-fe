@@ -47,7 +47,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  animation: fadeIn 220ms ease;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -154,7 +153,7 @@
   background-color: var(--c-indigo-50);
   color: var(--c-blue-800);
   font-weight: 600;
-  animation: fadeSlideIn 220ms ease;
+  animation: fadeSlideIn var(--motion-enter) var(--motion-ease) both;
 }
 
 .schedules-tab__weekly-stats button {
@@ -165,19 +164,19 @@
 }
 
 .week-transition {
-  animation: fadeSlideHorizontalForward 240ms ease;
+  animation: fadeSlideHorizontalForward var(--motion-enter) var(--motion-ease) both;
 }
 
 .week-transition--forward {
-  animation: fadeSlideHorizontalForward 240ms ease;
+  animation: fadeSlideHorizontalForward var(--motion-enter) var(--motion-ease) both;
 }
 
 .week-transition--backward {
-  animation: fadeSlideHorizontalBackward 240ms ease;
+  animation: fadeSlideHorizontalBackward var(--motion-enter) var(--motion-ease) both;
 }
 
 .fade-slide {
-  animation: fadeSlideHorizontalForward 240ms ease;
+  animation: fadeSlideHorizontalForward var(--motion-enter) var(--motion-ease) both;
 }
 
 @keyframes fadeSlideHorizontalForward {
@@ -199,15 +198,6 @@
   to {
     opacity: 1;
     transform: translateX(0);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
   }
 }
 

@@ -3,7 +3,6 @@
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  animation: fadeIn 220ms ease;
   flex: 1;
   min-height: 0;
   overflow-y: auto;

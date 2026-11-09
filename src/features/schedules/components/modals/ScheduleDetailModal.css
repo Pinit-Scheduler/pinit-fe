@@ -7,7 +7,7 @@
   align-items: center;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn 180ms ease;
+  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
 }
 
 .schedule-detail-modal__content {
@@ -19,7 +19,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: modalSlideUp 220ms ease;
+  animation: modalSlideUp var(--motion-enter) var(--motion-ease) both;
 }
 
 .schedule-detail-modal__header {
@@ -183,22 +183,3 @@
   color: var(--c-slate-500);
 }
 
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes modalSlideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}

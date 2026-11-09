@@ -38,22 +38,11 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 12px;
-  animation: fadeSlideIn 220ms ease;
+  animation: fadeSlideIn var(--motion-enter) var(--motion-ease) both;
 }
 
 .stats-transition {
-  animation: fadeSlideIn 220ms ease;
-}
-
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  animation: fadeSlideIn var(--motion-enter) var(--motion-ease) both;
 }
 
 .statistics-tab__views {

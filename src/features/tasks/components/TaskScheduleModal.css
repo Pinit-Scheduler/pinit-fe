@@ -7,7 +7,7 @@
   justify-content: center;
   z-index: calc(var(--z-modal-backdrop) + 1);
   padding: 16px;
-  animation: modalFadeIn 180ms ease;
+  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
 }
 
 .task-sched-modal__content {
@@ -20,7 +20,7 @@
   gap: 12px;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
   border: 1px solid var(--c-slate-200);
-  animation: modalSlideUp 220ms ease;
+  animation: modalSlideUp var(--motion-enter) var(--motion-ease) both;
 }
 
 .task-sched-modal__header {
@@ -140,22 +140,3 @@
   box-shadow: 0 10px 24px rgba(79, 70, 229, 0.25);
 }
 
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes modalSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}

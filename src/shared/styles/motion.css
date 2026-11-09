@@ -1,0 +1,246 @@
+/*
+ * Pinit motion. Read docs/motion/README.md before adding motion anywhere.
+ *
+ * Character: steady, precise, quietly satisfying. Motion is short and decelerating,
+ * never bouncy or looping, and every movement explains a change.
+ * Animate only transform, opacity, color, background, border and stroke.
+ */
+
+:root {
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-enter: 240ms;
+  --motion-exit: 160ms;
+  --motion-distance: 8px;
+  /* Loading indicators stay invisible this long, so quick loads show nothing at all. */
+  --motion-status-delay: 150ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    /* Keep the fades, drop the travel. */
+    --motion-distance: 0px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Keyframes. Defined once here; feature CSS must not redefine them.   */
+/* ------------------------------------------------------------------ */
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes motion-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Enter: rise into place from just below. */
+@keyframes motion-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance));
+  }
+}
+
+/* Exit: settle half the distance down while fading. */
+@keyframes motion-rise-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) / 2));
+  }
+}
+
+/* Toasts and menus that hang from the top edge. */
+@keyframes motion-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) * -1));
+  }
+}
+
+/* Mobile sheets slide the full panel height. */
+@keyframes motion-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes motion-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* Legacy names kept for existing feature CSS (modals, statistics cards, week strip). */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) * 2));
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Surfaces: Modal and RouteSurface set these data attributes.         */
+/* ------------------------------------------------------------------ */
+
+[data-motion-surface='backdrop'] {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+[data-motion-surface='panel'] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+[data-motion-surface='backdrop'][data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+[data-motion-surface='panel'][data-state='closing'] {
+  animation: motion-rise-out var(--motion-exit) var(--motion-ease-exit) both;
+}
+
+@media (max-width: 899px) {
+  [data-motion-surface='panel'][data-motion-sheet] {
+    animation: motion-sheet-in var(--motion-enter) var(--motion-ease) both;
+  }
+  [data-motion-surface='panel'][data-motion-sheet][data-state='closing'] {
+    animation: motion-sheet-out var(--motion-exit) var(--motion-ease-exit) both;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Keyed list presence (useListPresence + presenceProps).              */
+/* ------------------------------------------------------------------ */
+
+[data-presence='enter'] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+[data-presence='exit'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Strike line drawn left to right on completion.                     */
+/* Put .motion-strike on an inline element that wraps the text; the   */
+/* line follows wrapped lines because it is the inline's background.  */
+/* ------------------------------------------------------------------ */
+
+.motion-strike {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 58%;
+  background-size: 0% 1.5px;
+  transition:
+    background-size var(--motion-fast) var(--motion-ease-exit),
+    color var(--motion-base) var(--motion-ease);
+}
+.motion-strike[data-done='true'] {
+  background-size: 100% 1.5px;
+  transition:
+    background-size var(--motion-enter) var(--motion-ease) 80ms,
+    color var(--motion-base) var(--motion-ease) 80ms;
+}
+@media (forced-colors: active) {
+  .motion-strike[data-done='true'] {
+    text-decoration: line-through;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tab change: only the content area crossfades; the shell stays.     */
+/* AppShell names .app-shell__content; fixed chrome gets its own name */
+/* so the content snapshot never paints over it.                      */
+/* ------------------------------------------------------------------ */
+
+.app-shell__content {
+  view-transition-name: app-content;
+}
+.bottom-tab {
+  view-transition-name: app-bottom-tab;
+}
+.mini-player-wrapper {
+  view-transition-name: app-mini-player;
+}
+.toast-container {
+  view-transition-name: app-toasts;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(app-content) {
+  animation: none;
+}
+::view-transition-old(app-content) {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+}
+::view-transition-new(app-content) {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+::view-transition-group(app-bottom-tab),
+::view-transition-group(app-mini-player),
+::view-transition-group(app-toasts) {
+  animation: none;
+}
+::view-transition-old(app-bottom-tab),
+::view-transition-new(app-bottom-tab),
+::view-transition-old(app-mini-player),
+::view-transition-new(app-mini-player),
+::view-transition-old(app-toasts),
+::view-transition-new(app-toasts) {
+  animation-duration: var(--motion-fast);
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion. index.css cuts every duration to 0.01ms. The shared */
+/* primitives below opt back in to their fades (travel is already 0).  */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-motion-surface],
+  [data-presence],
+  .toast,
+  .status-panel {
+    animation-duration: var(--motion-base) !important;
+  }
+  [data-motion-surface][data-state='closing'],
+  [data-presence='exit'],
+  .toast[data-state='closing'] {
+    animation-duration: var(--motion-exit) !important;
+  }
+  .motion-strike {
+    transition-property: color !important;
+    transition-duration: var(--motion-base) !important;
+  }
+  .motion-strike[data-done='true'] {
+    background-size: 100% 1.5px;
+  }
+  ::view-transition-new(app-content) {
+    animation-name: motion-fade-in;
+  }
+}

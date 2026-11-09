@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 12px;
   padding: 4px 0 24px;
-  animation: pageSlideUp 240ms ease;
+  animation: modalSlideUp var(--motion-enter) var(--motion-ease) both;
 }
 
 .schedule-form-page__header {
@@ -36,15 +36,4 @@
   background: var(--c-slate-200);
   color: var(--c-slate-700);
   font-weight: 600;
-}
-
-@keyframes pageSlideUp {
-  from {
-    transform: translateY(28px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
