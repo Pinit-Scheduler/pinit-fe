@@ -1,5 +1,7 @@
 /** Existing Schedule IDs survive both preview and apply. Times are ISO instants. */
 export type DayReplanRequest = {
+  spaceId: number
+  projectId: number | null
   date: string
   zoneId: string
   delayMinutes: number

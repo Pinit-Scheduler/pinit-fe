@@ -14,6 +14,7 @@
 .day-replan__heading, .day-replan__summary, .day-replan__apply { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .day-replan__heading p, .day-replan__policy, .day-replan__hint, .day-replan__date, .day-replan__summary > span { font-size: 12px; color: var(--c-slate-600); line-height: 1.65; }
 .day-replan__heading p { margin-top: 4px; }
+.day-replan__scope { color: var(--c-slate-700); font-size: 12px; font-weight: 600; line-height: 1.65; }
 .day-replan__date { flex-shrink: 0; }
 .day-replan__controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }
 .day-replan__delay { display: flex; align-items: center; gap: 6px; }

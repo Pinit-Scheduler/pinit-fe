@@ -8,6 +8,8 @@ const REASON_LABELS: Record<string, string> = {
   COMPLETED: '완료한 일정은 유지해요.',
   TASK_UNAVAILABLE: '연결된 작업을 배치할 수 없어 유지해요.',
   OUTSIDE_TODAY: '오늘 밖에서 시작한 일정은 유지해요.',
+  NOT_ASSIGNED_TO_YOU: '나에게 배정되지 않은 작업·일정은 유지해요.',
+  OUTSIDE_PROJECT: '선택한 프로젝트 밖의 일정은 유지해요.',
   DEADLINE_PASSED: '마감 안에 끝낼 수 없어 배치하지 못했어요.',
   PREDECESSOR_NOT_PLACED: '선행 작업을 먼저 끝낼 수 없어 배치하지 못했어요.',
   NO_FITTING_SLOT: '오늘 남은 시간과 마감·생활 시간·다른 일정을 고려하면 충분한 시간이 없어요.',
@@ -31,6 +33,8 @@ export const buildReplanApplyRequest = (
 ): DayReplanApplyRequest => {
   const selected = new Set(selectedIds)
   return {
+    spaceId: preview.spaceId,
+    projectId: preview.projectId,
     date: preview.date,
     zoneId: preview.zoneId,
     delayMinutes: preview.delayMinutes,

@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import dayjs from 'dayjs'
+import { useSpaces } from '@features/spaces/store'
 import useDayReplan from '../hooks/useDayReplan'
+import type { ReplanScope } from '../hooks/useDayReplan'
 import { isReplanExpired, replanReasonLabel, validateReplanDelay } from '../utils/replanning'
 import './DayReplanningPanel.css'
 
 type Props = { date: string; zoneId: string; onApplied: (ids: number[]) => void; disabled?: boolean }
+type ScopedProps = Props & { scope: ReplanScope; scopeLabel: string; onReloadSpace: () => void }
 
-const DayReplanningPanel = ({ date, zoneId, onApplied, disabled = false }: Props) => {
-  const replan = useDayReplan(date, zoneId, onApplied)
+const DayReplanningContent = ({ date, zoneId, onApplied, disabled = false, scope, scopeLabel, onReloadSpace }: ScopedProps) => {
+  const replan = useDayReplan(date, zoneId, onApplied, scope)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000)
@@ -36,19 +39,21 @@ const DayReplanningPanel = ({ date, zoneId, onApplied, disabled = false }: Props
         <div className="day-replan__delay">
           <input id="day-replan-delay" type="number" min="0" max="240" step="1" inputMode="numeric"
             value={replan.delay} onChange={(event) => replan.changeDelay(event.target.value)}
-            disabled={replan.phase === 'apply' || disabled || !isToday}
+            disabled={replan.phase === 'apply' || disabled || !isToday || replan.accessDenied}
             aria-invalid={Boolean(delayError)} aria-describedby={delayError ? 'day-replan-delay-error' : undefined} />
           <span>분</span>
         </div>
-        <button className="day-replan__primary" type="submit" disabled={busy || disabled || Boolean(delayError) || !isToday}>
+        <button className="day-replan__primary" type="submit" disabled={busy || disabled || Boolean(delayError) || !isToday || replan.accessDenied}>
           {replan.phase === 'preview' ? '다시 배치하는 중…' : '변경 미리보기'}
         </button>
         {delayError && <p id="day-replan-delay-error" className="day-replan__error">{delayError}</p>}
       </form>
 
-      <p className="day-replan__policy">약속·반복·진행 중·일시정지·완료 일정은 그대로 두고, 생활 시간과 마감·선행 작업을 지켜 배치해요. 일정 사이에는 10분을 비워요.</p>
+      <p className="day-replan__scope">{scopeLabel} · 나에게 배정된 작업 일정</p>
+      <p className="day-replan__policy">약속·반복·진행 중·일시정지·완료 일정과 다른 사람의 일정은 그대로 두고, 생활 시간과 마감·선행 작업을 지켜 배치해요. 일정 사이에는 10분을 비워요.</p>
       {!isToday && <p className="day-replan__error" role="status">날짜가 바뀌었어요. 오늘 계획을 다시 열어 주세요.</p>}
       {replan.error && <p className="day-replan__error" role="alert">{replan.error}</p>}
+      {replan.accessDenied && <p className="day-replan__error" role="status">공간 접근 권한을 다시 확인해 주세요. <button type="button" onClick={onReloadSpace}>공간 다시 불러오기</button></p>}
       {replan.appliedCount !== null && <p className="day-replan__success" role="status">{replan.appliedCount}개 일정의 시간을 변경했어요. 일정 목록에서 확인할 수 있어요.</p>}
 
       {replan.preview && (
@@ -97,7 +102,7 @@ const DayReplanningPanel = ({ date, zoneId, onApplied, disabled = false }: Props
             <div className="day-replan__apply">
               <span aria-live="polite">{selectedCount}개 선택</span>
               <button type="button" className="day-replan__primary"
-                disabled={selectedCount === 0 || busy || disabled || expired || !isToday || replan.requiresPreview}
+                disabled={selectedCount === 0 || busy || disabled || expired || !isToday || replan.requiresPreview || replan.accessDenied}
                 onClick={() => void replan.applySelection()}>{replan.phase === 'apply' ? '변경 적용 중…' : '선택한 변경 적용'}</button>
             </div>
           )}
@@ -105,6 +110,38 @@ const DayReplanningPanel = ({ date, zoneId, onApplied, disabled = false }: Props
       )}
     </section>
   )
+}
+
+const DayReplanningPanel = (props: Props) => {
+  const workspace = useSpaces()
+  const [scopeRefresh, setScopeRefresh] = useState(0)
+  const [scopeError, setScopeError] = useState<string | null>(null)
+  const space = workspace.selectedSpace
+  const project = workspace.selectedProject
+  const reload = () => {
+    setScopeError(null)
+    void workspace.reload().then(() => setScopeRefresh((value) => value + 1)).catch(() => {
+      setScopeError('공간을 불러오지 못했어요. 다시 시도해 주세요.')
+    })
+  }
+  const unavailable = workspace.loading || Boolean(workspace.error) || !space || space.deleted ||
+    (workspace.selectedProjectId !== null && (!project || project.deleted || project.spaceId !== space.id))
+  if (unavailable || !space) return (
+    <section className="day-replan" aria-labelledby="day-replan-title">
+      <h2 id="day-replan-title">오늘 남은 일정 다시 짜기</h2>
+      <p className="day-replan__hint" role="status">{workspace.loading ? '선택한 공간을 확인하고 있어요.' : '접근할 수 있는 공간·프로젝트를 선택해 주세요.'}</p>
+      {(scopeError || workspace.error) && <p className="day-replan__error" role="alert">{scopeError ?? workspace.error}</p>}
+      {!workspace.loading && <button className="day-replan__primary" type="button" onClick={reload}>공간 다시 불러오기</button>}
+    </section>
+  )
+  // An accessible active space snapshot proves participation. The server checks
+  // Task/Schedule assignment and permissions; a space-level edit flag cannot replace it.
+  const membership = space.members.map((member) => `${member.memberId}:${member.role}`).sort().join(',')
+  const scopeKey = `${workspace.memberId}@${space.id}:${space.version}:${membership}@${project?.id ?? 'all'}:${project?.version ?? 0}@${scopeRefresh}`
+  return <DayReplanningContent key={scopeKey} {...props}
+    scope={{ spaceId: space.id, projectId: workspace.selectedProjectId }}
+    scopeLabel={project ? `${space.name} / ${project.name}` : `${space.name} 전체`}
+    onReloadSpace={reload} />
 }
 
 export default DayReplanningPanel

@@ -26,6 +26,7 @@ const load = (file, dependencies = {}, globals = {}) => {
 }
 const utils = load('../src/features/planner/utils/replanning.ts')
 const preview = () => ({
+  spaceId: 10, projectId: null,
   date: '2026-11-09', zoneId: 'Asia/Seoul', delayMinutes: 30,
   plannedAt: '2026-11-09T00:00:00Z', snapshotToken: 'server-snapshot',
   windowStart: '2026-11-09T00:30:00Z', windowEnd: '2026-11-09T14:00:00Z',
@@ -54,6 +55,10 @@ const harness = ({ previewApi = async () => preview(), applyApi = async () => ({
   let cleanup
   let subject = 'member-A'
   const events = new EventTarget()
+  let selectedScope = { spaceId: 10, projectId: null }
+  let resourceRevision = 0
+  const evicted = []
+  const emit = (name, detail) => events.dispatchEvent(new CustomEvent(name, { detail }))
   const react = {
     useState(initial) {
       const index = cursor++
@@ -73,13 +78,27 @@ const harness = ({ previewApi = async () => preview(), applyApi = async () => ({
     react,
     '@shared/api/httpClient': { ApiError },
     '@shared/api/authTokens': { getAccessToken: () => subject, getTokenSubject: (token) => token },
+    '@features/spaces/store': { getSelectedScope: () => selectedScope },
+    '@features/spaces/metadata': {
+      getResourceRevision: () => resourceRevision,
+      evictWorkspaceResource: (_kind, id) => {
+        evicted.push(id)
+        ++resourceRevision
+        emit('workspace:resources-evicted', { scheduleIds: [id], taskIds: [] })
+      },
+    },
     '../api/replanning': { previewDayReplan: previewApi, applyDayReplan: applyApi },
     '../utils/replanning': utils,
   }, { window: events }).default
   return {
-    render() { cursor = 0; return hook('2026-11-09', 'Asia/Seoul', onApplied) },
+    render() { cursor = 0; return hook('2026-11-09', 'Asia/Seoul', onApplied, { spaceId: 10, projectId: null }) },
     unmount() { cleanup?.() },
     switchActor(value) { subject = value; events.dispatchEvent(new Event('auth:changed')) },
+    switchScope(next) { selectedScope = next; emit('schedule:changed', { reason: 'space-scope' }) },
+    revokeSpace() { emit('workspace:access-changed', { spaceIds: [10] }) },
+    evictSchedule(id) { ++resourceRevision; emit('workspace:resources-evicted', { scheduleIds: [id], taskIds: [] }) },
+    advanceRevision() { ++resourceRevision },
+    evicted,
   }
 }
 
@@ -98,6 +117,7 @@ test('delay input validates bounded integers before contacting the API', async (
 test('selected apply retains existing IDs and the exact server snapshot; no edited times or foreign IDs', () => {
   const payload = plain(utils.buildReplanApplyRequest(preview(), [999, 102, 102, 101]))
   assert.deepEqual(payload, {
+    spaceId: 10, projectId: null,
     date: '2026-11-09', zoneId: 'Asia/Seoul', delayMinutes: 30,
     plannedAt: '2026-11-09T00:00:00Z', snapshotToken: 'server-snapshot', selectedScheduleIds: [101, 102],
   })
@@ -150,6 +170,7 @@ test('double click sends one apply request and only selected Schedule IDs', asyn
   assert.deepEqual(sent[0].selectedScheduleIds, [101])
   pending.resolve({ appliedScheduleIds: [101] })
   await first
+  assert.deepEqual(host.evicted, [101])
   assert.deepEqual(refreshed, [[101]])
   assert.equal(host.render().appliedCount, 1)
   assert.equal(host.render().preview, null)
@@ -214,7 +235,7 @@ test('API contract uses authenticated v2 POST routes and returns server response
     '@shared/api/httpClient': { httpClient: async (url, options) => { calls.push({ url, options }); return preview() } },
   })
   const signal = new AbortController().signal
-  const body = { date: '2026-11-09', zoneId: 'Asia/Seoul', delayMinutes: 30 }
+  const body = { spaceId: 10, projectId: 7, date: '2026-11-09', zoneId: 'Asia/Seoul', delayMinutes: 30 }
   assert.equal((await api.previewDayReplan(body, signal)).snapshotToken, 'server-snapshot')
   await api.applyDayReplan(utils.buildReplanApplyRequest(preview(), [102]))
   assert.equal(calls[0].url, '/v2/plans/replan')
@@ -223,6 +244,102 @@ test('API contract uses authenticated v2 POST routes and returns server response
   assert.deepEqual(calls[0].options.json, body)
   assert.equal(calls[1].url, '/v2/plans/replan/apply')
   assert.deepEqual(plain(calls[1].options.json.selectedScheduleIds), [102])
+  assert.equal(calls[1].options.json.spaceId, 10)
+  assert.equal(calls[1].options.json.projectId, null)
+})
+
+test('space and project switches immediately discard loaded proposals and block old-scope apply', async () => {
+  for (const next of [{ spaceId: 20, projectId: null }, { spaceId: 10, projectId: 7 }]) {
+    let applies = 0
+    const host = harness({ applyApi: async () => { ++applies; return { appliedScheduleIds: [101] } } })
+    await host.render().loadPreview()
+    host.switchScope(next)
+    assert.equal(host.render().preview, null)
+    assert.deepEqual(plain(host.render().selectedIds), [])
+    await host.render().applySelection()
+    assert.equal(applies, 0)
+  }
+})
+
+test('old-space preview arriving after selection changes cannot expose its titles', async () => {
+  const pending = deferred()
+  const host = harness({ previewApi: () => pending.promise })
+  const loading = host.render().loadPreview()
+  host.switchScope({ spaceId: 20, projectId: null })
+  pending.resolve(preview())
+  await loading
+  assert.equal(host.render().preview, null)
+  assert.equal(host.render().phase, 'idle')
+})
+
+test('late committed apply after space switch evicts only known IDs without publishing old-scope success', async () => {
+  const pending = deferred(), published = []
+  const host = harness({ applyApi: () => pending.promise, onApplied: (ids) => published.push(ids) })
+  await host.render().loadPreview()
+  const applying = host.render().applySelection()
+  host.switchScope({ spaceId: 20, projectId: null })
+  pending.resolve({ appliedScheduleIds: [101] })
+  await applying
+  assert.equal(host.render().preview, null)
+  assert.equal(host.render().appliedCount, null)
+  assert.deepEqual(published, [])
+  assert.deepEqual(host.evicted, [101])
+})
+
+test('resource eviction and membership loss erase independent preview copies immediately', async () => {
+  for (const event of ['evictSchedule', 'revokeSpace']) {
+    const host = harness()
+    await host.render().loadPreview()
+    host[event](101)
+    assert.equal(host.render().preview, null)
+    assert.deepEqual(plain(host.render().selectedIds), [])
+    assert.equal(host.render().requiresPreview, true)
+    assert.equal(host.render().accessDenied, event === 'revokeSpace')
+  }
+})
+
+test('metadata revision prevents stale preview and apply responses even when no event was delivered', async () => {
+  const pendingPreview = deferred()
+  const host = harness({ previewApi: () => pendingPreview.promise })
+  const loading = host.render().loadPreview()
+  host.advanceRevision()
+  pendingPreview.resolve(preview())
+  await loading
+  assert.equal(host.render().preview, null)
+  const pendingApply = deferred(), published = []
+  const host2 = harness({ applyApi: () => pendingApply.promise, onApplied: (ids) => published.push(ids) })
+  await host2.render().loadPreview()
+  const applying = host2.render().applySelection()
+  host2.advanceRevision()
+  pendingApply.resolve({ appliedScheduleIds: [101] })
+  await applying
+  assert.equal(host2.render().appliedCount, null)
+  assert.deepEqual(published, [])
+})
+
+test('403/404/410 preview or apply denial removes sensitive proposals and prevents retry until refreshed membership', async () => {
+  for (const status of [403, 404, 410]) {
+    for (const stage of ['preview', 'apply']) {
+      let calls = 0
+      const fail = async () => { ++calls; throw new ApiError('이 공간에 접근할 수 없어요.', status) }
+      const host = harness(stage === 'preview' ? { previewApi: fail } : { applyApi: fail })
+      await host.render().loadPreview()
+      if (stage === 'apply') await host.render().applySelection()
+      assert.equal(host.render().preview, null)
+      assert.deepEqual(plain(host.render().selectedIds), [])
+      assert.equal(host.render().accessDenied, true)
+      await host.render().loadPreview()
+      await host.render().applySelection()
+      assert.equal(calls, 1)
+    }
+  }
+})
+
+test('mismatched response scope is rejected before any preview titles are stored', async () => {
+  const host = harness({ previewApi: async () => ({ ...preview(), spaceId: 20 }) })
+  await host.render().loadPreview()
+  assert.equal(host.render().preview, null)
+  assert.match(host.render().error, /선택한 공간·프로젝트의 제안이 아니에요/)
 })
 
 test('rendered preview exposes before/after, protected reasons and original-slot policy in requested timezone', () => {
@@ -231,6 +348,8 @@ test('rendered preview exposes before/after, protected reasons and original-slot
   dayjs.extend(require('dayjs/plugin/timezone'))
   const panel = load('../src/features/planner/components/DayReplanningPanel.tsx', {
     react: React, 'react/jsx-runtime': require('react/jsx-runtime'), dayjs,
+    '@features/spaces/store': { useSpaces: () => ({ loading: false, error: null, memberId: 1, selectedProjectId: null,
+      selectedSpace: { id: 10, name: '공유 공간', version: 1, members: [{ memberId: 1, role: 'MEMBER' }], allowedActions: { edit: false } }, selectedProject: null }) },
     '../hooks/useDayReplan': () => ({ delay: '30', preview: preview(), phase: 'idle', selectedIds: [101], appliedCount: null }),
     '../utils/replanning': utils, './DayReplanningPanel.css': {},
   }).default
@@ -244,6 +363,8 @@ test('rendered preview exposes before/after, protected reasons and original-slot
   assert.match(html, /전체 적용이 거절될 수 있어요/)
   assert.match(html, /시간 보정 설정 반영/)
   assert.match(html, /체크한 일정만/)
+  assert.match(html, /공유 공간 전체/)
+  assert.match(html, /나에게 배정된 작업 일정/)
 })
 
 test('central cache invalidation removes changed IDs and preserves protected active state and other entries', () => {
@@ -252,6 +373,7 @@ test('central cache invalidation removes changed IDs and preserves protected act
   const provider = load('../src/shared/contexts/ScheduleCacheContext.tsx', {
     react: {
       createContext: () => ({ Provider: 'provider' }),
+      useEffect() {},
       useState(initial) {
         const index = cursor++
         if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial
@@ -266,6 +388,7 @@ test('central cache invalidation removes changed IDs and preserves protected act
       useMemo: (fn) => fn(),
     },
     'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
+    '@features/spaces/metadata': { isSpaceUnavailable: () => false, isResourceUnavailable: () => false },
   }).ScheduleCacheProvider
   const render = () => { cursor = 0; return provider({ children: null }).props.value }
   render().upsertSchedule({ id: 101, state: 'NOT_STARTED' })
