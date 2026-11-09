@@ -69,6 +69,10 @@
   padding: 8px 4px;
 }
 
+.plan-page__refresh {
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+
 .plan-page__refresh:disabled {
   color: var(--c-slate-400);
 }
@@ -144,10 +148,18 @@
   }
 }
 
-.plan-page__content {
+.plan-page__content,
+.plan-page__result {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.plan-page__refresh-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--c-red-700);
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .plan-page__section {
@@ -185,6 +197,20 @@
   padding: 4px 8px;
   font-size: 12px;
   color: var(--c-slate-700);
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.plan-page__bulk button:hover,
+.plan-page__reset:hover {
+  background: var(--c-slate-100);
+  border-color: var(--c-slate-300);
+}
+
+/* "제안대로" appears as soon as a block is edited. */
+.plan-page__reset {
+  animation: motion-fade-in var(--motion-fast) var(--motion-ease) both;
 }
 
 .plan-page__objective {
@@ -216,6 +242,7 @@
 }
 
 .plan-page__banner--success {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
   background: var(--c-emerald-50);
   border: 1px solid var(--c-emerald-500);
   color: var(--c-emerald-800);
@@ -245,6 +272,10 @@
   flex-direction: column;
   gap: 6px;
   background: var(--c-slate-50);
+  transition:
+    border-color var(--motion-base) var(--motion-ease),
+    background-color var(--motion-base) var(--motion-ease),
+    color var(--motion-base) var(--motion-ease);
 }
 
 .plan-page__block.is-selected {
@@ -256,6 +287,44 @@
   border-color: var(--c-red-500);
 }
 
+/* Applied: the block became a schedule. It settles into the success tone and strikes its title
+   until the next proposal takes it off the list. */
+.plan-page__block.is-applied {
+  border-color: var(--c-emerald-500);
+  background: var(--c-emerald-50);
+  color: var(--c-slate-500);
+}
+
+.plan-page__block.is-applied .plan-page__block-meta,
+.plan-page__block.is-applied .plan-page__block-fields label {
+  color: var(--c-slate-400);
+}
+
+/* A block whose suggestion moved after a new proposal, or the one picked on the timeline. */
+.plan-page__block[data-flash] {
+  animation: plan-page-block-flash 1200ms var(--motion-ease) both;
+}
+
+@keyframes plan-page-block-flash {
+  0%,
+  25% {
+    background-color: var(--c-blue-50);
+    border-color: var(--c-blue-600);
+  }
+}
+
+/* First proposal for a request: sections fade in and the blocks rise one after another. */
+.plan-page__result[data-arrive] > .plan-page__section,
+.plan-page__result[data-arrive] > .plan-page__refresh-error {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+  animation-delay: calc(var(--plan-order, 0) * 40ms);
+}
+
+.plan-page__result[data-arrive] .plan-page__block:not([data-presence]):not([data-flash]) {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+  animation-delay: calc(80ms + var(--plan-stagger, 0) * 32ms);
+}
+
 .plan-page__block-head {
   display: flex;
   align-items: center;
@@ -265,6 +334,10 @@
 .plan-page__block-head input {
   width: 18px;
   height: 18px;
+}
+
+.plan-page__block-head input:disabled {
+  accent-color: var(--c-emerald-600);
 }
 
 .plan-page__block-title {
@@ -315,6 +388,11 @@
   color: var(--c-red-700);
 }
 
+.plan-page__issues,
+.plan-page__meal-hint {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
 .plan-page__issues li {
   font-size: 12px;
   color: var(--c-red-700);
@@ -352,6 +430,7 @@
 }
 
 .plan-page__footer {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
   position: sticky;
   bottom: -16px;
   margin: 0 -16px -16px;
@@ -370,6 +449,7 @@
   gap: 8px;
   font-size: 13px;
   color: var(--c-slate-700);
+  font-variant-numeric: tabular-nums;
 }
 
 .plan-page__apply {
@@ -379,6 +459,13 @@
   background: var(--c-blue-600);
   color: #fff;
   font-weight: 600;
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.plan-page__apply:not(:disabled):active {
+  transform: scale(0.98);
 }
 
 .plan-page__apply:disabled {
@@ -389,9 +476,11 @@
   margin: 0;
   font-size: 12px;
   color: var(--c-red-700);
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .plan-page__nudge {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -401,6 +490,11 @@
   border: 1px solid var(--c-blue-200);
   color: var(--c-blue-900);
   font-size: 13px;
+}
+
+.plan-page__nudge[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
 }
 
 .plan-page__nudge-actions {
@@ -440,4 +534,22 @@
 
 .plan-page__issues--warning li {
   color: var(--c-amber-700);
+}
+
+/* Reduced motion: nothing travels and nothing waits. index.css cuts durations to 0.01ms;
+   the arrival and the row highlight keep a plain fade instead. */
+@media (prefers-reduced-motion: reduce) {
+  .plan-page__result[data-arrive] > .plan-page__section,
+  .plan-page__result[data-arrive] > .plan-page__refresh-error,
+  .plan-page__result[data-arrive] .plan-page__block:not([data-presence]):not([data-flash]) {
+    animation-name: motion-fade-in;
+    animation-duration: var(--motion-base) !important;
+    animation-delay: 0ms;
+  }
+  .plan-page__block[data-flash] {
+    animation-duration: 1200ms !important;
+  }
+  .plan-page__apply:not(:disabled):active {
+    transform: none;
+  }
 }
