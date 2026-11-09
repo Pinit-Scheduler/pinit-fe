@@ -12,6 +12,7 @@ import type {
   WeeklyRecord,
   WorkspaceSnapshot,
   AllowedActions,
+  UnavailableReasons,
 } from './types'
 const url = (path: string) => buildApiUrl(path, 'v2')
 type RawSpace = Omit<Space, 'members'>
@@ -19,6 +20,11 @@ const actions = (value: AllowedActions): AllowedActions => ({
   ...value,
   update: value.edit,
 })
+/** `update`는 FE 별칭이라 서버는 `edit`의 이유만 준다. */
+const reasons = (
+  value: UnavailableReasons | undefined,
+): UnavailableReasons | undefined =>
+  value && { ...value, update: value.update ?? value.edit }
 const normalizeSpace = (
   space: RawSpace,
   members: SpaceMember[] = [],
@@ -27,11 +33,13 @@ const normalizeSpace = (
   deleted: Boolean(space.deletedAt),
   members,
   allowedActions: actions(space.allowedActions),
+  unavailableReasons: reasons(space.unavailableReasons),
 })
 const normalizeProject = (project: Project): Project => ({
   ...project,
   deleted: Boolean(project.deletedAt),
   allowedActions: actions(project.allowedActions),
+  unavailableReasons: reasons(project.unavailableReasons),
 })
 export async function fetchWorkspace(
   signal?: AbortSignal,
