@@ -1,11 +1,19 @@
-import { useProjectFilter } from '@features/spaces/store'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useProjectFilter, useSpaces } from '@features/spaces/store'
+import type { CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { searchTasks } from '../api/tasks'
-import type { Task } from '../types/task'
+import type { Task, TaskListResponse } from '../types/task'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { getTodayWithOffset } from '@shared/utils/datetime'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { onDataChanged } from '@shared/utils/events'
+import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
+import {
+  presenceProps,
+  useListPresence,
+  usePresence,
+  useTweenedNumber,
+} from '@shared/motion'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import {
   CategoryFilter,
@@ -25,10 +33,23 @@ import {
   toSearchParams,
   type TaskSortOrder,
 } from '../utils/taskSearch'
+import { arrivalIndex, useArrival } from '../utils/useArrival'
+import { COMPLETION_SETTLE_MS, isCompletionOnly } from '../utils/taskListRefresh'
 import './TaskPages.css'
 
 const PAGE_SIZE = 20
 const FILTER_KEY = 'task-list-filters'
+const LOAD_ERROR = '작업을 불러오지 못했어요.'
+
+type TaskListData = {
+  tasks: Task[]
+  /** Server total for a paged list. A project filter counts at render instead. */
+  total: number | null
+  /** Pages already on screen. A refresh re-reads all of them, so no loaded row drops away. */
+  pages: number
+  hasMore: boolean
+}
+
 const readFilters = () => {
   try {
     return {
@@ -40,29 +61,45 @@ const readFilters = () => {
     return restoreFilters(null)
   }
 }
+const isLastPage = (response: TaskListResponse, page: number) =>
+  response.last ??
+  (response.totalPages !== undefined
+    ? page + 1 >= response.totalPages
+    : response.content.length < PAGE_SIZE)
+const errorText = (error: unknown) =>
+  error instanceof Error && error.message ? error.message : LOAD_ERROR
+
+/** The result count. It shows as is when it appears and glides when a change moves it. */
+function TaskCount({ value }: { value: number }) {
+  return <span>{Math.round(useTweenedNumber(value))}건</span>
+}
+
 export default function TaskListPage() {
   const { open } = useRouteSurfaceNavigation(),
     { setTask } = useTaskCache(),
     { offsetMinutes } = useTimePreferences()
-  const { taskAssignments } = useCategories()
+  const {
+    taskAssignments,
+    hasLoaded: assignmentsLoaded,
+    error: assignmentsError,
+  } = useCategories()
+  const { selectedSpaceId } = useSpaces()
   const [filters, setFilters] = useState(readFilters),
     [queryInput, setQueryInput] = useState('')
   const [category, setCategory] = useProjectFilter()
   const [filterOpen, setFilterOpen] = useState(false),
     [managerOpen, setManagerOpen] = useState(false),
     [archiveOpen, setArchiveOpen] = useState(false)
-  const [tasks, setTasks] = useState<Task[]>([]),
-    [total, setTotal] = useState<number | null>(null),
-    [loading, setLoading] = useState(true),
-    [loadingMore, setLoadingMore] = useState(false),
-    [error, setError] = useState<string | null>(null),
-    [moreError, setMoreError] = useState<string | null>(null),
-    [page, setPage] = useState(0),
-    [hasMore, setHasMore] = useState(false)
-  const request = useRef<AbortController | null>(null),
-    sentinel = useRef<HTMLDivElement | null>(null)
+  const sentinel = useRef<HTMLDivElement | null>(null)
+  const pagesShown = useRef(1)
   const today = getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD')
   const params = JSON.stringify(toSearchParams(filters, today))
+  // A project filter reads every page and narrows by assignment at render (audit A7), so a
+  // category reload never re-creates the request. The key names everything the request
+  // reads; searchTasks sends the selected space and project itself.
+  const full = category !== 'all'
+  const key = `tasks/list/${selectedSpaceId ?? 'all'}/${typeof category === 'number' ? category : 'any'}/${full ? 'full' : 'paged'}?${params}`
+
   useEffect(() => {
     const timer = window.setTimeout(
       () => setFilters((prev) => ({ ...prev, query: queryInput })),
@@ -80,108 +117,166 @@ export default function TaskListPage() {
       /* optional preference */
     }
   }, [filters])
-  const load = useCallback(
-    async (nextPage: number, replace = true) => {
-      request.current?.abort()
-      const controller = new AbortController()
-      request.current = controller
-      if (replace) {
-        setLoading(true)
-        setError(null)
-        setMoreError(null)
-      } else {
-        setLoadingMore(true)
-        setMoreError(null)
-      }
-      try {
+
+  const { data, error, isRefreshing, refetch, setData } =
+    useRevalidatingQuery<TaskListData>(
+      key,
+      async (signal) => {
         const search = JSON.parse(params) as [string, string][]
-        let response = await searchTasks({
-          page: nextPage,
-          size: PAGE_SIZE,
-          params: search,
-          signal: controller.signal,
-        })
-        let incoming = response.content
-        if (category !== 'all') {
+        const read = (page: number) =>
+          searchTasks({ page, size: PAGE_SIZE, params: search, signal })
+        if (full) {
           // Project assignments are server facts. Traverse every server result before filtering;
           // filtering only the first page would incorrectly report missing tasks as absent.
-          let cursor = nextPage
-          const seen = new Set(incoming.map((t) => t.id))
-          while (
-            !(
-              response.last ??
-              (response.totalPages !== undefined
-                ? cursor + 1 >= response.totalPages
-                : response.content.length < PAGE_SIZE)
-            )
-          ) {
-            response = await searchTasks({
-              page: ++cursor,
-              size: PAGE_SIZE,
-              params: search,
-              signal: controller.signal,
-            })
+          let cursor = 0
+          let response = await read(cursor)
+          let tasks = response.content
+          const seen = new Set(tasks.map((t) => t.id))
+          while (!isLastPage(response, cursor)) {
+            response = await read(++cursor)
             const next = response.content.filter((t) => !seen.has(t.id))
             if (!next.length) break
             next.forEach((t) => seen.add(t.id))
-            incoming = [...incoming, ...next]
+            tasks = [...tasks, ...next]
           }
-          incoming = incoming.filter((t) =>
-            category === 'none'
-              ? taskAssignments[t.id] === undefined
-              : taskAssignments[t.id] === category,
-          )
+          tasks.forEach(setTask)
+          return { tasks, total: null, pages: cursor + 1, hasMore: false }
         }
-        if (controller.signal.aborted) return
-        incoming.forEach(setTask)
-        setTasks((prev) => (replace ? incoming : mergePage(prev, incoming)))
-        setPage(nextPage)
-        setHasMore(
-          category === 'all' &&
-            !(
-              response.last ??
-              (response.totalPages !== undefined
-                ? nextPage + 1 >= response.totalPages
-                : incoming.length < PAGE_SIZE)
-            ),
+        const pages = Math.max(1, pagesShown.current)
+        const responses = await Promise.all(
+          Array.from({ length: pages }, (_, page) => read(page)),
         )
-        setTotal(
-          category === 'all'
-            ? (response.totalElements ?? null)
-            : incoming.length,
+        const tasks = responses.reduce<Task[]>(
+          (merged, response) => mergePage(merged, response.content),
+          [],
         )
-      } catch (err) {
-        if (controller.signal.aborted) return
-        const message =
-          err instanceof Error ? err.message : '작업을 불러오지 못했어요.'
-        if (replace) setError(message)
-        else setMoreError(message)
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false)
-          setLoadingMore(false)
+        tasks.forEach(setTask)
+        const last = responses[responses.length - 1]
+        return {
+          tasks,
+          total: last.totalElements ?? null,
+          pages,
+          hasMore: !isLastPage(last, pages - 1),
         }
-      }
-    },
-    [params, category, taskAssignments, setTask],
-  )
+      },
+      { errorMessage: errorText },
+    )
   useEffect(() => {
-    void load(0)
-    return () => request.current?.abort()
-  }, [load])
-  useEffect(() => onDataChanged(() => void load(0)), [load])
+    pagesShown.current = data?.pages ?? 1
+  }, [data])
+
+  // One refresh per action (events are coalesced). A completion waits for its own motion first.
+  useEffect(() => {
+    let timer: number | undefined
+    const off = onDataChanged((batch) => {
+      window.clearTimeout(timer)
+      if (isCompletionOnly(batch))
+        timer = window.setTimeout(refetch, COMPLETION_SETTLE_MS)
+      else refetch()
+    })
+    return () => {
+      off()
+      window.clearTimeout(timer)
+    }
+  }, [refetch])
+
+  // "More" belongs to the key it was asked for, so a filter change starts clean.
+  const [more, setMore] = useState<{
+    key: string
+    loading: boolean
+    error: string | null
+  }>({ key, loading: false, error: null })
+  const loadingMore = more.key === key && more.loading
+  const moreError = more.key === key ? more.error : null
+  const moreRequest = useRef<AbortController | null>(null)
+  useEffect(
+    () => () => {
+      moreRequest.current?.abort()
+      moreRequest.current = null
+    },
+    [key],
+  )
+  const loadMore = useCallback(async () => {
+    if (!data?.hasMore || moreRequest.current) return
+    const controller = new AbortController()
+    moreRequest.current = controller
+    const page = data.pages
+    setMore({ key, loading: true, error: null })
+    try {
+      const response = await searchTasks({
+        page,
+        size: PAGE_SIZE,
+        params: JSON.parse(params) as [string, string][],
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) return
+      response.content.forEach(setTask)
+      setData((prev) =>
+        prev && prev.pages === page
+          ? {
+              tasks: mergePage(prev.tasks, response.content),
+              total: response.totalElements ?? prev.total,
+              pages: page + 1,
+              hasMore: !isLastPage(response, page),
+            }
+          : (prev as TaskListData),
+      )
+      setMore({ key, loading: false, error: null })
+    } catch (err) {
+      if (controller.signal.aborted) return
+      setMore({ key, loading: false, error: errorText(err) })
+    } finally {
+      if (moreRequest.current === controller) moreRequest.current = null
+    }
+  }, [data, key, params, setData, setTask])
+
+  const hasMore = Boolean(data?.hasMore)
+  const loadedCount = data?.tasks.length ?? 0
   useEffect(() => {
     const node = sentinel.current
-    if (!node || loading || loadingMore || !hasMore) return
+    if (!node || loadingMore || !hasMore) return
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) void load(page + 1, false)
+        if (entry.isIntersecting) void loadMore()
       },
       { rootMargin: '160px' },
     )
     observer.observe(node)
     return () => observer.disconnect()
-  }, [hasMore, loading, loadingMore, load, page, tasks.length])
+  }, [hasMore, loadingMore, loadMore, loadedCount])
+
+  // A project filter waits for the first assignment snapshot; without it every task would
+  // briefly look unassigned.
+  const assignmentsReady =
+    !full || assignmentsLoaded || assignmentsError !== null
+  const visible = useMemo(
+    () =>
+      !data || !assignmentsReady
+        ? undefined
+        : category === 'all'
+          ? data.tasks
+          : data.tasks.filter((t) =>
+              category === 'none'
+                ? taskAssignments[t.id] === undefined
+                : taskAssignments[t.id] === category,
+            ),
+    [data, assignmentsReady, category, taskAssignments],
+  )
+  const failed = error !== null && data === undefined
+  const initialLoading = visible === undefined && !failed
+  const listKey = `${key}|${category}`
+  const rows = useListPresence(visible, (task) => task.id, {
+    resetKey: listKey,
+  })
+  const arriving = useArrival(initialLoading, listKey)
+  const total =
+    visible === undefined
+      ? 0
+      : category === 'all'
+        ? (data?.total ?? visible.length)
+        : visible.length
+
+  const filterPanel = usePresence(filterOpen)
   const count = activeFilterCount(filters) + (category === 'all' ? 0 : 1),
     filtered = !isDefaultFilters(filters) || category !== 'all'
   const reset = () => {
@@ -227,7 +322,7 @@ export default function TaskListPage() {
           />
           <CategoryFilter value={category} onChange={setCategory} />
           <button
-            className="task-search__filter"
+            className={'task-search__filter' + (filterOpen ? ' is-open' : '')}
             aria-expanded={filterOpen}
             onClick={() => setFilterOpen(!filterOpen)}
           >
@@ -254,29 +349,36 @@ export default function TaskListPage() {
             프로젝트 관리
           </button>
         </div>
-        {filterOpen && (
-          <TaskFilterPanel filters={filters} onChange={setFilters} />
+        {filterPanel.mounted && (
+          <TaskFilterPanel
+            filters={filters}
+            onChange={setFilters}
+            closing={filterPanel.closing}
+          />
         )}
-        {filtered && !loading && !error && (
+        {filtered && visible !== undefined && (
           <div className="task-search__summary">
-            <span>{total ?? tasks.length}건</span>
+            <TaskCount value={total} />
             <button className="task-filter__link" onClick={reset}>
               초기화
             </button>
           </div>
         )}
       </div>
-      <div className="task-page__content">
-        {loading ? (
-          <div className="task-page__placeholder" role="status">
+      <div className="task-page__content" aria-busy={isRefreshing || undefined}>
+        {initialLoading ? (
+          <div
+            className="task-page__placeholder task-page__placeholder--loading"
+            role="status"
+          >
             작업을 불러오는 중...
           </div>
-        ) : error ? (
+        ) : visible === undefined ? (
           <div className="workspace-inline-error" role="alert">
             <p>{error}</p>
-            <button onClick={() => void load(0)}>다시 시도</button>
+            <button onClick={refetch}>다시 시도</button>
           </div>
-        ) : tasks.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="task-page__placeholder">
             {filtered
               ? '조건에 맞는 작업이 없습니다.'
@@ -284,21 +386,41 @@ export default function TaskListPage() {
           </div>
         ) : (
           <>
+            {error && (
+              <div
+                className="workspace-inline-error task-page__notice"
+                role="alert"
+              >
+                <p>{error}</p>
+                <button onClick={refetch}>다시 시도</button>
+              </div>
+            )}
             <div className="task-page__list">
-              {tasks.map((task) => (
-                <WorkspaceTaskCard
-                  key={task.id}
-                  task={task}
-                  onOpen={() => open('/app/tasks/' + task.id)}
-                />
+              {rows.map(({ key: rowKey, item: task, phase }, index) => (
+                <div
+                  key={rowKey}
+                  className="task-page__row"
+                  data-arrive={(arriving && phase === 'present') || undefined}
+                  style={
+                    arriving
+                      ? ({
+                          '--arrive-index': arrivalIndex(index),
+                        } as CSSProperties)
+                      : undefined
+                  }
+                  {...presenceProps(phase)}
+                >
+                  <WorkspaceTaskCard
+                    task={task}
+                    onOpen={() => open('/app/tasks/' + task.id)}
+                  />
+                </div>
               ))}
             </div>
             {moreError && (
               <div role="alert" className="task-page__sentinel">
                 {moreError}
-                <button onClick={() => void load(page + 1, false)}>
-                  다시 시도
-                </button>
+                <button onClick={() => void loadMore()}>다시 시도</button>
               </div>
             )}
             {hasMore && !moreError && (
@@ -306,9 +428,7 @@ export default function TaskListPage() {
                 {loadingMore ? (
                   '추가 작업을 불러오는 중...'
                 ) : (
-                  <button onClick={() => void load(page + 1, false)}>
-                    더 보기
-                  </button>
+                  <button onClick={() => void loadMore()}>더 보기</button>
                 )}
               </div>
             )}
@@ -320,10 +440,14 @@ export default function TaskListPage() {
           </>
         )}
       </div>
-      {archiveOpen && (
-        <TaskArchiveModal onClose={() => setArchiveOpen(false)} />
-      )}
-      {managerOpen && <CategoryManager onClose={() => setManagerOpen(false)} />}
+      <TaskArchiveModal
+        open={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+      />
+      <CategoryManager
+        open={managerOpen}
+        onClose={() => setManagerOpen(false)}
+      />
     </section>
   )
 }
