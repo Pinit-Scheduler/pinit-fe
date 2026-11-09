@@ -49,6 +49,7 @@ export const exchangeSocialLogin = async (provider: AuthProvider, payload: Socia
   const response = await httpClient<LoginResponse>(url, {
     method: 'GET',
     credentials: 'include',
+    anonymous: true,
   })
 
   setAuthTokens({
@@ -65,6 +66,7 @@ export const login = async (payload: LoginPayload) => {
     method: 'POST',
     json: payload,
     credentials: 'include',
+    anonymous: true,
   })
 
   setAuthTokens({
@@ -81,6 +83,7 @@ export const signup = async (payload: SignupPayload) => {
     method: 'POST',
     json: payload,
     credentials: 'include',
+    anonymous: true,
   })
 }
 

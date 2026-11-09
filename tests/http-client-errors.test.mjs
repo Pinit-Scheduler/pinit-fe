@@ -114,3 +114,89 @@ test('sensitive responses stay out of debug logs and are not sent as fetch optio
   await httpClient('/oauth/authorize/decision', { method: 'POST', json: { approve: true } })
   assert.ok(logs.some((line) => line.includes('one-time-authorization-code')), 'non-sensitive responses are still logged')
 })
+
+// 공개 인증 요청(로그인·가입·코드 받기·비밀번호 재설정)은 남아 있는 토큰 상태에 묶이면 안 된다.
+const createAnonymousHarness = ({ accessToken = 'expired-jwt', responses }) => {
+  const state = { accessToken, refreshCalls: 0, cleared: 0, fetches: [], logs: [] }
+  const queue = [...responses]
+  const { httpClient } = loadModule('../src/shared/api/httpClient.ts', {
+    './config': {
+      API_BASE_URL: 'https://api.example.test/v2',
+      AUTH_BASE_URL: 'https://api.example.test/v0',
+      buildAuthUrl: (path) => `https://api.example.test/v0${path}`,
+      buildUrl: (base, path) => `${base}${path}`,
+    },
+    './authTokens': {
+      getAccessToken: () => state.accessToken,
+      getTokenSubject: () => 'member-1',
+      isAccessTokenExpired: () => true,
+      setAuthTokens: ({ accessToken: next }) => {
+        state.cleared += 1
+        state.accessToken = next
+      },
+    },
+    './httpClientHelpers': { debugLog: (...args) => state.logs.push(JSON.stringify(args)) },
+    './authSession': {
+      refreshAccessTokenFromCookie: async () => {
+        state.refreshCalls += 1
+        return null
+      },
+    },
+    './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
+  }, {
+    fetch: async (url, init) => {
+      state.fetches.push({ url, init })
+      return queue.shift()()
+    },
+  })
+  return { httpClient, state }
+}
+
+test('anonymous requests skip token refresh even when an expired token and dead cookie remain', async () => {
+  const { httpClient, state } = createAnonymousHarness({
+    responses: [() => new Response(null, { status: 202 })],
+  })
+  await httpClient('https://api.example.test/v0/email-codes', {
+    method: 'POST', json: { email: 'a@example.com', purpose: 'PASSWORD_RESET' }, anonymous: true,
+  })
+  assert.equal(state.refreshCalls, 0)
+  assert.equal(state.fetches.length, 1)
+  assert.equal('Authorization' in state.fetches[0].init.headers, false)
+  assert.equal('anonymous' in state.fetches[0].init, false)
+  assert.equal(state.accessToken, 'expired-jwt', 'an anonymous request leaves the stored token alone')
+})
+
+test('anonymous 401 responses surface the server message without refreshing or clearing tokens', async () => {
+  const payload = { message: '아이디 또는 비밀번호가 올바르지 않습니다.' }
+  const { httpClient, state } = createAnonymousHarness({
+    responses: [() => Response.json(payload, { status: 401 })],
+  })
+  await assert.rejects(httpClient('https://api.example.test/v0/login', {
+    method: 'POST', json: { username: 'u', password: 'p' }, anonymous: true,
+  }), { status: 401, message: payload.message })
+  assert.equal(state.refreshCalls, 0)
+  assert.equal(state.cleared, 0)
+})
+
+test('authenticated requests still refresh an expired token first', async () => {
+  const { httpClient, state } = createAnonymousHarness({ responses: [] })
+  await assert.rejects(httpClient('/schedules'), { status: 401 })
+  assert.equal(state.refreshCalls, 1)
+  assert.equal(state.fetches.length, 0)
+})
+
+for (const path of ['/password-reset', '/email-codes', '/me/email-codes', '/me/email']) {
+  test(`email auth request bodies stay out of debug logs: ${path}`, async () => {
+    const { httpClient, state } = createAnonymousHarness({
+      accessToken: null,
+      responses: [() => new Response(null, { status: 204 })],
+    })
+    await httpClient(`https://api.example.test/v0${path}`, {
+      method: 'POST', json: { email: 'secret@example.com', code: '987654', newPassword: 'secretpass1' },
+    })
+    assert.ok(state.logs.length > 0)
+    for (const secret of ['987654', 'secretpass1', 'secret@example.com']) {
+      assert.ok(state.logs.every((line) => !line.includes(secret)), `${secret} leaked for ${path}`)
+    }
+  })
+}

@@ -22,6 +22,7 @@ export const requestEmailCode = (email: string, purpose: EmailCodePurpose) =>
     method: 'POST',
     json: { email, purpose },
     credentials: 'include',
+    anonymous: true,
   })
 
 /** 성공하면 재설정 전에 발급된 로그인 세션은 모두 끊긴다. 새 세션은 주지 않으므로 다시 로그인한다. */
@@ -30,6 +31,7 @@ export const resetPassword = (payload: PasswordResetPayload) =>
     method: 'POST',
     json: payload,
     credentials: 'include',
+    anonymous: true,
   })
 
 export const requestMyEmailCode = (email: string) =>
