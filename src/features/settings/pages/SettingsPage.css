@@ -59,6 +59,20 @@
   cursor: pointer;
 }
 
+/* 하위 화면으로 가는 줄: 가리키면 화살표가 가는 쪽으로 조금 비켜 선다. */
+.settings__row--link .settings__chevron {
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+@media (hover: hover) {
+  .settings__row--link:hover .settings__chevron {
+    transform: translateX(2px);
+    color: var(--c-slate-600);
+  }
+}
+
 .settings__row--link:focus-visible {
   outline: 2px solid var(--c-blue-300);
   outline-offset: 2px;
@@ -109,7 +123,7 @@
   padding: 3px;
   display: flex;
   align-items: center;
-  transition: background-color 0.2s ease;
+  flex-shrink: 0;
 }
 
 .settings__toggle span {
@@ -118,7 +132,8 @@
   height: 16px;
   border-radius: 50%;
   background-color: var(--c-surface);
-  transition: transform 0.2s ease;
+  /* 손잡이는 감속하며 미끄러지고, 바탕색은 같은 곡선으로 따라 바뀐다. */
+  transition: transform var(--motion-base) var(--motion-ease);
 }
 
 .settings__toggle.is-active {
@@ -178,23 +193,19 @@
   color: #fff;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease);
 }
 
-.settings__action-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.12);
-}
-
-.settings__action-btn:active {
-  transform: translateY(0);
+/* 누르면 아주 살짝 눌린다. 가리킬 때 떠오르거나 그림자를 키우지 않는다. */
+.settings__action-btn:not(:disabled):active {
+  transform: scale(0.98);
 }
 
 .settings__action-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
 }
 
 .settings__card--danger {
@@ -210,16 +221,22 @@
   color: #fff;
   font-weight: 800;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease);
 }
 
-.settings__logout-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 18px rgba(239, 68, 68, 0.22);
+@media (hover: hover) {
+  .settings__logout-btn:not(:disabled):hover {
+    background-color: var(--c-red-600);
+    border-color: var(--c-red-600);
+  }
 }
 
-.settings__logout-btn:active {
-  transform: translateY(0);
+.settings__logout-btn:not(:disabled):active {
+  transform: scale(0.98);
 }
 
 .settings__badge--new {
@@ -250,6 +267,25 @@
 .settings__toggle:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* 불러오기를 마쳐 쓸 수 있게 되면 흐림이 걷히듯 풀린다. */
+.settings__select,
+.settings__time {
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+.settings__toggle {
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease);
+}
+
+/* 마감일 알림을 켜면 시각 입력이 옆에서 스며든다. */
+.settings__time {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .settings__description--error {

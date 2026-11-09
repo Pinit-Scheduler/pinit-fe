@@ -7,6 +7,9 @@
   background-color: var(--c-surface);
   color: var(--c-slate-900);
   font-size: 14px;
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
 }
 
 .profile-setting__select:focus-visible {
@@ -35,6 +38,8 @@
 .profile-setting__confirm {
   display: flex;
   gap: 6px;
+  /* 다른 시간대를 고르면 "바꾸기·취소"가 옆에서 스며든다. */
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .profile-setting__button {
@@ -46,6 +51,14 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.profile-setting__button:not(:disabled):active {
+  transform: scale(0.97);
 }
 
 .profile-setting__button--ghost {

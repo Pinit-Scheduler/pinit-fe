@@ -139,8 +139,9 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
   }
 
   const renderPasswordRow = () => {
-    if (isLoading) return <StatusPanel variant="loading" title="계정 정보를 불러오는 중..." />
-    if (error) {
+    if (isLoading && !account) return <StatusPanel variant="loading" title="계정 정보를 불러오는 중..." />
+    // 이미 보이는 계정 정보가 있으면 다시 읽기에 실패해도 그대로 둔다.
+    if (error && !account) {
       return (
         <StatusPanel
           variant="error"

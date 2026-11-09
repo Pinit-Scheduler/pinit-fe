@@ -1,5 +1,7 @@
 import { useRef } from 'react'
 import { useToast } from '@contexts/ToastContext'
+import useSavedFlash from '../hooks/useSavedFlash'
+import SavedMark from './SavedMark'
 import './CopyableCode.css'
 
 type CopyableCodeProps = {
@@ -11,11 +13,13 @@ type CopyableCodeProps = {
 const CopyableCode = ({ label, value, copyLabel = '복사' }: CopyableCodeProps) => {
   const { addToast } = useToast()
   const fieldRef = useRef<HTMLInputElement>(null)
+  const { flash, isFlashing } = useSavedFlash()
 
   const handleCopy = async () => {
     try {
       if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
       await navigator.clipboard.writeText(value)
+      flash('copied')
       addToast(`${label}을(를) 복사했어요.`, 'success')
     } catch {
       // 클립보드 권한이 없으면 직접 복사할 수 있도록 텍스트를 선택해 둔다.
@@ -36,6 +40,7 @@ const CopyableCode = ({ label, value, copyLabel = '복사' }: CopyableCodeProps)
         autoComplete="off"
         onFocus={(event) => event.currentTarget.select()}
       />
+      <SavedMark visible={isFlashing('copied')} />
       <button type="button" className="copyable-code__btn" onClick={handleCopy}>
         {copyLabel}
       </button>

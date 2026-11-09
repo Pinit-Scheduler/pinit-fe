@@ -1,4 +1,5 @@
 import { StatusPanel } from '@shared/components/common'
+import { presenceProps, useListPresence } from '@shared/motion'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import useMcpActivity from '../hooks/useMcpActivity'
 import { describeActivity, formatTargets, outcomeBadge } from '../utils/mcpActivity'
@@ -10,6 +11,10 @@ const DATE_FORMAT = 'MM.DD HH:mm'
 const McpActivityList = () => {
   const { items, isLoading, isLoadingMore, error, hasMore, changesOnly, setChangesOnly, loadMore, refetch } =
     useMcpActivity()
+  // "더 보기"로 붙은 기록만 아래에서 올라온다. 필터를 바꾸면 새 목록을 기준으로 삼는다.
+  const rows = useListPresence(isLoading && items.length === 0 ? undefined : items, (activity) => activity.id, {
+    resetKey: changesOnly,
+  })
 
   const renderItems = () => {
     if (isLoading && items.length === 0) {
@@ -39,11 +44,11 @@ const McpActivityList = () => {
     }
     return (
       <ul className="mcp-activity__list" aria-label="AI 사용 이력">
-        {items.map((activity) => {
+        {rows.map(({ key, item: activity, phase }) => {
           const targets = formatTargets(activity.targets)
           const badge = outcomeBadge(activity.outcome)
           return (
-            <li key={activity.id} className="mcp-activity__item">
+            <li key={key} className="mcp-activity__item" {...presenceProps(phase)}>
               <div className="mcp-activity__line">
                 <span className="mcp-activity__action">{describeActivity(activity)}</span>
                 {badge && <span className="settings__badge settings__badge--error mcp-activity__badge">{badge}</span>}

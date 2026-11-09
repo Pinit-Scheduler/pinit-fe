@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import { NUDGE_KEYS, readFlag } from '@shared/utils/safeStorage'
 import { clearAuthTokens, markLoggedOut } from '@shared/api/authTokens'
 import { logout as requestLogout } from '@features/auth/api/auth'
@@ -8,6 +9,7 @@ import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import AccountSection from '../components/AccountSection'
 import AiConnectionSection from '../components/AiConnectionSection'
+import SavedMark from '../components/SavedMark'
 import ThemeSection from '../components/ThemeSection'
 import useNotificationPreferences from '../hooks/useNotificationPreferences'
 import {
@@ -19,6 +21,7 @@ import {
 } from '../utils/notificationPreferences'
 import { DailyObjectiveSetting, TimeZoneSetting } from '../components/ProfileSettingRows'
 import useProfileSettings from '../hooks/useProfileSettings'
+import useSavedFlash from '../hooks/useSavedFlash'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
@@ -32,13 +35,14 @@ const SettingsPage = () => {
   const {
     preferences,
     isLoading: isPreferencesLoading,
-    isSaving: isPreferencesSaving,
     loadError: preferencesLoadError,
     update: updatePreferences,
   } = useNotificationPreferences(zoneId)
   const isPreferencesUnavailable = isPreferencesLoading || preferencesLoadError !== null
-  // 토글은 저장 중 한 번 더 눌리지 않게 막는다. select·시각 입력은 막으면 키보드 편집 중 포커스를 잃는다.
-  const isPreferencesDisabled = isPreferencesUnavailable || isPreferencesSaving
+  // 토글은 저장 중 한 번 더 눌리지 않게 ref로 잠근다. 막아서 흐리게 하면 저장할 때마다 토글이 깜빡인다.
+  // select·시각 입력은 막으면 키보드 편집 중 포커스를 잃는다.
+  const toggleLock = useRef(false)
+  const { flash, isFlashing } = useSavedFlash()
   // 시각은 입력하는 동안 화면에만 두고, 입력을 마치면(blur) 저장한다.
   const [deadlineTimeDraft, setDeadlineTimeDraft] = useState<string | null>(null)
   const profileSettings = useProfileSettings()
@@ -103,12 +107,24 @@ const SettingsPage = () => {
 
   const isPushEnabled = pushState.status === 'subscribed'
 
-  const savePreferences = async (patch: Partial<NotificationPreferences>) => {
+  /** 저장이 끝나면 그 줄에 체크를 잠깐 그린다. 실패하면 값이 되돌아가고 서버 문구를 토스트로 보인다. */
+  const savePreferences = async (patch: Partial<NotificationPreferences>, row: string) => {
     try {
       await updatePreferences(patch)
+      flash(row)
     } catch (error) {
       const message = error instanceof Error ? error.message : '알림 설정을 저장하지 못했어요.'
       addToast(message, 'error')
+    }
+  }
+
+  const togglePreference = async (patch: Partial<NotificationPreferences>, row: string) => {
+    if (toggleLock.current) return
+    toggleLock.current = true
+    try {
+      await savePreferences(patch, row)
+    } finally {
+      toggleLock.current = false
     }
   }
 
@@ -116,7 +132,7 @@ const SettingsPage = () => {
     const time = deadlineTimeDraft === null ? null : normalizeDeadlineTime(deadlineTimeDraft)
     setDeadlineTimeDraft(null)
     if (time && time !== preferences.taskDeadlineTime) {
-      savePreferences({ taskDeadlineTime: time })
+      savePreferences({ taskDeadlineTime: time }, 'taskDeadline')
     }
   }
 
@@ -146,6 +162,7 @@ const SettingsPage = () => {
         <h2>자동 계획</h2>
         <Link
           to="/app/settings/routines"
+          onClick={tabLinkClick('/app/settings/routines')}
           className="settings__row settings__row--link"
           data-onboarding-anchor="settings.routines"
         >
@@ -162,6 +179,7 @@ const SettingsPage = () => {
         </Link>
         <Link
           to="/app/settings/recurrences"
+          onClick={tabLinkClick('/app/settings/recurrences')}
           className="settings__row settings__row--link"
           data-onboarding-anchor="settings.recurrences"
         >
@@ -181,7 +199,11 @@ const SettingsPage = () => {
 
       <section className="settings__card" aria-label="휴지통">
         <h2>휴지통</h2>
-        <Link to="/app/settings/trash" className="settings__row settings__row--link">
+        <Link
+          to="/app/settings/trash"
+          onClick={tabLinkClick('/app/settings/trash')}
+          className="settings__row settings__row--link"
+        >
           <div>
             <p className="settings__label">휴지통</p>
             <p className="settings__description">지운 작업·일정은 30일 동안 남아요. 여기서 복구하거나 바로 영구 삭제해요.</p>
@@ -204,36 +226,46 @@ const SettingsPage = () => {
             <p className="settings__label">일정 시작 알림</p>
             <p className="settings__description">일정이 시작하는 시각에 알려 드려요.</p>
           </div>
-          <button
-            type="button"
-            className={['settings__toggle', preferences.scheduleStartEnabled && 'is-active'].filter(Boolean).join(' ')}
-            disabled={isPreferencesDisabled}
-            onClick={() => savePreferences({ scheduleStartEnabled: !preferences.scheduleStartEnabled })}
-            aria-pressed={preferences.scheduleStartEnabled}
-            aria-label="일정 시작 알림"
-          >
-            <span />
-          </button>
+          <div className="settings__actions">
+            <SavedMark visible={isFlashing('scheduleStart')} />
+            <button
+              type="button"
+              className={['settings__toggle', preferences.scheduleStartEnabled && 'is-active'].filter(Boolean).join(' ')}
+              disabled={isPreferencesUnavailable}
+              onClick={() =>
+                void togglePreference({ scheduleStartEnabled: !preferences.scheduleStartEnabled }, 'scheduleStart')
+              }
+              aria-pressed={preferences.scheduleStartEnabled}
+              aria-label="일정 시작 알림"
+            >
+              <span />
+            </button>
+          </div>
         </div>
         <div className="settings__row">
           <div>
             <p className="settings__label">일정 시작 전 알림</p>
             <p className="settings__description">시작 전에 한 번 더 알려 드려요.</p>
           </div>
-          <select
-            className="settings__select"
-            value={preferences.scheduleReminderMinutes === null ? 'off' : String(preferences.scheduleReminderMinutes)}
-            disabled={isPreferencesUnavailable}
-            onChange={(event) => savePreferences({ scheduleReminderMinutes: parseReminderOption(event.target.value) })}
-            aria-label="일정 시작 전 알림"
-          >
-            <option value="off">{reminderOptionLabel(null)}</option>
-            {REMINDER_MINUTE_OPTIONS.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {reminderOptionLabel(minutes)}
-              </option>
-            ))}
-          </select>
+          <div className="settings__actions">
+            <SavedMark visible={isFlashing('scheduleReminder')} />
+            <select
+              className="settings__select"
+              value={preferences.scheduleReminderMinutes === null ? 'off' : String(preferences.scheduleReminderMinutes)}
+              disabled={isPreferencesUnavailable}
+              onChange={(event) =>
+                savePreferences({ scheduleReminderMinutes: parseReminderOption(event.target.value) }, 'scheduleReminder')
+              }
+              aria-label="일정 시작 전 알림"
+            >
+              <option value="off">{reminderOptionLabel(null)}</option>
+              {REMINDER_MINUTE_OPTIONS.map((minutes) => (
+                <option key={minutes} value={minutes}>
+                  {reminderOptionLabel(minutes)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="settings__row">
           <div>
@@ -241,6 +273,7 @@ const SettingsPage = () => {
             <p className="settings__description">마감일 당일, 정한 시각에 아직 끝내지 않은 작업을 한 번에 알려 드려요.</p>
           </div>
           <div className="settings__actions">
+            <SavedMark visible={isFlashing('taskDeadline')} />
             {preferences.taskDeadlineEnabled && (
               <input
                 type="time"
@@ -255,8 +288,10 @@ const SettingsPage = () => {
             <button
               type="button"
               className={['settings__toggle', preferences.taskDeadlineEnabled && 'is-active'].filter(Boolean).join(' ')}
-              disabled={isPreferencesDisabled}
-              onClick={() => savePreferences({ taskDeadlineEnabled: !preferences.taskDeadlineEnabled })}
+              disabled={isPreferencesUnavailable}
+              onClick={() =>
+                void togglePreference({ taskDeadlineEnabled: !preferences.taskDeadlineEnabled }, 'taskDeadline')
+              }
               aria-pressed={preferences.taskDeadlineEnabled}
               aria-label="작업 마감일 알림"
             >
@@ -304,6 +339,7 @@ const SettingsPage = () => {
         <h2>도움말</h2>
         <Link
           to="/app/settings/onboarding"
+          onClick={tabLinkClick('/app/settings/onboarding')}
           className="settings__row settings__row--link"
           data-onboarding-anchor="settings.onboarding"
         >
