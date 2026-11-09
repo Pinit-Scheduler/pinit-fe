@@ -100,6 +100,7 @@ const harness = ({
   const mutation = (name) => async (id) => {
     requests.push([name, id])
     if (deferred) await deferred
+    if (failing === 'conflict') throw { conflict: true }
     if (failing) throw new Error('connection lost')
     return {
       id,
@@ -122,6 +123,7 @@ const harness = ({
       id,
       title: 'test',
       state: 'COMPLETED',
+      version: 5,
     }),
   }
   const cache = {
@@ -155,6 +157,10 @@ const harness = ({
   const hooks = load('../src/features/schedules/hooks/useScheduleActions.ts', {
     '../api/schedules.ts': api,
     '@features/spaces/metadata': { getMetadata: () => undefined },
+    '@features/spaces/conflicts': {
+      CONFLICT_RELOADED: 'reloaded',
+      isEditConflict: (error) => error?.conflict === true,
+    },
     '@features/auth/api/member': {
       fetchActiveScheduleId: async () => {
         if (verificationFails) throw new Error('verification failed')
@@ -218,6 +224,17 @@ for (const action of ['complete', 'cancel'])
     assert.equal(h.events.length, 1)
     assert.equal(h.states[2], null)
   })
+test('a version conflict reloads the schedule instead of resending the stale version', async () => {
+  const h = harness({ fail: 'conflict' })
+  await h.actions.complete()
+  assert.deepEqual(h.requests, [['complete', 9]], 'no automatic retry')
+  assert.equal(h.published.length, 1)
+  assert.equal(h.published[0].version, 5, 'the latest version replaces the stale one')
+  assert.deepEqual(h.active, [])
+  assert.equal(h.events.length, 1)
+  assert.equal(h.events[0].reason, 'conflict-reloaded')
+  assert.equal(h.states[2], null, 'no retry offer for a stale version')
+})
 test('a synchronous shared lock prevents competing mutations before a React render', async () => {
   let release
   const deferred = new Promise((resolve) => {

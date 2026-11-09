@@ -1,5 +1,7 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { CategoryBadge } from '@features/categories'
+import { cardPath } from '@features/spaces/cardPath'
+import SpacePath from '@features/spaces/SpacePath'
+import { isEditConflict } from '@features/spaces/conflicts'
 import { useEffect, useState, useId, useRef } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
@@ -35,6 +37,9 @@ import {
 } from '@features/recurrence/utils/seriesMutations'
 import { useTrashUndo } from '@features/trash'
 import { isResourceUnavailable } from '@features/spaces/metadata'
+import { useSpaces } from '@features/spaces/store'
+import UnavailableNote from '@features/spaces/UnavailableNote'
+import { adminNames, unavailableLines } from '@features/spaces/unavailable'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -53,6 +58,7 @@ const TaskDetailModal = ({
   const { addToast } = useToast()
   const { offerTaskUndo } = useTrashUndo()
   const { open } = useRouteSurfaceNavigation()
+  const { spaces, projects } = useSpaces()
   const [task, setTaskState] = useState<Task | null>(tasksById[taskId] ?? null)
   const [isLoading, setIsLoading] = useState(!tasksById[taskId])
   const [error, setError] = useState<string | null>(null)
@@ -185,7 +191,8 @@ const TaskDetailModal = ({
       setShowScheduleModal(false)
     } catch (err) {
       console.error('작업 일정 배정 실패', err)
-      addToast('일정으로 배정하지 못했습니다.', 'error')
+      // 충돌은 배정 창이 안내하고 최신 버전을 받는다.
+      if (!isEditConflict(err)) addToast('일정으로 배정하지 못했습니다.', 'error')
       throw err
     }
   }
@@ -249,7 +256,15 @@ const TaskDetailModal = ({
                   {task.description}
                 </p>
                 <div className="task-detail-modal__meta">
-                  <CategoryBadge kind="task" itemId={task.id} />
+                  <SpacePath
+                    path={cardPath(
+                      'all',
+                      { spaceId: null, projectId: null },
+                      task,
+                      spaces,
+                      projects,
+                    )}
+                  />
                   <span>{task.assigneeNickname ?? '담당자 미정'}</span>
                   <span className="task-detail-modal__badge task-detail-modal__badge--state">
                     {(task.completed ?? task.isCompleted) ? '완료' : '미완료'}
@@ -345,6 +360,36 @@ const TaskDetailModal = ({
                 >
                   <WorkspaceIcon name="trash" /> 삭제
                 </button>
+                {unavailableLines(
+                  [
+                    {
+                      off: task.allowedActions?.edit === false,
+                      reason: task.unavailableReasons?.edit,
+                    },
+                    {
+                      off: task.isCompleted
+                        ? task.allowedActions?.reopen === false
+                        : task.allowedActions?.complete === false,
+                      reason: task.isCompleted
+                        ? task.unavailableReasons?.reopen
+                        : task.unavailableReasons?.complete,
+                    },
+                    {
+                      off: task.allowedActions?.schedule === false,
+                      reason: task.unavailableReasons?.schedule,
+                    },
+                    {
+                      off: task.allowedActions?.delete === false,
+                      reason: task.unavailableReasons?.delete,
+                    },
+                  ],
+                  adminNames(
+                    spaces.find((space) => space.id === task.spaceId)
+                      ?.members ?? [],
+                  ),
+                ).map((line) => (
+                  <UnavailableNote key={line} text={line} />
+                ))}
               </footer>
             </div>
           </>
@@ -356,6 +401,12 @@ const TaskDetailModal = ({
         expectedVersion={task?.version}
         onClose={() => setShowScheduleModal(false)}
         onSubmit={handleAssignSchedule}
+        onConflict={async () => {
+          const latest = await fetchTaskDetail(taskId)
+          setTaskState(latest)
+          setTask(latest)
+          return latest.version
+        }}
         defaultTitle={task?.title}
         defaultDescription={task?.description}
         taskLabel={task ? `작업 #${task.id}` : undefined}

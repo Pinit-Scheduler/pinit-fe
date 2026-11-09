@@ -16,6 +16,13 @@ export type AllowedActions = {
   schedule?: boolean
   editDependencies?: boolean
 }
+export type UnavailableReason =
+  | 'ADMIN_ONLY'
+  | 'SPACE_DELETED'
+  | 'SCHEDULE_RUNNING'
+export type UnavailableReasons = Partial<
+  Record<keyof AllowedActions, UnavailableReason>
+>
 export type SpaceMember = {
   memberId: number
   nickname: string
@@ -30,6 +37,7 @@ export type Space = {
   deletedAt?: string | null
   deleted?: boolean
   allowedActions: AllowedActions
+  unavailableReasons?: UnavailableReasons
   members: SpaceMember[]
 }
 export type Project = {
@@ -50,6 +58,7 @@ export type Affiliation = {
   assigneeNickname?: string | null
   version: number
   allowedActions: AllowedActions
+  unavailableReasons?: UnavailableReasons
 }
 export type WorkspaceSnapshot = {
   memberId: number

@@ -1,4 +1,7 @@
-import type { AllowedActions } from '@features/spaces/types'
+import type {
+  AllowedActions,
+  UnavailableReasons,
+} from '@features/spaces/types'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useState, useId, useRef } from 'react'
 import {
@@ -15,6 +18,8 @@ import { DIFFICULTY_ESTIMATE_MINUTES } from '@shared/utils/taskEstimate'
 import './TaskForm.css'
 import TaskDependencyModal from './modals/TaskDependencyModal'
 import AffiliationFields from '@features/spaces/AffiliationFields'
+import { needsRecordDisclosure } from '@features/spaces/affiliationImpact'
+import { useSpaces } from '@features/spaces/store'
 import RecurrenceRuleFields from '@features/recurrence/components/RecurrenceRuleFields'
 import {
   defaultRuleDraft,
@@ -49,6 +54,7 @@ export type TaskFormValues = {
 
 type TaskFormProps = {
   allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
   initialValues?: Partial<TaskFormValues>
   /** rule은 "반복"을 켰을 때만 있다. 첫 회차 날짜는 마감 날짜다 */
   onSubmit: (values: TaskFormValues, rule?: RuleDraft | null) => Promise<void>
@@ -86,6 +92,7 @@ const buildDefaultValues = (
 const TaskForm = ({
   initialValues,
   allowedActions,
+  unavailableReasons,
   onSubmit,
   submitLabel = '저장',
   effectiveExpectedDurationLabel,
@@ -117,6 +124,10 @@ const TaskForm = ({
     Record<number, { title: string }>
   >({})
   const [isSubmitting, setSubmitting] = useState(false)
+  const { spaces } = useSpaces()
+  const [recordsConfirmedFor, setRecordsConfirmedFor] = useState<number | null>(
+    null,
+  )
   const submissionLock = useRef(false)
   const importancePercent = ((values.importance - 1) / 8) * 100
 
@@ -135,6 +146,17 @@ const TaskForm = ({
       next.expectedDurationMinutes = expectedDuration.message
     if (estimateMode === 'manual' && expectedDuration.kind === 'empty')
       next.expectedDurationMinutes = '직접 입력할 예상 시간을 입력하세요.'
+    const target = spaces.find((space) => space.id === values.spaceId)
+    if (
+      target &&
+      needsRecordDisclosure({
+        creating: taskId === undefined,
+        fromSpaceId: initialAffiliation.spaceId,
+        to: target,
+      }) &&
+      recordsConfirmedFor !== target.id
+    )
+      next.recordsConfirmed = '이동 전 기록의 공개 범위를 확인하세요.'
     setErrors(next)
     if (Object.keys(next).length && typeof requestAnimationFrame === 'function')
       requestAnimationFrame(() =>
@@ -184,6 +206,28 @@ const TaskForm = ({
 
   return (
     <form id={formId} className="task-form" onSubmit={handleSubmit}>
+      <AffiliationFields
+        allowedActions={allowedActions}
+        unavailableReasons={unavailableReasons}
+        value={values}
+        onChange={(affiliation) =>
+          setValues((previous) => ({ ...previous, ...affiliation }))
+        }
+        disabled={isSubmitting || allowedActions?.edit === false}
+        creating={taskId === undefined}
+        fromSpaceId={initialAffiliation.spaceId}
+        dependencyCount={
+          values.previousTaskIds.length + values.nextTaskIds.length
+        }
+        recordsConfirmed={recordsConfirmedFor === values.spaceId}
+        onRecordsConfirmedChange={(confirmed) => {
+          setRecordsConfirmedFor(confirmed ? (values.spaceId ?? null) : null)
+          if (confirmed)
+            setErrors((previous) => ({ ...previous, recordsConfirmed: '' }))
+        }}
+        recordsError={errors.recordsConfirmed}
+        recordsInputId={`${formId}-recordsConfirmed`}
+      />
       <label className="task-form__field">
         <span>제목</span>
         <input
@@ -363,16 +407,6 @@ const TaskForm = ({
           </p>
         )}
       </fieldset>
-
-      <AffiliationFields
-        allowedActions={allowedActions}
-        value={values}
-        onChange={(affiliation) =>
-          setValues((previous) => ({ ...previous, ...affiliation }))
-        }
-        disabled={isSubmitting || allowedActions?.edit === false}
-        creating={taskId === undefined}
-      />
 
       {allowRecurrence && (
         <div className="task-form__field">

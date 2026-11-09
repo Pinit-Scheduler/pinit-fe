@@ -1,6 +1,11 @@
-import type { AllowedActions } from '@features/spaces/types'
+import type {
+  AllowedActions,
+  UnavailableReasons,
+} from '@features/spaces/types'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import AffiliationFields from '@features/spaces/AffiliationFields'
+import { needsRecordDisclosure } from '@features/spaces/affiliationImpact'
+import { useSpaces } from '@features/spaces/store'
 import dayjs from 'dayjs'
 import { useState, useId, useRef } from 'react'
 import {
@@ -22,6 +27,7 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 
 type ScheduleFormProps = {
   allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
   initialValues?: Partial<ScheduleFormValues>
   /** rule은 "반복"을 켰을 때만 있다. 시작일은 시작 시간의 날짜다 */
   onSubmit: (
@@ -57,6 +63,7 @@ const parseDateTimeLocalValue = (value: string, offsetMinutes: number) =>
 const ScheduleForm = ({
   initialValues,
   allowedActions,
+  unavailableReasons,
   onSubmit,
   submitLabel = '일정 저장',
   plannedDurationHint,
@@ -72,6 +79,11 @@ const ScheduleForm = ({
   })
   const [initialCategoryId] = useState(initialValues?.categoryId ?? null)
   const { offsetMinutes } = useTimePreferences()
+  const { spaces } = useSpaces()
+  const [recordsConfirmedFor, setRecordsConfirmedFor] = useState<number | null>(
+    null,
+  )
+  const [recordsError, setRecordsError] = useState<string | undefined>()
   const [rule, setRule] = useState<RuleDraft | null>(null)
   const [ruleErrors, setRuleErrors] = useState<
     Partial<Record<RuleDraftField, string>>
@@ -79,7 +91,19 @@ const ScheduleForm = ({
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const valid = form.validate()
+    const target = spaces.find((space) => space.id === form.values.spaceId)
+    const recordsMissing =
+      Boolean(target) &&
+      needsRecordDisclosure({
+        creating: initialValues?.expectedVersion === undefined,
+        fromSpaceId: initialAffiliation.spaceId,
+        to: target!,
+      }) &&
+      recordsConfirmedFor !== target!.id
+    setRecordsError(
+      recordsMissing ? '이동 전 기록의 공개 범위를 확인하세요.' : undefined,
+    )
+    const valid = form.validate() && !recordsMissing
     const ruleWithStart = rule
       ? { ...rule, startDate: toDateKey(form.values.date) }
       : null
@@ -134,6 +158,31 @@ const ScheduleForm = ({
 
   return (
     <form id={formId} className="schedule-form" onSubmit={handleSubmit}>
+      <AffiliationFields
+        allowedActions={allowedActions}
+        unavailableReasons={unavailableReasons}
+        kind="schedule"
+        fromSpaceId={initialAffiliation.spaceId}
+        hasLinkedItem={form.values.taskId != null}
+        recordsConfirmed={recordsConfirmedFor === form.values.spaceId}
+        onRecordsConfirmedChange={(confirmed) => {
+          setRecordsConfirmedFor(
+            confirmed ? (form.values.spaceId ?? null) : null,
+          )
+          if (confirmed) setRecordsError(undefined)
+        }}
+        recordsError={recordsError}
+        recordsInputId={`${formId}-recordsConfirmed`}
+        value={{ ...form.values, categoryId: form.values.categoryId ?? null }}
+        creating={initialValues?.expectedVersion === undefined}
+        disabled={form.isSubmitting || allowedActions?.edit === false}
+        onChange={(affiliation) => {
+          form.onChange('spaceId', affiliation.spaceId)
+          form.onChange('categoryId', affiliation.categoryId)
+          form.onChange('assigneeId', affiliation.assigneeId)
+        }}
+      />
+
       <label className="schedule-form__field">
         <span>일정 제목</span>
         <input
@@ -170,19 +219,6 @@ const ScheduleForm = ({
           </small>
         )}
       </label>
-
-      <AffiliationFields
-        allowedActions={allowedActions}
-        kind="schedule"
-        value={{ ...form.values, categoryId: form.values.categoryId ?? null }}
-        creating={initialValues?.expectedVersion === undefined}
-        disabled={form.isSubmitting || allowedActions?.edit === false}
-        onChange={(affiliation) => {
-          form.onChange('spaceId', affiliation.spaceId)
-          form.onChange('categoryId', affiliation.categoryId)
-          form.onChange('assigneeId', affiliation.assigneeId)
-        }}
-      />
 
       <label className="schedule-form__field">
         <span>일정 타입</span>

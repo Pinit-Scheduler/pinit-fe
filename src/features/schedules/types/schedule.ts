@@ -1,4 +1,4 @@
-import type { AllowedActions } from '@features/spaces/types'
+import type { AllowedActions, UnavailableReasons } from '@features/spaces/types'
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import type { DifficultyValue } from '@constants/difficulty'
 import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
@@ -23,6 +23,7 @@ export type ScheduleResponse = {
   assigneeNickname?: string | null
   version?: number
   allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
   id: number
   ownerId: number
   title: string

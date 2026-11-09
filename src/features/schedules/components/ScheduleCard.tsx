@@ -6,7 +6,11 @@ import { scheduleTypeLabel, stateIcon, stateLabel } from '@constants/schedules'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import '@features/recurrence/components/RecurrenceRuleFields.css'
 import useScheduleActions from '../hooks/useScheduleActions'
-import { CategoryBadge } from '@features/categories'
+import { useLocation } from 'react-router-dom'
+import { cardPath } from '@features/spaces/cardPath'
+import SpacePath from '@features/spaces/SpacePath'
+import { routeScope } from '@features/spaces/scope'
+import { useSpaces } from '@features/spaces/store'
 
 type ScheduleCardProps = {
   schedule: ScheduleSummary
@@ -37,6 +41,8 @@ const ScheduleCard = ({
 }: ScheduleCardProps) => {
   const actions = useScheduleActions(schedule.id, schedule.state)
   const { id, title, description, scheduleType, state } = schedule
+  const { pathname } = useLocation()
+  const { selectedSpaceId, selectedProjectId, spaces, projects } = useSpaces()
   const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
 
   const handleClick = () => {
@@ -145,7 +151,15 @@ const ScheduleCard = ({
             {plannedDurationLabel && (
               <p className="schedule-card__subtitle">{plannedDurationLabel}</p>
             )}
-            <CategoryBadge kind="schedule" itemId={id} />
+            <SpacePath
+              path={cardPath(
+                routeScope(pathname),
+                { spaceId: selectedSpaceId, projectId: selectedProjectId },
+                schedule,
+                spaces,
+                projects,
+              )}
+            />
           </div>
           {description && (
             <p className="schedule-card__description">{description}</p>

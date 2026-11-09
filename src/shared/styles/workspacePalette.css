@@ -242,6 +242,18 @@ body:has(.workspace-theme) > .spotlight-tour .spotlight-tour__next {
   border-color: var(--workspace-blue);
   background: var(--workspace-blue);
 }
+.workspace-theme
+  :is(
+    .trash__button,
+    .task-detail-modal__action-btn,
+    .task-detail-modal__action-btn--primary
+  ):disabled:disabled {
+  background: #eef1f5;
+  border-color: #e3e7ee;
+  color: #9aa3b2;
+  opacity: 1;
+  cursor: not-allowed;
+}
 .workspace-theme .settings__action-btn {
   color: var(--workspace-surface);
 }

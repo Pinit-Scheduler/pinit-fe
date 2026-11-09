@@ -9,6 +9,8 @@ type UseScheduleDetailReturn = {
   isLoading: boolean
   error: string | null
   refetch: () => void
+  /** 이미 받아 온 최신 상세로 화면 상태만 바꾼다(로딩 상태를 거치지 않는다). */
+  replace: (response: ScheduleResponse) => void
 }
 
 const useScheduleDetail = (
@@ -98,6 +100,11 @@ const useScheduleDetail = (
     isLoading,
     error,
     refetch: () => setTimestamp((previous) => previous + 1),
+    replace: (response) => {
+      setError(null)
+      setSchedule(response)
+      cacheSchedule(response)
+    },
   }
 }
 

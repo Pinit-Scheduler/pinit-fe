@@ -1,8 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import {
+  affiliationImpact,
+  affiliationSummary,
+  needsRecordDisclosure,
+} from './affiliationImpact'
+import SpaceMark from './SpaceMark'
 import { useSpaces } from './store'
-import type { AllowedActions, SpaceMember } from './types'
+import UnavailableNote from './UnavailableNote'
+import { adminNames, unavailableLines } from './unavailable'
+import type {
+  AllowedActions,
+  SpaceMember,
+  UnavailableReasons,
+} from './types'
 import './spaces.css'
 export type AffiliationValues = {
   spaceId?: number
@@ -14,6 +26,7 @@ type Draft = {
   defaultAssignee: { memberId: number; nickname: string }
   members: SpaceMember[]
   allowedActions: AllowedActions
+  unavailableReasons?: UnavailableReasons
 }
 export default function AffiliationFields({
   value,
@@ -22,6 +35,14 @@ export default function AffiliationFields({
   creating,
   kind = 'task',
   allowedActions,
+  unavailableReasons,
+  fromSpaceId,
+  hasLinkedItem = false,
+  dependencyCount = 0,
+  recordsConfirmed = false,
+  onRecordsConfirmedChange,
+  recordsError,
+  recordsInputId,
 }: {
   value: AffiliationValues
   onChange: (value: AffiliationValues) => void
@@ -29,8 +50,19 @@ export default function AffiliationFields({
   creating: boolean
   kind?: 'task' | 'schedule'
   allowedActions?: AllowedActions
+  unavailableReasons?: UnavailableReasons
+  /** 폼을 열었을 때의 스페이스. 없으면 옮기는 중이 아니다 */
+  fromSpaceId?: number
+  hasLinkedItem?: boolean
+  dependencyCount?: number
+  recordsConfirmed?: boolean
+  onRecordsConfirmedChange?: (confirmed: boolean) => void
+  recordsError?: string
+  recordsInputId?: string
 }) {
   const workspace = useSpaces()
+  const [open, setOpen] = useState(false)
+  const bodyId = useId()
   const spaceId = value.spaceId ?? workspace.selectedSpaceId
   const request = useRef<AbortController | null>(null)
   const callback = useRef(onChange)
@@ -44,6 +76,12 @@ export default function AffiliationFields({
   const key = `${spaceId}:${kind}:${attempt}`
   const draft = result.key === key ? result.draft : null
   const error = result.key === key ? result.error : null
+  const [seenRecordsError, setSeenRecordsError] = useState(recordsError)
+  if (recordsError !== seenRecordsError) {
+    // 오류가 새로 생기면 한 번 펼친다. 이후 접는 것은 사용자의 선택이다.
+    setSeenRecordsError(recordsError)
+    if (recordsError) setOpen(true)
+  }
   useEffect(() => {
     callback.current = onChange
     valueRef.current = value
@@ -95,11 +133,69 @@ export default function AffiliationFields({
   const selectedMemberExists =
     value.assigneeId == null ||
     draft?.members.some((member) => member.memberId === value.assigneeId)
+  const moveOff = !creating && allowedActions?.move === false
+  const assignOff =
+    allowedActions?.assign === false || draft?.allowedActions.assign === false
+  const admins = adminNames(
+    workspace.spaces.find((space) => space.id === spaceId)?.members ?? [],
+  )
+  const noteLines = unavailableLines(
+    [
+      { off: moveOff, reason: unavailableReasons?.move },
+      {
+        off: assignOff,
+        reason: unavailableReasons?.assign ?? draft?.unavailableReasons?.assign,
+      },
+    ],
+    admins,
+  )
+  const destination = workspace.spaces.find(
+    (space) => space.id === spaceId && !space.deleted,
+  )
+  const project = projects.find((item) => item.id === value.categoryId) ?? null
+  const knownMembers = [
+    ...(draft?.members ?? []),
+    ...workspace.spaces.flatMap((space) => space.members),
+  ]
+  const assignee =
+    value.assigneeId === undefined
+      ? undefined
+      : value.assigneeId === null
+        ? null
+        : {
+            id: value.assigneeId,
+            nickname:
+              knownMembers.find((member) => member.memberId === value.assigneeId)
+                ?.nickname ?? '현재 담당자',
+          }
+  const summaryAssignee =
+    assignee === undefined || (assignee !== null && !draft) ? undefined : assignee
+  const impact = destination
+    ? affiliationImpact({
+        creating,
+        kind,
+        fromSpaceId,
+        to: {
+          id: destination.id,
+          name: destination.name,
+          personal: destination.personal,
+          memberCount: destination.members.length,
+        },
+        assignee: assignee ?? null,
+        destinationMemberIds:
+          draft?.members.map((member) => member.memberId) ?? null,
+        hasLinkedItem,
+        dependencyCount,
+      })
+    : []
+  const needsDisclosure = destination
+    ? needsRecordDisclosure({ creating, fromSpaceId, to: destination })
+    : false
+  const expanded = open
+  // 입력만 잠근다. 요약 버튼과 다시 시도는 눌려야 불가 사유·영향 안내를 볼 수 있다.
+  const locked = disabled || workspace.loading || unavailable
   return (
-    <fieldset
-      className="space-affiliation"
-      disabled={disabled || workspace.loading || unavailable}
-    >
+    <fieldset className="space-affiliation">
       <legend>소속·담당자</legend>
       {workspace.error && (
         <p className="space-error" role="alert">
@@ -118,11 +214,27 @@ export default function AffiliationFields({
           권한을 확인해 주세요.
         </p>
       )}
-      <div className="space-affiliation__fields">
+      <button
+        type="button"
+        className="space-affiliation__summary"
+        aria-expanded={expanded}
+        aria-controls={bodyId}
+        onClick={() => setOpen(!expanded)}
+      >
+        <SpaceMark space={destination ?? null} />
+        <span className="space-affiliation__summary-text">
+          {affiliationSummary(destination ?? null, project, summaryAssignee)}
+        </span>
+        <span className="space-affiliation__summary-action">
+          {expanded ? '접기' : '바꾸기'}
+        </span>
+      </button>
+      <div id={bodyId} className="space-affiliation__body" hidden={!expanded}>
+      <fieldset className="space-affiliation__fields" disabled={locked}>
         <label>
           스페이스
           <select
-            disabled={!creating && allowedActions?.move === false}
+            disabled={moveOff}
             value={spaceId ?? ''}
             onChange={(event) => {
               request.current?.abort()
@@ -149,7 +261,7 @@ export default function AffiliationFields({
         <label>
           프로젝트
           <select
-            disabled={!creating && allowedActions?.move === false}
+            disabled={moveOff}
             value={value.categoryId ?? ''}
             onChange={(event) =>
               onChange({
@@ -179,8 +291,7 @@ export default function AffiliationFields({
             disabled={
               !draft ||
               disabled ||
-              allowedActions?.assign === false ||
-              draft.allowedActions.assign === false
+              assignOff
             }
             value={
               value.assigneeId === undefined
@@ -220,6 +331,35 @@ export default function AffiliationFields({
             ))}
           </select>
         </label>
+      </fieldset>
+      {noteLines.map((line) => (
+        <UnavailableNote key={line} text={line} />
+      ))}
+      <ul className="space-affiliation__impact" aria-live="polite">
+        {impact.map((line) => (
+          <li key={line.kind}>{line.text}</li>
+        ))}
+      </ul>
+      {needsDisclosure && (
+        <label className="space-affiliation__confirm">
+          <input
+            id={recordsInputId}
+            type="checkbox"
+            disabled={locked}
+            checked={recordsConfirmed}
+            aria-invalid={Boolean(recordsError)}
+            onChange={(event) =>
+              onRecordsConfirmedChange?.(event.target.checked)
+            }
+          />
+          <span>이동 전 기록도 참여자에게 보여요. 확인했어요.</span>
+        </label>
+      )}
+      {recordsError && (
+        <p className="space-error" role="alert">
+          {recordsError}
+        </p>
+      )}
       </div>
       {!draft && !error && (
         <p className="space-help" role="status">
@@ -236,13 +376,6 @@ export default function AffiliationFields({
             다시 시도
           </button>
         </div>
-      )}
-      {!creating && value.spaceId !== undefined && (
-        <p className="space-help">
-          다른 스페이스로 옮기면 연결된 작업·일정이 함께 이동하고, 원래 스페이스에
-          남은 작업과의 선행 관계는 해제·기록됩니다. 같은 스페이스의 프로젝트만
-          바꾸면 선행 관계는 유지됩니다.
-        </p>
       )}
       {value.assigneeId === null && (
         <p className="space-help">

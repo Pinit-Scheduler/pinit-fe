@@ -13,10 +13,10 @@ import Modal from '@shared/components/common/Modal'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import useCurrentDay from '@shared/hooks/useCurrentDay'
 import {
-  CategoryBadge,
   CategoryFilter,
   useCategories,
 } from '@features/categories'
+import type { Category } from '@features/categories'
 import type { Task } from '@features/tasks/types/task'
 import {
   buildTaskGraph,
@@ -62,6 +62,10 @@ const useMobileMap = () => {
     return () => media.removeEventListener('change', update)
   }, [])
   return mobile
+}
+
+function CategoryName({ category }: { category?: Category | null }) {
+  return <span className="category-badge">{category?.name ?? '없음'}</span>
 }
 
 function TaskMetrics({ task }: { task: Task }) {
@@ -345,7 +349,7 @@ function SequenceMap({
               }}
             >
               <div className="tm-node-top">
-                <CategoryBadge category={categoryFor(node.id)} />
+                <CategoryName category={categoryFor(node.id)} />
                 <time dateTime={taskDateKey(node.task) ?? undefined}>
                   {taskDateKey(node.task)?.slice(5).replace('-', '/') ??
                     '기한 없음'}
@@ -690,7 +694,7 @@ export default function TaskMapPage() {
                         {items.map((task) => (
                           <article className="tm-matrix-task" key={task.id}>
                             <div>
-                              <CategoryBadge
+                              <CategoryName
                                 category={categories.taskCategory(task.id)}
                               />
                               <time dateTime={taskDateKey(task) ?? undefined}>

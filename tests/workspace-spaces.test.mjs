@@ -348,7 +348,7 @@ test('SSE cancels an old actor response without publishing it to a new login', a
   assert.deepEqual(events, [])
 })
 
-test('HTTP 409 emits a conflict notice and never retries or overwrites; sensitive invite secrets stay out of logs', async () => {
+test('HTTP 409 emits no global notice from httpClient and never retries or overwrites; sensitive invite secrets stay out of logs', async () => {
   const calls = [],
     logs = [],
     window = new EventTarget()
@@ -406,7 +406,7 @@ test('HTTP 409 emits a conflict notice and never retries or overwrites; sensitiv
       !failure.url.includes(secret),
   )
   assert.equal(calls.length, 1)
-  assert.equal(notices, 1)
+  assert.equal(notices, 0)
   assert.equal(JSON.stringify(logs).includes(secret), false)
 })
 test('successful data returned for a previous account cannot enter the new account cache', async () => {
@@ -1066,7 +1066,9 @@ test('Task schedule assignment still writes the captured identity/version when d
     react: { useEffect() {}, useState: (value) => [value, () => {}], useRef: (current) => ({ current }), useId: () => 'title' },
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
     '@shared/components/common/WorkspaceIcon': {},
-    '@features/categories': {},
+    '@features/spaces/cardPath': { cardPath: () => null },
+    '@features/spaces/SpacePath': { default: () => null },
+    '@features/spaces/conflicts': { isEditConflict: () => false },
     '@shared/components/common/Modal': {},
     '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({}) },
     '../api/tasks': { createScheduleFromTask: async (...args) => calls.push(args) },
@@ -1084,6 +1086,9 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/recurrence/utils/seriesMutations': {},
     '@features/trash': { useTrashUndo: () => ({}) },
     '@features/spaces/metadata': metadata(),
+    '@features/spaces/store': { useSpaces: () => ({ spaces: [], projects: [] }) },
+    '@features/spaces/UnavailableNote': { default: () => null },
+    '@features/spaces/unavailable': { adminNames: () => [], unavailableLines: () => [] },
   }).default
   const find = (node) => {
     if (!node || typeof node !== 'object') return null

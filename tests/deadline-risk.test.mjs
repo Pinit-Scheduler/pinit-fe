@@ -49,7 +49,7 @@ const Item = load('../src/features/deadline-risk/components/DeadlineRiskItem.tsx
 
 test('page announces personal-space-only tasks and schedules before forecast loading completes', () => {
   const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
-    react: { useState: React.useState },
+    react: { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect },
     'react/jsx-runtime': jsxRuntime,
     'react-router-dom': { useNavigate: () => () => {} },
     '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
@@ -141,19 +141,23 @@ test('missing personal space during snapshot loading or failure disables every p
 })
 
 test('workspace context labels personal forecast instead of the selected team purpose/project', () => {
-  const { SpaceContextBar } = load('../src/features/spaces/SpaceChrome.tsx', {
-    react: { useState: React.useState },
+  const { SpaceContextBar, SpaceSwitcher } = load('../src/features/spaces/SpaceChrome.tsx', {
+    react: { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect },
     'react/jsx-runtime': jsxRuntime,
     'react-router-dom': { Link, useNavigate: () => () => {}, useLocation: () => ({ pathname: '/app/deadline-risk' }) },
     '@shared/components/common/Modal': { default: () => null },
     '@shared/components/common/WorkspaceIcon': { default: () => null },
     './store': { useSpaces: () => ({ ...personalSpaces, selectedSpace: { name: '선택한 팀', purpose: '팀 목적' }, selectedProject: { name: '팀 프로젝트', outcome: '팀 성과' } }) },
+    'react-dom': { createPortal: (node) => node },
+    './SpaceMark': { default: () => null },
+    '@shared/hooks/useMediaQuery': { default: () => false },
     './scope': load('../src/features/spaces/scope.ts'),
     './spaces.css': {},
   })
   const html = renderToStaticMarkup(React.createElement(SpaceContextBar))
   assert.ok(html.includes('개인 스페이스 · 마감 위험 예보'))
-  assert.ok(html.includes('선택한 팀'), 'space switcher stays available without silently changing selection')
+  const switcher = renderToStaticMarkup(React.createElement(SpaceSwitcher, { variant: 'bar' }))
+  assert.ok(switcher.includes('선택한 팀'), 'space switcher stays available without silently changing selection')
   assert.ok(!html.includes('팀 목적'))
   assert.ok(!html.includes('팀 프로젝트'))
 })

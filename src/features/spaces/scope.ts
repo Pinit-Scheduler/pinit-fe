@@ -48,6 +48,18 @@ export function scopeCrumb(
   return project ? `${space.name} › ${project.name}` : space.name
 }
 
+export function switcherLabel(
+  scope: RouteScope,
+  space: { name: string } | null,
+  project: { name: string } | null,
+  loading: boolean,
+): string {
+  if (!space) return loading ? '스페이스 불러오는 중' : '스페이스 선택'
+  return scope === 'selected' && project
+    ? `${space.name} › ${project.name}`
+    : space.name
+}
+
 export type ScheduleAudience = 'mine' | 'team'
 
 export function scheduleMineParam(
@@ -74,4 +86,13 @@ export function audienceSchedules<T extends { assigneeId?: number | null }>(
   if (!shared || audience === 'team') return { visible: schedules, hidden: 0 }
   const visible = schedules.filter((item) => item.assigneeId === memberId)
   return { visible, hidden: schedules.length - visible.length }
+}
+
+export function sheetProjects<
+  T extends { spaceId: number; deleted?: boolean },
+>(projects: T[], spaceId: number | null): T[] {
+  if (spaceId === null) return []
+  return projects.filter(
+    (project) => project.spaceId === spaceId && !project.deleted,
+  )
 }

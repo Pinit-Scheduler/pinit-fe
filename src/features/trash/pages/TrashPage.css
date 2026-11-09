@@ -129,9 +129,14 @@
   cursor: pointer;
 }
 
-.trash__button:disabled {
-  opacity: 0.6;
-  cursor: default;
+.trash__button:disabled,
+.trash__button.is-primary:disabled,
+.trash__button.is-danger:disabled {
+  background: #eef1f5;
+  border-color: #e3e7ee;
+  color: #9aa3b2;
+  opacity: 1;
+  cursor: not-allowed;
 }
 
 .trash__button.is-primary {

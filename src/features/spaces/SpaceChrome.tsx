@@ -1,104 +1,207 @@
-import { useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
+import useMediaQuery from '@shared/hooks/useMediaQuery'
 import { useSpaces } from './store'
-import { projectSelectionTarget } from './scope'
+import SpaceMark from './SpaceMark'
+import {
+  projectSelectionTarget,
+  routeScope,
+  sheetProjects,
+  switcherLabel,
+} from './scope'
 import './spaces.css'
 
-export function SpaceSwitcher() {
+export function SpaceSwitcher({
+  variant = 'sidebar',
+}: {
+  variant?: 'sidebar' | 'bar'
+}) {
   const spaces = useSpaces()
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const narrow = useMediaQuery('(max-width: 899px)')
   const [open, setOpen] = useState(false)
+  const openerRef = useRef<HTMLButtonElement>(null)
+  const allWorkRef = useRef<HTMLButtonElement>(null)
+  const focusAllWork = useRef(false)
+  const wasOpen = useRef(false)
+  // The selected option is autoFocused before Modal records the opener, so
+  // return focus to the button ourselves on every close path.
+  useEffect(() => {
+    if (wasOpen.current && !open) openerRef.current?.focus()
+    wasOpen.current = open
+  }, [open])
+  // After choosing another space the sheet stays open; move focus into its
+  // freshly expanded project group.
+  useEffect(() => {
+    if (focusAllWork.current && allWorkRef.current) {
+      focusAllWork.current = false
+      allWorkRef.current.focus()
+    }
+  })
+  const choosePart = (id: number | null) => {
+    spaces.selectProject(id)
+    const target = projectSelectionTarget(pathname)
+    if (typeof target === 'string') navigate(target)
+    setOpen(false)
+  }
   const current = spaces.selectedSpace
+  const label = switcherLabel(
+    routeScope(pathname),
+    current,
+    spaces.selectedProject,
+    spaces.loading,
+  )
   return (
     <>
-      <button
-        type="button"
-        className="space-switcher"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
-      >
-        <span className="space-avatar" aria-hidden>
-          {current?.name.slice(0, 1) ?? '나'}
-        </span>
-        <span className="space-switcher__copy">
-          <strong>
-            {current?.name ??
-              (spaces.loading ? '스페이스 불러오는 중' : '스페이스 선택')}
-          </strong>
-          <small>
-            {current?.personal ? '본인 전용' : '함께 관리하는 목적 스페이스'}
-          </small>
-        </span>
-        <span aria-hidden>⌄</span>
-      </button>
-      {open && (
-        <Modal
-          labelledBy="space-switcher-title"
-          backdropClassName="space-dialog-backdrop"
-          className="space-dialog space-dialog--switcher"
-          onClose={() => setOpen(false)}
+      {variant === 'bar' ? (
+        <button
+          ref={openerRef}
+          type="button"
+          className="space-switcher space-switcher--bar"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label={`스페이스 전환. 지금 ${label}`}
+          onClick={() => setOpen(true)}
         >
-          <header className="space-dialog__header">
-            <h2 id="space-switcher-title">스페이스 전환</h2>
-            <button
-              type="button"
-              className="space-icon-button"
-              aria-label="스페이스 선택 닫기"
-              onClick={() => setOpen(false)}
-            >
-              <WorkspaceIcon name="close" />
-            </button>
-          </header>
-          <div className="space-dialog__body">
-            {spaces.error && (
-              <div role="alert" className="workspace-inline-error">
-                {spaces.error}
-                <button onClick={() => void spaces.reload().catch(() => {})}>
-                  다시 시도
-                </button>
-              </div>
-            )}
-            {spaces.spaces
-              .filter((space) => !space.deleted)
-              .map((space) => (
-                <button
-                  className="space-option"
-                  autoFocus={space.id === spaces.selectedSpaceId}
-                  type="button"
-                  key={space.id}
-                  aria-pressed={spaces.selectedSpaceId === space.id}
-                  onClick={() => {
-                    spaces.selectSpace(space.id)
-                    setOpen(false)
-                  }}
-                >
-                  <span className="space-avatar" aria-hidden>
-                    {space.name.slice(0, 1)}
-                  </span>
-                  <span>
-                    <strong>{space.name}</strong>
-                    <small>
-                      {space.personal
-                        ? '본인 전용'
-                        : space.purpose || '함께할 목적을 기록하세요'}
-                    </small>
-                  </span>
-                  {space.id === spaces.selectedSpaceId && (
-                    <WorkspaceIcon name="check" />
-                  )}
-                </button>
-              ))}
-          </div>
-          <footer className="space-dialog__footer">
-            <p>오늘에는 모든 스페이스의 내 작업이 모입니다.</p>
-            <Link to="/app/spaces" onClick={() => setOpen(false)}>
-              스페이스·프로젝트 관리
-            </Link>
-          </footer>
-        </Modal>
+          <SpaceMark space={current} />
+          <span className="space-switcher__label">{label}</span>
+          <span aria-hidden>⌄</span>
+        </button>
+      ) : (
+        <button
+          ref={openerRef}
+          type="button"
+          className="space-switcher"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+        >
+          <span className="space-avatar" aria-hidden>
+            {current?.name.slice(0, 1) ?? '나'}
+          </span>
+          <span className="space-switcher__copy">
+            <strong>
+              <SpaceMark space={current} />
+              {current?.name ?? label}
+            </strong>
+            <small>
+              {current?.personal ? '본인 전용' : '함께 관리하는 목적 스페이스'}
+            </small>
+          </span>
+          <span aria-hidden>⌄</span>
+        </button>
       )}
+      {open &&
+        createPortal(
+          <Modal
+            labelledBy="space-switcher-title"
+            backdropClassName="space-dialog-backdrop"
+            className="space-dialog space-dialog--switcher"
+            onClose={() => setOpen(false)}
+          >
+            <header className="space-dialog__header">
+              <h2 id="space-switcher-title">스페이스 전환</h2>
+              <button
+                type="button"
+                className="space-icon-button"
+                aria-label="스페이스 선택 닫기"
+                onClick={() => setOpen(false)}
+              >
+                <WorkspaceIcon name="close" />
+              </button>
+            </header>
+            <div className="space-dialog__body">
+              {spaces.error && (
+                <div role="alert" className="workspace-inline-error">
+                  {spaces.error}
+                  <button onClick={() => void spaces.reload().catch(() => {})}>
+                    다시 시도
+                  </button>
+                </div>
+              )}
+              {spaces.spaces
+                .filter((space) => !space.deleted)
+                .map((space) => {
+                  const selected = spaces.selectedSpaceId === space.id
+                  const projects = sheetProjects(spaces.projects, space.id)
+                  return (
+                    <Fragment key={space.id}>
+                      <button
+                        className="space-option"
+                        autoFocus={space.id === spaces.selectedSpaceId}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => {
+                          spaces.selectSpace(space.id)
+                          if (narrow && !selected && projects.length > 0) {
+                            focusAllWork.current = true
+                            return
+                          }
+                          setOpen(false)
+                        }}
+                      >
+                        <span className="space-avatar" aria-hidden>
+                          {space.name.slice(0, 1)}
+                        </span>
+                        <span>
+                          <strong>
+                            <SpaceMark space={space} />
+                            {space.name}
+                          </strong>
+                          <small>
+                            {space.personal
+                              ? '본인 전용'
+                              : space.purpose || '함께할 목적을 기록하세요'}
+                          </small>
+                        </span>
+                        {selected && <WorkspaceIcon name="check" />}
+                      </button>
+                      {narrow && selected && projects.length > 0 && (
+                        <div
+                          className="space-option-projects"
+                          role="group"
+                          aria-label={`${space.name} 의 프로젝트`}
+                        >
+                          <button
+                            ref={allWorkRef}
+                            type="button"
+                            aria-pressed={spaces.selectedProjectId === null}
+                            onClick={() => choosePart(null)}
+                          >
+                            스페이스의 모든 작업
+                          </button>
+                          {projects.map((project) => (
+                            <button
+                              type="button"
+                              key={project.id}
+                              aria-pressed={
+                                spaces.selectedProjectId === project.id
+                              }
+                              onClick={() => choosePart(project.id)}
+                            >
+                              <span>{project.name}</span>
+                              {project.completed && <small>완료</small>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </Fragment>
+                  )
+                })}
+            </div>
+            <footer className="space-dialog__footer">
+              <p>오늘에는 모든 스페이스의 내 작업이 모입니다.</p>
+              <Link to="/app/spaces" onClick={() => setOpen(false)}>
+                스페이스·프로젝트 관리
+              </Link>
+            </footer>
+          </Modal>,
+          document.querySelector('.workspace-theme') ?? document.body,
+        )}
     </>
   )
 }
@@ -149,9 +252,6 @@ export function SpaceContextBar() {
   const { selectedSpace, selectedProject } = useSpaces()
   return (
     <section className="space-context" aria-label="목적과 프로젝트">
-      <div className="space-mobile-switcher">
-        <SpaceSwitcher />
-      </div>
       {today && (
         <span className="space-context__project">
           모든 스페이스 · 나에게 배정된 작업
