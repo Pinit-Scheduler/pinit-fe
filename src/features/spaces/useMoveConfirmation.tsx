@@ -50,7 +50,7 @@ export function useMoveConfirmation() {
                 {spaces.find((space) => space.id === target)?.name ??
                   '선택한 스페이스'}
               </strong>
-              으로 연결된 작업과 일정을 함께 이동합니다. 공유 스페이스에서는 이동 전
+              (으)로 연결된 작업과 일정을 함께 이동합니다. 공유 스페이스에서는 이동 전
               과거 기록도 참여자에게 공개됩니다.
             </p>
             <p>
