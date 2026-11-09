@@ -160,6 +160,12 @@ for (const kind of ['task', 'schedule']) {
       '@shared/utils/taskEstimate': { DIFFICULTY_ESTIMATE_MINUTES: { 2: 30 } },
       './TaskForm.css': {},
       './modals/TaskDependencyModal': { default: () => null },
+      // Dependency chips animate through list presence; the form logic does not depend on it.
+      '@shared/motion': {
+        useListPresence: (items, getKey) =>
+          items.map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+        presenceProps: () => ({}),
+      },
       dayjs: { default: () => day },
       './ScheduleForm.css': {},
       '../hooks/useScheduleForm': {

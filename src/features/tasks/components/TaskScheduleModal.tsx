@@ -1,6 +1,7 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useState, useId, useRef } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { usePresence } from '@shared/motion'
 import dayjs from 'dayjs'
 import './TaskScheduleModal.css'
 import { toApiDateTimeWithZone } from '@shared/utils/datetime'
@@ -44,6 +45,8 @@ const TaskScheduleModal = ({
   const [title, setTitle] = useState(defaultTitle ?? '')
   const [description, setDescription] = useState(defaultDescription ?? '')
   const [submitting, setSubmitting] = useState(false)
+  // Stays mounted through its exit; the form keeps what was entered while it fades.
+  const presence = usePresence(isOpen)
 
   useEffect(() => {
     if (!isOpen) {
@@ -60,7 +63,7 @@ const TaskScheduleModal = ({
     setDescription(defaultDescription ?? '')
   }, [isOpen, defaultDescription, defaultTitle, expectedVersion])
 
-  if (!isOpen) return null
+  if (!presence.mounted) return null
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -107,6 +110,7 @@ const TaskScheduleModal = ({
       className="task-sched-modal__content"
       onClose={submitting ? undefined : onClose}
       labelledBy={titleId}
+      closing={presence.closing}
     >
       <header className="task-sched-modal__header">
         <div>
