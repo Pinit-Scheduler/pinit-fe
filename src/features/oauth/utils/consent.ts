@@ -1,12 +1,6 @@
 export const READ_SCOPE = 'mcp:read'
 export const WRITE_SCOPE = 'mcp:write'
 export const DELETE_SCOPE = 'mcp:delete'
-export const SPACES_SCOPE = 'mcp:spaces'
-export type KnownConsentScope =
-  | typeof READ_SCOPE
-  | typeof WRITE_SCOPE
-  | typeof DELETE_SCOPE
-  | typeof SPACES_SCOPE
 
 export type ConsentScopeOption = {
   scope: string
@@ -24,36 +18,26 @@ type KnownScope = Omit<ConsentScopeOption, 'scope' | 'unknown'>
 
 const KNOWN_SCOPES: Record<string, KnownScope> = {
   [READ_SCOPE]: {
-    label: '일정·작업 보기',
+    label: '개인·공유 공간의 일정·작업·프로젝트·참여자 보기',
     required: true,
     defaultChecked: true,
   },
   [WRITE_SCOPE]: {
-    label: '일정·작업 만들기·수정·상태 변경 (삭제는 불가)',
+    label: '개인·공유 공간의 내용 만들기·수정·상태 변경 (삭제는 불가)',
     required: false,
     defaultChecked: true,
   },
   // 요청돼도 기본은 해제. 사용자가 직접 체크해야만 허용한다.
   [DELETE_SCOPE]: {
-    label: '일정·작업 삭제 (AI가 삭제할 때마다 미리보기 후 확인)',
+    label: '공간·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
     required: false,
     defaultChecked: false,
     warning:
-      '허용하면 AI 앱이 일정이나 작업 삭제를 요청할 수 있어요. 삭제마다 미리보기를 확인한 뒤에만 지워집니다. 영구 삭제와 반복 범위 삭제는 되돌릴 수 없어요.',
-  },
-  [SPACES_SCOPE]: {
-    label: '공간·프로젝트 및 공유 업무 도구 사용',
-    required: false,
-    defaultChecked: false,
-    warning:
-      '참여한 공간의 내용과 과거 기록 조회, 공간·프로젝트·공유 소속 관리, 초대와 참여자 관리를 포함해요. 수정에는 수정 권한, 삭제·초대 철회·참여자 제외·탈퇴에는 삭제 권한도 함께 필요해요. 실제 공간 관리자 권한은 Pinit에서 확인합니다.',
+      '삭제·초대 철회·참여자 제외·공간 나가기는 미리보기를 확인한 뒤에만 실행돼요. 영구 삭제와 반복 범위 삭제는 되돌릴 수 없어요.',
   },
 }
 
-const KNOWN_SCOPE_ORDER = [READ_SCOPE, WRITE_SCOPE, DELETE_SCOPE, SPACES_SCOPE]
-
-export const describeScope = (scope: string) =>
-  KNOWN_SCOPES[scope]?.label ?? scope
+const KNOWN_SCOPE_ORDER = [READ_SCOPE, WRITE_SCOPE, DELETE_SCOPE]
 
 const normalizeScopes = (scopes: readonly string[] | null | undefined) =>
   new Set(

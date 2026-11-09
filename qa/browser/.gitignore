@@ -1,5 +1,1 @@
 node_modules/
-.runtime/
-test-results/
-playwright-report/
-.env*

@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test --config=playwright.config.mjs",
-    "preflight": "node preflight.mjs"
+    "test": "node canonical-postdeploy.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.65.0"
