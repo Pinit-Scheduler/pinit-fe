@@ -7,32 +7,70 @@ import ts from 'typescript'
 const loadModule = (relativePath) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
   })
   const module = { exports: {} }
-  vm.runInNewContext(outputText, { module, exports: module.exports, require: () => assert.fail('no imports') })
+  vm.runInNewContext(outputText, {
+    module,
+    exports: module.exports,
+    require: () => assert.fail('no imports'),
+  })
   return module.exports
 }
 
 const activity = loadModule('../src/features/settings/utils/mcpActivity.ts')
 
 test('known tools read as Korean actions and unknown tools keep their name', () => {
-  assert.equal(activity.describeActivity({ tool: 'update_task', outcome: 'OK', argumentNames: ['taskId'] }), '작업 수정')
-  assert.equal(activity.describeActivity({ tool: 'replace_routines', outcome: 'OK' }), '생활 시간 저장')
-  assert.equal(activity.describeActivity({ tool: 'get_statistics', outcome: 'OK' }), '통계 조회')
-  assert.equal(activity.describeActivity({ tool: 'future_tool', outcome: 'OK' }), 'future_tool')
+  assert.equal(
+    activity.describeActivity({
+      tool: 'update_task',
+      outcome: 'OK',
+      argumentNames: ['taskId'],
+    }),
+    '작업 수정',
+  )
+  assert.equal(
+    activity.describeActivity({ tool: 'replace_routines', outcome: 'OK' }),
+    '생활 시간 저장',
+  )
+  assert.equal(
+    activity.describeActivity({ tool: 'get_statistics', outcome: 'OK' }),
+    '통계 조회',
+  )
+  assert.equal(
+    activity.describeActivity({ tool: 'future_tool', outcome: 'OK' }),
+    'future_tool',
+  )
 })
 
 test('a delete without a confirmation token is only a preview', () => {
   assert.equal(
-    activity.describeActivity({ tool: 'delete_task', outcome: 'OK', argumentNames: ['taskId'] }),
+    activity.describeActivity({
+      tool: 'delete_task',
+      outcome: 'OK',
+      argumentNames: ['taskId'],
+    }),
     '작업 삭제 미리보기',
   )
   assert.equal(
-    activity.describeActivity({ tool: 'delete_task', outcome: 'OK', argumentNames: ['confirmationToken', 'taskId'] }),
+    activity.describeActivity({
+      tool: 'delete_task',
+      outcome: 'OK',
+      argumentNames: ['confirmationToken', 'taskId'],
+    }),
     '작업 삭제',
   )
-  assert.equal(activity.describeActivity({ tool: 'delete_recurrence', outcome: 'OK', argumentNames: null }), '반복 삭제 미리보기')
+  assert.equal(
+    activity.describeActivity({
+      tool: 'delete_recurrence',
+      outcome: 'OK',
+      argumentNames: null,
+    }),
+    '반복 삭제 미리보기',
+  )
 })
 
 test('targets show by kind and id, at most three', () => {
@@ -61,20 +99,116 @@ test('only unsuccessful calls get a badge', () => {
 
 test('every MCP tool after ADR-0026 has a label', () => {
   const tools = [
-    'list_schedules_by_date', 'list_schedules_by_week', 'get_schedule', 'create_schedule', 'update_schedule',
-    'start_schedule', 'complete_schedule', 'suspend_schedule', 'cancel_schedule', 'list_tasks',
-    'list_tasks_by_deadline', 'get_task', 'create_task', 'update_task', 'complete_task', 'reopen_task',
-    'schedule_task', 'plan_day', 'apply_plan', 'weekly_review', 'get_time_calibration', 'get_statistics',
-    'get_recurrence_statistics', 'link_tasks', 'unlink_tasks',
-    'get_routines', 'replace_routines', 'create_recurrence', 'list_recurrences', 'update_recurrence',
-    'delete_schedule', 'delete_task', 'delete_recurrence',
+    'list_schedules_by_date',
+    'list_schedules_by_week',
+    'get_schedule',
+    'create_schedule',
+    'update_schedule',
+    'start_schedule',
+    'complete_schedule',
+    'suspend_schedule',
+    'cancel_schedule',
+    'list_tasks',
+    'list_tasks_by_deadline',
+    'get_task',
+    'create_task',
+    'update_task',
+    'complete_task',
+    'reopen_task',
+    'schedule_task',
+    'plan_day',
+    'apply_plan',
+    'weekly_review',
+    'get_time_calibration',
+    'get_statistics',
+    'get_recurrence_statistics',
+    'link_tasks',
+    'unlink_tasks',
+    'get_routines',
+    'replace_routines',
+    'create_recurrence',
+    'list_recurrences',
+    'update_recurrence',
+    'delete_schedule',
+    'delete_task',
+    'delete_recurrence',
   ]
   assert.equal(tools.length, 33)
   for (const tool of tools) {
     assert.notEqual(
-      activity.describeActivity({ tool, outcome: 'OK', argumentNames: ['confirmationToken'] }),
+      activity.describeActivity({
+        tool,
+        outcome: 'OK',
+        argumentNames: ['confirmationToken'],
+      }),
       tool,
       tool,
     )
   }
+})
+
+test('workspace MCP tools have readable labels and destructive invitation/member actions distinguish preview', () => {
+  const tools = [
+    'list_spaces',
+    'list_workspace_trash',
+    'get_space',
+    'create_space',
+    'update_space',
+    'restore_space',
+    'delete_space',
+    'set_space_member_role',
+    'remove_space_member',
+    'leave_space',
+    'create_space_invitation',
+    'preview_space_invitation',
+    'accept_space_invitation',
+    'revoke_space_invitation',
+    'list_projects',
+    'create_project',
+    'update_project',
+    'delete_project',
+    'restore_project',
+    'workspace_task_draft',
+    'list_workspace_tasks',
+    'get_workspace_task',
+    'create_workspace_task',
+    'update_workspace_task',
+    'change_workspace_task_state',
+    'update_workspace_dependencies',
+    'delete_workspace_task',
+    'restore_workspace_task',
+    'schedule_workspace_task',
+    'list_workspace_schedules',
+    'get_workspace_schedule',
+    'create_workspace_schedule',
+    'update_workspace_schedule',
+    'change_workspace_schedule_state',
+    'delete_workspace_schedule',
+    'restore_workspace_schedule',
+    'create_workspace_recurrence',
+    'list_workspace_recurrences',
+    'get_workspace_recurrence',
+    'update_workspace_recurrence',
+    'delete_workspace_recurrence',
+  ]
+  assert.equal(tools.length, 41)
+  for (const tool of tools)
+    assert.notEqual(
+      activity.describeActivity({
+        tool,
+        outcome: 'OK',
+        argumentNames: ['confirmationToken'],
+      }),
+      tool,
+    )
+  for (const tool of [
+    'delete_space',
+    'remove_space_member',
+    'leave_space',
+    'revoke_space_invitation',
+  ])
+    assert.match(
+      activity.describeActivity({ tool, outcome: 'OK', argumentNames: [] }),
+      /미리보기$/,
+    )
 })

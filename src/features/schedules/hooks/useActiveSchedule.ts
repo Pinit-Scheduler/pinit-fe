@@ -55,11 +55,13 @@ const useActiveSchedule = (): ScheduleSummary | null => {
 
     loadActive()
     window.addEventListener('focus', loadActive)
+    window.addEventListener('schedule:changed', loadActive)
     document.addEventListener('visibilitychange', loadActive)
 
     return () => {
       isMounted = false
       window.removeEventListener('focus', loadActive)
+      window.removeEventListener('schedule:changed', loadActive)
       document.removeEventListener('visibilitychange', loadActive)
     }
   }, [setActiveSchedule, setSchedule, pendingScheduleId])

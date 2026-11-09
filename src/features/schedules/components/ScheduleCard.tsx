@@ -133,7 +133,7 @@ const ScheduleCard = ({
           )}
         </div>
         <div className="schedule-card__actions">
-          {state === 'NOT_STARTED' && (
+          {actions.canComplete && state === 'NOT_STARTED' && (
             <button
               type="button"
               className="schedule-card__quick-complete"
@@ -144,7 +144,7 @@ const ScheduleCard = ({
               <WorkspaceIcon name="check" /> 즉시 완료
             </button>
           )}
-          {onDelete && (
+          {onDelete && schedule.allowedActions?.delete && (
             <button
               className="schedule-card__delete-btn"
               onClick={handleDeleteClick}

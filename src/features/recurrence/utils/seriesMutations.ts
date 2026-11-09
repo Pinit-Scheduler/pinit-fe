@@ -3,7 +3,13 @@ import type {
   RecurrenceChanges,
   RecurrenceRef,
   RecurrenceScope,
+  RecurrenceUpdateRequest,
 } from '../types/recurrence'
+type AffiliationUpdate = Pick<
+  RecurrenceUpdateRequest,
+  'spaceId' | 'projectId' | 'assigneeId'
+>
+
 import { deleteImpactMessage, editImpactMessage } from './recurrenceRules'
 
 /**
@@ -15,7 +21,13 @@ export const previewSeriesDelete = async (
   scope: RecurrenceScope,
 ): Promise<string> => {
   const fromDate = scope === 'FOLLOWING' ? ref.occurrenceDate : undefined
-  const preview = await deleteRecurrence(ref.seriesId, scope, fromDate, true)
+  const preview = await deleteRecurrence(
+    ref.seriesId,
+    scope,
+    fromDate,
+    true,
+    ref.version,
+  )
   return deleteImpactMessage(preview.impact)
 }
 
@@ -23,9 +35,13 @@ export const previewSeriesUpdate = async (
   ref: RecurrenceRef,
   scope: RecurrenceScope,
   changes: RecurrenceChanges,
+  affiliation?: AffiliationUpdate,
 ): Promise<string> => {
-  if (Object.keys(changes).length === 0) return '바뀐 내용이 없어요.'
+  if (Object.keys(changes).length === 0 && !affiliation)
+    return '바뀐 내용이 없어요.'
   const payload = {
+    ...affiliation,
+    expectedVersion: ref.version,
     scope,
     ...(scope === 'FOLLOWING' ? { fromDate: ref.occurrenceDate } : {}),
     changes,
@@ -48,7 +64,7 @@ export const confirmAndDeleteSeries = async (
     !window.confirm(`${await previewSeriesDelete(ref, scope)}\n계속할까요?`)
   )
     return false
-  await deleteRecurrence(ref.seriesId, scope, fromDate, false)
+  await deleteRecurrence(ref.seriesId, scope, fromDate, false, ref.version)
   return true
 }
 
@@ -61,9 +77,12 @@ export const confirmAndUpdateSeries = async (
   scope: RecurrenceScope,
   changes: RecurrenceChanges,
   confirmed = false,
+  affiliation?: AffiliationUpdate,
 ): Promise<'updated' | 'unchanged' | 'cancelled'> => {
-  if (Object.keys(changes).length === 0) return 'unchanged'
+  if (Object.keys(changes).length === 0 && !affiliation) return 'unchanged'
   const payload = {
+    ...affiliation,
+    expectedVersion: ref.version,
     scope,
     ...(scope === 'FOLLOWING' ? { fromDate: ref.occurrenceDate } : {}),
     changes,
@@ -71,7 +90,7 @@ export const confirmAndUpdateSeries = async (
   if (
     !confirmed &&
     !window.confirm(
-      `${await previewSeriesUpdate(ref, scope, changes)}\n계속할까요?`,
+      `${await previewSeriesUpdate(ref, scope, changes, affiliation)}\n계속할까요?`,
     )
   )
     return 'cancelled'

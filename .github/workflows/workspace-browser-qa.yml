@@ -1,0 +1,65 @@
+name: Workspace browser QA
+
+on:
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+# Keep successive runs serial so normal fixture cleanup can finish.
+concurrency:
+  group: workspace-browser-qa-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  candidate-ui-real-api:
+    # Never authorize fixtures for forks, master, another repository/branch,
+    # push events, or a workflow_dispatch event. Checkout is the exact PR head.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.repository == 'Pinit-Scheduler/pinit-fe' &&
+      github.event.pull_request.head.repo.full_name == 'Pinit-Scheduler/pinit-fe' &&
+      github.event.pull_request.head.ref == 'codex/purpose-spaces-frontend'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      QA_ROOT_RELEASE_APPROVED: '8ad49de9ed328af1b5038581f2c4f6f40479a323'
+      QA_SOURCE_HEAD: ${{ github.event.pull_request.head.sha }}
+      VITE_API_BASE_URL: https://mono.pinit.go-gradually.me
+      VITE_AUTH_BASE_URL: https://mono.pinit.go-gradually.me
+      VITE_NOTIFICATION_API_BASE_URL: https://mono.pinit.go-gradually.me
+      VITE_USE_MOCK_API: 'false'
+    steps:
+      - name: Check out the exact authorized PR head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # same immutable pin as frontend validation
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # same immutable pin as frontend validation
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Install locked application dependencies
+        run: npm ci
+      - name: Build candidate static bytes for the real API
+        run: npm run build
+      - name: Install independently locked browser QA dependencies
+        run: npm ci --prefix qa/browser
+      - name: Verify credential-safe evidence and reporter boundaries
+        run: node --test --test-concurrency=1 qa/browser/safety.unit.mjs
+      - name: Install Chromium with the official Playwright CLI
+        working-directory: qa/browser
+        run: npx --no-install playwright install --with-deps chromium
+      - name: Validate candidate UI through the real API and database
+        # The scenario first checks readiness, all four metadata scopes, and the
+        # OpenAPI workspace schema before creating exactly two normal accounts.
+        # Its safe reporter omits raw errors, URLs, bodies, traces, and credentials.
+        run: npm test --prefix qa/browser
+      - name: Export bounded final-space image chunks after success
+        if: ${{ success() }}
+        env:
+          QA_EXPORT_SCREENSHOTS: '1'
+        # Candidate dist evidence only; canonical CDN/SW delivery is separate.
+        run: node qa/browser/screenshots.mjs --export

@@ -1,3 +1,4 @@
+import type { AllowedActions } from '@features/spaces/types'
 import type { DateWithOffset, DateTimeWithZone } from '@shared/types/datetime'
 import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
 
@@ -13,6 +14,15 @@ export type TaskDependency = {
 }
 
 export type TaskRequest = {
+  moveResult?: {
+    movedTaskIds: number[]
+    movedScheduleIds: number[]
+    removedDependencyCount: number
+  }
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
+  expectedVersion?: number
   title: string
   description: string
   dueDate: DateWithOffset
@@ -30,6 +40,17 @@ export type TaskRequest = {
 }
 
 export type Task = {
+  moveResult?: {
+    movedTaskIds: number[]
+    movedScheduleIds: number[]
+    removedDependencyCount: number
+  }
+  spaceId?: number
+  projectId?: number | null
+  assigneeId?: number | null
+  assigneeNickname?: string | null
+  version?: number
+  allowedActions?: AllowedActions
   id: number
   title: string
   description: string

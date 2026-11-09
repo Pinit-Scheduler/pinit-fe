@@ -210,7 +210,7 @@ const SchedulesTabPage = () => {
       }
     }
     try {
-      await deleteSchedule(scheduleId)
+      await deleteSchedule(scheduleId, target?.version)
       if (activeScheduleId === scheduleId) {
         setActiveSchedule(null)
       }
@@ -230,13 +230,15 @@ const SchedulesTabPage = () => {
     schedule: ScheduleSummary,
     offset: 1 | -1,
   ) => {
-    if (movingScheduleId === schedule.id) return
+    if (movingScheduleId === schedule.id || !schedule.allowedActions?.edit)
+      return
     const previousDateKey = toDateKey(schedule.date)
     setMovingScheduleId(schedule.id)
     try {
       const nextDate = addDays(schedule.date, offset)
       const updated = await updateSchedule(schedule.id, {
         date: toApiDateTimeWithZone(nextDate),
+        expectedVersion: schedule.version,
       })
       setSchedule(updated)
       dispatchScheduleChanged({
@@ -263,13 +265,15 @@ const SchedulesTabPage = () => {
     schedule: ScheduleSummary,
     minutes: number,
   ) => {
-    if (movingScheduleId === schedule.id) return
+    if (movingScheduleId === schedule.id || !schedule.allowedActions?.edit)
+      return
     const previousDateKey = toDateKey(schedule.date)
     setMovingScheduleId(schedule.id)
     try {
       const nextDate = toDisplayDayjs(schedule.date).add(minutes, 'minute')
       const updated = await updateSchedule(schedule.id, {
         date: toApiDateTimeWithZone(nextDate),
+        expectedVersion: schedule.version,
       })
       setSchedule(updated)
       dispatchScheduleChanged({
@@ -387,8 +391,8 @@ const SchedulesTabPage = () => {
         getTodayWithOffset().format('YYYY-MM-DD'),
       ) && (
         <p className="schedules-tab__notice" role="note">
-          <WorkspaceIcon name="repeat" /> 반복 회차는 오늘부터 90일 앞까지만 보여요. 그 뒤의 회차는 날짜가
-          가까워지면 생겨요.
+          <WorkspaceIcon name="repeat" /> 반복 회차는 오늘부터 90일 앞까지만
+          보여요. 그 뒤의 회차는 날짜가 가까워지면 생겨요.
         </p>
       )}
       <header className="schedules-tab__header">
@@ -421,7 +425,8 @@ const SchedulesTabPage = () => {
         </div>
       </header>
       <p className="schedules-tab__drag-hint">
-        카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로 끌어 시간을 바꿔요.
+        카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로
+        끌어 시간을 바꿔요.
       </p>
       <div
         ref={listRef}

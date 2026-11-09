@@ -1,6 +1,6 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { CategoryBadge } from '@features/categories'
-import { useEffect, useState, useId } from 'react'
+import { useEffect, useState, useId, useRef } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import {
@@ -21,6 +21,7 @@ import { useToast } from '@contexts/ToastContext'
 import {
   dispatchScheduleChanged,
   dispatchTaskChanged,
+  onTaskChanged,
 } from '@shared/utils/events'
 import { getDeadlineStyle } from '@shared/utils/deadlineStyles'
 import { formatDateWithOffset } from '@shared/utils/datetime'
@@ -33,6 +34,7 @@ import {
   previewSeriesDelete,
 } from '@features/recurrence/utils/seriesMutations'
 import { useTrashUndo } from '@features/trash'
+import { isResourceUnavailable } from '@features/spaces/metadata'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -46,6 +48,7 @@ const TaskDetailModal = ({
   embedded = false,
 }: TaskDetailModalProps) => {
   const titleId = useId()
+  const toggleLock = useRef(false)
   const { tasksById, setTask, removeTask } = useTaskCache()
   const { addToast } = useToast()
   const { offerTaskUndo } = useTrashUndo()
@@ -54,6 +57,8 @@ const TaskDetailModal = ({
   const [isLoading, setIsLoading] = useState(!tasksById[taskId])
   const [error, setError] = useState<string | null>(null)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [revision, setRevision] = useState(0)
+  useEffect(() => onTaskChanged(() => setRevision((value) => value + 1)), [])
   const [isToggling, setIsToggling] = useState(false)
   const recurrenceScope = useRecurrenceScope()
 
@@ -77,6 +82,8 @@ const TaskDetailModal = ({
         setTask(data)
       } catch (err) {
         if (!mounted) return
+        setTaskState(null)
+        if (isResourceUnavailable('task', taskId)) removeTask(taskId)
         setError(
           err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
         )
@@ -84,29 +91,22 @@ const TaskDetailModal = ({
         if (mounted) setIsLoading(false)
       }
     }
-    if (!tasksById[taskId]) {
-      load()
-    }
+    void load()
     return () => {
       mounted = false
     }
-  }, [setTask, taskId, tasksById])
+  }, [setTask, removeTask, taskId, revision])
 
   const toggleCompletion = async () => {
-    if (!task) return
+    if (!task || toggleLock.current) return
+    toggleLock.current = true
     setIsToggling(true)
     try {
-      if (task.completed ?? task.isCompleted) {
-        await reopenTask(task.id)
-      } else {
-        await completeTask(task.id)
-      }
-      const nextCompleted = !(task.completed ?? task.isCompleted ?? false)
-      const next = {
-        ...task,
-        completed: nextCompleted,
-        isCompleted: nextCompleted,
-      }
+      const next =
+        (task.completed ?? task.isCompleted)
+          ? await reopenTask(task.id, task.version)
+          : await completeTask(task.id, task.version)
+      const nextCompleted = next.completed ?? next.isCompleted ?? false
       setTaskState(next)
       setTask(next)
       dispatchTaskChanged(task.id, nextCompleted ? 'complete' : 'reopen')
@@ -118,6 +118,7 @@ const TaskDetailModal = ({
       console.error('작업 상태 변경 실패', err)
       addToast('완료 상태를 변경하지 못했습니다.', 'error')
     } finally {
+      toggleLock.current = false
       setIsToggling(false)
     }
   }
@@ -157,7 +158,7 @@ const TaskDetailModal = ({
     }
     try {
       // 반복 회차는 서버가 시작 전인 연결 일정도 함께 지운다(ADR-0019 §7).
-      await deleteTask(task.id, false)
+      await deleteTask(task.id, false, task.version)
       removeTask(task.id)
       dispatchTaskChanged(task.id, 'delete')
       offerTaskUndo(task.id)
@@ -170,10 +171,12 @@ const TaskDetailModal = ({
 
   const handleAssignSchedule = async (
     payload: Parameters<typeof createScheduleFromTask>[1],
+    expectedVersion?: number,
   ) => {
-    if (!task) return
     try {
-      await createScheduleFromTask(task.id, payload)
+      if (expectedVersion === undefined)
+        throw new Error('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지됩니다.')
+      await createScheduleFromTask(taskId, payload, expectedVersion)
       dispatchScheduleChanged({
         reason: 'task-assigned',
         scheduleId: undefined,
@@ -183,6 +186,7 @@ const TaskDetailModal = ({
     } catch (err) {
       console.error('작업 일정 배정 실패', err)
       addToast('일정으로 배정하지 못했습니다.', 'error')
+      throw err
     }
   }
 
@@ -234,7 +238,9 @@ const TaskDetailModal = ({
                 <h2>{task.title}</h2>
                 {task.recurrence && (
                   <p className="task-detail-modal__description">
-                    <span className="recurrence-badge"><WorkspaceIcon name="repeat" /> 반복</span>{' '}
+                    <span className="recurrence-badge">
+                      <WorkspaceIcon name="repeat" /> 반복
+                    </span>{' '}
                     {task.recurrence.occurrenceDate} 회차
                     {task.missed ? ' · 놓친 회차예요' : ''}
                   </p>
@@ -244,6 +250,7 @@ const TaskDetailModal = ({
                 </p>
                 <div className="task-detail-modal__meta">
                   <CategoryBadge kind="task" itemId={task.id} />
+                  <span>{task.assigneeNickname ?? '담당자 미정'}</span>
                   <span className="task-detail-modal__badge task-detail-modal__badge--state">
                     {(task.completed ?? task.isCompleted) ? '완료' : '미완료'}
                   </span>
@@ -301,6 +308,7 @@ const TaskDetailModal = ({
               <footer className="task-detail-modal__actions">
                 <button
                   type="button"
+                  disabled={!task.allowedActions?.edit}
                   onClick={() => {
                     open(`/app/tasks/${task.id}/edit`)
                   }}
@@ -312,12 +320,18 @@ const TaskDetailModal = ({
                   type="button"
                   onClick={toggleCompletion}
                   className="task-detail-modal__action-btn task-detail-modal__action-btn--primary"
-                  disabled={isToggling}
+                  disabled={
+                    isToggling ||
+                    !(task.isCompleted
+                      ? task.allowedActions?.reopen
+                      : task.allowedActions?.complete)
+                  }
                 >
                   {task.isCompleted ? '미완료로 전환' : '완료 처리'}
                 </button>
                 <button
                   type="button"
+                  disabled={!task.allowedActions?.schedule}
                   onClick={() => setShowScheduleModal(true)}
                   className="task-detail-modal__action-btn"
                 >
@@ -325,6 +339,7 @@ const TaskDetailModal = ({
                 </button>
                 <button
                   type="button"
+                  disabled={!task.allowedActions?.delete}
                   onClick={handleDelete}
                   className="task-detail-modal__action-btn task-detail-modal__action-btn--delete"
                 >
@@ -338,6 +353,7 @@ const TaskDetailModal = ({
       {recurrenceScope.dialog}
       <TaskScheduleModal
         isOpen={showScheduleModal}
+        expectedVersion={task?.version}
         onClose={() => setShowScheduleModal(false)}
         onSubmit={handleAssignSchedule}
         defaultTitle={task?.title}

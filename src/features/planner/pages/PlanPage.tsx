@@ -59,6 +59,7 @@ import type {
 import './PlanPage.css'
 
 type DraftBlock = {
+  expectedVersion?: number
   taskId: number
   title: string
   /** 제안이 정한 길이. 승인 전 수정할 수 없다 */
@@ -98,6 +99,7 @@ const toDraft = (block: PlannedBlock, zoneId: string): DraftBlock => {
   const endMs = toMs(block.end.dateTime, block.end.zoneId || zoneId) ?? startMs
   return {
     taskId: block.taskId,
+    expectedVersion: block.expectedVersion,
     title: block.title,
     durationMinutes:
       parseIsoDurationMinutes(block.duration) ??
@@ -316,6 +318,7 @@ const PlanPage = () => {
       validatePlanSelection(
         selectedSpans.map(({ draft, startMs, endMs }) => ({
           taskId: draft.taskId,
+          expectedVersion: draft.expectedVersion,
           title: draft.title,
           startMs,
           endMs,
@@ -356,6 +359,7 @@ const PlanPage = () => {
       findRoutineConflicts(
         selectedSpans.map(({ draft, startMs, endMs }) => ({
           taskId: draft.taskId,
+          expectedVersion: draft.expectedVersion,
           title: draft.title,
           startMs,
           endMs,
@@ -418,6 +422,7 @@ const PlanPage = () => {
     const submitted = drafts.filter((draft) => draft.selected)
     const blocks: PlanApplyBlock[] = submitted.map((draft) => ({
       taskId: draft.taskId,
+      expectedVersion: draft.expectedVersion,
       startTime: `${draft.startLocal}:00`,
       scheduleType: draft.scheduleType,
     }))
@@ -666,8 +671,8 @@ const PlanPage = () => {
           !dismissed.calibrationCard && (
             <div className="plan-page__nudge" role="note">
               <p>
-                <WorkspaceIcon name="clock" /> 지난 기록으로 보면 예상과 실제 걸린
-                시간이 달라요. 보정하면 블록 길이를 기록에 맞춰요.
+                <WorkspaceIcon name="clock" /> 지난 기록으로 보면 예상과 실제
+                걸린 시간이 달라요. 보정하면 블록 길이를 기록에 맞춰요.
               </p>
               <div className="plan-page__nudge-actions">
                 <button
@@ -702,8 +707,11 @@ const PlanPage = () => {
         {routineCount === 0 && !dismissed.routinesCard && (
           <div className="plan-page__nudge" role="note">
             <p>
-              <span aria-hidden><WorkspaceIcon name="meal" /><WorkspaceIcon name="moon" /> </span>식사·수면 시간을 알려 주시면 그
-              시간은 비워 두고 계획해요.
+              <span aria-hidden>
+                <WorkspaceIcon name="meal" />
+                <WorkspaceIcon name="moon" />{' '}
+              </span>
+              식사·수면 시간을 알려 주시면 그 시간은 비워 두고 계획해요.
             </p>
             <div className="plan-page__nudge-actions">
               <Link to="/app/settings/routines">생활 시간 설정하기</Link>

@@ -9,24 +9,26 @@ import type {
 } from '../types/task'
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import { toApiDateTimeWithZone } from '@shared/utils/datetime'
-
-const TASK_API_VERSION = 'v2'
-
-type ListParams = {
-  page?: number
-  size?: number
-  readyOnly?: boolean
-  signal?: AbortSignal
-}
+import { getSelectedScope } from '@features/spaces/store'
+import {
+  getMetadata,
+  rememberMetadata,
+  getResourceRevision,
+  handleResourceReadError,
+  isResourceUnavailable,
+  rejectResourceResponse,
+  type WorkspaceTaskView,
+  type WorkspaceScheduleView,
+} from '@features/spaces/metadata'
+import type { ScheduleResponse } from '@features/schedules/types/schedule'
 
 type TaskApiResponse = Omit<Task, 'isCompleted'> & {
   isCompleted?: boolean | null
   completed?: boolean | null
   inboundDependencyCount?: number | null
 }
-
-type PageTaskApiResponse = {
-  content?: TaskApiResponse[] | null
+type PageResponse = {
+  content?: WorkspaceTaskView<TaskApiResponse>[]
   number?: number
   size?: number
   totalElements?: number
@@ -36,104 +38,125 @@ type PageTaskApiResponse = {
   last?: boolean
   empty?: boolean
 }
-type TaskCursorApiResponse = {
-  data?: TaskApiResponse[] | null
-  hasNext?: boolean
-  nextCursor?: string | null
+type ListParams = {
+  page?: number
+  size?: number
+  readyOnly?: boolean
+  signal?: AbortSignal
+  spaceId?: number | null
+  projectId?: number | null
+  mine?: boolean
 }
-
-const normalizeTask = (task: TaskApiResponse): Task => ({
-  ...task,
-  // Do not turn a missing server readiness fact into "ready" for graph consumers.
-  inboundDependencyCount: task.inboundDependencyCount ?? undefined,
-  completed: task.completed ?? task.isCompleted ?? false,
-  isCompleted: task.completed ?? task.isCompleted ?? false,
-  previousTaskIds: task.previousTaskIds ?? [],
-  nextTaskIds: task.nextTaskIds ?? [],
-  tags: task.tags ?? [],
+const url = (path = '') => buildApiUrl('/workspace/tasks' + path, 'v2')
+const normalizeTask = (view: WorkspaceTaskView<TaskApiResponse>, requestRevision: number): Task => {
+  const { task, ...metadata } = view
+  const result: Task = {
+    ...task,
+    ...metadata,
+    recurrence: task.recurrence
+      ? { ...task.recurrence, version: metadata.recurrenceVersion ?? undefined }
+      : null,
+    completed: task.completed ?? task.isCompleted ?? false,
+    isCompleted: task.completed ?? task.isCompleted ?? false,
+    inboundDependencyCount: task.inboundDependencyCount ?? undefined,
+    previousTaskIds: task.previousTaskIds ?? [],
+    nextTaskIds: task.nextTaskIds ?? [],
+    tags: task.tags ?? [],
+  }
+  if (!rememberMetadata('task', result.id, metadata, requestRevision))
+    rejectResourceResponse(result)
+  return result
+}
+function scopeQuery(
+  query: URLSearchParams,
+  params: Pick<ListParams, 'spaceId' | 'projectId' | 'mine'> = {},
+) {
+  const selected = getSelectedScope()
+  const spaceId =
+    params.spaceId === undefined ? selected.spaceId : params.spaceId
+  const projectId =
+    params.projectId === undefined ? selected.projectId : params.projectId
+  if (spaceId !== null && spaceId !== undefined)
+    query.set('spaceId', String(spaceId))
+  if (projectId !== null && projectId !== undefined)
+    query.set('projectId', String(projectId))
+  if (params.mine !== undefined) query.set('mine', String(params.mine))
+  return query
+}
+const normalizePage = (response: PageResponse, revision: number): TaskListResponse => ({
+  ...response,
+  content: (response.content ?? []).map((view) => normalizeTask(view, revision))
+    .filter((task) => !isResourceUnavailable('task', task.id, task)),
 })
-
-const normalizeTaskList = (tasks?: TaskApiResponse[] | null) =>
-  (tasks ?? []).map(normalizeTask)
-
-export const fetchTasks = async ({
+export async function fetchTasks({
   page = 0,
   size = 20,
   readyOnly = false,
   signal,
-}: ListParams): Promise<TaskListResponse> => {
-  const query = new URLSearchParams({
-    page: String(page),
-    size: String(size),
-    readyOnly: String(readyOnly),
-  })
-  const response = await httpClient<PageTaskApiResponse>(
-    buildApiUrl(`/tasks?${query.toString()}`, TASK_API_VERSION),
-    { signal },
+  ...scope
+}: ListParams): Promise<TaskListResponse> {
+  const revision = getResourceRevision()
+  const query = scopeQuery(
+    new URLSearchParams({
+      page: String(page),
+      size: String(size),
+      readyOnly: String(readyOnly),
+    }),
+    scope,
   )
-  return {
-    content: normalizeTaskList(response.content),
-    number: response.number,
-    size: response.size,
-    totalElements: response.totalElements,
-    totalPages: response.totalPages,
-    numberOfElements: response.numberOfElements,
-    first: response.first,
-    last: response.last,
-    empty: response.empty,
-  }
+  return normalizePage(
+    await httpClient<PageResponse>(url(`?${query}`), { signal }),
+    revision,
+  )
 }
-
-const toListResponse = (response: PageTaskApiResponse): TaskListResponse => ({
-  content: normalizeTaskList(response.content),
-  number: response.number,
-  size: response.size,
-  totalElements: response.totalElements,
-  totalPages: response.totalPages,
-  numberOfElements: response.numberOfElements,
-  first: response.first,
-  last: response.last,
-  empty: response.empty,
-})
-
-/**
- * 작업 검색(ADR-0023 §3). `params`는 `toSearchParams`가 만든 검색 인자다(`tagIds`는 여러 번 온다).
- */
-export const searchTasks = async ({
+export async function searchTasks({
   page = 0,
   size = 20,
   params = [],
   signal,
+  spaceId,
+  projectId,
 }: {
+  spaceId?: number | null
+  projectId?: number | null
   page?: number
   size?: number
   params?: [string, string][]
   signal?: AbortSignal
-}): Promise<TaskListResponse> => {
-  const query = new URLSearchParams(params)
+}): Promise<TaskListResponse> {
+  const revision = getResourceRevision()
+  const query = scopeQuery(new URLSearchParams(params), { spaceId, projectId })
   query.set('page', String(page))
   query.set('size', String(size))
-  const response = await httpClient<PageTaskApiResponse>(
-    buildApiUrl(`/tasks/search?${query.toString()}`, TASK_API_VERSION),
-    { signal },
+  return normalizePage(
+    await httpClient<PageResponse>(url(`?${query}`), { signal }),
+    revision,
   )
-  return toListResponse(response)
 }
-
-/** 그 날짜(YYYY-MM-DD)가 마감인 작업. 시간대를 주지 않으면 회원 설정 시간대로 해석한다. */
-export const fetchTasksByDeadline = async (
+export async function fetchTasksByDeadline(
   date: string,
   zoneId?: string,
-): Promise<Task[]> => {
-  const query = new URLSearchParams({ date })
-  if (zoneId) query.set('zoneId', zoneId)
-  const response = await httpClient<TaskApiResponse[]>(
-    buildApiUrl(`/tasks/by-deadline?${query.toString()}`, TASK_API_VERSION),
-  )
-  return normalizeTaskList(response)
+): Promise<Task[]> {
+  const result: Task[] = []
+  for (let page = 0; ; page++) {
+    const revision = getResourceRevision()
+    const query = new URLSearchParams({
+      date,
+      mine: 'true',
+      page: String(page),
+      size: '100',
+    })
+    if (zoneId) query.set('zoneId', zoneId)
+    const response = normalizePage(
+      await httpClient<PageResponse>(url(`?${query}`)),
+      revision,
+    )
+    result.push(...response.content)
+    if (response.last ?? response.content.length < 100) break
+  }
+  return result
 }
-
-export const fetchTaskArchiveByCursor = async ({
+export async function fetchTaskArchiveByCursor({
   size = 20,
   cursor,
   signal,
@@ -141,72 +164,127 @@ export const fetchTaskArchiveByCursor = async ({
   size?: number
   cursor?: string | null
   signal?: AbortSignal
-}): Promise<TaskArchiveCursorResponse> => {
-  const query = new URLSearchParams({
-    size: String(size),
-  })
-  if (cursor) query.set('cursor', cursor)
-  const response = await httpClient<TaskCursorApiResponse>(
-    buildApiUrl(`/tasks/completed?${query.toString()}`, TASK_API_VERSION),
-    { signal },
-  )
-  return {
-    items: normalizeTaskList(response.data),
-    nextCursor: response.nextCursor ?? null,
-    hasNext: response.hasNext,
-  }
-}
-
-export const fetchTaskDetail = async (taskId: number, signal?: AbortSignal) =>
-  normalizeTask(
-    await httpClient<TaskApiResponse>(
-      buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION),
-      { signal },
-    ),
-  )
-
-export const createTask = async (payload: TaskRequest) =>
-  normalizeTask(
-    await httpClient<TaskApiResponse>(buildApiUrl('/tasks', TASK_API_VERSION), {
-      method: 'POST',
-      json: payload,
+}): Promise<TaskArchiveCursorResponse> {
+  const revision = getResourceRevision()
+  const page = /^\d+$/.test(cursor ?? '') ? Number(cursor) : 0
+  const query = scopeQuery(
+    new URLSearchParams({
+      page: String(page),
+      size: String(size),
+      status: 'COMPLETED',
     }),
   )
-
-export const updateTask = async (taskId: number, payload: TaskRequest) =>
-  normalizeTask(
-    await httpClient<TaskApiResponse>(
-      buildApiUrl(`/tasks/${taskId}`, TASK_API_VERSION),
-      {
-        method: 'PATCH',
-        json: payload,
-      },
-    ),
+  const result = normalizePage(
+    await httpClient<PageResponse>(url(`?${query}`), { signal }),
+    revision,
   )
-
-export const deleteTask = (taskId: number, deleteSchedules = false) => {
-  const query = new URLSearchParams({
-    deleteSchedules: String(deleteSchedules),
-  })
-  return httpClient<void>(
-    buildApiUrl(`/tasks/${taskId}?${query.toString()}`, TASK_API_VERSION),
-    {
-      method: 'DELETE',
+  const hasNext = !(result.last ?? result.content.length < size)
+  return {
+    items: result.content,
+    hasNext,
+    nextCursor: hasNext ? String(page + 1) : null,
+  }
+}
+export async function fetchTaskDetail(taskId: number, signal?: AbortSignal) {
+  const revision = getResourceRevision()
+  try {
+    const task = normalizeTask(await httpClient<WorkspaceTaskView<TaskApiResponse>>(
+      url(`/${taskId}`), { signal }), revision)
+    if (isResourceUnavailable('task', taskId, task))
+      throw new Error('작업 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+    return task
+  } catch (error) {
+    handleResourceReadError('task', taskId, error, revision)
+    throw error
+  }
+}
+export async function createTask(payload: TaskRequest) {
+  const revision = getResourceRevision()
+  const selected = getSelectedScope()
+  const {
+    spaceId = selected.spaceId,
+    projectId = selected.projectId,
+    assigneeId,
+    expectedVersion: _version,
+    ...task
+  } = payload
+  void _version
+  const response = await httpClient<WorkspaceTaskView<TaskApiResponse>>(url(), {
+    method: 'POST',
+    json: {
+      task,
+      ...(spaceId === null || spaceId === undefined
+        ? {}
+        : { location: { spaceId, projectId } }),
+      ...(assigneeId !== undefined
+        ? { assignee: { memberId: assigneeId ?? null } }
+        : {}),
     },
+  })
+  return normalizeTask(response, revision)
+}
+export async function updateTask(taskId: number, payload: TaskRequest) {
+  const revision = getResourceRevision()
+  const { expectedVersion, spaceId, projectId, assigneeId, ...task } = payload
+  const version = expectedVersion ?? getMetadata('task', taskId)?.version
+  if (version === undefined) throw new Error('작업을 다시 연 뒤 수정해 주세요.')
+  return normalizeTask(
+    await httpClient<WorkspaceTaskView<TaskApiResponse>>(url(`/${taskId}`), {
+      method: 'PATCH',
+      json: {
+        expectedVersion: version,
+        task,
+        ...(spaceId === undefined
+          ? {}
+          : { location: { spaceId, projectId: projectId ?? null } }),
+        ...(assigneeId !== undefined
+          ? { assignee: { memberId: assigneeId ?? null } }
+          : {}),
+      },
+    }),
+    revision,
   )
 }
-
-export const completeTask = (taskId: number) =>
-  httpClient<void>(buildApiUrl(`/tasks/${taskId}/complete`, TASK_API_VERSION), {
-    method: 'POST',
-  })
-
-export const reopenTask = (taskId: number) =>
-  httpClient<void>(buildApiUrl(`/tasks/${taskId}/reopen`, TASK_API_VERSION), {
-    method: 'POST',
-  })
-
-export const createScheduleFromTask = (
+async function versionOf(taskId: number, expectedVersion?: number) {
+  if (expectedVersion !== undefined) return expectedVersion
+  const current = getMetadata('task', taskId) ?? (await fetchTaskDetail(taskId))
+  if (current.version === undefined)
+    throw new Error('작업을 다시 열어 최신 상태를 확인해 주세요.')
+  return current.version
+}
+export async function deleteTask(
+  taskId: number,
+  deleteSchedules = false,
+  expectedVersion?: number,
+) {
+  const version = await versionOf(taskId, expectedVersion)
+  return httpClient<void>(
+    url(
+      `/${taskId}?expectedVersion=${version}&deleteSchedules=${deleteSchedules}`,
+    ),
+    { method: 'DELETE' },
+  )
+}
+async function changeTaskState(
+  taskId: number,
+  action: 'COMPLETE' | 'REOPEN',
+  expectedVersion?: number,
+) {
+  const version = await versionOf(taskId, expectedVersion)
+  const revision = getResourceRevision()
+  return normalizeTask(
+    await httpClient<WorkspaceTaskView<TaskApiResponse>>(
+      url(`/${taskId}/state`),
+      { method: 'POST', json: { expectedVersion: version, action } },
+    ),
+    revision,
+  )
+}
+export const completeTask = (taskId: number, expectedVersion?: number) =>
+  changeTaskState(taskId, 'COMPLETE', expectedVersion)
+export const reopenTask = (taskId: number, expectedVersion?: number) =>
+  changeTaskState(taskId, 'REOPEN', expectedVersion)
+export async function createScheduleFromTask(
   taskId: number,
   payload:
     | TaskScheduleRequest
@@ -216,14 +294,19 @@ export const createScheduleFromTask = (
         title?: string
         description?: string
       },
-) =>
-  httpClient<void>(
-    buildApiUrl(`/tasks/${taskId}/schedules`, TASK_API_VERSION),
+  capturedVersion?: number,
+) {
+  const expectedVersion = await versionOf(taskId, capturedVersion)
+  const revision = getResourceRevision()
+  const view = await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
+    url(`/${taskId}/schedule`),
     {
       method: 'POST',
       json: {
-        ...payload,
-        date: toApiDateTimeWithZone(payload.date),
+        expectedVersion,
+        schedule: { ...payload, date: toApiDateTimeWithZone(payload.date) },
       },
     },
   )
+  rememberMetadata('schedule', view.schedule.id, { ...view, linkedTaskId: taskId }, revision)
+}

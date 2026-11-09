@@ -1,0 +1,13 @@
+{
+  "name": "pinit-spaces-browser-qa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test --config=playwright.config.mjs",
+    "preflight": "node preflight.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0"
+  }
+}
