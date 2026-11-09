@@ -1,32 +1,41 @@
-import { useState } from "react";
-import { createPortal } from "react-dom";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import Modal from "@shared/components/common/Modal";
-import WorkspaceIcon from "@shared/components/common/WorkspaceIcon";
-import { useSpaces } from "./store";
-import SpaceMark from "./SpaceMark";
-import { projectSelectionTarget, routeScope, switcherLabel } from "./scope";
-import "./spaces.css";
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
+import Modal from '@shared/components/common/Modal'
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
+import { useSpaces } from './store'
+import SpaceMark from './SpaceMark'
+import { projectSelectionTarget, routeScope, switcherLabel } from './scope'
+import './spaces.css'
 
 export function SpaceSwitcher({
-  variant = "sidebar",
+  variant = 'sidebar',
 }: {
-  variant?: "sidebar" | "bar";
+  variant?: 'sidebar' | 'bar'
 }) {
-  const spaces = useSpaces();
-  const { pathname } = useLocation();
-  const [open, setOpen] = useState(false);
-  const current = spaces.selectedSpace;
+  const spaces = useSpaces()
+  const { pathname } = useLocation()
+  const [open, setOpen] = useState(false)
+  const openerRef = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(false)
+  // The selected option is autoFocused before Modal records the opener, so
+  // return focus to the button ourselves on every close path.
+  useEffect(() => {
+    if (wasOpen.current && !open) openerRef.current?.focus()
+    wasOpen.current = open
+  }, [open])
+  const current = spaces.selectedSpace
   const label = switcherLabel(
     routeScope(pathname),
     current,
     spaces.selectedProject,
     spaces.loading,
-  );
+  )
   return (
     <>
-      {variant === "bar" ? (
+      {variant === 'bar' ? (
         <button
+          ref={openerRef}
           type="button"
           className="space-switcher space-switcher--bar"
           aria-haspopup="dialog"
@@ -40,6 +49,7 @@ export function SpaceSwitcher({
         </button>
       ) : (
         <button
+          ref={openerRef}
           type="button"
           className="space-switcher"
           aria-haspopup="dialog"
@@ -47,7 +57,7 @@ export function SpaceSwitcher({
           onClick={() => setOpen(true)}
         >
           <span className="space-avatar" aria-hidden>
-            {current?.name.slice(0, 1) ?? "나"}
+            {current?.name.slice(0, 1) ?? '나'}
           </span>
           <span className="space-switcher__copy">
             <strong>
@@ -55,7 +65,7 @@ export function SpaceSwitcher({
               {current?.name ?? label}
             </strong>
             <small>
-              {current?.personal ? "본인 전용" : "함께 관리하는 목적 스페이스"}
+              {current?.personal ? '본인 전용' : '함께 관리하는 목적 스페이스'}
             </small>
           </span>
           <span aria-hidden>⌄</span>
@@ -99,8 +109,8 @@ export function SpaceSwitcher({
                     key={space.id}
                     aria-pressed={spaces.selectedSpaceId === space.id}
                     onClick={() => {
-                      spaces.selectSpace(space.id);
-                      setOpen(false);
+                      spaces.selectSpace(space.id)
+                      setOpen(false)
                     }}
                   >
                     <span className="space-avatar" aria-hidden>
@@ -110,8 +120,8 @@ export function SpaceSwitcher({
                       <strong>{space.name}</strong>
                       <small>
                         {space.personal
-                          ? "본인 전용"
-                          : space.purpose || "함께할 목적을 기록하세요"}
+                          ? '본인 전용'
+                          : space.purpose || '함께할 목적을 기록하세요'}
                       </small>
                     </span>
                     {space.id === spaces.selectedSpaceId && (
@@ -127,24 +137,24 @@ export function SpaceSwitcher({
               </Link>
             </footer>
           </Modal>,
-          document.body,
+          document.querySelector('.workspace-theme') ?? document.body,
         )}
     </>
-  );
+  )
 }
 export function SpaceProjectsNav() {
   const { projects, selectedSpaceId, selectedProjectId, selectProject } =
-    useSpaces();
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
+    useSpaces()
+  const navigate = useNavigate()
+  const { pathname } = useLocation()
   const items = projects.filter(
     (project) => project.spaceId === selectedSpaceId && !project.deleted,
-  );
+  )
   const choose = (id: number | null) => {
-    selectProject(id);
-    const target = projectSelectionTarget(pathname);
-    if (typeof target === "string") navigate(target);
-  };
+    selectProject(id)
+    const target = projectSelectionTarget(pathname)
+    if (typeof target === 'string') navigate(target)
+  }
   return (
     <nav className="space-projects-nav" aria-label="선택한 스페이스의 프로젝트">
       <p>프로젝트</p>
@@ -168,15 +178,15 @@ export function SpaceProjectsNav() {
       ))}
       <Link to="/app/spaces?tab=projects">프로젝트 관리</Link>
     </nav>
-  );
+  )
 }
 export function SpaceContextBar() {
-  const { pathname } = useLocation();
-  const today = pathname === "/app/today";
-  const trash = pathname === "/app/settings/trash";
-  const deadlineRisk = pathname === "/app/deadline-risk";
-  const statistics = pathname === "/app/statistics";
-  const { selectedSpace, selectedProject } = useSpaces();
+  const { pathname } = useLocation()
+  const today = pathname === '/app/today'
+  const trash = pathname === '/app/settings/trash'
+  const deadlineRisk = pathname === '/app/deadline-risk'
+  const statistics = pathname === '/app/statistics'
+  const { selectedSpace, selectedProject } = useSpaces()
   return (
     <section className="space-context" aria-label="목적과 프로젝트">
       {today && (
@@ -190,38 +200,32 @@ export function SpaceContextBar() {
         </span>
       )}
       {deadlineRisk && (
-        <span className="space-context__project">
-          개인 스페이스 · 마감 위험 예보
-        </span>
+        <span className="space-context__project">개인 스페이스 · 마감 위험 예보</span>
       )}
       {statistics && (
         <span className="space-context__project">모든 스페이스 · 내 기록</span>
       )}
-      {!today &&
-        !trash &&
-        !deadlineRisk &&
-        !statistics &&
-        selectedSpace?.purpose && (
-          <details>
-            <summary>
-              <span>목적</span>
-              <span className="space-context__preview">
-                {selectedSpace.purpose}
-              </span>
-              <span aria-hidden>⌄</span>
-            </summary>
-            <p>{selectedSpace.purpose}</p>
-            {selectedProject?.outcome && (
-              <p>목적에 기여할 성과 · {selectedProject.outcome}</p>
-            )}
-          </details>
-        )}
+      {!today && !trash && !deadlineRisk && !statistics && selectedSpace?.purpose && (
+        <details>
+          <summary>
+            <span>목적</span>
+            <span className="space-context__preview">
+              {selectedSpace.purpose}
+            </span>
+            <span aria-hidden>⌄</span>
+          </summary>
+          <p>{selectedSpace.purpose}</p>
+          {selectedProject?.outcome && (
+            <p>목적에 기여할 성과 · {selectedProject.outcome}</p>
+          )}
+        </details>
+      )}
       {!today && !trash && !deadlineRisk && !statistics && selectedProject && (
         <span className="space-context__project">
           {selectedProject.name}
-          {selectedProject.completed ? " · 완료" : ""}
+          {selectedProject.completed ? ' · 완료' : ''}
         </span>
       )}
     </section>
-  );
+  )
 }

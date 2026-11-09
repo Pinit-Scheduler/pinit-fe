@@ -49,7 +49,7 @@ const Item = load('../src/features/deadline-risk/components/DeadlineRiskItem.tsx
 
 test('page announces personal-space-only tasks and schedules before forecast loading completes', () => {
   const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
-    react: { useState: React.useState },
+    react: { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect },
     'react/jsx-runtime': jsxRuntime,
     'react-router-dom': { useNavigate: () => () => {} },
     '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
@@ -142,7 +142,7 @@ test('missing personal space during snapshot loading or failure disables every p
 
 test('workspace context labels personal forecast instead of the selected team purpose/project', () => {
   const { SpaceContextBar, SpaceSwitcher } = load('../src/features/spaces/SpaceChrome.tsx', {
-    react: { useState: React.useState },
+    react: { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect },
     'react/jsx-runtime': jsxRuntime,
     'react-router-dom': { Link, useNavigate: () => () => {}, useLocation: () => ({ pathname: '/app/deadline-risk' }) },
     '@shared/components/common/Modal': { default: () => null },
