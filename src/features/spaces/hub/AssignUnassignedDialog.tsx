@@ -1,24 +1,27 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { assignTask, fetchUnassignedTasks } from '@features/tasks/api/tasks'
-import type { Task } from '@features/tasks/types/task'
 import UnavailableNote from '../UnavailableNote'
 import { CONFLICT_RELOADED, isEditConflict } from '../conflicts'
 import { adminNames, unavailableText } from '../unavailable'
 import type { Project, Space } from '../types'
 import {
   ASSIGN_PAGE_SIZE,
+  assignReducer,
   assigneeOptions,
   assignRows,
   chosenAssignee,
-  mergeTasks,
+  initialAssignState,
   nextAssignPage,
-  offsetAfter,
+  outOfSync,
+  reloadAfterFailure,
+  shouldLoadMore,
 } from './assign'
 
 /**
  * 허브의 담당자 미정 작업을 한 개씩 배정한다(시안 `hubOpenAssignV18`).
  * 목록은 BE의 담당자 미정 조건으로 받고, 남은 수는 요약(`openCount`)이 정한다. FE는 세지 않는다.
+ * 상태 변화 규칙은 `assign.ts`의 `assignReducer`에 있다.
  */
 export default function AssignUnassignedDialog({
   space,
@@ -27,6 +30,7 @@ export default function AssignUnassignedDialog({
   openCount,
   onClose,
   onAssigned,
+  onStale,
 }: {
   space: Space
   meId: number | null
@@ -35,28 +39,26 @@ export default function AssignUnassignedDialog({
   openCount: number | null
   onClose: () => void
   onAssigned: () => void
+  /** 목록과 요약 수가 어긋났거나 배정이 실패했을 때. 허브 요약을 다시 받는다. */
+  onStale: () => void
 }) {
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [hasMore, setHasMore] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [loadFailed, setLoadFailed] = useState(false)
+  const [state, dispatch] = useReducer(assignReducer, initialAssignState)
+  const { tasks, hasMore, loading, loadFailed, loaded, busyId, notice, offset } =
+    state
   const [picked, setPicked] = useState<Record<number, number>>({})
-  const [busyId, setBusyId] = useState<number | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const request = useRef<AbortController | null>(null)
-  // 서버 목록에서 아직 안 본 첫 위치. 배정하면 하나 당겨진다.
-  const offset = useRef(0)
   const closeButton = useRef<HTMLButtonElement>(null)
   // 배정해 빠진 줄 대신 초점을 줄 곳. 버튼이 다시 켜진 뒤(busyId가 비면) 옮긴다.
   const focusAfter = useRef<number | 'close' | null>(null)
+  // 어긋남 때문에 요약을 다시 부른 뒤에는 목록이 다시 찰 때까지 또 부르지 않는다.
+  const resynced = useRef(false)
 
   const load = useCallback(
     (page: number, replace: boolean) => {
       request.current?.abort()
       const controller = new AbortController()
       request.current = controller
-      setLoading(true)
-      setLoadFailed(false)
+      dispatch({ type: 'load' })
       fetchUnassignedTasks({
         spaceId: space.id,
         page,
@@ -64,18 +66,11 @@ export default function AssignUnassignedDialog({
         signal: controller.signal,
       })
         .then((response) => {
-          if (controller.signal.aborted) return
-          offset.current = offsetAfter(response)
-          setTasks((current) =>
-            replace ? response.content : mergeTasks(current, response.content),
-          )
-          setHasMore(response.last === false)
+          if (!controller.signal.aborted)
+            dispatch({ type: 'loaded', replace, response })
         })
         .catch(() => {
-          if (!controller.signal.aborted) setLoadFailed(true)
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) setLoading(false)
+          if (!controller.signal.aborted) dispatch({ type: 'loadFailed' })
         })
     },
     [space.id],
@@ -89,6 +84,22 @@ export default function AssignUnassignedDialog({
       request.current?.abort()
     }
   }, [load])
+
+  const moreNeeded = shouldLoadMore(state)
+  useEffect(() => {
+    // 보이는 줄을 다 배정했는데 서버에 남은 작업이 있으면 바로 이어서 받는다.
+    if (!moreNeeded) return
+    const timer = setTimeout(() => load(nextAssignPage(offset), false), 0)
+    return () => clearTimeout(timer)
+  }, [moreNeeded, offset, load])
+
+  const stale = outOfSync(state, openCount)
+  useEffect(() => {
+    if (tasks.length > 0) resynced.current = false
+    if (!stale || resynced.current) return
+    resynced.current = true
+    onStale()
+  }, [stale, tasks.length, onStale])
 
   useEffect(() => {
     if (busyId !== null || focusAfter.current === null) return
@@ -113,31 +124,26 @@ export default function AssignUnassignedDialog({
       loading
     )
       return
-    setBusyId(row.id)
-    setNotice(null)
+    dispatch({ type: 'assigning', id: row.id })
     try {
       await assignTask(row.id, memberId, row.version)
-      offset.current -= 1
       // 빠진 줄 대신 다음 줄(없으면 앞 줄, 그것도 없으면 닫기)로 초점을 옮긴다.
       const index = rows.findIndex((item) => item.id === row.id)
       const neighbour = rows[index + 1] ?? rows[index - 1]
       focusAfter.current = neighbour ? neighbour.id : 'close'
-      setTasks((current) => current.filter((task) => task.id !== row.id))
+      dispatch({ type: 'assigned', id: row.id })
       onAssigned()
     } catch (failure) {
-      if (isEditConflict(failure)) {
-        setNotice(`${row.title}: ${CONFLICT_RELOADED}`)
-        load(0, true)
-      } else
-        setNotice(
-          `${row.title}: ${
-            failure instanceof Error && failure.message
-              ? failure.message
-              : '배정하지 못했어요. 다시 시도해 주세요.'
-          }`,
-        )
-    } finally {
-      setBusyId(null)
+      const status = (failure as { status?: number } | null)?.status
+      const text = isEditConflict(failure)
+        ? CONFLICT_RELOADED
+        : failure instanceof Error && failure.message
+          ? failure.message
+          : '배정하지 못했어요. 다시 시도해 주세요.'
+      dispatch({ type: 'assignFailed', notice: `${row.title}: ${text}` })
+      // 실패하면 허브 숫자도 낡았을 수 있다. 먼저 고쳐졌거나 사라진 작업이면 목록도 다시 받는다.
+      onStale()
+      if (reloadAfterFailure(status)) load(0, true)
     }
   }
 
@@ -176,8 +182,12 @@ export default function AssignUnassignedDialog({
             </button>
           </p>
         )}
-        {!loading && !loadFailed && rows.length === 0 && (
-          <p className="hub-quiet">모든 작업에 담당자가 있어요.</p>
+        {loaded && !loading && !loadFailed && rows.length === 0 && !hasMore && (
+          <p className="hub-quiet">
+            {openCount === 0
+              ? '모든 작업에 담당자가 있어요.'
+              : '지금 배정할 수 있는 작업이 없어요.'}
+          </p>
         )}
         {rows.length > 0 && (
           <ul className="hub-assign">
@@ -236,13 +246,13 @@ export default function AssignUnassignedDialog({
             })}
           </ul>
         )}
-        {loading && <p className="hub-quiet">불러오는 중…</p>}
-        {hasMore && !loading && (
+        {(loading || moreNeeded) && <p className="hub-quiet">불러오는 중…</p>}
+        {hasMore && rows.length > 0 && !loading && (
           <button
             type="button"
             className="workspace-button hub-assign__more"
             disabled={busyId !== null}
-            onClick={() => load(nextAssignPage(offset.current), false)}
+            onClick={() => load(nextAssignPage(offset), false)}
           >
             더 보기
           </button>

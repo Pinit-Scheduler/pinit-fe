@@ -595,6 +595,7 @@ export default function SpacesPage() {
             addToast('배정했어요.', 'success')
             refresh()
           }}
+          onStale={refresh}
         />
       )}
       {confirm && (

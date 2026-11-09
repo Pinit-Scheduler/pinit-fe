@@ -245,6 +245,7 @@ test('the dialog title is the summary count, not a count of the list', () => {
         openCount,
         onClose() {},
         onAssigned() {},
+        onStale() {},
       }),
     )
   assert.match(render(4), /<h2 id="hub-assign-title">담당자 미정 작업 4개<\/h2>/)
@@ -256,4 +257,96 @@ test('the dialog title is the summary count, not a count of the list', () => {
     'utf8',
   )
   assert.equal(/\.reduce\(|tasks\.length\}개|rows\.length\}개/.test(source), false)
+})
+
+const row = (id, extra = {}) => ({ id, title: '작업 ' + id, assigneeId: null, version: 1, ...extra })
+const page = (ids, { number = 0, last = true, extra = {} } = {}) => ({
+  content: ids.map((id) => row(id, extra[id])),
+  number,
+  size: 50,
+  numberOfElements: ids.length,
+  last,
+})
+const range = (from, count) => Array.from({ length: count }, (_, i) => from + i)
+
+test('flow: load, assign, the row leaves and the server position moves back by one', () => {
+  const { assignReducer, initialAssignState, shouldLoadMore, outOfSync } = assignModule()
+  let state = assignReducer(initialAssignState, { type: 'load' })
+  assert.equal(state.loading, true)
+  assert.equal(state.loaded, false)
+  state = assignReducer(state, { type: 'loaded', replace: true, response: page([1, 2, 3]) })
+  assert.deepEqual(plain(state.tasks.map((task) => task.id)), [1, 2, 3])
+  assert.equal(state.offset, 3)
+  assert.equal(state.loaded, true)
+  state = assignReducer(state, { type: 'assigning', id: 2 })
+  assert.equal(state.busyId, 2)
+  assert.equal(shouldLoadMore(state), false)
+  state = assignReducer(state, { type: 'assigned', id: 2 })
+  assert.deepEqual(plain(state.tasks.map((task) => task.id)), [1, 3])
+  assert.equal(state.offset, 2)
+  assert.equal(state.busyId, null)
+  assert.equal(outOfSync(state, 2), false)
+})
+
+test('flow: after assigning every shown row the next page loads instead of saying nothing is left', () => {
+  const { assignReducer, initialAssignState, shouldLoadMore, outOfSync, nextAssignPage } = assignModule()
+  let state = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: page(range(1, 50), { last: false }) })
+  for (const id of range(1, 50)) {
+    state = assignReducer(state, { type: 'assigning', id })
+    state = assignReducer(state, { type: 'assigned', id })
+  }
+  assert.equal(state.tasks.length, 0)
+  assert.equal(state.hasMore, true)
+  assert.equal(shouldLoadMore(state), true)
+  assert.equal(outOfSync(state, 5), false)
+  // 50개가 빠졌으니 남은 5개는 서버의 첫 쪽에 있다.
+  assert.equal(nextAssignPage(state.offset), 0)
+  state = assignReducer(state, { type: 'load' })
+  assert.equal(shouldLoadMore(state), false, 'no second request while one is running')
+  state = assignReducer(state, { type: 'loaded', replace: false, response: page(range(51, 5)) })
+  assert.equal(state.tasks.length, 5)
+  assert.equal(state.hasMore, false)
+})
+
+test('flow: an empty list while the summary still counts tasks asks for a fresh summary', () => {
+  const { assignReducer, initialAssignState, outOfSync } = assignModule()
+  assert.equal(outOfSync(initialAssignState, 3), false, 'not before the first answer')
+  const empty = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: page([]) })
+  assert.equal(outOfSync(empty, 3), true)
+  assert.equal(outOfSync(empty, 0), false)
+  assert.equal(outOfSync(empty, null), false)
+  assert.equal(outOfSync(assignReducer(empty, { type: 'loadFailed' }), 3), false)
+})
+
+test('flow: a failed assignment keeps the row, shows why and reloads only for 409 or 404', () => {
+  const { assignReducer, initialAssignState, reloadAfterFailure } = assignModule()
+  let state = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: page([1]) })
+  state = assignReducer(state, { type: 'assigning', id: 1 })
+  state = assignReducer(state, { type: 'assignFailed', notice: '작업 1: 다른 참여자가 먼저 수정했어요.' })
+  assert.equal(state.busyId, null)
+  assert.equal(state.tasks.length, 1)
+  assert.equal(state.offset, 1)
+  assert.match(state.notice, /먼저 수정/)
+  assert.equal(reloadAfterFailure(409), true)
+  assert.equal(reloadAfterFailure(404), true)
+  assert.equal(reloadAfterFailure(500), false)
+  assert.equal(reloadAfterFailure(undefined), false)
+  state = assignReducer(state, { type: 'assigning', id: 1 })
+  assert.equal(state.notice, null, 'a new attempt clears the old message')
+})
+
+test('flow: rows that already have an assignee are dropped even if an older server sends them', () => {
+  const { assignReducer, initialAssignState, shouldLoadMore } = assignModule()
+  const mixed = page([1, 2, 3], { last: false, extra: { 2: { assigneeId: 7 }, 3: { assigneeId: 0 } } })
+  let state = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: mixed })
+  assert.deepEqual(plain(state.tasks.map((task) => task.id)), [1])
+  assert.equal(state.offset, 3, 'paging still counts the rows the server sent')
+  // 한 쪽이 모두 담당자 있는 작업이면 다음 쪽으로 넘어간다.
+  state = assignReducer(initialAssignState, {
+    type: 'loaded',
+    replace: true,
+    response: page([4, 5], { last: false, extra: { 4: { assigneeId: 2 }, 5: { assigneeId: 3 } } }),
+  })
+  assert.equal(state.tasks.length, 0)
+  assert.equal(shouldLoadMore(state), true)
 })
