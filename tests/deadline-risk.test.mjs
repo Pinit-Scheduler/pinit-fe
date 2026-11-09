@@ -251,8 +251,7 @@ const hookHarness = () => {
       },
     },
     '@shared/utils/events': {
-      onTaskChanged: (handler) => { changed.task = handler; return () => { delete changed.task } },
-      onScheduleChanged: (handler) => { changed.schedule = handler; return () => { delete changed.schedule } },
+      onDataChanged: (handler) => { changed.data = handler; return () => { delete changed.data } },
     },
     '../api/deadlineRisk': { fetchDeadlineRisk: (days, signal) => {
       const request = { days, signal, ...deferred() }; requests.push(request); return request.promise
@@ -298,15 +297,14 @@ test('refresh failures discard old forecast; task/schedule/focus invalidation re
   await settle()
   assert.match(h.render().error, /연결을 확인/)
   assert.equal(h.render().forecast, null)
-  h.changed.task()
+  h.changed.data({ tasks: [{ reason: 'update' }], schedules: [] })
   h.render()
-  h.changed.schedule()
+  h.changed.data({ tasks: [], schedules: [{ reason: 'created' }] })
   h.render()
   h.window.dispatchEvent(new Event('focus'))
   h.render()
   assert.equal(h.requests.length, 5)
   h.unmount()
   assert.ok(h.requests.every((request) => request.signal.aborted))
-  assert.equal(h.changed.task, undefined)
-  assert.equal(h.changed.schedule, undefined)
+  assert.equal(h.changed.data, undefined)
 })

@@ -120,6 +120,7 @@ const createHarness = (initialToken, respond) => {
       if (name === './errorMessage') return load('shared/api/errorMessage.ts')
       if (name === '@shared/utils/events')
         return {
+          onDataChanged: () => () => {},
           onTaskChanged: () => () => {},
           onScheduleChanged: () => () => {},
         }

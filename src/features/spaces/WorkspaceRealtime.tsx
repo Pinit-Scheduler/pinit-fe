@@ -6,6 +6,7 @@ import { fetchScheduleDetail } from '@features/schedules/api/schedules'
 import { useSpaces, workspaceChanged } from './store'
 import { subscribeToWorkspace, type SpaceEvent } from './realtime'
 import { evictWorkspaceResource } from './metadata'
+import { takeLocalEcho } from '@shared/utils/events'
 
 export default function WorkspaceRealtime() {
   const { spaces, memberId } = useSpaces()
@@ -20,14 +21,24 @@ export default function WorkspaceRealtime() {
     const reads = new Map<string, number>()
     const changed = (event?: SpaceEvent) => {
       if (controller.signal.aborted) return
-      clearTimeout(timer)
-      timer = setTimeout(workspaceChanged, 150)
+      const type = event?.resourceType.toUpperCase()
+      const removed =
+        !!event && ['DELETED', 'PURGED', 'MOVED_OUT'].includes(event.action.toUpperCase())
+      // The echo of a task or schedule this client just saved: its own task:changed/schedule:changed
+      // already refreshed the views, so skip the global refetch. The detail read below still runs.
+      const echo =
+        !!event &&
+        !removed &&
+        (type === 'TASK' || type === 'SCHEDULE') &&
+        takeLocalEcho(type === 'TASK' ? 'task' : 'schedule', event.resourceId)
+      if (!echo) {
+        clearTimeout(timer)
+        timer = setTimeout(workspaceChanged, 150)
+      }
       if (!event) return
-      const type = event.resourceType.toUpperCase()
       const key = `${type}:${event.resourceId}`
       const sequence = (reads.get(key) ?? 0) + 1
       reads.set(key, sequence)
-      const removed = ['DELETED', 'PURGED', 'MOVED_OUT'].includes(event.action.toUpperCase())
       if (type === 'TASK') {
         if (removed) evictWorkspaceResource('task', event.resourceId, true)
         else

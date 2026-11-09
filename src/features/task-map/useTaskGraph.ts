@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
+import { onDataChanged } from '@shared/utils/events'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { collectTaskGraph } from './graphData'
 import type { TaskGraphData } from './graphData'
@@ -17,14 +17,7 @@ export const useTaskGraph = (includeCompleted: boolean) => {
   const { zoneId } = useTimePreferences()
   const key = `${includeCompleted}:${revision}:${zoneId}`
   const reload = useCallback(() => setRevision((value) => value + 1), [])
-  useEffect(() => {
-    const removeTask = onTaskChanged(reload),
-      removeSchedule = onScheduleChanged(reload)
-    return () => {
-      removeTask()
-      removeSchedule()
-    }
-  }, [reload])
+  useEffect(() => onDataChanged(reload), [reload])
   useEffect(() => {
     const controller = new AbortController()
     collectTaskGraph(

@@ -16,8 +16,7 @@ import {
 import {
   dispatchScheduleChanged,
   dispatchTaskChanged,
-  onScheduleChanged,
-  onTaskChanged,
+  onDataChanged,
 } from '@shared/utils/events'
 import type { DateTimeWithZone } from '@shared/types/datetime'
 import {
@@ -100,15 +99,10 @@ const TrashPage = () => {
 
   // 이 화면에 있는 동안 삭제 토스트의 "되돌리기"로 복구하면 목록에서도 빠져야 한다.
   useEffect(() => {
-    const reloadOnRestore = (detail: { reason?: string }) => {
-      if (detail.reason === 'restore') void load()
-    }
-    const offTask = onTaskChanged(reloadOnRestore)
-    const offSchedule = onScheduleChanged(reloadOnRestore)
-    return () => {
-      offTask()
-      offSchedule()
-    }
+    return onDataChanged(({ tasks, schedules }) => {
+      if ([...tasks, ...schedules].some((detail) => detail.reason === 'restore'))
+        void load()
+    })
   }, [load])
 
   const run = async (key: string, work: () => Promise<string | null>) => {

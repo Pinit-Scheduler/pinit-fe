@@ -747,6 +747,7 @@ function spacesStoreHarness(respond) {
       '@shared/utils/events': {
         dispatchTaskChanged() {},
         dispatchScheduleChanged() {},
+        onDataChanged: () => () => {},
         onTaskChanged: () => () => {},
         onScheduleChanged: () => () => {},
       },
@@ -973,6 +974,7 @@ test('Workspace realtime handles deleted, purged and moved-out Task/Schedule eve
         './store': { useSpaces: () => ({ spaces: [{ id: 22 }], memberId: 4 }), workspaceChanged() {} },
         './realtime': { subscribeToWorkspace: (_signal, listener) => { changed = listener; return Promise.resolve() } },
         './metadata': registry,
+        '@shared/utils/events': { takeLocalEcho: () => false },
       }).default
       Component()
       changed({ spaceId: 22, resourceId: 1, resourceType, action })
@@ -1247,7 +1249,7 @@ test('Server-confirmed lost membership evicts task/schedule/series metadata and 
   assert.equal(registry.getMetadata('task', 1).version, 100)
 })
 
-test('SSE reconnect resumes at Last-Event-ID in the current subscription and still refreshes views', async () => {
+test('SSE reconnect resumes at Last-Event-ID and refreshes views only after the gap, not on the first connect', async () => {
   const controller = new AbortController(),
     calls = [],
     events = []
@@ -1287,5 +1289,5 @@ test('SSE reconnect resumes at Last-Event-ID in the current subscription and sti
   assert.equal(calls[0].init.headers['Last-Event-ID'], undefined)
   assert.equal(calls[1].init.headers['Last-Event-ID'], '40')
   assert.deepEqual(events, [40, 41])
-  assert.equal(resyncs, 2)
+  assert.equal(resyncs, 1)
 })

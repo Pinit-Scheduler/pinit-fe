@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
+import { onDataChanged } from '@shared/utils/events'
 
 export type UseReportReturn<T> = {
   data: T | null
@@ -45,8 +45,7 @@ const useReport = <T,>(load: () => Promise<T>, key: string): UseReportReturn<T> 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, refreshKey])
 
-  useEffect(() => onScheduleChanged(reload), [reload])
-  useEffect(() => onTaskChanged(reload), [reload])
+  useEffect(() => onDataChanged(() => reload()), [reload])
 
   const data = loaded && loaded.key === key ? loaded.value : null
   // 다른 key에서 난 실패는 돌려주지 않는다(스페이스를 바꾼 직후 이전 실패가 보이지 않게).

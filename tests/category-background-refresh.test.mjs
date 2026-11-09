@@ -72,6 +72,7 @@ test('a loaded actor-specific category snapshot survives background fetch failur
     },
     '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
     '@shared/utils/events': {
+      onDataChanged: () => () => {},
       onTaskChanged: () => () => {},
       onScheduleChanged: () => () => {},
     },

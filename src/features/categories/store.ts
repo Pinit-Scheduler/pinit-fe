@@ -8,7 +8,7 @@ import {
   type WorkspaceMetadata,
 } from '@features/spaces/metadata'
 import { getAccessToken } from '@shared/api/authTokens'
-import { onTaskChanged, onScheduleChanged } from '@shared/utils/events'
+import { onDataChanged } from '@shared/utils/events'
 
 export type Category = {
   id: number
@@ -57,8 +57,7 @@ const invalidate = () => {
   else void reloadCategories().catch(() => {})
 }
 const subscribeEvents = () => {
-  const offTask = onTaskChanged(invalidate),
-    offSchedule = onScheduleChanged(invalidate)
+  const offData = onDataChanged(invalidate)
   const auth = () => {
     if (actor !== sessionKey()) {
       resetCategories()
@@ -69,8 +68,7 @@ const subscribeEvents = () => {
   window.addEventListener('storage', auth)
   window.addEventListener('focus', invalidate)
   return () => {
-    offTask()
-    offSchedule()
+    offData()
     window.removeEventListener('auth:changed', auth)
     window.removeEventListener('storage', auth)
     window.removeEventListener('focus', invalidate)

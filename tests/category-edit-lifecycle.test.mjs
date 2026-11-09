@@ -471,6 +471,7 @@ test('a committed series category write stays successful when its follow-up refr
     },
     '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
     '@shared/utils/events': {
+      onDataChanged: () => () => {},
       onTaskChanged: () => () => {},
       onScheduleChanged: () => () => {},
     },

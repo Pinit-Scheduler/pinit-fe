@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
+import { onDataChanged } from '@shared/utils/events'
 import { fetchDeadlineRisk } from '../api/deadlineRisk'
 import type { DeadlineRiskDays, DeadlineRiskResponse } from '../types/deadlineRisk'
 
@@ -18,12 +18,10 @@ export default function useDeadlineRisk(days: DeadlineRiskDays, zoneId: string) 
 
   useEffect(() => {
     const invalidate = () => setRevision((previous) => previous + 1)
-    const offTask = onTaskChanged(invalidate)
-    const offSchedule = onScheduleChanged(invalidate)
+    const offData = onDataChanged(invalidate)
     window.addEventListener('focus', invalidate)
     return () => {
-      offTask()
-      offSchedule()
+      offData()
       window.removeEventListener('focus', invalidate)
     }
   }, [])

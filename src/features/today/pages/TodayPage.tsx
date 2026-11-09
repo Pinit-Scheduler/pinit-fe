@@ -21,8 +21,7 @@ import { useTaskCache } from '@contexts/TaskCacheContext'
 import {
   dispatchScheduleChanged,
   dispatchTaskChanged,
-  onScheduleChanged,
-  onTaskChanged,
+  onDataChanged,
 } from '@shared/utils/events'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
@@ -78,13 +77,7 @@ export default function TodayPage() {
     }
   }, [today, setTask, refresh, requestKey])
   useEffect(() => {
-    const reload = () => setRefresh((x) => x + 1)
-    const a = onScheduleChanged(reload),
-      b = onTaskChanged(reload)
-    return () => {
-      a()
-      b()
-    }
+    return onDataChanged(() => setRefresh((x) => x + 1))
   }, [])
   const assign = async (
     payload: Parameters<typeof createScheduleFromTask>[1],

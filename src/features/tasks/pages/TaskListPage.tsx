@@ -5,7 +5,7 @@ import type { Task } from '../types/task'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { getTodayWithOffset } from '@shared/utils/datetime'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
-import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
+import { onDataChanged } from '@shared/utils/events'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import {
   CategoryFilter,
@@ -169,15 +169,7 @@ export default function TaskListPage() {
     void load(0)
     return () => request.current?.abort()
   }, [load])
-  useEffect(() => {
-    const refresh = () => void load(0)
-    const offTask = onTaskChanged(refresh),
-      offSchedule = onScheduleChanged(refresh)
-    return () => {
-      offTask()
-      offSchedule()
-    }
-  }, [load])
+  useEffect(() => onDataChanged(() => void load(0)), [load])
   useEffect(() => {
     const node = sentinel.current
     if (!node || loading || loadingMore || !hasMore) return

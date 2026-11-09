@@ -1,6 +1,5 @@
 import {
-  onTaskChanged,
-  onScheduleChanged,
+  onDataChanged,
   dispatchTaskChanged,
   dispatchScheduleChanged,
 } from '@shared/utils/events'
@@ -79,14 +78,7 @@ const RecurrencesPage = () => {
     void load()
   }, [load])
 
-  useEffect(() => {
-    const offTask = onTaskChanged(() => void load())
-    const offSchedule = onScheduleChanged(() => void load())
-    return () => {
-      offTask()
-      offSchedule()
-    }
-  }, [load])
+  useEffect(() => onDataChanged(() => void load()), [load])
 
   useEffect(() => {
     writeFlag(NUDGE_KEYS.recurrencesNewBadgeSeen)
