@@ -1072,6 +1072,11 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/spaces/SpacePath': { default: () => null },
     '@features/spaces/conflicts': { isEditConflict: () => false },
     '@shared/components/common/Modal': {},
+    '@shared/components/motion/CompletionCheck': { default: () => null },
+    '../utils/useArrival': { useArrival: () => false },
+    '../utils/taskDetailRefresh': {
+      detailRefreshNeeded: () => ({ refetch: false, ownToggles: 0 }),
+    },
     '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({}) },
     '../api/tasks': { createScheduleFromTask: async (...args) => calls.push(args) },
     '@shared/utils/priorityStyles': {},
