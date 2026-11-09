@@ -10,7 +10,6 @@ import type { OAuthAuthorizationRequest } from '../types/oauth'
 import {
   EXPIRED_REQUEST_MESSAGE,
   DELETE_SCOPE,
-  SPACES_SCOPE,
   buildConsentScopeOptions,
   getDefaultSelectedScopes,
   isNavigableRedirectUri,
@@ -223,9 +222,6 @@ const OAuthConsentPage = () => {
       request.optInScopes ?? [],
     )
     const isBusy = phase === 'submitting'
-    const spacesRequested = scopeOptions.some(
-      (option) => option.scope === SPACES_SCOPE,
-    )
     const deleteRequested = scopeOptions.some(
       (option) => option.scope === DELETE_SCOPE,
     )
@@ -318,17 +314,14 @@ const OAuthConsentPage = () => {
         </fieldset>
 
         <ul className="consent__notes">
-          {spacesRequested && (
-            <li>
-              공간·공유 업무 도구는 별도로 선택하는 권한이에요. 기존 연결의 허용
-              범위는 그대로 유지되며, 새 관리 기능을 쓰려면 이 권한에 동의해야
-              해요.
-            </li>
-          )}
+          <li>
+            허용한 권한은 내가 접근할 수 있는 개인·공유 공간에 적용돼요. 공간
+            참여 여부와 관리자 권한은 Pinit에서 확인해요.
+          </li>
           <li>
             {deleteRequested
-              ? '삭제를 체크하지 않으면 AI 앱은 일정이나 작업을 삭제할 수 없어요.'
-              : 'AI 앱은 Pinit을 통해 일정이나 작업을 삭제할 수 없어요.'}
+              ? '삭제를 체크하지 않으면 AI 앱은 삭제·초대 철회·참여자 제외·공간 나가기를 요청할 수 없어요.'
+              : 'AI 앱은 삭제·초대 철회·참여자 제외·공간 나가기를 요청할 수 없어요.'}
           </li>
           <li>연결은 설정 &gt; 연결된 앱에서 언제든 끊을 수 있어요.</li>
           <li>

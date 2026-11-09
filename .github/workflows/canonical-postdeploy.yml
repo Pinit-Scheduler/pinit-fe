@@ -30,6 +30,6 @@ jobs:
       - name: Install official Chromium
         working-directory: qa/browser
         run: npx --no-install playwright install --with-deps chromium
-      - name: Wait for genuine canonical assets and verify SW v26 and mobile login
+      - name: Wait for genuine canonical assets and verify SW and mobile login
         # Read-only, fresh browser; no accounts or production fixture writes.
         run: node qa/browser/canonical-postdeploy.mjs
