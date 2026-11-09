@@ -438,6 +438,7 @@ const SchedulesTabPage = () => {
               <button
                 key={value}
                 type="button"
+                data-schedule-audience={value}
                 aria-pressed={audience === value}
                 onClick={() => setAudience(value)}
               >
@@ -484,9 +485,23 @@ const SchedulesTabPage = () => {
         !scheduleError && (
           <div className="schedules-tab__hidden-note" role="status">
             <span>
-              이 날 팀원 일정 {hiddenScheduleCount}개는 숨겨져 있어요.
+              이 날 다른 사람이 맡았거나 담당자가 없는 일정{' '}
+              {hiddenScheduleCount}개는 숨겨져 있어요.
             </span>
-            <button type="button" onClick={() => setAudience('team')}>
+            <button
+              type="button"
+              onClick={() => {
+                setAudience('team')
+                // 안내가 사라지므로 포커스를 범위 전환의 "팀 전체" 버튼으로 옮긴다.
+                requestAnimationFrame(() =>
+                  document
+                    .querySelector<HTMLButtonElement>(
+                      '[data-schedule-audience="team"]',
+                    )
+                    ?.focus(),
+                )
+              }}
+            >
               팀 전체 보기
             </button>
           </div>
@@ -570,8 +585,16 @@ const SchedulesTabPage = () => {
         ) : (
           <StatusPanel
             variant="empty"
-            title="등록된 일정이 없어요"
-            description="일정 추가 탭에서 새로운 일정을 만들어보세요."
+            title={
+              shared && audience === 'mine' && hiddenScheduleCount > 0
+                ? '이 날 내 일정이 없어요'
+                : '등록된 일정이 없어요'
+            }
+            description={
+              shared && audience === 'mine' && hiddenScheduleCount > 0
+                ? '팀 전체 보기에서 다른 사람의 일정을 볼 수 있어요.'
+                : '일정 추가 탭에서 새로운 일정을 만들어보세요.'
+            }
           />
         )}
       </div>

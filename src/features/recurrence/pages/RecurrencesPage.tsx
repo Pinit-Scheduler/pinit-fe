@@ -6,7 +6,7 @@ import {
 } from '@shared/utils/events'
 import { isEditConflict } from '@features/spaces/conflicts'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useRecurrenceScope } from '../components/RecurrenceScopeDialog'
 import { useToast } from '@contexts/ToastContext'
@@ -58,12 +58,17 @@ const RecurrencesPage = () => {
   } | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
 
+  // 스페이스를 바꿔도 이 화면에 머물므로, 늦게 도착한 이전 범위의 응답이 새 목록을 덮지 않게 한다.
+  const requestRef = useRef(0)
   const load = useCallback(async () => {
+    const request = ++requestRef.current
     setError(null)
     try {
       const response = await fetchRecurrences(status)
+      if (request !== requestRef.current) return
       setItems(response.recurrences)
     } catch (loadError) {
+      if (request !== requestRef.current) return
       console.error('반복 목록 조회 실패', loadError)
       setError('반복 목록을 불러오지 못했어요.')
     }

@@ -134,7 +134,7 @@ const ScheduleCard = ({
                   .filter(Boolean)
                   .join(' ')}
               >
-                {assignee.label}
+                {assignee.unassigned ? assignee.label : `담당 ${assignee.label}`}
               </p>
             )}
             {scheduleType && (
