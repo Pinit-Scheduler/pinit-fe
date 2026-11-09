@@ -16,6 +16,14 @@ type UseScheduleDetailReturn = {
   replace: (response: ScheduleResponse) => void
 }
 
+const isGone = (failure: unknown) => {
+  const status =
+    typeof failure === 'object' && failure !== null && 'status' in failure
+      ? (failure as { status?: unknown }).status
+      : undefined
+  return status === 403 || status === 404 || status === 410
+}
+
 const useScheduleDetail = (
   scheduleId?: string,
   { refreshOnChange = true }: { refreshOnChange?: boolean } = {},
@@ -26,13 +34,29 @@ const useScheduleDetail = (
   // The id the current schedule/error belongs to. Another id never shows this one's content.
   const [loadedId, setLoadedId] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
+  // The last read for this id said the schedule is gone or no longer visible (403, 404, 410).
+  const [gone, setGone] = useState(false)
   const [timestamp, setTimestamp] = useState(() => Date.now())
-  const { setSchedule: cacheSchedule } = useScheduleCache()
+  const { setSchedule: cacheSchedule, schedulesById } = useScheduleCache()
+  // A list or the mini player usually holds this schedule already. The detail view shows it at
+  // once instead of a loading line and lets the read refresh it. An edit session (refreshOnChange
+  // false) waits for its own read, so its form and version come from the server, not the cache.
+  const cached =
+    refreshOnChange && numericId !== undefined ? schedulesById?.[numericId] : undefined
 
   useEffect(() => {
     if (!refreshOnChange) return
-    return onScheduleChanged(() => setTimestamp((previous) => previous + 1))
-  }, [refreshOnChange])
+    return onScheduleChanged((detail, details = [detail]) => {
+      // This detail deleting its own schedule closes the surface. Reading it again would only
+      // answer 404 and swap the closing modal for the not-found panel.
+      if (
+        details.length > 0 &&
+        details.every((item) => item.reason === 'deleted' && item.scheduleId === numericId)
+      )
+        return
+      setTimestamp((previous) => previous + 1)
+    })
+  }, [numericId, refreshOnChange])
 
   useEffect(() => {
     if (!numericId) {
@@ -51,6 +75,7 @@ const useScheduleDetail = (
         const response = await fetchScheduleDetail(numericId)
         if (isMounted) {
           setSchedule(response)
+          setGone(false)
           setLoadedId(numericId)
           cacheSchedule(response)
         }
@@ -59,7 +84,13 @@ const useScheduleDetail = (
           const message =
             err instanceof Error ? err.message : '일정을 불러오지 못했습니다.'
           setError(message)
-          setSchedule(null)
+          // A failed refresh keeps the schedule on screen. Only a schedule that is gone or no
+          // longer visible to this member drops it. Another id's schedule never stays.
+          const dropped = isGone(err)
+          setGone(dropped)
+          setSchedule((previous) =>
+            dropped || previous?.id !== numericId ? null : previous,
+          )
           setLoadedId(numericId)
         }
       } finally {
@@ -104,10 +135,21 @@ const useScheduleDetail = (
   }, [numericId, refreshOnChange])
 
   const current = numericId !== undefined && loadedId === numericId
+  // The schedule this id last loaded, or the cached copy until the first read lands. While the
+  // detail follows changes, a newer cached version (a state change made elsewhere) wins.
+  // A first read that failed without saying the schedule is gone keeps the cached copy.
+  const loaded = current ? (schedule ?? (gone ? null : (cached ?? null))) : null
+  const shown =
+    loaded && cached && (cached.version ?? 0) > (loaded.version ?? 0)
+      ? cached
+      : current
+        ? loaded
+        : (cached ?? null)
+  const seeded = !current && shown !== null
   return {
-    schedule: current ? schedule : null,
-    isLoading: numericId === undefined ? isLoading : !current,
-    isRefreshing: current && isLoading,
+    schedule: shown,
+    isLoading: numericId === undefined ? isLoading : !current && !seeded,
+    isRefreshing: (current && isLoading) || seeded,
     error: numericId === undefined || current ? error : null,
     refetch: () => setTimestamp((previous) => previous + 1),
     replace: (response) => {

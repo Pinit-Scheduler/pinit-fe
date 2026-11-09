@@ -27,6 +27,26 @@ export type ScheduleCacheValue = {
 
 const ScheduleCacheContext = createContext<ScheduleCacheValue | null>(null)
 
+/** Two copies of one schedule whose fields hold the same values (one level deep). */
+const sameRevision = (a: ScheduleResponse, b: ScheduleResponse) => {
+  if (a === b) return true
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const key of keys) {
+    const left = (a as Record<string, unknown>)[key]
+    const right = (b as Record<string, unknown>)[key]
+    if (Object.is(left, right)) continue
+    if (
+      typeof left !== 'object' ||
+      typeof right !== 'object' ||
+      left === null ||
+      right === null ||
+      JSON.stringify(left) !== JSON.stringify(right)
+    )
+      return false
+  }
+  return true
+}
+
 export const ScheduleCacheProvider = ({
   children,
 }: {
@@ -96,6 +116,9 @@ export const ScheduleCacheProvider = ({
         current.version > schedule.version
       )
         return prev
+      // The same revision read twice (a list read after the detail, say) changes nothing.
+      // Keep the map so every consumer of the cache skips a render.
+      if (current && sameRevision(current, schedule)) return prev
       return { ...prev, [schedule.id]: schedule }
     })
   }, [])

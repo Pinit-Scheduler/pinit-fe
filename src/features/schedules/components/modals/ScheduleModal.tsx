@@ -13,6 +13,8 @@ type ScheduleModalProps = {
   mode: 'create' | 'edit'
   schedule?: ScheduleResponse | null
   onClose: () => void
+  /** The caller keeps the modal mounted through its exit (usePresence) and passes closing. */
+  closing?: boolean
 }
 
 /**
@@ -22,7 +24,7 @@ type ScheduleModalProps = {
  * @param onClose - 모달 닫기 콜백
  * @constructor
  */
-const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
+const ScheduleModal = ({ mode, schedule, onClose, closing = false }: ScheduleModalProps) => {
   const titleId = useId()
   const { addToast } = useToast()
 
@@ -71,7 +73,7 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
     : undefined
 
   return (
-    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} labelledBy={titleId}>
+    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} labelledBy={titleId} closing={closing} sheet>
       <header className="schedule-modal__header">
         <h1 id={titleId}>{mode === 'create' ? '일정 추가' : '일정 수정'}</h1>
         <button

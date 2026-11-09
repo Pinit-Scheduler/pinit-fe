@@ -16,30 +16,12 @@ type ScheduleItemActionsProps = {
 const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsProps) => {
   const actions = useScheduleActions(schedule.id, schedule.state)
 
-  console.log(`🎯 ScheduleItemActions for schedule ${schedule.id}:`, {
-    id: schedule.id,
-    title: schedule.title,
-    state: schedule.state,
-    stateType: typeof schedule.state,
-    canStart: actions.canStart,
-    canPause: actions.canPause,
-    canComplete: actions.canComplete,
-    canCancel: actions.canCancel,
-    isMutating: actions.isMutating
-  })
-
-  // 버튼이 하나도 없으면 경고
-  if (!actions.canStart && !actions.canPause && !actions.canComplete && !actions.canCancel) {
-    console.warn(`⚠️ No buttons available for schedule ${schedule.id} with state: ${schedule.state}`)
-  }
-
   return (
     <div className="schedules-tab__actions">
       {actions.canStart && (
         <button
           className="schedules-tab__action-btn schedules-tab__action-btn--start"
           onClick={() => onActionClick(schedule.id, actions.start)}
-          disabled={actions.isMutating}
           title="시작"
         >
           <WorkspaceIcon name="play" /> 시작
@@ -49,7 +31,6 @@ const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsPro
         <button
           className="schedules-tab__action-btn schedules-tab__action-btn--pause"
           onClick={() => onActionClick(schedule.id, actions.pause)}
-          disabled={actions.isMutating}
           title="일시중지"
         >
           <WorkspaceIcon name="pause" /> 일시중지
@@ -59,7 +40,6 @@ const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsPro
         <button
           className="schedules-tab__action-btn schedules-tab__action-btn--complete"
           onClick={() => onActionClick(schedule.id, actions.complete)}
-          disabled={actions.isMutating}
           title="완료"
         >
           <WorkspaceIcon name="check" /> 완료
@@ -69,7 +49,6 @@ const ScheduleItemActions = ({ schedule, onActionClick }: ScheduleItemActionsPro
         <button
           className="schedules-tab__action-btn schedules-tab__action-btn--cancel"
           onClick={() => onActionClick(schedule.id, actions.cancel)}
-          disabled={actions.isMutating}
           title="취소"
         >
           <WorkspaceIcon name="close" /> 취소
