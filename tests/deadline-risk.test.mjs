@@ -60,8 +60,8 @@ test('page announces personal-space-only tasks and schedules before forecast loa
     './DeadlineRiskPage.css': {},
   }).default
   const html = renderToStaticMarkup(React.createElement(Page))
-  assert.match(html, /개인 공간의 작업과 일정만 반영해요/)
-  assert.match(html, /팀이나 다른 공간의 작업·일정은 포함하지 않아요/)
+  assert.match(html, /개인 스페이스의 작업과 일정만 반영해요/)
+  assert.match(html, /팀이나 다른 스페이스의 작업·일정은 포함하지 않아요/)
   assert.match(html, /계산하고 있어요/)
 })
 
@@ -91,10 +91,10 @@ test('personal plan and empty-task actions switch team/project view only on clic
   }
   walk(Page())
   assert.equal(actions.length, 0, 'reading a personal forecast does not silently change team selection')
-  buttons.find((button) => button.props.children === '개인 공간에서 하루 계획 열기').props.onClick()
+  buttons.find((button) => button.props.children === '개인 스페이스에서 하루 계획 열기').props.onClick()
   assert.deepEqual(actions, [['select', -7, null], ['navigate', '/app/plan']])
   actions.length = 0
-  buttons.find((button) => button.props.children === '개인 공간의 작업과 마감 확인하기').props.onClick()
+  buttons.find((button) => button.props.children === '개인 스페이스의 작업과 마감 확인하기').props.onClick()
   assert.deepEqual(actions, [['select', -7, null], ['navigate', '/app/tasks']])
 })
 
@@ -119,7 +119,7 @@ test('missing personal space during snapshot loading or failure disables every p
       const walk = (node) => {
         if (Array.isArray(node)) return node.forEach(walk)
         if (!node || typeof node !== 'object') return
-        if (node.type === 'button' && typeof node.props.children === 'string' && node.props.children.startsWith('개인 공간')) buttons.push(node)
+        if (node.type === 'button' && typeof node.props.children === 'string' && node.props.children.startsWith('개인 스페이스')) buttons.push(node)
         if (node.type === Item) cards.push(node)
         walk(node.props?.children)
       }
@@ -133,7 +133,7 @@ test('missing personal space during snapshot loading or failure disables every p
         assert.equal(card.props.canOpenPlan, false)
         card.props.onOpenPlan()
         const html = renderToStaticMarkup(card)
-        assert.match(html, /<button[^>]*disabled=""[^>]*>개인 공간에서 배치 검토/)
+        assert.match(html, /<button[^>]*disabled=""[^>]*>개인 스페이스에서 배치 검토/)
       }
       assert.equal(actions.length, 0, 'even an invoked stale callback must never fall back to selected team space')
     }
@@ -151,7 +151,7 @@ test('workspace context labels personal forecast instead of the selected team pu
     './spaces.css': {},
   })
   const html = renderToStaticMarkup(React.createElement(SpaceContextBar))
-  assert.ok(html.includes('개인 공간 · 마감 위험 예보'))
+  assert.ok(html.includes('개인 스페이스 · 마감 위험 예보'))
   assert.ok(html.includes('선택한 팀'), 'space switcher stays available without silently changing selection')
   assert.ok(!html.includes('팀 목적'))
   assert.ok(!html.includes('팀 프로젝트'))
@@ -161,7 +161,7 @@ test('5 required hours versus 2 available hours shows 3 hours shortage and prede
   const html = renderToStaticMarkup(React.createElement(Item, { item: baseItem, zoneId: 'Asia/Seoul' }))
   for (const text of ['시간 부족', '5시간', '2시간', '3시간', '사용 가능 시간(상한)', '미완료 선행 작업 1개']) assert.ok(html.includes(text), text)
   for (const path of ['/app/tasks/41', '/app/tasks/10']) assert.ok(html.includes(`href="${path}"`), path)
-  assert.ok(html.includes('개인 공간에서 배치 검토'))
+  assert.ok(html.includes('개인 스페이스에서 배치 검토'))
   assert.ok(!html.includes('href="/app/plan"'), 'plan uses explicit local personal-scope selection, not a team-scoped link')
   assert.match(html, /2026.*11.*14.*00:00/)
   assert.ok(!html.includes('확률'))

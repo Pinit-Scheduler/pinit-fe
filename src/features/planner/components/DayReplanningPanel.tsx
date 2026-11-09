@@ -53,7 +53,7 @@ const DayReplanningContent = ({ date, zoneId, onApplied, disabled = false, scope
       <p className="day-replan__policy">약속·반복·진행 중·일시정지·완료 일정과 다른 사람의 일정은 그대로 두고, 생활 시간과 마감·선행 작업을 지켜 배치해요. 일정 사이에는 10분을 비워요.</p>
       {!isToday && <p className="day-replan__error" role="status">날짜가 바뀌었어요. 오늘 계획을 다시 열어 주세요.</p>}
       {replan.error && <p className="day-replan__error" role="alert">{replan.error}</p>}
-      {replan.accessDenied && <p className="day-replan__error" role="status">공간 접근 권한을 다시 확인해 주세요. <button type="button" onClick={onReloadSpace}>공간 다시 불러오기</button></p>}
+      {replan.accessDenied && <p className="day-replan__error" role="status">스페이스 접근 권한을 다시 확인해 주세요. <button type="button" onClick={onReloadSpace}>스페이스 다시 불러오기</button></p>}
       {replan.appliedCount !== null && <p className="day-replan__success" role="status">{replan.appliedCount}개 일정의 시간을 변경했어요. 일정 목록에서 확인할 수 있어요.</p>}
 
       {replan.preview && (
@@ -121,7 +121,7 @@ const DayReplanningPanel = (props: Props) => {
   const reload = () => {
     setScopeError(null)
     void workspace.reload().then(() => setScopeRefresh((value) => value + 1)).catch(() => {
-      setScopeError('공간을 불러오지 못했어요. 다시 시도해 주세요.')
+      setScopeError('스페이스를 불러오지 못했어요. 다시 시도해 주세요.')
     })
   }
   const unavailable = workspace.loading || Boolean(workspace.error) || !space || space.deleted ||
@@ -129,9 +129,9 @@ const DayReplanningPanel = (props: Props) => {
   if (unavailable || !space) return (
     <section className="day-replan" aria-labelledby="day-replan-title">
       <h2 id="day-replan-title">오늘 남은 일정 다시 짜기</h2>
-      <p className="day-replan__hint" role="status">{workspace.loading ? '선택한 공간을 확인하고 있어요.' : '접근할 수 있는 공간·프로젝트를 선택해 주세요.'}</p>
+      <p className="day-replan__hint" role="status">{workspace.loading ? '선택한 스페이스를 확인하고 있어요.' : '접근할 수 있는 스페이스·프로젝트를 선택해 주세요.'}</p>
       {(scopeError || workspace.error) && <p className="day-replan__error" role="alert">{scopeError ?? workspace.error}</p>}
-      {!workspace.loading && <button className="day-replan__primary" type="button" onClick={reload}>공간 다시 불러오기</button>}
+      {!workspace.loading && <button className="day-replan__primary" type="button" onClick={reload}>스페이스 다시 불러오기</button>}
     </section>
   )
   // An accessible active space snapshot proves participation. The server checks

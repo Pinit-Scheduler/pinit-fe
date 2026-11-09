@@ -66,11 +66,11 @@ function EditorDialog({
     editor.kind === 'project' || editor.kind === 'create-project'
   const title =
     editor.kind === 'create-space'
-      ? '목적 공간 만들기'
+      ? '목적 스페이스 만들기'
       : editor.kind === 'purpose'
         ? '목적 작성·수정'
         : editor.kind === 'space'
-          ? '공간 정보 수정'
+          ? '스페이스 정보 수정'
           : editor.kind === 'create-project'
             ? '프로젝트 만들기'
             : '프로젝트 수정'
@@ -80,7 +80,7 @@ function EditorDialog({
     if (editor.kind !== 'purpose' && !name.trim()) {
       setInvalidField('name')
       setError(
-        isProject ? '프로젝트 이름을 입력해 주세요.' : '공간 이름을 입력해 주세요.',
+        isProject ? '프로젝트 이름을 입력해 주세요.' : '스페이스 이름을 입력해 주세요.',
       )
       requestAnimationFrame(() => nameInput.current?.focus())
       return
@@ -167,7 +167,7 @@ function EditorDialog({
         <div className="space-dialog__body space-form">
           {editor.kind !== 'purpose' && (
             <label>
-              {isProject ? '프로젝트 이름' : '공간 이름'}
+              {isProject ? '프로젝트 이름' : '스페이스 이름'}
               <input
                 ref={nameInput}
                 aria-invalid={invalidField === 'name'}
@@ -184,7 +184,7 @@ function EditorDialog({
             </label>
           )}
           <label>
-            {isProject ? '목적에 기여할 성과 · 권장' : '이 공간의 목적'}
+            {isProject ? '목적에 기여할 성과 · 권장' : '이 스페이스의 목적'}
             <textarea
               autoFocus={editor.kind === 'purpose'}
               ref={textInput}
@@ -200,7 +200,7 @@ function EditorDialog({
               placeholder={
                 isProject
                   ? '이 프로젝트를 마쳤을 때 남을 성과를 적어보세요.'
-                  : '이 공간에서 이루고 싶은 방향과 결과를 적어보세요.'
+                  : '이 스페이스에서 이루고 싶은 방향과 결과를 적어보세요.'
               }
             />
           </label>
@@ -313,17 +313,17 @@ export default function SpacesPage() {
     <section className="spaces-page">
       <header className="workspace-page-header">
         <div>
-          <h1>공간·프로젝트 관리</h1>
+          <h1>스페이스·프로젝트 관리</h1>
           <p>목적과 프로젝트를 나누고, 같은 작업을 함께 관리하세요.</p>
         </div>
         <button
           className="workspace-button workspace-button--primary"
           onClick={() => setEditor({ kind: 'create-space' })}
         >
-          공간 만들기
+          스페이스 만들기
         </button>
       </header>
-      {workspace.loading && <p role="status">공간을 불러오는 중…</p>}
+      {workspace.loading && <p role="status">스페이스를 불러오는 중…</p>}
       {(workspace.error || error) && (
         <div className="workspace-inline-error" role="alert">
           <span>{error ?? workspace.error}</span>
@@ -347,12 +347,12 @@ export default function SpacesPage() {
               <h2>{space.name}</h2>
               <p>
                 {space.personal
-                  ? '본인 전용 기본 공간'
-                  : `${space.members.length}명이 함께 사용하는 공간`}
+                  ? '본인 전용 기본 스페이스'
+                  : `${space.members.length}명이 함께 사용하는 스페이스`}
               </p>
             </div>
           </div>
-          <nav className="space-tabs" aria-label="공간 관리 항목">
+          <nav className="space-tabs" aria-label="스페이스 관리 항목">
             {[
               ['purpose', '목적·정보'],
               ['projects', '프로젝트'],
@@ -380,7 +380,7 @@ export default function SpacesPage() {
                     disabled={!space.allowedActions.update || busy}
                     onClick={() => setEditor({ kind: 'space', space })}
                   >
-                    공간 정보 수정
+                    스페이스 정보 수정
                   </button>
                 </div>
                 <p className="space-purpose-copy">
@@ -402,7 +402,7 @@ export default function SpacesPage() {
                         setConfirm({
                           title: '목적 내용 삭제',
                           description:
-                            '목적 내용만 지웁니다. 공간과 프로젝트, 작업·일정은 남아 있어요.',
+                            '목적 내용만 지웁니다. 스페이스와 프로젝트, 작업·일정은 남아 있어요.',
                           action: () =>
                             updatePurpose(space.id, null, space.version),
                         })
@@ -414,7 +414,7 @@ export default function SpacesPage() {
                 </div>
                 {space.personal ? (
                   <p className="space-notice">
-                    나의 공간은 본인 전용이며 사람을 초대할 수 없어요.
+                    나의 스페이스는 본인 전용이며 사람을 초대할 수 없어요.
                   </p>
                 ) : (
                   <div className="space-danger-zone">
@@ -423,28 +423,28 @@ export default function SpacesPage() {
                       disabled={!space.allowedActions.leave || busy}
                       onClick={() =>
                         setConfirm({
-                          title: '공간 나가기',
+                          title: '스페이스 나가기',
                           description:
-                            '나가면 이 공간의 공유 내용에 접근할 수 없어요.',
+                            '나가면 이 스페이스의 공유 내용에 접근할 수 없어요.',
                           action: () => leaveSpace(space.id),
                         })
                       }
                     >
-                      공간 나가기
+                      스페이스 나가기
                     </button>
                     <button
                       className="space-text-button space-text-button--danger"
                       disabled={!space.allowedActions.delete || busy}
                       onClick={() =>
                         setConfirm({
-                          title: '공간 삭제',
+                          title: '스페이스 삭제',
                           description:
-                            '이 공간이 목록에서 숨겨지고 참여자가 접근할 수 없게 됩니다. 복구는 관리자만 할 수 있어요.',
+                            '이 스페이스가 목록에서 숨겨지고 참여자가 접근할 수 없게 됩니다. 복구는 관리자만 할 수 있어요.',
                           action: () => deleteSpace(space.id, space.version),
                         })
                       }
                     >
-                      공간 삭제
+                      스페이스 삭제
                     </button>
                   </div>
                 )}
@@ -512,7 +512,7 @@ export default function SpacesPage() {
                           disabled={!project.allowedActions.move || busy}
                           onClick={() => setMovingProject(project)}
                         >
-                          공간 이동
+                          스페이스 이동
                         </button>
                         <button
                           className="space-text-button space-text-button--danger"
@@ -544,7 +544,7 @@ export default function SpacesPage() {
               <>
                 {space.personal ? (
                   <div className="space-notice">
-                    기본 개인 공간에는 초대할 수 없어요. 함께할 공간을 새로
+                    기본 개인 스페이스에는 초대할 수 없어요. 함께할 스페이스를 새로
                     만들면 사람을 초대할 수 있습니다.
                   </div>
                 ) : (
@@ -615,7 +615,7 @@ export default function SpacesPage() {
                             onClick={() =>
                               setConfirm({
                                 title: '참여자 제외',
-                                description: `${member.nickname} 님은 이 공간의 공유 내용에 접근할 수 없게 됩니다.`,
+                                description: `${member.nickname} 님은 이 스페이스의 공유 내용에 접근할 수 없게 됩니다.`,
                                 action: () =>
                                   removeSpaceMember(space.id, member.memberId),
                               })
@@ -632,7 +632,7 @@ export default function SpacesPage() {
             )}
             {tab === 'trash' && (
               <>
-                <h3>삭제된 공간·프로젝트</h3>
+                <h3>삭제된 스페이스·프로젝트</h3>
                 <p className="space-help">
                   서버에서 복구 권한을 받은 항목만 복구할 수 있습니다.
                 </p>
@@ -647,7 +647,7 @@ export default function SpacesPage() {
                         onClick={() =>
                           void run(
                             () => restoreSpace(item.id, item.version),
-                            '공간을 복구했어요.',
+                            '스페이스를 복구했어요.',
                           )
                         }
                       >
@@ -851,23 +851,23 @@ function ProjectMoveDialog({
       onClose={busy ? undefined : close}
     >
       <header className="space-dialog__header">
-        <h2 id="project-move-title">프로젝트 공간 이동</h2>
+        <h2 id="project-move-title">프로젝트 스페이스 이동</h2>
       </header>
       <div className="space-dialog__body space-form">
         <p>
-          {project.name}의 작업·일정과 과거 기록이 목적지 공간에 함께
-          표시됩니다. 원래 공간에 남은 작업과의 선행 관계는 서버에서
+          {project.name}의 작업·일정과 과거 기록이 목적지 스페이스에 함께
+          표시됩니다. 원래 스페이스에 남은 작업과의 선행 관계는 서버에서
           해제·기록합니다.
         </p>
         <label>
-          이동할 공간
+          이동할 스페이스
           <select
             value={spaceId ?? ''}
             disabled={busy}
             onChange={(event) => setSpaceId(Number(event.target.value))}
           >
             <option value="" disabled>
-              공간을 선택하세요
+              스페이스를 선택하세요
             </option>
             {spaces
               .filter(

@@ -10,7 +10,7 @@ const main: [string, string, WorkspaceIconName][] = [
   ['statistics', '통계', 'chart'],
 ]
 const manage: [string, string, WorkspaceIconName][] = [
-  ['spaces', '공간·프로젝트', 'task'],
+  ['spaces', '스페이스·프로젝트', 'task'],
   ['settings/routines', '생활 시간', 'clock'],
   ['settings/recurrences', '반복 관리', 'repeat'],
   ['settings/trash', '휴지통', 'trash'],

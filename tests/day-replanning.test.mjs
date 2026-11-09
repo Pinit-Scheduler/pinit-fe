@@ -339,7 +339,7 @@ test('mismatched response scope is rejected before any preview titles are stored
   const host = harness({ previewApi: async () => ({ ...preview(), spaceId: 20 }) })
   await host.render().loadPreview()
   assert.equal(host.render().preview, null)
-  assert.match(host.render().error, /선택한 공간·프로젝트의 제안이 아니에요/)
+  assert.match(host.render().error, /선택한 스페이스·프로젝트의 제안이 아니에요/)
 })
 
 test('rendered preview exposes before/after, protected reasons and original-slot policy in requested timezone', () => {

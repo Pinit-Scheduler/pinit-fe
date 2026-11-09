@@ -47,7 +47,7 @@ export default function DeadlineRiskItem({ item, zoneId, canOpenPlan, onOpenPlan
       ) : null}
       <div className="deadline-risk__actions">
         <Link to={`/app/tasks/${item.taskId}`} state={taskLinkState}>작업 상세 확인</Link>
-        <button type="button" className="deadline-risk__personal-action" disabled={!canOpenPlan} onClick={onOpenPlan}>개인 공간에서 배치 검토</button>
+        <button type="button" className="deadline-risk__personal-action" disabled={!canOpenPlan} onClick={onOpenPlan}>개인 스페이스에서 배치 검토</button>
       </div>
     </li>
   )
