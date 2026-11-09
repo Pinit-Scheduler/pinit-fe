@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
 
-type UseReportReturn<T> = {
+export type UseReportReturn<T> = {
   data: T | null
   error: string | null
   isLoading: boolean

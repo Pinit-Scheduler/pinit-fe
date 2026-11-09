@@ -162,3 +162,42 @@ test('summary calls use the contract paths', async () => {
     'https://api/spaces/-7/weekly-record?start=2026-11-09',
   ])
 })
+
+test('spaces is a main destination right after today', () => {
+  const source = readFileSync(
+    new URL('../src/shared/components/layout/WorkspaceSidebar.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(source, /\['today', '오늘', 'sun'\],\s*\['spaces', '스페이스', 'spaces'\]/)
+  assert.equal(source.includes('스페이스·프로젝트'), false)
+})
+
+test('hub data is keyed by space so a stale space never shows', () => {
+  const source = readFileSync(
+    new URL('../src/features/spaces/hub/useHubData.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(source, /`summary:\$\{spaceId\}`/)
+  assert.match(source, /`record:\$\{spaceId\}:\$\{weekStart\}`/)
+  assert.match(source, /fetchWeeklyRecord\(spaceId, weekStart\)/)
+})
+
+test('the hub never counts tasks itself', () => {
+  for (const file of ['SpacesPage.tsx', 'hub/HubProjects.tsx', 'hub/HubPeople.tsx', 'hub/HubRail.tsx', 'hub/TeamRecord.tsx']) {
+    const source = readFileSync(new URL('../src/features/spaces/' + file, import.meta.url), 'utf8')
+    assert.equal(/fetchWorkspaceTasks|workspace\/tasks|\.reduce\(/.test(source), false, file)
+  }
+})
+
+test('day bars keep seven server days and mark today', () => {
+  const { dayBars } = load('features/spaces/hub.ts', duration({ PT1H30M: 90, PT45M: 45 }))
+  const days = ['09', '10', '11', '12', '13', '14', '15'].map((day) => ({
+    date: '2026-11-' + day,
+    elapsed: day === '09' ? 'PT1H30M' : day === '10' ? 'PT45M' : 'PT0S',
+  }))
+  assert.deepEqual(
+    plain(dayBars(days, '2026-11-10').map((bar) => [bar.label, bar.height, bar.today])),
+    [['월', 48, false], ['화', 24, true], ['수', 2, false], ['목', 2, false], ['금', 2, false], ['토', 2, false], ['일', 2, false]],
+  )
+  assert.equal(dayBars(days.map((day) => ({ ...day, elapsed: 'PT0S' })), '2026-11-10')[0].height, 2)
+})

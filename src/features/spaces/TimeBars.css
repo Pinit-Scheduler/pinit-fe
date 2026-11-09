@@ -1,0 +1,52 @@
+/* 시간 막대는 중립 회색이다. 파랑은 누를 수 있는 것과 선택된 것에만 쓴다. */
+.time-bars {
+  display: grid;
+  gap: 8px;
+}
+.time-bars__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(60px, 1.2fr) 84px;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--workspace-ink);
+}
+.time-bars__row.is-child {
+  font-size: 12px;
+  color: var(--workspace-muted);
+}
+.time-bars__row.is-child .time-bars__label {
+  padding-left: 18px;
+}
+.time-bars__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.time-bars__label > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.time-bars__track {
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--workspace-line) 75%, var(--workspace-surface));
+}
+.time-bars__track i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--workspace-ink) 70%, var(--workspace-surface));
+}
+.time-bars__row.is-child .time-bars__track i {
+  background: color-mix(in srgb, var(--workspace-ink) 35%, var(--workspace-surface));
+}
+.time-bars__row strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
