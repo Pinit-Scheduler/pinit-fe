@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useToast } from '@contexts/ToastContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { formatOffsetLabel, getZoneOffsetMinutes } from '@shared/utils/datetime'
 import { formatMinutesLabel, minutesToIsoDuration, parseIsoDurationMinutes } from '@shared/utils/isoDuration'
 import type { ProfileSettings } from '../api/profileSettings'
 import { dailyObjectiveOptions, suggestedDeviceZone, timeZoneOptions } from '../utils/profileSettings'
+import useSavedFlash from '../hooks/useSavedFlash'
+import SavedMark from './SavedMark'
 import './ProfileSettingRows.css'
 
 type RowProps = {
@@ -16,18 +18,33 @@ type RowProps = {
 
 const errorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback)
 
-/** 자동 계획의 하루 목표(ADR-0028 §2). 고르면 바로 저장한다. */
-export const DailyObjectiveSetting = ({ settings, isLoading, isSaving, save }: RowProps) => {
+/**
+ * 자동 계획의 하루 목표(ADR-0028 §2). 고르면 바로 저장한다.
+ * 저장하는 동안에도 고른 값을 그대로 보인다(저장 전 값으로 되튀지 않게). 실패하면 서버 값으로 돌아간다.
+ * 저장 중에는 ref로 잠가 한 번만 보내고, select를 막아 흐리게 하지 않는다.
+ */
+export const DailyObjectiveSetting = ({ settings, isLoading, save }: RowProps) => {
   const { addToast } = useToast()
-  const current = parseIsoDurationMinutes(settings?.dailyObjectiveWork)
+  const saved = parseIsoDurationMinutes(settings?.dailyObjectiveWork)
+  const [pending, setPending] = useState<number | null>(null)
+  const lock = useRef(false)
+  const { flash, isFlashing } = useSavedFlash()
+  const current = pending ?? saved
   const options = useMemo(() => dailyObjectiveOptions(current), [current])
 
   const handleChange = async (minutes: number) => {
+    if (lock.current) return
+    lock.current = true
+    setPending(minutes)
     try {
       await save({ dailyObjectiveWork: minutesToIsoDuration(minutes) })
+      flash('dailyObjective')
       addToast(`하루 목표를 ${formatMinutesLabel(minutes)}(으)로 바꿨어요.`, 'success')
     } catch (error) {
       addToast(errorMessage(error, '하루 목표를 바꾸지 못했어요.'), 'error')
+    } finally {
+      lock.current = false
+      setPending(null)
     }
   }
 
@@ -41,20 +58,24 @@ export const DailyObjectiveSetting = ({ settings, isLoading, isSaving, save }: R
           자동 계획이 하루에 넣는 작업 시간의 상한이에요. 마감이 오늘이거나 지난 작업은 넘을 수 있어요.
         </p>
       </div>
-      <select
-        id="profile-daily-objective"
-        className="profile-setting__select"
-        value={current ?? ''}
-        disabled={isLoading || isSaving || current === null}
-        onChange={(event) => handleChange(Number(event.target.value))}
-      >
-        {current === null && <option value="">{isLoading ? '불러오는 중' : '알 수 없음'}</option>}
-        {options.map((minutes) => (
-          <option key={minutes} value={minutes}>
-            {formatMinutesLabel(minutes)}
-          </option>
-        ))}
-      </select>
+      <div className="settings__actions">
+        <SavedMark visible={isFlashing('dailyObjective')} />
+        <select
+          id="profile-daily-objective"
+          className="profile-setting__select"
+          value={current ?? ''}
+          disabled={isLoading || current === null}
+          aria-busy={pending !== null || undefined}
+          onChange={(event) => handleChange(Number(event.target.value))}
+        >
+          {current === null && <option value="">{isLoading ? '불러오는 중' : '알 수 없음'}</option>}
+          {options.map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {formatMinutesLabel(minutes)}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   )
 }
@@ -78,7 +99,10 @@ const supportedZones = (): string[] => {
 const zoneLabel = (zoneId: string) => `${zoneId} (${formatOffsetLabel(getZoneOffsetMinutes(zoneId))})`
 
 /** 회원 시간대(ADR-0028 §3). 영향이 커서 고른 뒤 "바꾸기"를 눌러야 저장한다. */
-export const TimeZoneSetting = ({ settings, isLoading, isSaving, save }: RowProps) => {
+/**
+ * 저장 중 표시는 이 줄의 저장에만 묶는다. 하루 목표를 저장할 때 시간대 select가 함께 흐려지지 않게 한다.
+ */
+export const TimeZoneSetting = ({ settings, isLoading, save }: RowProps) => {
   const { addToast } = useToast()
   const { applyZone } = useTimePreferences()
   const current = settings?.zoneId ?? null
@@ -88,8 +112,11 @@ export const TimeZoneSetting = ({ settings, isLoading, isSaving, save }: RowProp
   const [draft, setDraft] = useState<string | null>(null)
   const selected = draft ?? current ?? ''
   const suggestion = suggestedDeviceZone(current, device)
+  const [isSaving, setIsSaving] = useState(false)
 
   const apply = async (zoneId: string) => {
+    if (isSaving) return
+    setIsSaving(true)
     try {
       const saved = await save({ zoneId })
       setDraft(null)
@@ -98,6 +125,8 @@ export const TimeZoneSetting = ({ settings, isLoading, isSaving, save }: RowProp
       applyZone(saved.zoneId)
     } catch (error) {
       addToast(errorMessage(error, '시간대를 바꾸지 못했어요.'), 'error')
+    } finally {
+      setIsSaving(false)
     }
   }
 

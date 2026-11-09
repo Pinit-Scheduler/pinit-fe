@@ -94,6 +94,16 @@
   color: var(--c-red-700);
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.ai-connection__revoke-btn:not(:disabled):active {
+  transform: scale(0.98);
 }
 
 .ai-connection__revoke-btn:hover {

@@ -40,6 +40,15 @@
   align-items: flex-start;
 }
 
+/* 첫 로딩 문구는 잠깐 기다렸다가 나타나, 빠른 로딩에는 아무것도 보이지 않는다. */
+.routines__placeholder--loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) var(--motion-status-delay) both;
+}
+
+.routines__placeholder--notice {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
 .routines__card {
   background-color: var(--c-surface);
   border-radius: 16px;
@@ -77,7 +86,7 @@
   padding: 3px;
   display: flex;
   align-items: center;
-  transition: background-color 0.2s ease;
+  transition: background-color var(--motion-base) var(--motion-ease);
 }
 
 .routines__toggle span {
@@ -86,7 +95,8 @@
   height: 16px;
   border-radius: 50%;
   background-color: var(--c-surface);
-  transition: transform 0.2s ease;
+  /* 손잡이는 감속하며 미끄러지고, 바탕색은 같은 곡선으로 따라 바뀐다. */
+  transition: transform var(--motion-base) var(--motion-ease);
 }
 
 .routines__toggle.is-active {
@@ -116,6 +126,7 @@
   flex-direction: column;
   gap: 8px;
   background: var(--c-slate-50);
+  transition: border-color var(--motion-base) var(--motion-ease);
 }
 
 .routines__entry.has-issue {
@@ -180,6 +191,10 @@
   border-radius: 8px;
   padding: 6px 0;
   font-size: 13px;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .routines__day.is-active {
@@ -223,6 +238,14 @@
   color: var(--c-slate-600);
 }
 
+.routines__saved {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* 저장이 끝난 순간: 확인 줄이 살짝 올라오고 체크가 그려진다. */
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
 .routines__saved a {
   color: var(--c-blue-600);
   font-weight: 600;
@@ -249,6 +272,14 @@
   color: var(--c-slate-700);
 }
 
+.routines__status {
+  transition: color var(--motion-base) var(--motion-ease);
+}
+
+.routines__status.is-dirty {
+  color: var(--c-amber-700);
+}
+
 .routines__save {
   border: none;
   border-radius: 10px;
@@ -256,6 +287,13 @@
   background: var(--c-blue-600);
   color: #fff;
   font-weight: 600;
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.routines__save:not(:disabled):active {
+  transform: scale(0.97);
 }
 
 .routines__save:disabled {
@@ -315,6 +353,8 @@
   padding: 12px;
   border: 1px dashed var(--c-slate-300);
   border-radius: 12px;
+  /* 날짜 예외 편집을 열면 카드 안에서 살짝 올라온다. */
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 
 .routines__add-select {
