@@ -614,3 +614,13 @@ test('shared keyframes are defined once, in motion.css only', async () => {
   for (const name of ['modalFadeIn', 'modalSlideUp', 'fadeIn', 'fadeSlideIn', 'motion-fade-in', 'motion-rise-in'])
     assert.deepEqual(counts[name], ['shared/styles/motion.css'], name)
 })
+
+test('edit pages keep the conflict dialog mounted through its fade-out', () => {
+  for (const path of ['features/tasks/pages/TaskEditPage.tsx', 'features/schedules/pages/form/ScheduleEditPage.tsx']) {
+    const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
+    assert.match(source, /const conflictPresence = usePresence\(conflict\)/, path)
+    assert.match(source, /\{conflictPresence\.mounted && conflictPresence\.value && \(\s*<EditConflictDialog/, path)
+    assert.match(source, /closing=\{conflictPresence\.closing\}/, path)
+    assert.doesNotMatch(source, /rows=\{conflict\.rows\}/, `${path} renders the last rows during the exit`)
+  }
+})

@@ -43,6 +43,10 @@ const load = (path, dependencies) => {
         return { moveResultMessage: () => null }
       if (name === '@features/spaces/EditConflictDialog')
         return { default: () => null }
+      if (name === '@shared/motion/usePresence')
+        return {
+          usePresence: (value) => ({ mounted: !!value, closing: false, value: value || undefined }),
+        }
       if (name === '@features/spaces/MyInputDisclosure')
         return { default: () => null }
       if (name === '@features/spaces/conflicts')

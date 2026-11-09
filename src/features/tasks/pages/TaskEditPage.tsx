@@ -2,6 +2,7 @@ import { moveResultMessage } from '@features/spaces/moveResult'
 import EditConflictDialog from '@features/spaces/EditConflictDialog'
 import type { ConflictState } from '@features/spaces/EditConflictDialog'
 import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
+import { usePresence } from '@shared/motion/usePresence'
 import {
   changedInput,
   isEditConflict,
@@ -66,6 +67,8 @@ const TaskEditPage = () => {
   const { addToast } = useToast()
   const recurrenceScope = useRecurrenceScope()
   const [conflict, setConflict] = useState<ConflictState | null>(null)
+  // Keeps the conflict dialog mounted, with its last rows, while it fades out.
+  const conflictPresence = usePresence(conflict)
   const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
   const [formKey, setFormKey] = useState(0)
   const reportConflict = (values: TaskFormValues) => {
@@ -416,12 +419,13 @@ const TaskEditPage = () => {
         )}
       </div>
       {recurrenceScope.dialog}
-      {conflict && (
+      {conflictPresence.mounted && conflictPresence.value && (
         <EditConflictDialog
           noun="작업"
-          rows={conflict.rows}
-          loading={conflict.loading}
-          loadError={conflict.loadError}
+          rows={conflictPresence.value.rows}
+          loading={conflictPresence.value.loading}
+          loadError={conflictPresence.value.loadError}
+          closing={conflictPresence.closing}
           onLoadLatest={() => void loadLatest()}
           onClose={() => setConflict(null)}
           onBackToList={() => complete('/app/tasks')}
