@@ -134,7 +134,7 @@ test('optInScopes render unchecked and are granted only when the user checks the
   )
   assert.equal(
     options[2].label,
-    '일정·작업 삭제 (AI가 삭제할 때마다 미리보기 후 확인)',
+    '공간·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
   )
   assert.ok(options[2].warning, 'delete carries a warning')
 
@@ -215,7 +215,7 @@ test('opt-in wins over requested, and unknown scopes in either list show raw and
       ]),
     ],
     [
-      ['mcp:read', '일정·작업 보기', true, false],
+      ['mcp:read', '개인·공유 공간의 일정·작업·프로젝트·참여자 보기', true, false],
       ['mcp:future', 'mcp:future', false, true],
       ['mcp:later', 'mcp:later', false, true],
     ],
@@ -384,56 +384,23 @@ test('settings AI connection shows one Claude Code command and a device count on
   }
 })
 
-test('spaces management is an independent unchecked opt-in and never expands an existing three-scope grant', () => {
-  const legacy = ['mcp:read', 'mcp:write', 'mcp:delete']
-  assert.equal(
-    consent
-      .buildConsentScopeOptions(legacy)
-      .some((option) => option.scope === 'mcp:spaces'),
-    false,
-  )
-  assert.deepEqual(
-    [
-      ...consent.toDecisionScopes(
-        legacy,
-        [],
-        ['mcp:write', 'mcp:delete', 'mcp:spaces'],
-      ),
-    ],
-    legacy,
-  )
-  for (const [requested, optIn] of [
-    [legacy, ['mcp:spaces']],
-    [[...legacy, 'mcp:spaces'], []],
-  ]) {
-    const option = consent
-      .buildConsentScopeOptions(requested, optIn)
-      .find((item) => item.scope === 'mcp:spaces')
-    assert.equal(option.defaultChecked, false)
-    assert.equal(option.required, false)
-    assert.equal(option.unknown, undefined)
-    assert.match(option.warning, /과거 기록/)
-    assert.match(option.warning, /관리자 권한/)
-    assert.match(option.warning, /초대 철회.*삭제 권한/)
-    assert.deepEqual(
-      [...consent.getDefaultSelectedScopes(requested, optIn)],
-      ['mcp:write'],
-    )
-    assert.deepEqual(
-      [...consent.toDecisionScopes(requested, optIn, ['mcp:spaces'])],
-      ['mcp:read', 'mcp:spaces'],
-    )
-    assert.deepEqual(
-      [
-        ...consent.toDecisionScopes(requested, optIn, [
-          'mcp:write',
-          'mcp:delete',
-          'mcp:spaces',
-        ]),
-      ],
-      [...legacy, 'mcp:spaces'],
-    )
-  }
+test('three primary scopes cover accessible personal and shared spaces without another consent', () => {
+  const requested = ['mcp:read', 'mcp:write']
+  const optIn = ['mcp:delete']
+  const options = consent.buildConsentScopeOptions(requested, optIn)
+  assert.deepEqual([...options.map((option) => option.scope)], [
+    'mcp:read', 'mcp:write', 'mcp:delete',
+  ])
+  assert.match(options[0].label, /개인·공유 공간/)
+  assert.match(options[0].label, /프로젝트·참여자/)
+  assert.match(options[1].label, /개인·공유 공간/)
+  assert.match(options[1].label, /삭제는 불가/)
+  assert.equal(options[2].defaultChecked, false)
+  assert.match(options[2].warning, /초대 철회·참여자 제외·공간 나가기/)
+  assert.deepEqual([...consent.toDecisionScopes(requested, optIn, ['mcp:write'])], requested)
+  assert.deepEqual([...consent.toDecisionScopes(requested, optIn, ['mcp:write', 'mcp:delete'])], [
+    ...requested, 'mcp:delete',
+  ])
 })
 
 test('invitation login/signup return lasts for the link window while OAuth return keeps its shorter expiry', () => {
