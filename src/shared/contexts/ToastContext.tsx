@@ -12,6 +12,8 @@ import {
 import type { ReactNode } from 'react'
 import './Toast.css'
 import { toastDuration } from '@shared/utils/toastPolicy'
+import { MOTION_EXIT_MS } from '@shared/motion/tokens'
+import { upsertToast } from './toastList'
 
 /** 토스트 안의 버튼 하나(예: 삭제 직후 "되돌리기"). 누르면 토스트가 닫히고 onAction이 돈다. */
 export type ToastAction = {
@@ -30,6 +32,8 @@ type Toast = {
   message: string
   type?: 'error' | 'info' | 'success'
   action?: ToastAction
+  /** Playing its exit; removed after MOTION_EXIT_MS. */
+  leaving?: boolean
 }
 
 type ToastContextValue = {
@@ -44,6 +48,12 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 
 export const ToastProvider = ({ children }: { children: ReactNode }) => {
   const [toasts, setToasts] = useState<Toast[]>([])
+  // The list as last rendered, so adds and dismissals in one tick build on each other.
+  const listRef = useRef<Toast[]>([])
+  const commit = useCallback((next: Toast[]) => {
+    listRef.current = next
+    setToasts(next)
+  }, [])
   const nextId = useRef(0)
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>())
   useEffect(() => {
@@ -54,30 +64,49 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [])
 
-  const dismiss = useCallback((id: number) => {
-    clearTimeout(timers.current.get(id))
-    timers.current.delete(id)
-    setToasts((prev) => prev.filter((toast) => toast.id !== id))
-  }, [])
+  const dismiss = useCallback(
+    (id: number) => {
+      clearTimeout(timers.current.get(id))
+      if (!listRef.current.some((toast) => toast.id === id && !toast.leaving)) return
+      // Fade out first, then remove. Showing the same message again cancels the removal.
+      commit(
+        listRef.current.map((toast) =>
+          toast.id === id ? { ...toast, leaving: true } : toast,
+        ),
+      )
+      timers.current.set(
+        id,
+        setTimeout(() => {
+          timers.current.delete(id)
+          commit(listRef.current.filter((toast) => toast.id !== id || !toast.leaving))
+        }, MOTION_EXIT_MS),
+      )
+    },
+    [commit],
+  )
 
   const addToast = useCallback(
     (message: string, type: Toast['type'] = 'info', options?: ToastOptions) => {
-      nextId.current += 1
-      const id = nextId.current
-      setToasts((prev) =>
-        [
-          ...prev.filter((item) => item.message !== message),
-          { id, message, type, action: options?.action },
-        ].slice(-3),
+      const next = upsertToast<Toast>(
+        listRef.current,
+        { message, type, action: options?.action },
+        () => ++nextId.current,
       )
+      next.dropped.forEach((id) => {
+        clearTimeout(timers.current.get(id))
+        timers.current.delete(id)
+      })
+      commit(next.list)
+      clearTimeout(timers.current.get(next.id))
+      timers.current.delete(next.id)
       const duration = toastDuration(type, options)
       if (duration > 0)
         timers.current.set(
-          id,
-          setTimeout(() => dismiss(id), duration),
+          next.id,
+          setTimeout(() => dismiss(next.id), duration),
         )
     },
-    [dismiss],
+    [commit, dismiss],
   )
 
   const value = useMemo(() => ({ addToast }), [addToast])
@@ -93,6 +122,8 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
             className={['toast', toast.type && `toast--${toast.type}`]
               .filter(Boolean)
               .join(' ')}
+            data-state={toast.leaving ? 'closing' : 'open'}
+            inert={toast.leaving || undefined}
           >
             <span className="toast__message">{toast.message}</span>
             {toast.action && (
