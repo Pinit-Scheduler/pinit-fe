@@ -40,7 +40,7 @@
 
 인증·재발급·오류 본문은 기존 `httpClient`를 사용한다. 409(`error: REPLAN_CONFLICT`)는 공통 문구와 서버 메시지를 보여 주고 선택·미리보기를 유지한다. 선택을 조정하거나 새 미리보기로 재시도할 수 있다. 네트워크 단절·5xx처럼 적용 결과가 불확실하면 같은 스냅샷의 재적용을 막고 새 미리보기를 요구한다. 미리보기 갱신 실패도 예전 스냅샷의 적용을 다시 허용하지 않는다.
 
-403/404/410의 실제 접근 거부는 미리보기·선택을 제거하고 재전송을 막는다. 사용자가 **공간 다시 불러오기**로 서버 참여 상태를 새로 읽기 전에는 입력을 허용하지 않는다. 일시 네트워크 오류를 권한 박탈로 처리하지 않는다.
+403/404/410의 실제 접근 거부는 미리보기·선택을 제거하고 재전송을 막는다. **공간 다시 불러오기** 또는 새 서버 참여 스냅샷으로 접근이 다시 확인되기 전에는 입력을 허용하지 않는다. 일시 네트워크 오류를 권한 박탈로 처리하지 않는다.
 
 ## 검증
 
@@ -63,3 +63,20 @@
 - `node --test --test-concurrency=1`: **275개 통과, 실패·건너뜀 0**. 재배치 전용 20개 검사에는 공간·프로젝트 전환의 지연 응답, 적용 중 전환, 리소스 제거/참여 해제, 이벤트 없는 revision 변경, preview/apply 403/404/410, canonical 범위 거부가 포함된다.
 - `npm run lint`, `npm run build`: 통과. 349개 모듈, JS 735.37 kB(압축 227.14 kB), 기존 청크 크기·baseline 안내 유지.
 - 기존 `Workspace browser QA`의 운영 API fixture 실행 조건은 변경하지 않았다. 이 기능 브랜치에서는 그 운영 쓰기 작업이 실행되지 않는다.
+
+### 폐기 가능한 Task/H2를 연결한 실제 재배치 REST 브라우저 검증
+
+BE `Pinit-Scheduler/pinit-monolith@048c72dce2bce486d987639722b60febb76f38e6`의 [test-only launcher](https://github.com/Pinit-Scheduler/pinit-monolith/blob/048c72dce2bce486d987639722b60febb76f38e6/modules/task/src/test/java/me/gg/pinit/browserfixture/ReplanBrowserFixture.java#L28)와 [Gradle 실행 task](https://github.com/Pinit-Scheduler/pinit-monolith/blob/048c72dce2bce486d987639722b60febb76f38e6/modules/task/build.gradle)를 사용했다. launcher는 현재 KST 날짜의 09:00 고정 clock, 별도 H2 메모리 DB, localhost bind, test identity, 15분 종료 제한을 사용한다. 운영 app JAR에 포함하지 않는다.
+
+FE의 [로컬 브라우저 harness](../qa/replanning/README.md)는 실제 빌드된 PlanPage를 열고 두 재배치 경로만 로컬 proxy를 통해 **실제 Spring REST controller → DayReplanningService → H2 SQL**로 전송한다. 재배치 응답을 route fixture로 대신 만들지 않았다. 다른 공간 UI·인증 표시 API는 로컬 fixture이므로 composed app/authentication/SSE 전체 E2E와 구분한다.
+
+최종 고정 clock fixture에서 다음을 확인했다.
+
+- 프로젝트 선택을 유지한 A 미리보기 응답을 지연시킨 뒤 B 공간으로 이동해도 A의 제목·선택이 되살아나지 않았다. B의 실제 응답에 A 일정이 없었다.
+- 다시 A의 프로젝트를 선택하면 preview/apply가 모두 같은 `spaceId`·`projectId`를 보냈다.
+- 실제 DB 버전을 바꿔 받은 409에서 체크 상태가 유지됐다. 새 미리보기 뒤 **선택한 기존 Schedule 하나**를 적용했다.
+- 별도 실제 fixture 조회와 다음 실제 미리보기의 `beforeStart`에서 적용한 시작 시각이 영속됐고, 선택하지 않은 일정의 시작은 그대로임을 확인했다.
+- 실제 H2 참여 관계를 제거하고 SSE/공간 표시 fixture를 갱신하지 않은 상태에서도 적용의 404가 미리보기·선택을 지우고 재전송을 막았다. 409·404에서 audit/outbox 행 수가 늘지 않았으며 거부된 적용이 시간을 바꾸지 않았다.
+- page error 0, 외부 네트워크 요청 0, 모바일 390×844 가로 넘침 0. 데스크톱과 접근 거부 후 모바일 화면을 캡처해 확인했다.
+
+재현 코드는 `qa/replanning/local.mjs`, 실행법은 `qa/replanning/README.md`다. report·PNG는 ignored `qa/replanning/.runtime/`에 남긴다. 검증 후 로컬 proxy/browser와 BE fixture를 종료했다. 실제 운영 데이터, 정상 인증 발급/갱신, production SSE·MySQL 브라우저 통합, 실제 기기·스크린 리더·운영 배포는 이 검증의 범위가 아니다.
