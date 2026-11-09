@@ -182,6 +182,15 @@ const toggle = async () => {
 - **Back and forward:** browser back and forward between tabs, and programmatic `navigate()` calls, change the page with no transition.
 - **Scroll:** a new background page starts at the top. Opening a surface keeps the page's scroll.
 
+## Time zone changes
+
+A new display zone (from `useMemberZoneSync` or a settings save) resets zone-scoped state in place. Only an account change re-keys the providers.
+
+- `useTimePreferences().zoneKey` (zone id plus offset) changes with the zone.
+- The query store is cleared in the render that sees the new zone. `TaskCacheProvider` and `ScheduleCacheProvider` empty themselves through `resetKey`; the running schedule is kept. `ScheduleViewStateProvider` goes back to today.
+- Only the page remounts: AppShell's `Outlet` and the surface `Routes` are keyed by `zoneKey`, because pages keep zone-derived `useState`. The shell, the mini player and the realtime connection stay mounted.
+- Any `useRevalidatingQuery` caller must live inside a page or a surface. A subscriber in the shell would keep a cleared entry.
+
 ## Do
 
 - Animate only `transform`, `opacity`, `color`, `background`, `border` and `stroke`. List the properties you transition by name.
@@ -203,6 +212,7 @@ const toggle = async () => {
 
 - **Global override:** `src/index.css` still cuts every animation and transition to 0.01ms under `prefers-reduced-motion: reduce`.
 - **Shared primitives:** `--motion-distance` becomes 0, so nothing travels. The surface, presence, toast and status-panel fades opt back in with `!important` durations in `motion.css`.
+- **Sheets:** `motion-sheet-in` and `motion-sheet-out` travel the full panel height, not `--motion-distance`, so under reduced motion a mobile sheet uses `motion-fade-in` and `motion-fade-out` instead. A keyframe that moves by a fixed amount must get the same treatment wherever its duration is restored. A test checks the shared rules.
 - **Completion:** the tick fades in whole instead of drawing, and the strike line appears with a color fade.
 - **New primitives:** keep the same rule. Opacity fades stay, movement goes. Never rely on an animation event to unmount: the presence hooks use timers.
 
@@ -228,6 +238,7 @@ Work through this list for each page you own.
 10. **Verify:**
     - Run `npm run lint`, `npm test` and `npm run build`.
     - In mock mode, create, complete, reopen and delete something on your page. Nothing should blink, and the list should never show "불러오는 중" after its first load.
+    - In the console, `__pinitMock.setLatency(400)` slows every response, and `__pinitMock.remote.completeTask(id)` (or `reopenTask`, `renameTask`, `createTask`, `deleteTask`) makes a teammate's change arrive over SSE. See [flicker-audit.md](flicker-audit.md), section E of the sw-pwa area.
     - Repeat with reduced motion turned on.
 
 ## Shared files
@@ -256,7 +267,10 @@ The motion layer owns these files. Page work must not edit them. If you need a c
 - **Realtime:**
   - `src/features/spaces/realtime.ts`
   - `src/features/spaces/WorkspaceRealtime.tsx`
+- **Zone reset:**
+  - `src/shared/contexts/TaskCacheContext.tsx`, `ScheduleCacheContext.tsx` and `ScheduleViewStateContext.tsx` (the `resetKey` and in-place reset)
 - **Tests:**
   - `tests/motion-primitives.test.mjs`
+  - `tests/motion-zone-reset.test.mjs`
 
 `WorkspaceTaskCard.tsx` and `WorkspaceTaskCard.css` are the reference for the completion moment. The tasks and today page agents may edit them, but must keep the optimistic toggle and the `CompletionCheck` contract.
