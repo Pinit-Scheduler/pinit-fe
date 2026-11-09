@@ -11,6 +11,9 @@ import { WeeklyReviewSection } from '@features/calibration'
 import { weekStartOf } from '@features/calibration/utils/calibrationView'
 import { monthLabel, monthStartOf, shiftMonth } from '../utils/reportView'
 
+const SCOPE_NOTE =
+  '모든 스페이스에서 내 기록이에요. 팀 기록은 스페이스에서 볼 수 있어요.'
+
 type View = 'week' | 'month' | 'recurrence'
 
 const VIEWS: { key: View; label: string }[] = [
@@ -27,6 +30,7 @@ const WeeklyStatisticsView = () => {
     <>
       <header className="statistics-tab__header">
         <h1>{offset === 0 ? '이번 주 통계' : '주간 통계'}</h1>
+        <p>{SCOPE_NOTE}</p>
         <p>{start}부터 7일 · 회원 시간대 기준</p>
         <div className="statistics-tab__controls">
           <button
@@ -69,6 +73,7 @@ const MonthlyStatisticsView = () => {
     <>
       <header className="statistics-tab__header">
         <h1>{monthOffset === 0 ? '이번 달 통계' : '월간 통계'}</h1>
+        <p>{SCOPE_NOTE}</p>
         <p>{monthLabel(month)}</p>
         <div className="statistics-tab__controls">
           <div className="statistics-tab__week-controls">
@@ -124,6 +129,7 @@ const StatisticsTabPage = () => {
         <>
           <header className="statistics-tab__header">
             <h1>반복 통계</h1>
+            <p>{SCOPE_NOTE}</p>
             <p>진행 중인 반복을 얼마나 꾸준히 했는지 보여 줘요.</p>
           </header>
           <RecurrenceStatsSection />

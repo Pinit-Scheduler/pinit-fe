@@ -38,7 +38,7 @@ export default function PlanComparisonSection({
         anchors.push(cursor)
       const [report, ...weeks] = await Promise.all([
         fetchPeriodStatistics(unit, start),
-        ...anchors.map((anchor) => fetchWeeklySchedules(anchor)),
+        ...anchors.map((anchor) => fetchWeeklySchedules(anchor, { allSpaces: true, mine: true })),
       ])
       const summary = summarizePlans(
         weeks.flat().map((s) => ({
