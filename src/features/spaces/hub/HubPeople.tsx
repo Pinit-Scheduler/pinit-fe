@@ -1,7 +1,9 @@
+import { presenceProps, useListPresence } from '@shared/motion'
 import UnavailableNote from '../UnavailableNote'
 import { dueLabel, type MemberRow } from '../hub'
 import { adminNames, unavailableLines } from '../unavailable'
 import type { Space, SpaceSummary } from '../types'
+import Count from './Count'
 import RowMenu from './RowMenu'
 
 /** 참여자별 맡은 미완료와 담당자 미정. 개인 스페이스에서는 그리지 않는다. */
@@ -38,6 +40,10 @@ export default function HubPeople({
     [{ off: actions.assign === false, reason: space.unavailableReasons?.assign }],
     adminNames(space.members),
   )
+  // A member who joins rises in; one who leaves or is removed fades out where they were.
+  const people = useListPresence(rows, (row) => row.memberId, {
+    resetKey: space.id,
+  })
   return (
     <section
       className="hub-section"
@@ -72,14 +78,22 @@ export default function HubPeople({
         </p>
       )}
       <ul className="hub-rows">
-        {rows.map((row) => (
-          <li className="hub-row hub-person" key={row.memberId}>
+        {people.map(({ key, item: row, phase }) => (
+          <li className="hub-row hub-person" key={key} {...presenceProps(phase)}>
             <span className="hub-person__name">
               {row.name}
               {row.admin && <small>관리자</small>}
             </span>
-            <span className="hub-count">
-              미완료 {row.openAssignedCount ?? '–'}
+            <span
+              className="hub-count"
+              data-pending={row.openAssignedCount == null || undefined}
+            >
+              미완료{' '}
+              {row.openAssignedCount == null ? (
+                '–'
+              ) : (
+                <Count value={row.openAssignedCount} />
+              )}
             </span>
             <span className="hub-due">{dueLabel(row.nearestDueDate)}</span>
             {!row.me && actions.manageMembers ? (
@@ -109,7 +123,9 @@ export default function HubPeople({
       {unassigned && unassigned.openCount > 0 ? (
         <div className="hub-unassigned">
           <span className="hub-person__name">담당자 미정</span>
-          <span className="hub-count">{unassigned.openCount}개</span>
+          <span className="hub-count">
+            <Count value={unassigned.openCount} />개
+          </span>
           <span className="hub-due">{dueLabel(unassigned.nearestDueDate)}</span>
           <button
             type="button"

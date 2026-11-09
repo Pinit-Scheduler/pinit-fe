@@ -80,7 +80,9 @@ export default function InvitationPage() {
           pinit.
         </Link>
         {loading ? (
-          <p role="status">초대 정보를 확인하고 있어요…</p>
+          <p role="status" className="space-invite-card__loading">
+            초대 정보를 확인하고 있어요…
+          </p>
         ) : (
           <>
             <h1>

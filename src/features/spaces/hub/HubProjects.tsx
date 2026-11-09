@@ -1,7 +1,9 @@
+import { presenceProps, useListPresence } from '@shared/motion'
 import UnavailableNote from '../UnavailableNote'
 import { countsLabel, dueLabel, type ProjectRow } from '../hub'
 import { adminNames, unavailableLines } from '../unavailable'
 import type { Project, Space, SpaceSummary } from '../types'
+import Count from './Count'
 import RowMenu from './RowMenu'
 import TaskDots from './TaskDots'
 
@@ -19,11 +21,16 @@ function Row({
   admins,
   busy,
   handlers,
+  done,
+  presence,
 }: {
   row: ProjectRow
   admins: string[]
   busy: boolean
   handlers: Handlers
+  /** Completed as shown: the optimistic value while a toggle is saving, else the server's. */
+  done: boolean
+  presence: ReturnType<typeof presenceProps>
 }) {
   const { project, counts } = row
   const actions = project.allowedActions
@@ -37,14 +44,21 @@ function Row({
     admins,
   )
   return (
-    <li className={`hub-row hub-project${project.completed ? ' is-completed' : ''}`}>
+    <li
+      className={`hub-row hub-project${done ? ' is-completed' : ''}`}
+      {...presence}
+    >
       <button
         type="button"
         className="hub-project__main"
         aria-label={`${project.name} 작업 보기. ${counts ? countsLabel(counts) : '작업 수 없음'}`}
         onClick={() => handlers.onOpen(project)}
       >
-        <strong>{project.name}</strong>
+        <strong>
+          <span className="motion-strike" data-done={done || undefined}>
+            {project.name}
+          </span>
+        </strong>
         {project.outcome && <small>{project.outcome}</small>}
       </button>
       <span className="hub-row__dots">
@@ -56,8 +70,14 @@ function Row({
           <TaskDots counts={counts} />
         )}
       </span>
-      <span className="hub-count">
-        {counts ? `${counts.completed}/${counts.total}` : '–'}
+      <span className="hub-count" data-pending={!counts || undefined}>
+        {counts ? (
+          <>
+            <Count value={counts.completed} />/<Count value={counts.total} />
+          </>
+        ) : (
+          '–'
+        )}
       </span>
       <span className="hub-due">{dueLabel(row.nearestDueDate)}</span>
       <RowMenu label={`${project.name} 프로젝트 동작`}>
@@ -105,6 +125,7 @@ export default function HubProjects({
   failed,
   onRetry,
   busy,
+  settling = null,
   ...handlers
 }: {
   space: Space
@@ -113,6 +134,11 @@ export default function HubProjects({
   failed: boolean
   onRetry: () => void
   busy: boolean
+  /**
+   * A completion toggle that is saving or just saved: its row shows the new state before the
+   * server answers, and keeps it while it leaves for the other list.
+   */
+  settling?: { id: number; completed: boolean } | null
 } & Handlers) {
   const admins = adminNames(space.members)
   const open = rows.filter((row) => !row.project.completed)
@@ -122,15 +148,29 @@ export default function HubProjects({
     [{ off: space.allowedActions.update === false, reason: space.unavailableReasons?.update }],
     admins,
   )
-  const list = (items: ProjectRow[]) => (
+  // A row stays in its list until the server confirms the toggle, so the strike is seen
+  // drawing (or retracting) in place before the row leaves for the other list.
+  const openRows = useListPresence(open, (row) => row.project.id, {
+    resetKey: space.id,
+  })
+  const closedRows = useListPresence(closed, (row) => row.project.id, {
+    resetKey: space.id,
+  })
+  const list = (items: typeof openRows) => (
     <ul className="hub-rows">
-      {items.map((row) => (
+      {items.map(({ key, item: row, phase }) => (
         <Row
-          key={row.project.id}
+          key={key}
           row={row}
           admins={admins}
           busy={busy}
           handlers={handlers}
+          presence={presenceProps(phase)}
+          done={
+            settling?.id === row.project.id
+              ? settling.completed
+              : row.project.completed
+          }
         />
       ))}
     </ul>
@@ -163,8 +203,8 @@ export default function HubProjects({
           </button>
         </p>
       )}
-      {open.length ? (
-        list(open)
+      {openRows.length ? (
+        list(openRows)
       ) : (
         <p className="hub-empty">
           진행 중인 프로젝트가 없어요. 목적에 다가갈 첫 프로젝트를 만들어 보세요.
@@ -173,7 +213,7 @@ export default function HubProjects({
       {closed.length > 0 && (
         <details className="hub-closed">
           <summary>완료한 프로젝트 {closed.length}개</summary>
-          {list(closed)}
+          {list(closedRows)}
         </details>
       )}
       {loose && loose.total > 0 && (

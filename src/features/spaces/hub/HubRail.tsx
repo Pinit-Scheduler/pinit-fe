@@ -1,6 +1,8 @@
+import { presenceProps, useListPresence } from '@shared/motion'
 import SpaceMark from '../SpaceMark'
 import { railLine } from '../hub'
 import type { Space, SpaceSummaries } from '../types'
+import Count from './Count'
 
 export default function HubRail({
   spaces,
@@ -17,17 +19,19 @@ export default function HubRail({
   selectedId: number | null
   onSelect: (spaceId: number) => void
 }) {
+  // A space created, joined, left or deleted rises in or fades out where it was.
+  const rows = useListPresence(spaces.length ? spaces : undefined, (space) => space.id)
   return (
     <nav className="hub-rail" aria-label="스페이스 목록">
       <ul>
-        {spaces.map((space) => {
+        {rows.map(({ key, item: space, phase }) => {
           const line = railLine(
             space,
             summaries?.spaces.find((row) => row.spaceId === space.id),
           )
           const current = space.id === selectedId
           return (
-            <li key={space.id}>
+            <li key={key} {...presenceProps(phase)}>
               <button
                 type="button"
                 className="hub-rail__item"
@@ -40,8 +44,13 @@ export default function HubRail({
                   <strong>{space.name}</strong>
                   {line.who && <small>{line.who}</small>}
                 </span>
-                <span className="hub-rail__count">
-                  <span aria-hidden>{line.open}</span>
+                <span
+                  className="hub-rail__count"
+                  data-pending={line.open === '–' || undefined}
+                >
+                  <span aria-hidden>
+                    {line.open === '–' ? line.open : <Count value={Number(line.open)} />}
+                  </span>
                   <span className="hub-sr">
                     {line.open === '–'
                       ? '미완료 작업 수 없음'

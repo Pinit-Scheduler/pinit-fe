@@ -178,9 +178,17 @@ const space = (actions = {}) => ({
   ],
   allowedActions: { invite: true, manageMembers: true, assign: true, ...actions },
 })
+// Static renders see the first list as the baseline: every row present, nothing animating.
+const motionStub = {
+  useListPresence: (items, getKey) =>
+    (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+  presenceProps: () => ({}),
+}
 const HubPeople = () =>
   load('features/spaces/hub/HubPeople.tsx', {
     'react/jsx-runtime': jsxRuntime,
+    '@shared/motion': motionStub,
+    './Count': { default: ({ value }) => String(value) },
     '../UnavailableNote': load('features/spaces/UnavailableNote.tsx', {
       'react/jsx-runtime': jsxRuntime,
       './spaces.css': {},
@@ -227,6 +235,7 @@ test('the dialog title is the summary count, not a count of the list', () => {
     '@shared/components/common/Modal': {
       default: ({ children }) => React.createElement('div', { role: 'dialog' }, children),
     },
+    '@shared/motion': motionStub,
     '@features/tasks/api/tasks': {
       fetchUnassignedTasks: () => new Promise(() => {}),
       assignTask: () => new Promise(() => {}),

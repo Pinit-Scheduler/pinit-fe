@@ -37,8 +37,14 @@
 }
 .time-bars__track i {
   display: block;
+  width: 100%;
   height: 100%;
   border-radius: 4px;
+  /* Length is a scale, so it can grow in and glide without animating width. */
+  transform: scaleX(var(--time-bar-scale, 0));
+  transform-origin: left center;
+  transition: transform var(--motion-enter) var(--motion-ease);
+  animation: time-bars-grow var(--motion-enter) var(--motion-ease) both;
   background: color-mix(in srgb, var(--workspace-ink) 70%, var(--workspace-surface));
 }
 .time-bars__row.is-child .time-bars__track i {
@@ -49,4 +55,16 @@
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
+}
+@keyframes time-bars-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No travel: bars appear at their length. */
+  .time-bars__track i {
+    animation: none;
+    transition: none;
+  }
 }

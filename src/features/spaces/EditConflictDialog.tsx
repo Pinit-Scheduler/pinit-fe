@@ -17,6 +17,7 @@ export default function EditConflictDialog({
   onLoadLatest,
   onClose,
   onBackToList,
+  closing = false,
 }: {
   rows: InputRow[]
   noun: '작업' | '일정'
@@ -26,6 +27,11 @@ export default function EditConflictDialog({
   /** 닫기·Esc. 폼에 쓴 내 입력은 그대로 남는다. */
   onClose: () => void
   onBackToList: () => void
+  /**
+   * The dialog is playing its exit. Callers that keep it mounted with
+   * `usePresence(conflict)` pass `presence.closing` here so it fades out.
+   */
+  closing?: boolean
 }) {
   return (
     <Modal
@@ -34,6 +40,7 @@ export default function EditConflictDialog({
       className="space-dialog space-dialog--notice"
       closeOnBackdrop={false}
       onClose={onClose}
+      closing={closing}
     >
       <h2 id="edit-conflict-title">다른 참여자가 먼저 수정했어요</h2>
       <div className="space-dialog__body">

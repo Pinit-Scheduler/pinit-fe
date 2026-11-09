@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { presenceProps, useListPresence } from '@shared/motion'
 import { assignTask, fetchUnassignedTasks } from '@features/tasks/api/tasks'
 import UnavailableNote from '../UnavailableNote'
 import { CONFLICT_RELOADED, isEditConflict } from '../conflicts'
@@ -31,6 +32,7 @@ export default function AssignUnassignedDialog({
   onClose,
   onAssigned,
   onStale,
+  closing = false,
 }: {
   space: Space
   meId: number | null
@@ -41,6 +43,8 @@ export default function AssignUnassignedDialog({
   onAssigned: () => void
   /** 목록과 요약 수가 어긋났거나 배정이 실패했을 때. 허브 요약을 다시 받는다. */
   onStale: () => void
+  /** The dialog is playing its exit (usePresence in the parent). */
+  closing?: boolean
 }) {
   const [state, dispatch] = useReducer(assignReducer, initialAssignState)
   const { tasks, hasMore, loading, loadFailed, loaded, busyId, notice, offset } =
@@ -113,6 +117,10 @@ export default function AssignUnassignedDialog({
 
   const options = assigneeOptions(space.members, meId)
   const rows = assignRows(tasks, projects)
+  // An assigned task fades out of the list where it was; rows from "더 보기" rise in.
+  const shown = useListPresence(loaded ? rows : undefined, (row) => row.id, {
+    resetKey: space.id,
+  })
   const admins = adminNames(space.members)
 
   const assign = async (row: (typeof rows)[number]) => {
@@ -153,6 +161,7 @@ export default function AssignUnassignedDialog({
       backdropClassName="space-dialog-backdrop"
       className="space-dialog hub-assign-dialog"
       onClose={busyId === null ? onClose : undefined}
+      closing={closing}
     >
       <div className="space-dialog__header">
         <h2 id="hub-assign-title">
@@ -189,12 +198,12 @@ export default function AssignUnassignedDialog({
               : '지금 배정할 수 있는 작업이 없어요.'}
           </p>
         )}
-        {rows.length > 0 && (
+        {shown.length > 0 && (
           <ul className="hub-assign">
-            {rows.map((row) => {
+            {shown.map(({ key, item: row, phase }) => {
               const selectId = `hub-assign-${row.id}`
               return (
-                <li key={row.id}>
+                <li key={key} {...presenceProps(phase)}>
                   <div className="hub-assign__task">
                     <strong>{row.title}</strong>
                     {row.detail && <small>{row.detail}</small>}
@@ -246,7 +255,11 @@ export default function AssignUnassignedDialog({
             })}
           </ul>
         )}
-        {(loading || moreNeeded) && <p className="hub-quiet">불러오는 중…</p>}
+        {(loading || moreNeeded) && (
+          <p className="hub-quiet hub-assign__loading">
+            불러오는 중…
+          </p>
+        )}
         {hasMore && rows.length > 0 && !loading && (
           <button
             type="button"

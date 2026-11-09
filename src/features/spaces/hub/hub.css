@@ -705,3 +705,105 @@
     font-size: 16px;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Motion. Tokens and shared keyframes come from shared/styles/motion.css */
+/* (docs/motion/README.md). Only transform, opacity and colors move.   */
+/* ------------------------------------------------------------------ */
+
+/* Rail: hover and selection change the surface quickly; a press settles slightly. */
+.hub-rail__item {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+.hub-rail__item strong {
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+.hub-rail__item:active {
+  transform: scale(0.985);
+}
+.hub-back,
+.hub-menu summary,
+.hub-menu__list button {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+/* Counts the server has not sent yet sit back; they come forward when they arrive. */
+.hub-rail__count,
+.hub-count {
+  transition: opacity var(--motion-base) var(--motion-ease);
+}
+.hub-rail__count[data-pending],
+.hub-count[data-pending] {
+  opacity: 0.45;
+}
+
+/* Row menu: drops from ⋯ on open, fades before it closes. */
+.hub-menu[open] > .hub-menu__list {
+  transform-origin: top right;
+  animation: motion-drop-in var(--motion-base) var(--motion-ease) both;
+}
+.hub-menu[data-state='closing'] > .hub-menu__list {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+
+/* Completing a project: the strike draws, the name mutes, then the row leaves for its list. */
+.hub-project__main strong {
+  transition: color var(--motion-base) var(--motion-ease);
+}
+.hub-dots i,
+.hub-bar i {
+  transition: background-color var(--motion-base) var(--motion-ease);
+}
+
+/* Completed and deleted lists open with a short fade. */
+.hub-closed[open] > :not(summary) {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+/* Team record: the week's bars rise from the baseline when the record arrives. */
+.hub-record__body {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+.hub-day i {
+  transform-origin: bottom center;
+  animation: hub-day-rise var(--motion-enter) var(--motion-ease) both;
+  animation-delay: calc(var(--hub-day-index, 0) * 24ms);
+}
+@keyframes hub-day-rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* Loading lines wait before they appear, like StatusPanel, so quick loads show nothing. */
+.hub-record__loading,
+.hub-assign__loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease)
+    var(--motion-status-delay) both;
+}
+
+/* Assigning: the assigned task tints and fades out of the list where it was. */
+.hub-assign li {
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+.hub-assign li[data-presence='exit'] {
+  background: var(--workspace-blue-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-rail__item:active {
+    transform: none;
+  }
+  .hub-day i {
+    animation: none;
+  }
+  .hub-menu[open] > .hub-menu__list,
+  .hub-menu[data-state='closing'] > .hub-menu__list {
+    animation-duration: var(--motion-fast) !important;
+  }
+}

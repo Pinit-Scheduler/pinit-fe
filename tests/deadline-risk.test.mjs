@@ -151,6 +151,7 @@ test('workspace context labels personal forecast instead of the selected team pu
     'react-dom': { createPortal: (node) => node },
     './SpaceMark': { default: () => null },
     '@shared/hooks/useMediaQuery': { default: () => false },
+    '@shared/motion': { usePresence: (value) => ({ mounted: Boolean(value), closing: false, value }) },
     './scope': load('../src/features/spaces/scope.ts'),
     './spaces.css': {},
   })
