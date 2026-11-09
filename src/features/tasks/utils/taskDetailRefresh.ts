@@ -9,6 +9,8 @@ const OWN_TOGGLE_REASONS = new Set(['complete', 'reopen'])
  *   `ownToggles` says how many such echoes are still expected; the rest is returned.
  * - Another task matters only when it is linked: completing a previous task changes what
  *   still blocks this one. A change without a task id (space, recurrence) always matters.
+ * - The modal deleting its own task closes the surface. Reading it again would only answer 404
+ *   and swap the closing modal for the error panel, like useScheduleDetail's 'deleted' rule.
  */
 export function detailRefreshNeeded(
   details: readonly TaskChangedDetail[],
@@ -26,6 +28,7 @@ export function detailRefreshNeeded(
       skip--
       return false
     }
+    if (detail.taskId === taskId && detail.reason === 'delete') return false
     return (
       detail.taskId === undefined ||
       detail.taskId === taskId ||

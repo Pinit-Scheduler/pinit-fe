@@ -204,6 +204,12 @@ test('the task detail ignores its own toggle echo and unrelated tasks, but follo
   assert.equal(detailRefreshNeeded([{ taskId: 6, reason: 'state-mutated' }], 5, [6], 0).refetch, true)
   assert.equal(detailRefreshNeeded([{ reason: 'space-scope' }], 5, [], 0).refetch, true)
   assert.equal(detailRefreshNeeded([{ taskId: 5, reason: 'update' }], 5, [], 2).refetch, true)
+  // Its own delete closes the surface: no read that could only answer 404 during the exit.
+  assert.equal(detailRefreshNeeded([{ taskId: 5, reason: 'delete' }], 5, [], 0).refetch, false)
+  assert.equal(
+    detailRefreshNeeded([{ taskId: 5, reason: 'delete' }, { reason: 'space' }], 5, [], 0).refetch,
+    true,
+  )
 })
 
 test('the task detail seeds from the cache and never swaps shown content for the loading line', () => {
