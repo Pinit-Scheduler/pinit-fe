@@ -98,6 +98,7 @@ The route surfaces (`/app/tasks/:id`, `/app/tasks/new`, `/app/schedules/...`) ar
 - **Close:** close, Escape, a click on the backdrop and browser back all play the exit before unmounting. Focus returns to the opener as the exit starts. The scroll lock and the shell's `inert` are released in the same frame.
 - **Moving between surfaces:** going from detail to edit, or from task 5 to task 6, keeps the same surface and crossfades only the page inside. Do not add a `key` to `RouteSurface`.
 - **Opening:** use `useRouteSurfaceNavigation().open(path)`, not a plain `<Link>`. A plain link now keeps the last page behind the surface, but `open()` also records where to return to.
+- **Closing after a replace:** a surface reached by a replace navigation from a page (the onboarding tour does this) took that page's history entry. Closing it goes to that page with a replace instead of stepping back past it (`surfaceCloseAction` in `routeSurfaceState.ts`).
 
 For your own `Modal`, keep it mounted through its exit:
 

@@ -25,6 +25,35 @@ export const safeBackground = (state: unknown): Location | undefined => {
     : undefined
 }
 
+export type SurfaceCloseAction = { back: true } | { back: false; to: string }
+
+/**
+ * How closing a surface returns to the page behind it.
+ * - Opened with background state, or pushed over a page this session showed: step back.
+ * - Reached by a replace from a page (the onboarding tour does this): that page's history entry
+ *   is gone, so stepping back would leave it. Go to the page itself, replacing the surface.
+ * - Otherwise (a deep link, the first history entry): the fallback list, replacing the surface.
+ */
+export const surfaceCloseAction = ({
+  hasState,
+  hasBackground,
+  replacedPage,
+  historyIndex,
+  fallback,
+}: {
+  hasState: boolean
+  hasBackground: boolean
+  /** The href of the page this surface replaced in history, if it did. */
+  replacedPage: string | null
+  historyIndex: number
+  fallback: string
+}): SurfaceCloseAction => {
+  if (hasState && historyIndex > 0) return { back: true }
+  if (replacedPage) return { back: false, to: replacedPage }
+  if (hasBackground && historyIndex > 0) return { back: true }
+  return { back: false, to: fallback }
+}
+
 /** The heading of the surface shown for a surface path. */
 export const surfaceTitle = (pathname: string) => {
   const path = pathname.replace(/\/$/, '')

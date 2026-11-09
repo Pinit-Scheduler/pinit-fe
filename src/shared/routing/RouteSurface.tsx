@@ -24,6 +24,7 @@ import Modal from '@shared/components/common/Modal'
 import {
   locationHref,
   safeBackground,
+  surfaceCloseAction,
   surfaceFallback,
   type SurfaceState,
 } from './routeSurfaceState'
@@ -35,6 +36,8 @@ type SurfaceContextValue = {
   footerTarget: HTMLDivElement | null
   /** The page behind the surface came from this session, so closing can go back to it. */
   hasBackground: boolean
+  /** The href of the page this surface replaced in history (a replace navigation), if any. */
+  replacedPage: string | null
 }
 const SurfaceContext = createContext<SurfaceContextValue | null>(null)
 
@@ -42,16 +45,22 @@ const closeSurface = (
   navigate: NavigateFunction,
   location: Location,
   hasBackground: boolean,
+  replacedPage: string | null,
   fallback?: string,
 ) => {
   const historyIndex =
     (window.history.state as { idx?: number } | null)?.idx ?? 0
   // Go back to the page that opened the surface when this session has it, including surfaces
   // opened with a plain link that carried no background state.
-  if ((safeBackground(location.state) || hasBackground) && historyIndex > 0)
-    navigate(-1)
-  else
-    navigate(fallback ?? surfaceFallback(location.pathname), { replace: true })
+  const action = surfaceCloseAction({
+    hasState: !!safeBackground(location.state),
+    hasBackground,
+    replacedPage,
+    historyIndex,
+    fallback: fallback ?? surfaceFallback(location.pathname),
+  })
+  if (action.back) navigate(-1)
+  else navigate(action.to, { replace: true })
 }
 
 // The route component and its navigation API intentionally share one public module.
@@ -75,10 +84,11 @@ export const useRouteSurfaceNavigation = () => {
     [location, navigate],
   )
   const hasBackground = surface?.hasBackground ?? false
+  const replacedPage = surface?.replacedPage ?? null
   const close = useCallback(
     (fallback?: string) =>
-      closeSurface(navigate, location, hasBackground, fallback),
-    [hasBackground, location, navigate],
+      closeSurface(navigate, location, hasBackground, replacedPage, fallback),
+    [hasBackground, replacedPage, location, navigate],
   )
   const complete = useCallback(
     (fallback?: string) => {
@@ -120,6 +130,7 @@ export const RouteSurface = ({
   closing = false,
   pathname,
   hasBackground = false,
+  replacedPage = null,
   children,
 }: {
   title: string
@@ -128,12 +139,14 @@ export const RouteSurface = ({
   /** The surface path shown. A new path starts a clean form session. */
   pathname: string
   hasBackground?: boolean
+  /** The href of the page this surface replaced in history, if it did. */
+  replacedPage?: string | null
   children: ReactNode
 }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const close = () => {
-    if (!closing) closeSurface(navigate, location, hasBackground)
+    if (!closing) closeSurface(navigate, location, hasBackground, replacedPage)
   }
   const [dirty, setDirty] = useState(false)
   const [footerTarget, setFooterTarget] = useState<HTMLDivElement | null>(null)
@@ -184,8 +197,9 @@ export const RouteSurface = ({
       markDirty: () => setDirty(true),
       footerTarget,
       hasBackground,
+      replacedPage,
     }),
-    [footerTarget, hasBackground],
+    [footerTarget, hasBackground, replacedPage],
   )
   return (
     <SurfaceContext.Provider value={value}>

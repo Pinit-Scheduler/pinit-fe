@@ -12,12 +12,14 @@ import {
   RouterProvider,
   Routes,
   useLocation,
+  useNavigationType,
   type Location,
 } from 'react-router-dom'
 import { RouteSurface } from '@shared/routing/RouteSurface'
 import {
   isInputSurface,
   isSurfacePath,
+  locationHref,
   safeBackground,
   surfaceFallback,
   surfaceTitle,
@@ -79,6 +81,21 @@ const WorkspaceRoutes = () => {
     surface ? null : location,
   )
   if (!surface && lastPage !== location) setLastPage(location)
+  // A surface reached by a replace from a page (the onboarding tour does this) took that page's
+  // history entry. Closing it must go to that page, not one step back past it.
+  const navigationType = useNavigationType()
+  const [shownLocation, setShownLocation] = useState(location)
+  const [replacedPage, setReplacedPage] = useState<string | null>(null)
+  if (shownLocation !== location) {
+    setShownLocation(location)
+    setReplacedPage(
+      surface && !background && navigationType === 'REPLACE'
+        ? isSurfacePath(shownLocation.pathname)
+          ? replacedPage
+          : locationHref(shownLocation)
+        : null,
+    )
+  }
   const fallbackPath = surfaceFallback(location.pathname)
   const fallback = useMemo<Location>(
     () => ({
@@ -124,6 +141,7 @@ const WorkspaceRoutes = () => {
           closing={shown.closing}
           pathname={surfaceLocation.pathname}
           hasBackground={!!(safeBackground(surfaceLocation.state) ?? lastPage)}
+          replacedPage={replacedPage}
         >
           {/* A new display zone remounts the surface page, like the background page (AppShell). */}
           <Routes location={surfaceLocation} key={zoneKey}>

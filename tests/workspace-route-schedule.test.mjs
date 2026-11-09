@@ -343,3 +343,45 @@ test('retry after a successful start with a failed active-ID lookup verifies wit
   assert.deepEqual(h.active, [9])
   assert.equal(h.states[2], null)
 })
+
+test('closing a surface steps back over the page that opened it, never past a replaced page', () => {
+  const close = (input) =>
+    plain(
+      routing.surfaceCloseAction({
+        hasState: false,
+        hasBackground: false,
+        replacedPage: null,
+        historyIndex: 3,
+        fallback: '/app/tasks',
+        ...input,
+      }),
+    )
+  // Opened with open() (background state) or with a plain link over a page shown this session.
+  assert.deepEqual(close({ hasState: true }), { back: true })
+  assert.deepEqual(close({ hasBackground: true }), { back: true })
+  // The onboarding tour replaces /app/tasks with /app/tasks/new: stepping back would leave the
+  // tour's page for whatever came before it. Go to the replaced page instead.
+  assert.deepEqual(close({ hasBackground: true, replacedPage: '/app/tasks?tour=1' }), {
+    back: false,
+    to: '/app/tasks?tour=1',
+  })
+  assert.deepEqual(close({ replacedPage: '/app/today', historyIndex: 0 }), {
+    back: false,
+    to: '/app/today',
+  })
+  // A deep link or the first history entry falls back to the list.
+  assert.deepEqual(close({ hasBackground: true, historyIndex: 0 }), { back: false, to: '/app/tasks' })
+  assert.deepEqual(close({}), { back: false, to: '/app/tasks' })
+})
+
+test('App records the page a replace navigation swapped for a surface and RouteSurface uses it', () => {
+  const app = readFileSync(new URL('../src/app/App.tsx', import.meta.url), 'utf8')
+  const surface = readFileSync(
+    new URL('../src/shared/routing/RouteSurface.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(app, /navigationType === 'REPLACE'/)
+  assert.match(app, /replacedPage=\{replacedPage\}/)
+  assert.match(surface, /surfaceCloseAction\(/)
+  assert.doesNotMatch(surface, /\|\| hasBackground\) && historyIndex > 0/)
+})
