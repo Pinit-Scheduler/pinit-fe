@@ -108,8 +108,24 @@
 .space-context__project {
   color: var(--workspace-blue);
 }
-.space-mobile-switcher {
-  display: none;
+.space-switcher--bar {
+  width: auto;
+  min-height: 44px;
+  max-width: min(260px, 52vw);
+  padding: 6px 12px;
+  gap: 8px;
+}
+.space-switcher__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+}
+.space-switcher strong .space-mark {
+  margin-right: 6px;
+  vertical-align: baseline;
 }
 .space-dialog-backdrop {
   position: fixed;
@@ -521,15 +537,6 @@ button:disabled {
   .space-context {
     margin: 0 0 16px;
     gap: 10px;
-  }
-  .space-mobile-switcher {
-    display: block;
-    width: 100%;
-  }
-  .space-mobile-switcher .space-switcher {
-    width: auto;
-    max-width: 100%;
-    min-width: 200px;
   }
   .space-dialog-backdrop {
     align-items: flex-end;

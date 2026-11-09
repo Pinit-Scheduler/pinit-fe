@@ -16,6 +16,10 @@
   min-width: 0;
   font-size: 14px;
 }
+.top-bar__space {
+  display: none;
+  min-width: 0;
+}
 .top-bar__workspace {
   color: var(--c-slate-500);
   display: flex;
@@ -59,6 +63,9 @@
     padding-left: max(18px, env(safe-area-inset-left, 0px));
     padding-right: max(18px, env(safe-area-inset-right, 0px));
     min-height: calc(60px + env(safe-area-inset-top, 0px));
+  }
+  .top-bar__space {
+    display: flex;
   }
   .top-bar__workspace {
     display: none;

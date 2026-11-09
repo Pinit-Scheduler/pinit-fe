@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react'
 import WorkspaceIcon from '../common/WorkspaceIcon'
 import './TopBar.css'
 type Props = {
   title: string
   scopeLabel: string
+  leading?: ReactNode
   showBackButton?: boolean
   onBack?: () => void
   showSettingsButton?: boolean
@@ -11,6 +13,7 @@ type Props = {
 export default function TopBar({
   title,
   scopeLabel,
+  leading,
   showBackButton,
   onBack,
   showSettingsButton = true,
@@ -19,6 +22,7 @@ export default function TopBar({
   return (
     <header className="top-bar">
       <div className="top-bar__breadcrumb">
+        {leading && <div className="top-bar__space">{leading}</div>}
         {showBackButton && (
           <button
             className="top-bar__icon-button"

@@ -14,7 +14,7 @@ import {
 } from '@shared/api/authTokens'
 import { useMemberZoneSync } from '@features/settings/hooks/useMemberZoneSync'
 import './AppShell.css'
-import { SpaceContextBar } from '@features/spaces/SpaceChrome'
+import { SpaceContextBar, SpaceSwitcher } from '@features/spaces/SpaceChrome'
 import { useSpaces } from '@features/spaces/store'
 import { routeScope, scopeCrumb } from '@features/spaces/scope'
 
@@ -174,6 +174,7 @@ const AppShell = () => {
         <TopBar
           title={title}
           scopeLabel={scopeLabel}
+          leading={<SpaceSwitcher variant="bar" />}
           showBackButton={showBackButton}
           onBack={handleBack}
           onSettings={() => navigate('/app/settings')}

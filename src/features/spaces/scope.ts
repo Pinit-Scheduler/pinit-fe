@@ -48,6 +48,18 @@ export function scopeCrumb(
   return project ? `${space.name} › ${project.name}` : space.name
 }
 
+export function switcherLabel(
+  scope: RouteScope,
+  space: { name: string } | null,
+  project: { name: string } | null,
+  loading: boolean,
+): string {
+  if (!space) return loading ? '스페이스 불러오는 중' : '스페이스 선택'
+  return scope === 'selected' && project
+    ? `${space.name} › ${project.name}`
+    : space.name
+}
+
 export type ScheduleAudience = 'mine' | 'team'
 
 export function scheduleMineParam(

@@ -3,36 +3,63 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useSpaces } from './store'
-import { projectSelectionTarget } from './scope'
+import SpaceMark from './SpaceMark'
+import { projectSelectionTarget, routeScope, switcherLabel } from './scope'
 import './spaces.css'
 
-export function SpaceSwitcher() {
+export function SpaceSwitcher({
+  variant = 'sidebar',
+}: {
+  variant?: 'sidebar' | 'bar'
+}) {
   const spaces = useSpaces()
+  const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
   const current = spaces.selectedSpace
+  const label = switcherLabel(
+    routeScope(pathname),
+    current,
+    spaces.selectedProject,
+    spaces.loading,
+  )
   return (
     <>
-      <button
-        type="button"
-        className="space-switcher"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen(true)}
-      >
-        <span className="space-avatar" aria-hidden>
-          {current?.name.slice(0, 1) ?? '나'}
-        </span>
-        <span className="space-switcher__copy">
-          <strong>
-            {current?.name ??
-              (spaces.loading ? '스페이스 불러오는 중' : '스페이스 선택')}
-          </strong>
-          <small>
-            {current?.personal ? '본인 전용' : '함께 관리하는 목적 스페이스'}
-          </small>
-        </span>
-        <span aria-hidden>⌄</span>
-      </button>
+      {variant === 'bar' ? (
+        <button
+          type="button"
+          className="space-switcher space-switcher--bar"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-label={`스페이스 전환. 지금 ${label}`}
+          onClick={() => setOpen(true)}
+        >
+          <SpaceMark space={current} />
+          <span className="space-switcher__label">{label}</span>
+          <span aria-hidden>⌄</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="space-switcher"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onClick={() => setOpen(true)}
+        >
+          <span className="space-avatar" aria-hidden>
+            {current?.name.slice(0, 1) ?? '나'}
+          </span>
+          <span className="space-switcher__copy">
+            <strong>
+              <SpaceMark space={current} />
+              {current?.name ?? label}
+            </strong>
+            <small>
+              {current?.personal ? '본인 전용' : '함께 관리하는 목적 스페이스'}
+            </small>
+          </span>
+          <span aria-hidden>⌄</span>
+        </button>
+      )}
       {open && (
         <Modal
           labelledBy="space-switcher-title"
@@ -149,9 +176,6 @@ export function SpaceContextBar() {
   const { selectedSpace, selectedProject } = useSpaces()
   return (
     <section className="space-context" aria-label="목적과 프로젝트">
-      <div className="space-mobile-switcher">
-        <SpaceSwitcher />
-      </div>
       {today && (
         <span className="space-context__project">
           모든 스페이스 · 나에게 배정된 작업

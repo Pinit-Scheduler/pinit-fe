@@ -47,3 +47,12 @@ test('space marks are stable per id and neutral for personal spaces', () => {
   assert.equal(spaceMark({ id: -4, personal: true }), null)
   assert.equal(spaceMark({ id: -7, personal: false }), '#a77d35')
 })
+
+test('the bar switcher names the space, and the project only on scoped lists', () => {
+  const { switcherLabel } = load('features/spaces/scope.ts')
+  const space = { name: '핀잇 개선' }, project = { name: '작업 카드 개선' }
+  assert.equal(switcherLabel('selected', space, project, false), '핀잇 개선 › 작업 카드 개선')
+  assert.equal(switcherLabel('all', space, project, false), '핀잇 개선')
+  assert.equal(switcherLabel('selected', null, null, true), '스페이스 불러오는 중')
+  assert.equal(switcherLabel('selected', null, null, false), '스페이스 선택')
+})
