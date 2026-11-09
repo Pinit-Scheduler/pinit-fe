@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { NavigateFunction } from 'react-router-dom'
 import { useToast } from '@contexts/ToastContext'
+import { usePresence } from '@shared/motion'
 import { acknowledgeOnboarding, fetchOnboarding } from '../api/onboarding'
 import SpotlightTour from '../components/SpotlightTour'
 import type { OnboardingResponse } from '../types/onboarding'
@@ -208,19 +209,23 @@ export const OnboardingTourProvider = ({ children }: { children: ReactNode }) =>
     [response, isLoading, error, reload, startTour],
   )
 
-  const step = tour ? tour.steps[tour.index] : null
+  // 투어가 끝나도 마지막 단계를 그린 채로 덮개가 흐려진 뒤 내려간다.
+  const presence = usePresence(tour)
+  const shownTour = presence.value
+  const step = shownTour ? shownTour.steps[shownTour.index] : null
 
   return (
     <OnboardingContext.Provider value={value}>
       {children}
-      {tour && step && (
+      {presence.mounted && shownTour && step && (
         <SpotlightTour
           step={step}
-          index={tour.index}
-          total={tour.steps.length}
+          index={shownTour.index}
+          total={shownTour.steps.length}
           onPrev={handlePrev}
           onNext={handleNext}
           onSkip={handleSkip}
+          closing={presence.closing}
         />
       )}
     </OnboardingContext.Provider>
