@@ -228,7 +228,7 @@ A new display zone (from `useMemberZoneSync` or a settings save) resets zone-sco
 
 ## Reduced motion
 
-- **One mechanism, in `motion.css`:** under `prefers-reduced-motion: reduce` every animation and transition is cut to 0.01ms, `--motion-distance` goes to 0 and both press scales to 1. An element whose fade should stay sets `--motion-keep-animation` or `--motion-keep-transition` to the duration it keeps, inside its own reduced-motion block; no `!important`. Both are registered with `inherits: false`, so the element's children stay cut.
+- **One mechanism, in `motion.css`:** under `prefers-reduced-motion: reduce` every animation and transition is cut to 0.01ms, `--motion-distance` goes to 0 and both press scales to 1. An element whose fade should stay sets `--motion-keep-animation` or `--motion-keep-transition` to the duration it keeps, inside its own reduced-motion block; no `!important`. Every element resets both to 0.01ms (zero specificity, so any opt-in wins on the element itself), so the element's children stay cut; the `@property` registration with `inherits: false` is a second guard for browsers that support it.
 - **Sheets:** `motion-sheet-in` and `motion-sheet-out` travel the full panel height, not `--motion-distance`, so under reduced motion a mobile sheet uses `motion-fade-in` and `motion-fade-out` instead. A keyframe that moves by a fixed amount must get the same treatment wherever its duration is restored. A test checks the shared rules.
 - **Completion:** the tick fades in whole instead of drawing, and the strike line appears with a color fade.
 - **New primitives:** keep the same rule. Opacity fades stay, movement goes. Never rely on an animation event to unmount: the presence hooks use timers.

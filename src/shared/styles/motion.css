@@ -204,7 +204,8 @@
 /* Reduced motion. Travel and press scale go to 0, and every animation */
 /* and transition is cut to 0.01ms. An element whose fade stays sets   */
 /* --motion-keep-animation or --motion-keep-transition to the duration */
-/* it keeps. They do not inherit, so its children are still cut.       */
+/* it keeps. Every element resets both, so children are still cut even */
+/* where @property (inherits: false) is not supported.                 */
 /* ------------------------------------------------------------------ */
 
 @property --motion-keep-animation {
@@ -227,6 +228,8 @@
   *,
   *::before,
   *::after {
+    --motion-keep-animation: 0.01ms;
+    --motion-keep-transition: 0.01ms;
     animation-duration: var(--motion-keep-animation, 0.01ms) !important;
     transition-duration: var(--motion-keep-transition, 0.01ms) !important;
     scroll-behavior: auto !important;

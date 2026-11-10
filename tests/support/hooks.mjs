@@ -41,11 +41,10 @@ export const hookRunner = () => {
       const i = cursor++
       const old = slots[i]
       if (old && deps && same(old.deps, deps)) return
-      const slot = { deps, cleanup: undefined }
-      slots[i] = slot
+      // 커밋할 때 슬롯을 바꾼다. 버려진 렌더 패스의 effect는 실행되지 않는다.
       pending.push(() => {
         old?.cleanup?.()
-        slot.cleanup = effect()
+        slots[i] = { deps, cleanup: effect() }
       })
     },
     useSyncExternalStore(subscribe, getSnapshot) {
@@ -64,6 +63,7 @@ export const hookRunner = () => {
       if (pass === 25) throw new Error('render loop')
       cursor = 0
       dirty = false
+      pending = []
       result = hook()
       if (!dirty) break
     }
