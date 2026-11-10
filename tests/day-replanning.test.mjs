@@ -18,6 +18,8 @@ const load = (file, dependencies = {}, globals = {}) => {
   vm.runInNewContext(outputText, {
     module, exports: module.exports, console, AbortController, Error, Set, Date,
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('../src/shared/api/errorMessage.ts')
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     }, ...globals,

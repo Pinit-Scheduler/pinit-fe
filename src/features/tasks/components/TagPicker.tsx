@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError } from '@shared/api/httpClient'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { createTag, fetchTags, tagErrorMessage, TAG_NAME_MAX_LENGTH, TAGS_PER_TASK } from '../api/tags'
 import type { TaskTag } from '../types/task'
 
@@ -61,7 +62,7 @@ const TagPicker = ({ selectedIds, onChange }: TagPickerProps) => {
       onChange([...selectedIds, created.id])
       setDraft('')
     } catch (error) {
-      addToast(error instanceof ApiError ? tagErrorMessage(error.data, '태그를 만들지 못했어요.') : '태그를 만들지 못했어요.', 'error')
+      addToast(tagErrorMessage(error instanceof ApiError ? error.data : null, getRequestFailureMessage(error, '태그를 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')), 'error')
     } finally {
       setCreating(false)
     }

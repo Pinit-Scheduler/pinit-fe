@@ -6,6 +6,10 @@ import { createSchedule, updateSchedule } from '../../api/schedules'
 import { toApiDateTimeWithZone, toDateFromApi } from '@shared/utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../types/schedule'
 import { useToast } from '@contexts/ToastContext'
+import {
+  ClientGuardError,
+  getRequestFailureMessage,
+} from '@shared/api/errorMessage'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import './ScheduleModal.css'
 
@@ -48,7 +52,7 @@ const ScheduleModal = ({ mode, schedule, onClose, closing = false }: ScheduleMod
       } else if (schedule) {
         result = await updateSchedule(schedule.id, payload)
       } else {
-        throw new Error('수정할 일정이 없습니다.')
+        throw new ClientGuardError('수정할 일정이 없습니다.')
       }
       if (result) {
         dispatchScheduleChanged({ schedule: result, reason: mode === 'create' ? 'created' : 'updated' })
@@ -56,7 +60,13 @@ const ScheduleModal = ({ mode, schedule, onClose, closing = false }: ScheduleMod
       onClose()
     } catch (error) {
       console.error('일정 저장 실패:', error)
-      addToast('일정 저장에 실패했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          error,
+          '일정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
+        'error',
+      )
       throw error
       // 에러 발생 시에도 모달을 닫으려면 onClose() 호출
       // onClose()

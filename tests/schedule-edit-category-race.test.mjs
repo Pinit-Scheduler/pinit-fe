@@ -4,6 +4,19 @@ import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 
+const loadErrorMessage = () => {
+  const source = readFileSync(
+    new URL('../src/shared/api/errorMessage.ts', import.meta.url),
+    'utf8',
+  )
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  })
+  const module = { exports: {} }
+  vm.runInNewContext(outputText, { module, exports: module.exports })
+  return module.exports
+}
+
 const createHarness = ({ recurring = false } = {}) => {
   const assigned = [],
     saved = [],
@@ -58,6 +71,7 @@ const createHarness = ({ recurring = false } = {}) => {
     '@contexts/ToastContext': {
       useToast: () => ({ addToast: (...args) => toasts.push(args) }),
     },
+    '@shared/api/errorMessage': loadErrorMessage(),
     '@contexts/TimePreferencesContext': {
       useTimePreferences: () => ({ offsetMinutes: 540 }),
     },

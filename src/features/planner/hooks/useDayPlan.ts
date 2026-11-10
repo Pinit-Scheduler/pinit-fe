@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { fetchSchedules } from '@features/schedules/api/schedules'
 import type { ScheduleResponse } from '@features/schedules/types/schedule'
 import { fetchDayPlan } from '../api/plans'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import type { DayPlanResponse } from '../types/plan'
 import { dayPlanKey, resultForKey } from '../utils/planMotion'
 
@@ -95,8 +96,10 @@ const useDayPlan = ({
         if (cancelled) return
         setFailure({
           key,
-          message:
-            err instanceof Error ? err.message : '계획을 불러오지 못했습니다.',
+          message: getRequestFailureMessage(
+            err,
+            '계획을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         })
       } finally {
         if (!cancelled) setIsLoading(false)

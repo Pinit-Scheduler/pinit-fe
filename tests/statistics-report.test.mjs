@@ -20,6 +20,8 @@ const loadModule = (relativePath, dependencies = {}) => {
     exports: module.exports,
     URLSearchParams,
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return loadModule('../src/shared/api/errorMessage.ts')
       assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
       return dependencies[name]
     },

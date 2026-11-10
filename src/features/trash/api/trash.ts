@@ -1,5 +1,6 @@
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import { ClientGuardError } from '@shared/api/errorMessage'
 import {
   rememberMetadata,
   getResourceRevision,
@@ -27,7 +28,7 @@ async function versionOf(
       ? contents.tasks.find((item) => item.taskId === id)
       : contents.schedules.find((item) => item.scheduleId === id)
   if (!row || row.version === undefined)
-    throw new Error('휴지통 목록에서 최신 상태를 확인한 뒤 다시 시도해 주세요.')
+    throw new ClientGuardError('휴지통 목록에서 최신 상태를 확인한 뒤 다시 시도해 주세요.')
   return row.version
 }
 export async function restoreTask(

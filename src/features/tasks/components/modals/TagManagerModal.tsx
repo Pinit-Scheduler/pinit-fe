@@ -5,6 +5,7 @@ import { presenceProps, useListPresence, usePresence } from '@shared/motion'
 import './TaskDependencyModal.css'
 import { ApiError } from '@shared/api/httpClient'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { deleteTag, fetchTags, renameTag, tagErrorMessage, TAG_NAME_MAX_LENGTH } from '../../api/tags'
 import type { TaskTag } from '../../types/task'
 
@@ -44,7 +45,7 @@ const TagManagerDialog = ({
         setTags(list)
         setDrafts(Object.fromEntries(list.map((tag) => [tag.id, tag.name])))
       })
-      .catch(() => mounted && addToast('태그를 불러오지 못했어요.', 'error'))
+      .catch((error) => mounted && addToast(getRequestFailureMessage(error, '태그를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'), 'error'))
       .finally(() => mounted && setLoading(false))
     return () => {
       mounted = false
@@ -69,7 +70,7 @@ const TagManagerDialog = ({
       update(tags.map((item) => (item.id === tag.id ? renamed : item)).sort((a, b) => a.name.localeCompare(b.name)))
       addToast('태그 이름을 바꿨어요.', 'success')
     } catch (error) {
-      addToast(error instanceof ApiError ? tagErrorMessage(error.data, '이름을 바꾸지 못했어요.') : '이름을 바꾸지 못했어요.', 'error')
+      addToast(tagErrorMessage(error instanceof ApiError ? error.data : null, getRequestFailureMessage(error, '이름을 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')), 'error')
     } finally {
       setBusyId(null)
     }
@@ -82,8 +83,8 @@ const TagManagerDialog = ({
       await deleteTag(tag.id)
       update(tags.filter((item) => item.id !== tag.id))
       addToast('태그를 지웠어요.', 'success')
-    } catch {
-      addToast('태그를 지우지 못했어요.', 'error')
+    } catch (error) {
+      addToast(getRequestFailureMessage(error, '태그를 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'), 'error')
     } finally {
       setBusyId(null)
     }

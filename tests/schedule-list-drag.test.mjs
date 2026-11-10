@@ -112,7 +112,9 @@ const listHarness = () => {
   const events = loadModule('../src/shared/utils/events.ts', {}, { window, CustomEvent })
   const { createQueryStore } = loadModule('../src/shared/utils/queryStore.ts', {})
   const store = createQueryStore()
+  const errorMessage = loadModule('../src/shared/api/errorMessage.ts', {})
   const query = loadModule('../src/shared/hooks/useRevalidatingQuery.ts', {
+    '@shared/api/errorMessage': errorMessage,
     react,
     '@shared/api/authTokens': { getAccessToken: () => 'token', getTokenSubject: () => 'member-1' },
     '@shared/utils/events': events,
@@ -129,6 +131,7 @@ const listHarness = () => {
       const response = deferred(); requests.push({ ...response, day: date.dateTime.slice(0, 10) }); return response.promise
     } },
     '@shared/hooks/useRevalidatingQuery': query,
+    '@shared/api/errorMessage': errorMessage,
     '@features/spaces/store': { useSpaces: () => scope },
   }).default
   return {
@@ -155,11 +158,12 @@ test('a newly selected date never renders the previous date rows, even before ef
   assert.deepEqual(ids(switched), [])
   assert.equal(switched.isLoading, true)
   assert.equal(switched.data, undefined)
-  await h.render('2026-11-05'); h.last('2026-11-05').reject(new Error('offline')); await settle()
+  // 응답이 오지 않은 실패: httpClient는 네트워크 오류를 status 0인 ApiError로 던진다.
+  await h.render('2026-11-05'); h.last('2026-11-05').reject(Object.assign(new Error('offline'), { name: 'ApiError', status: 0 })); await settle()
   const failed = await h.render('2026-11-05')
   assert.deepEqual(ids(failed), [])
   assert.equal(failed.isLoading, false, 'a failed first load is an error, not a spinner')
-  assert.equal(failed.error, 'offline')
+  assert.equal(failed.error, '일정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 })
 
 test('rapid date changes never mix days, whatever order the responses arrive in', async () => {

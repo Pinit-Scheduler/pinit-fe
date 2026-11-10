@@ -70,6 +70,52 @@ for (const [name, response] of [
   })
 }
 
+const failureMessage = async (client, fallback = '일정 저장에 실패했습니다.') => {
+  const { getRequestFailureMessage } = loadModule('../src/shared/api/errorMessage.ts')
+  try {
+    await client.httpClient('/workspaces/schedules', { method: 'POST', json: { title: 'x' } })
+  } catch (error) {
+    return getRequestFailureMessage(error, fallback)
+  }
+  assert.fail('request should fail')
+}
+
+for (const [status, body] of [
+  [403, { code: 'FORBIDDEN', message: '이 프로젝트에 일정을 만들 권한이 없어요.' }],
+  [503, { message: '잠시 후 다시 시도해 주세요.' }],
+]) {
+  test(`a ${status} response shows the server wording instead of the screen fallback`, async () => {
+    assert.equal(await failureMessage(createClient(Response.json(body, { status }))), body.message)
+  })
+}
+
+test('a network failure keeps the screen fallback instead of the browser wording', async () => {
+  const client = loadModule('../src/shared/api/httpClient.ts', {
+    './config': { API_BASE_URL: 'https://api.example.test/v2', buildUrl: (base, path) => `${base}${path}` },
+    './authTokens': { getAccessToken: () => null, isAccessTokenExpired: () => false, setAuthTokens: () => {} },
+    './httpClientHelpers': { debugLog: () => {} },
+    './authSession': { refreshAccessTokenFromCookie: async () => null },
+    './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
+  }, { fetch: async () => { throw new TypeError('Failed to fetch') } })
+  assert.equal(await failureMessage(client), '일정 저장에 실패했습니다.')
+})
+
+test('failures without a server response keep the screen fallback', () => {
+  const { getRequestFailureMessage } = loadModule('../src/shared/api/errorMessage.ts')
+  assert.equal(getRequestFailureMessage(new Error('internal'), '기본'), '기본')
+  assert.equal(getRequestFailureMessage(undefined, '기본'), '기본')
+  assert.equal(getRequestFailureMessage({ status: 400, message: '  ' }, '기본'), '기본')
+})
+
+test('a client guard keeps its own wording while other non-server errors fall back', () => {
+  const { ClientGuardError, getRequestFailureMessage } = loadModule('../src/shared/api/errorMessage.ts')
+  const guard = new ClientGuardError('  일정을 다시 열어 최신 상태를 확인해 주세요. ')
+  assert.equal(guard.name, 'ClientGuardError')
+  assert.equal(getRequestFailureMessage(guard, '기본'), '일정을 다시 열어 최신 상태를 확인해 주세요.')
+  assert.equal(getRequestFailureMessage(new ClientGuardError(' '), '기본'), '기본')
+  assert.equal(getRequestFailureMessage(new Error('internal'), '기본'), '기본')
+})
+
 test('successful JSON and empty responses remain unchanged', async () => {
   const jsonClient = createClient(Response.json({ token: 'test-token' }))
   assert.equal((await jsonClient.httpClient('/login')).token, 'test-token')

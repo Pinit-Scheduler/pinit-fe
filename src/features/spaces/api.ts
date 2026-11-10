@@ -1,5 +1,6 @@
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import { ClientGuardError } from '@shared/api/errorMessage'
 import type {
   Invitation,
   Project,
@@ -168,7 +169,7 @@ export async function createInvitation(spaceId: number): Promise<Invitation> {
     resolved.origin !== window.location.origin ||
     !resolved.pathname.startsWith('/spaces/join/')
   )
-    throw new Error('초대 링크를 확인할 수 없어요. 다시 시도해 주세요.')
+    throw new ClientGuardError('초대 링크를 확인할 수 없어요. 다시 시도해 주세요.')
   return { ...issued, id: issued.token, inviteUrl: resolved.href }
 }
 export const revokeInvitation = (spaceId: number, token: string) =>

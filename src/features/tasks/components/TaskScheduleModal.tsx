@@ -7,6 +7,7 @@ import './TaskScheduleModal.css'
 import { toApiDateTimeWithZone } from '@shared/utils/datetime'
 import type { TaskScheduleRequest } from '../types/task'
 import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 type TaskScheduleModalProps = {
   isOpen: boolean
@@ -97,9 +98,10 @@ const TaskScheduleModal = ({
         }
       } else
         setError(
-          failure instanceof Error
-            ? failure.message
-            : '일정을 배정하지 못했어요. 입력한 내용은 유지됩니다.',
+          getRequestFailureMessage(
+            failure,
+            '일정을 배정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         )
     } finally {
       submissionLock.current = false

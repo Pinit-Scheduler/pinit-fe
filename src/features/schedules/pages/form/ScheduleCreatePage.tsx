@@ -25,6 +25,10 @@ import {
   type RuleDraft,
 } from '@features/recurrence/utils/recurrenceRules'
 import { ApiError } from '@shared/api/httpClient'
+import {
+  ClientGuardError,
+  getRequestFailureMessage,
+} from '@shared/api/errorMessage'
 
 type LocationState = {
   initialDateKey?: string
@@ -85,7 +89,13 @@ const ScheduleCreatePage = () => {
       }
     } catch (error) {
       console.error('일정 저장 실패:', error)
-      addToast('일정 저장에 실패했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          error,
+          '일정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
+        'error',
+      )
       throw error
     }
   }
@@ -119,7 +129,7 @@ const ScheduleCreatePage = () => {
         zoneId: getDisplayZoneId(),
       }
       const created = await createRecurrence(payload)
-      if (!created.id) throw new Error('반복 일정 ID를 확인하지 못했어요.')
+      if (!created.id) throw new ClientGuardError('반복 일정 ID를 확인하지 못했어요.')
       dispatchScheduleChanged({ reason: 'recurrence' })
       addToast('반복 일정을 만들었어요.', 'success')
       handleClose()
@@ -131,9 +141,10 @@ const ScheduleCreatePage = () => {
           : []
       addToast(
         fieldErrors[0] ??
-          (error instanceof ApiError && error.status === 409
-            ? '진행 중인 반복이 너무 많아요.'
-            : '반복 일정을 만들지 못했어요.'),
+          getRequestFailureMessage(
+            error,
+            '반복 일정을 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         'error',
       )
       throw error

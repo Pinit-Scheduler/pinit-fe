@@ -2,6 +2,10 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
 import {
+  ClientGuardError,
+  getRequestFailureMessage,
+} from '@shared/api/errorMessage'
+import {
   getMetadata,
   rememberMetadata,
   getResourceRevision,
@@ -149,10 +153,10 @@ export const reloadCategories = (): Promise<void> => {
         state = {
           ...state,
           isLoading: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : '프로젝트를 불러오지 못했어요.',
+          error: getRequestFailureMessage(
+            error,
+            '프로젝트를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         }
         emit()
       }
@@ -183,7 +187,7 @@ const assign = async (
       buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
     )
     if (!rememberMetadata(resource, id, view, revision))
-      throw new Error('업무 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError('업무 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
     current = view
   }
   const project = state.categories.find((item) => item.id === categoryId)

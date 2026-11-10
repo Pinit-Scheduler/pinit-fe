@@ -27,6 +27,8 @@ const load = (path, dependencies = {}, globals = {}) => {
     Object,
     console: { warn() {}, error() {}, log() {} },
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('../../shared/api/errorMessage.ts')
       assert.ok(name in dependencies, 'Unexpected dependency ' + name)
       return dependencies[name]
     },
@@ -149,8 +151,8 @@ test('useReport keeps the hub contract: null data, the same error text, loading 
   const first = useReport(() => Promise.resolve(null), 'summary:null')
   assert.equal(first.data, null)
   assert.equal(first.isLoading, true)
-  assert.equal(calls[0].options.errorMessage(new Error('서버 메시지')), '서버 메시지', 'server text passes through')
-  assert.equal(calls[0].options.errorMessage('boom'), '통계를 불러오지 못했어요.')
+  assert.equal(calls[0].options.errorMessage(Object.assign(new Error('서버 메시지'), { name: 'ApiError', status: 500 })), '서버 메시지', 'server text passes through')
+  assert.equal(calls[0].options.errorMessage('boom'), '통계를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
   const empty = reportHook(entry({ data: null })).useReport(() => Promise.resolve(null), 'summary:null')
   assert.equal(empty.data, null, 'a loaded null stays null')
@@ -319,7 +321,7 @@ test('weekly statistics come from the query cache per week and refetch on schedu
   const pair = await calls[0].fetcher(new AbortController().signal)
   assert.deepEqual(plain(pair), { current: { totalMinutes: 90 }, previous: null }, 'a failed previous week is tolerated')
   assert.deepEqual(requests, ['w', 'w-1'])
-  assert.equal(calls[0].options.errorMessage('x'), '통계를 불러오는데 실패했습니다.')
+  assert.equal(calls[0].options.errorMessage('x'), '통계를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 })
 
 // ---------------------------------------------------------------------------

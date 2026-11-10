@@ -8,6 +8,7 @@ import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { deleteSchedule } from '../../api/schedules'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import { formatDurationLabel } from '@shared/utils/duration'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
@@ -81,7 +82,13 @@ const ScheduleDetailModal = ({
           }
         } catch (error) {
           console.error('반복 삭제 실패:', error)
-          addToast('반복 일정을 지우지 못했어요.', 'error')
+          addToast(
+            getRequestFailureMessage(
+              error,
+              '반복 일정을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            ),
+            'error',
+          )
         }
         return
       }
@@ -109,7 +116,13 @@ const ScheduleDetailModal = ({
         }
       } catch (error) {
         console.error(`❌ Delete failed:`, error)
-        addToast('일정 삭제에 실패했습니다.', 'error')
+        addToast(
+          getRequestFailureMessage(
+            error,
+            '일정을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
+          'error',
+        )
       }
     }
   }

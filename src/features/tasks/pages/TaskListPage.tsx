@@ -35,6 +35,7 @@ import {
 } from '../utils/taskSearch'
 import { arrivalIndex, useArrival } from '../utils/useArrival'
 import { COMPLETION_SETTLE_MS, isCompletionOnly } from '../utils/taskListRefresh'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import './TaskPages.css'
 
 const PAGE_SIZE = 20
@@ -67,7 +68,7 @@ const isLastPage = (response: TaskListResponse, page: number) =>
     ? page + 1 >= response.totalPages
     : response.content.length < PAGE_SIZE)
 const errorText = (error: unknown) =>
-  error instanceof Error && error.message ? error.message : LOAD_ERROR
+  getRequestFailureMessage(error, `${LOAD_ERROR} 인터넷 연결을 확인한 뒤 다시 시도해 주세요.`)
 
 /** The result count. It shows as is when it appears and glides when a change moves it. */
 function TaskCount({ value }: { value: number }) {

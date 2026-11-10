@@ -19,6 +19,7 @@ import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import CompletionCheck from '@shared/components/motion/CompletionCheck'
 import './WorkspaceTaskCard.css'
 import { saveTaskCompletion } from '../utils/taskCompletion'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 export default function WorkspaceTaskCard({
   task,
   onOpen,
@@ -74,7 +75,10 @@ export default function WorkspaceTaskCard({
         }
       } else
         setError(
-          e instanceof Error ? e.message : '작업 상태를 바꾸지 못했어요.',
+          getRequestFailureMessage(
+            e,
+            '작업 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         )
     } finally {
       lock.current = false

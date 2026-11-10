@@ -31,6 +31,8 @@ function load(path, dependencies = {}, globals = {}) {
     clearTimeout,
     console: { error() {} },
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('shared/api/errorMessage.ts')
       assert.ok(name in dependencies, 'Unexpected dependency ' + name)
       return dependencies[name]
     },

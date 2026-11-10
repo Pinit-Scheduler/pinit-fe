@@ -5,6 +5,7 @@ import { useSpaces } from '@features/spaces/store'
 import { collectTaskGraph } from './graphData'
 import type { TaskGraphData } from './graphData'
 import { taskGraphSource } from './graphApi'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 /** Names everything the snapshot depends on: the completed toggle, the zone and the selected scope. */
 export const taskGraphKey = (
@@ -16,7 +17,7 @@ export const taskGraphKey = (
   `task-map/${includeCompleted ? 'all' : 'open'}@${zoneId}/${spaceId ?? 'none'}/${projectId ?? 'all'}`
 
 const graphErrorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : '작업 맵을 불러오지 못했습니다.'
+  getRequestFailureMessage(error, '작업 맵을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
 /**
  * Whole-graph snapshot. A task or schedule change refreshes it in place: the previous snapshot
