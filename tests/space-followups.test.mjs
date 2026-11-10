@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { requireFrom } from './support/errors.mjs'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 function load(path, dependencies = {}, globals = {}) {
@@ -152,11 +154,14 @@ test('my input keeps only the fields I changed', () => {
   ])
   assert.deepEqual(plain(changedInput(before, before, labels)), [])
 })
-test('a failed reload after a conflict names why', () => {
+test('a failed reload after a conflict shows the server reason, or what to do when none arrived', () => {
   const { latestLoadError } = load('features/spaces/conflicts.ts', { '@shared/api/httpClient': { ApiError: class {} } })
-  assert.equal(latestLoadError({ status: 404 }, '작업'), '이 작업을 찾을 수 없어요. 삭제됐을 수 있어요.')
-  assert.equal(latestLoadError({ status: 403 }, '일정'), '이 일정을 볼 수 없어요. 참여 권한이 바뀌었을 수 있어요.')
-  assert.equal(latestLoadError(new Error('Failed to fetch'), '작업'), '연결을 확인한 뒤 다시 시도하세요.')
+  assert.equal(latestLoadError(apiError('작업을 찾을 수 없어요.', 404), '작업'), '작업을 찾을 수 없어요.')
+  assert.equal(latestLoadError(apiError('', 403), '일정'), '최신 일정 내용을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.')
+  assert.equal(
+    latestLoadError(new TypeError('Failed to fetch'), '작업'),
+    '최신 작업 내용을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+  )
 })
 const conflictDialog = (props) => {
   const jsx = (type, elementProps) => ({ type, props: elementProps })
@@ -191,15 +196,47 @@ test('the conflict dialog can always be closed, and a failed reload offers retry
   assert.match(failed.alerts[0], /찾을 수 없어요/)
   const loading = conflictDialog({ loading: true })
   assert.equal(loading.buttons.at(-1).disabled, true)
+  assert.equal(plainDialog.tree.props.closing, false)
+  assert.equal(conflictDialog({ closing: true }).tree.props.closing, true, 'the exit reaches the modal')
 })
+const affiliationFields = (props) => {
+  const Fields = load('features/spaces/AffiliationFields.tsx', {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+    '@shared/api/config': { buildApiUrl: (path) => path },
+    '@shared/api/httpClient': { httpClient: () => new Promise(() => {}) },
+    './affiliationImpact': load('features/spaces/affiliationImpact.ts'),
+    './motion': { fadeIn() {}, shouldFadeText: () => false },
+    './SpaceMark': { default: () => null },
+    './store': {
+      useSpaces: () => ({
+        selectedSpaceId: 31,
+        loading: false,
+        error: null,
+        spaces: [{ id: 31, name: '핀잇 개선', personal: false, deleted: false, members: [] }],
+        projects: [],
+        reload: async () => {},
+      }),
+    },
+    './UnavailableNote': { default: () => null },
+    './unavailable': load('features/spaces/unavailable.ts'),
+    './spaces.css': {},
+  }).default
+  return renderToStaticMarkup(
+    React.createElement(Fields, { value: { spaceId: 31, categoryId: null }, onChange() {}, creating: true, ...props }),
+  )
+}
 test('the affiliation summary stays pressable when only the inputs are locked', () => {
-  const source = readFileSync(new URL('../src/features/spaces/AffiliationFields.tsx', import.meta.url), 'utf8')
-  assert.match(source, /<fieldset className="space-affiliation">/)
-  assert.match(source, /<fieldset className="space-affiliation__fields" disabled={locked}>/)
+  const html = affiliationFields({ disabled: true })
+  assert.match(html, /<button type="button" class="space-affiliation__summary" aria-expanded="false"/)
+  assert.doesNotMatch(html.match(/<button[^>]*space-affiliation__summary[^>]*>/)[0], /disabled/)
+  assert.match(html, /<fieldset class="space-affiliation__fields" disabled="">/)
+  assert.doesNotMatch(affiliationFields({ disabled: false }), /space-affiliation__fields" disabled/)
 })
-test('the http client no longer raises a global conflict dialog', () => {
-  const source = readFileSync(new URL('../src/shared/api/httpClient.ts', import.meta.url), 'utf8')
-  assert.equal(source.includes('workspace:edit-conflict'), false)
+test('while the server draft loads, the pending line is for assistive technology only', () => {
+  const html = affiliationFields()
+  assert.match(html, /<p class="sr-only" role="status">서버의 소속·담당자 정보를 확인하고 있어요…<\/p>/)
+  assert.match(html, /담당자 확인 중/, 'the summary line already says it is checking')
 })
 
 const impactTo = { id: 44, name: '주말 러닝 모임', personal: false, memberCount: 3 }

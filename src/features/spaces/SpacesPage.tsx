@@ -1,4 +1,5 @@
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
@@ -160,9 +161,7 @@ function EditorDialog({
       if (reportEditConflict(failure)) close()
       else
         setError(
-          failure instanceof Error && failure.message
-            ? failure.message
-            : '저장하지 못했어요. 입력한 내용은 유지됩니다.',
+          getRequestFailureMessage(failure, '저장하지 못했어요. 입력한 내용은 유지됩니다.'),
         )
     } finally {
       mutationLock.current = false
@@ -285,7 +284,6 @@ export default function SpacesPage() {
   const [invitation, setInvitation] = useState<Invitation | null>(null)
   const [copied, setCopied] = useState(false)
   const [movingProject, setMovingProject] = useState<Project | null>(null)
-  // 배정 대화상자를 연 스페이스. 다른 스페이스로 바뀌면 그 대화상자는 보이지 않는다.
   const [assigningSpaceId, setAssigningSpaceId] = useState<number | null>(null)
   // 다른 스페이스로 바뀌면 배정 대화상자를 닫는다(돌아와도 저절로 열리지 않게). 다시 불러오는 동안 비는 것은 무시한다.
   if (
@@ -326,9 +324,7 @@ export default function SpacesPage() {
       if (reportEditConflict(failure)) setConfirm(null)
       else
         setError(
-          failure instanceof Error && failure.message
-            ? failure.message
-            : '요청을 처리하지 못했어요. 다시 시도해 주세요.',
+          getRequestFailureMessage(failure, '요청을 처리하지 못했어요.'),
         )
       return false
     } finally {
@@ -397,9 +393,7 @@ export default function SpacesPage() {
       setCopied(false)
     } catch (failure) {
       setError(
-        failure instanceof Error && failure.message
-          ? failure.message
-          : '초대 링크를 만들지 못했어요.',
+        getRequestFailureMessage(failure, '초대 링크를 만들지 못했어요.'),
       )
     } finally {
       mutationLock.current = false
@@ -780,9 +774,7 @@ function ProjectMoveDialog({
       if (reportEditConflict(failure)) close()
       else
         setError(
-          failure instanceof Error && failure.message
-            ? failure.message
-            : '프로젝트를 옮기지 못했어요.',
+          getRequestFailureMessage(failure, '프로젝트를 옮기지 못했어요.'),
         )
     } finally {
       lock.current = false

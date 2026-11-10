@@ -50,7 +50,7 @@ export default function EditConflictDialog({
         </p>
         {loadError && (
           <p role="alert" className="space-error">
-            최신 내용을 불러오지 못했어요. {loadError}
+            {loadError}
           </p>
         )}
         <MyInputDisclosure rows={rows} open />

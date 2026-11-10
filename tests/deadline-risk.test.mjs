@@ -6,7 +6,7 @@ import ts from 'typescript'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { requireFrom } from './support/errors.mjs'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const load = (path, dependencies = {}, globals = {}) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -360,7 +360,7 @@ test('refresh keeps the forecast on screen; task/schedule/focus changes refresh 
   h.unmount()
 })
 
-test('a failed read hides the old forecast and shows the fixed failure message', async () => {
+test('a failed read hides the old forecast and says why', async () => {
   const h = hookHarness()
   await h.render()
   h.requests[0].resolve({ days: 7, items: [baseItem] })
@@ -370,16 +370,47 @@ test('a failed read hides the old forecast and shows the fixed failure message',
   h.requests[1].reject(new Error('offline'))
   await microtasks()
   const failed = await h.render()
-  assert.match(failed.error, /연결을 확인/)
+  assert.equal(failed.error, '마감 위험 예보를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
   assert.equal(failed.forecast, null, 'an outdated capacity estimate is never shown after a failure')
   assert.equal(failed.isLoading, false)
   failed.refresh()
   const retrying = await h.render()
   assert.equal(retrying.isLoading, true, 'a retry says it is calculating again')
-  h.requests[2].resolve({ days: 7, items: [] })
+  h.requests[2].reject(apiError('예보 계산이 잠시 중단됐어요.', 503))
+  await microtasks()
+  assert.equal((await h.render()).error, '예보 계산이 잠시 중단됐어요.', 'the server message is shown as is')
+  ;(await h.render()).refresh()
+  await h.render()
+  h.requests[3].resolve({ days: 7, items: [] })
   await microtasks()
   const recovered = await h.render()
   assert.equal(recovered.error, null)
   assert.equal(recovered.forecast.items.length, 0)
   h.unmount()
+})
+
+test('a refreshing forecast stays on screen, marked busy, with each row in its presence phase', () => {
+  const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
+    react: { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect },
+    'react/jsx-runtime': jsxRuntime,
+    'react-router-dom': { useNavigate: () => () => {} },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+    '@features/spaces/store': { useSpaces: () => personalSpaces },
+    '@shared/motion': {
+      ...motion,
+      useListPresence: (items, getKey) => (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'enter' })),
+      presenceProps: (phase) => ({ 'data-presence': phase }),
+    },
+    '../components/DeadlineRiskItem': { default: Item },
+    '../hooks/useDeadlineRisk': { default: () => ({
+      forecast: { generatedAt: '2026-11-09T00:00:00Z', horizonEnd: '2026-11-15T15:00:00Z', zoneId: 'Asia/Seoul', items: [baseItem], assumptions: [], limitations: [] },
+      error: null, isLoading: false, isRefreshing: true, refresh() {},
+    }) },
+    '../utils/deadlineRiskView': view,
+    './DeadlineRiskPage.css': {},
+  }).default
+  const html = renderToStaticMarkup(React.createElement(Page))
+  assert.match(html, /<section class="deadline-risk"[^>]*aria-busy="true"/)
+  assert.match(html, /<li class="deadline-risk__item[^"]*" data-presence="enter">/)
+  assert.match(html, /금요일 제출/)
 })
