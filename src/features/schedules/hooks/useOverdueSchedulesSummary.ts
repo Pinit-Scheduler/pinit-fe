@@ -30,10 +30,7 @@ const summarize = (schedules: ScheduleResponse[], todayKey: string): OverdueSumm
   }
 }
 
-/**
- * 미완료된 일정 요약 정보를 반환하는 커스텀 훅
- * @returns 미완료된 일정 요약 정보, 로딩 상태, 재조회 함수
- */
+/** 지난 날짜의 미완료 일정 요약과 재조회 함수. */
 const useOverdueSchedulesSummary = ({ mine }: Options = {}) => {
   const { offsetMinutes } = useTimePreferences()
   const { selectedSpaceId, selectedProjectId } = useSpaces()
@@ -50,9 +47,6 @@ const useOverdueSchedulesSummary = ({ mine }: Options = {}) => {
   return {
     // 실패하면 배너를 띄우지 않는다.
     summary: query.data ?? NONE,
-    /** Nothing loaded for this audience yet. Refetches keep the last summary (`isRefreshing`). */
-    isLoading: query.isInitialLoading,
-    isRefreshing: query.isRefreshing,
     refetch: query.refetch,
   }
 }

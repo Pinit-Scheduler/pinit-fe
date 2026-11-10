@@ -148,7 +148,7 @@ export default function TodayPage() {
     if (tasks) [...tasks.ready, ...tasks.due].forEach(setTask)
   }, [tasks, setTask])
   useEffect(() => {
-    schedules?.forEach((schedule) => setSchedule(schedule))
+    schedules?.forEach(setSchedule)
   }, [schedules, setSchedule])
 
   // A task completed from the ready list drops out of the next read. Hold it for a beat so the
