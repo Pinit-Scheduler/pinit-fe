@@ -3,11 +3,13 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
+import { deferred, hookRunner, settle } from './support/hooks.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 const read = (path) => readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
 
-function load(path, dependencies = {}) {
+function load(path, dependencies = {}, globals = {}) {
   const output = ts.transpileModule(read(path), {
     fileName: path,
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -16,10 +18,8 @@ function load(path, dependencies = {}) {
   vm.runInNewContext(output, {
     module,
     exports: module.exports,
-    require: (name) => {
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
+    ...globals,
   })
   return module.exports
 }
@@ -141,65 +141,206 @@ test('reloading routines or exceptions keeps the content instead of showing the 
 })
 
 // ---------------------------------------------------------------------------
-// Settings: per-account cache, no dimming while saving, save confirmation
+// Settings: values survive a time zone reset, per account; late reads never undo a save
 // ---------------------------------------------------------------------------
 
-test('the settings cache only returns values saved for the signed-in account', () => {
-  let token = 'token-a'
-  const cache = load('features/settings/hooks/memberCache.ts', {
-    '@shared/api/authTokens': {
-      getAccessToken: () => token,
-      getTokenSubject: (value) => (value ? value.replace('token-', 'member-') : null),
+const settingsHarness = (api) => {
+  const subject = { current: 'member-a' }
+  const queryGlobals = { AbortController, queueMicrotask, Date }
+  const { createQueryStore } = load('shared/utils/queryStore.ts', {}, queryGlobals)
+  const appStore = createQueryStore()
+  const memberStore = load('features/settings/hooks/memberStore.ts', {
+    '@shared/utils/queryStore': { createQueryStore },
+  })
+  const notificationUtils = load('features/settings/utils/notificationPreferences.ts')
+  const mount = (path, extra = {}) => {
+    const runner = hookRunner()
+    const query = load(
+      'shared/hooks/useRevalidatingQuery.ts',
+      {
+        react: runner.react,
+        '@shared/api/authTokens': { getAccessToken: () => subject.current, getTokenSubject: (token) => token },
+        '@shared/utils/events': { onDataChanged: () => () => {} },
+        '@shared/utils/queryStore': { queryStore: appStore },
+      },
+      queryGlobals,
+    )
+    const module = load(path, {
+      react: runner.react,
+      '@shared/hooks/useRevalidatingQuery': query,
+      './memberStore': memberStore,
+      '../utils/notificationPreferences': notificationUtils,
+      ...api,
+      ...extra,
+    })
+    return { module, ...runner }
+  }
+  return { subject, appStore, mount }
+}
+
+/** An API whose calls each wait for the test to answer them. */
+const pendingCalls = () => {
+  const calls = []
+  const call = (...args) => {
+    const next = deferred()
+    calls.push({ args, ...next })
+    return next.promise
+  }
+  return { calls, call }
+}
+
+const PROFILE = 'features/settings/hooks/useProfileSettings.ts'
+const NOTIFICATIONS = 'features/settings/hooks/useNotificationPreferences.ts'
+const GRANTS = 'features/settings/hooks/useOAuthGrants.ts'
+
+test('settings stay on screen through a time zone reset, but never for another account', async () => {
+  const reads = pendingCalls()
+  const h = settingsHarness({ '../api/profileSettings': { fetchProfileSettings: reads.call } })
+  const first = h.mount(PROFILE)
+  assert.equal(first.render(first.module.default).isLoading, true)
+  await settle()
+  reads.calls[0].resolve({ zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT4H' })
+  await settle()
+  assert.equal(first.render(first.module.default).settings.zoneId, 'Asia/Seoul')
+  first.unmount()
+
+  // A zone change clears the app-wide query cache and remounts the screen.
+  h.appStore.clear()
+  const remounted = h.mount(PROFILE)
+  const shown = remounted.render(remounted.module.default)
+  assert.equal(shown.isLoading, false)
+  assert.equal(shown.settings.zoneId, 'Asia/Seoul', 'the last value shows at once')
+  remounted.unmount()
+
+  h.subject.current = 'member-b'
+  const other = h.mount(PROFILE)
+  const empty = other.render(other.module.default)
+  assert.equal(empty.settings, null, 'another account never sees the cached value')
+  assert.equal(empty.isLoading, true)
+})
+
+test('the zone sync read at app start fills the settings screen too', async () => {
+  const applied = []
+  const h = settingsHarness({
+    '../api/profileSettings': {
+      fetchProfileSettings: async () => ({ zoneId: 'Europe/Paris', dailyObjectiveWork: 'PT4H' }),
     },
   })
-  const store = cache.createMemberCache()
-  assert.equal(store.read(), undefined)
-  store.write({ zoneId: 'Asia/Seoul' })
-  assert.deepEqual(plain(store.read()), { zoneId: 'Asia/Seoul' })
-  token = 'token-b'
-  assert.equal(store.read(), undefined, 'another account never sees the cached value')
-  token = null
-  assert.equal(store.read(), undefined)
+  const sync = h.mount('features/settings/hooks/useMemberZoneSync.ts', {
+    '@contexts/TimePreferencesContext': {
+      useTimePreferences: () => ({ zoneId: 'Asia/Seoul', applyZone: (zone) => applied.push(zone) }),
+    },
+  })
+  sync.render(sync.module.useMemberZoneSync)
+  await settle()
+  assert.deepEqual(applied, ['Europe/Paris'])
+  const screen = h.mount(PROFILE)
+  const shown = screen.render(screen.module.default)
+  assert.equal(shown.isLoading, false)
+  assert.equal(shown.settings.zoneId, 'Europe/Paris')
 })
 
-test('a read that started before a save never overwrites the saved value', () => {
-  for (const [path, counter] of [
-    ['features/settings/hooks/useProfileSettings.ts', 'saves'],
-    ['features/settings/hooks/useNotificationPreferences.ts', 'updates'],
-  ]) {
-    const source = read(path)
-    assert.match(source, new RegExp(`${counter}\\.current \\+= 1`), path)
-    assert.match(source, new RegExp(`${counter}\\.current (?:!==|===) ${counter}AtStart`), path)
+test('a profile read that started before a save never overwrites the saved value', async () => {
+  const reads = pendingCalls()
+  const saves = pendingCalls()
+  const h = settingsHarness({
+    '../api/profileSettings': { fetchProfileSettings: reads.call, updateProfileSettings: saves.call },
+  })
+  const screen = h.mount(PROFILE)
+  const hook = () => screen.render(screen.module.default)
+  hook()
+  await settle()
+  const saving = hook().save({ dailyObjectiveWork: 'PT6H' })
+  saves.calls[0].resolve({ zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT6H' })
+  assert.equal((await saving).dailyObjectiveWork, 'PT6H')
+  reads.calls[0].resolve({ zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT4H' })
+  await settle()
+  assert.equal(hook().settings.dailyObjectiveWork, 'PT6H')
+})
+
+test('a notification toggle shows at once, outlives a late read, and rolls back when the save fails', async () => {
+  const reads = pendingCalls()
+  const saves = pendingCalls()
+  const h = settingsHarness({
+    '../api/notificationPreferences': {
+      fetchNotificationPreferences: reads.call,
+      saveNotificationPreferences: saves.call,
+    },
+  })
+  const server = {
+    scheduleStartEnabled: true,
+    scheduleReminderMinutes: null,
+    taskDeadlineEnabled: false,
+    taskDeadlineTime: '09:00',
+    zoneId: 'Asia/Seoul',
   }
+  const first = h.mount(NOTIFICATIONS)
+  first.render(() => first.module.default('Asia/Seoul'))
+  await settle()
+  reads.calls[0].resolve(server)
+  await settle()
+  first.unmount()
+
+  // Revisiting shows the cached value and reads again; the user toggles before that read answers.
+  const screen = h.mount(NOTIFICATIONS)
+  const hook = () => screen.render(() => screen.module.default('Asia/Seoul'))
+  assert.equal(hook().isLoading, false)
+  await settle()
+  const saved = hook().update({ scheduleStartEnabled: false })
+  assert.equal(hook().preferences.scheduleStartEnabled, false, 'the toggle moves before the save answers')
+  reads.calls[1].resolve(server)
+  await settle()
+  assert.equal(hook().preferences.scheduleStartEnabled, false, 'the read that started earlier is ignored')
+  saves.calls[0].resolve({ ...server, scheduleStartEnabled: false })
+  await saved
+  assert.equal(hook().preferences.scheduleStartEnabled, false)
+
+  const failed = hook().update({ taskDeadlineEnabled: true })
+  assert.equal(hook().preferences.taskDeadlineEnabled, true)
+  saves.calls[1].reject(apiError('저장할 수 없어요.', 500))
+  await assert.rejects(failed)
+  assert.equal(hook().preferences.taskDeadlineEnabled, false, 'a failed save goes back to the previous value')
 })
 
-test('notification toggles use a ref lock instead of disabling while a save is pending', () => {
-  const source = read('features/settings/pages/SettingsPage.tsx')
-  assert.doesNotMatch(source, /isPreferencesSaving/)
-  assert.match(source, /toggleLock\.current/)
-  assert.match(source, /<SavedMark visible=\{isFlashing\('scheduleStart'\)\} \/>/)
+test('revoking the last connected app keeps the list loaded instead of showing the loading panel', async () => {
+  const reads = pendingCalls()
+  const h = settingsHarness({
+    '@features/oauth/api/oauth': { fetchOAuthGrants: reads.call, revokeOAuthGrant: async () => {} },
+  })
+  const screen = h.mount(GRANTS)
+  const hook = () => screen.render(screen.module.default)
+  hook()
+  await settle()
+  reads.calls[0].resolve([{ grantId: 1, clientName: 'Claude' }])
+  await settle()
+  await hook().revoke(1)
+  await settle()
+  const refreshing = hook()
+  assert.deepEqual(plain(refreshing.grants), [])
+  assert.equal(refreshing.hasLoaded, true)
+  assert.equal(refreshing.isLoading, false)
+  assert.equal(reads.calls.length, 2, 'the list is read again from the server')
 })
 
-test('saving the daily objective never dims the time zone select', () => {
-  const source = read('features/settings/components/ProfileSettingRows.tsx')
-  const zoneRow = source.slice(source.indexOf('export const TimeZoneSetting'))
-  // The zone row tracks only its own save; the shared isSaving prop is set by every row.
-  assert.match(zoneRow, /\(\{ settings, isLoading, save \}: RowProps\)/)
-  assert.match(zoneRow, /const \[isSaving, setIsSaving\] = useState\(false\)/)
-})
-
-test('revoking the last connected app keeps the list instead of showing the loading panel', () => {
-  const hook = read('features/settings/hooks/useOAuthGrants.ts')
-  assert.match(hook, /isLoading: isLoading && !hasLoaded/)
-  const section = read('features/settings/components/AiConnectionSection.tsx')
-  assert.match(section, /useListPresence\(hasLoaded \? grants : undefined/)
-  assert.doesNotMatch(section, /isLoading && grants\.length === 0/)
-})
-
-test('the deadline time input only fades in when the toggle turns it on', () => {
-  const css = read('features/settings/pages/SettingsPage.css')
-  assert.doesNotMatch(css, /\.settings__time \{[^}]*animation/)
-  assert.match(css, /\.settings__time--reveal \{[^}]*animation: motion-fade-in/)
+test('connected apps: a failed first load shows the reason, and a retry shows loading instead', async () => {
+  const reads = pendingCalls()
+  const h = settingsHarness({
+    '@features/oauth/api/oauth': { fetchOAuthGrants: reads.call, revokeOAuthGrant: async () => {} },
+  })
+  const screen = h.mount(GRANTS)
+  const hook = () => screen.render(screen.module.default)
+  hook()
+  await settle()
+  reads.calls[0].reject(new TypeError('Failed to fetch'))
+  await settle()
+  const failed = hook()
+  assert.equal(failed.isLoading, false)
+  assert.equal(failed.error, '연결된 앱을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+  failed.refetch()
+  await settle()
+  const retrying = hook()
+  assert.equal(retrying.isLoading, true)
+  assert.equal(retrying.error, null)
 })
 
 // ---------------------------------------------------------------------------

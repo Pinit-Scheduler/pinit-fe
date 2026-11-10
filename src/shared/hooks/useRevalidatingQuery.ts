@@ -30,7 +30,7 @@ export type RevalidatingQueryOptions = {
    * (the server's message wins when there is one). Default: '불러오지 못했어요.'.
    */
   errorMessage?: string | ((error: unknown) => string)
-  /** For tests. Defaults to the app-wide store. */
+  /** Defaults to the app-wide store, which is cleared when the display time zone changes. */
   store?: QueryStore
 }
 
@@ -80,6 +80,10 @@ const watchAccount = (store: QueryStore) => {
   window.addEventListener('auth:changed', sync)
   window.addEventListener('storage', sync)
 }
+
+/** Put data the caller already read under a key, as if this key's query had fetched it. */
+export const primeQuery = <T>(key: string, data: T, store: QueryStore = queryStore) =>
+  store.setData<T>(`${accountScope()}|${key}`, data)
 
 /**
  * Stale-while-revalidate data loading. Pass `null` as the key to load nothing.
