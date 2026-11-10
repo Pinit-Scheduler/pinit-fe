@@ -146,7 +146,7 @@ test('a category reload with the same content keeps the same objects, so list fi
 // ---------------------------------------------------------------------------
 
 test('a completion waits for its motion before the task list refreshes; other changes refresh at once', () => {
-  const { isCompletionOnly, COMPLETION_SETTLE_MS } = load(
+  const { isCompletionOnly } = load(
     'features/tasks/utils/taskListRefresh.ts',
   )
   // WorkspaceTaskCard: one task event and one schedule event per toggle.
@@ -166,8 +166,6 @@ test('a completion waits for its motion before the task list refreshes; other ch
     { tasks: [], schedules: [{ reason: 'task-state-mutated' }] },
   ])
     assert.equal(isCompletionOnly(batch), false, JSON.stringify(batch))
-  // Long enough for the strike (80ms delay + enter) to finish, short enough to feel immediate.
-  assert.ok(COMPLETION_SETTLE_MS >= 80 + 240 && COMPLETION_SETTLE_MS <= 800)
 })
 
 test('TaskListPage reads project assignments at render, not in the request', () => {
@@ -254,7 +252,7 @@ const hookRunner = (path) => {
 }
 
 test('useArrival marks content as arriving only after this screen waited for its key', () => {
-  const render = hookRunner('features/tasks/utils/useArrival.ts')
+  const render = hookRunner('shared/motion/useArrival.ts')
   assert.equal(render(false, 'cached'), false, 'cached content on mount does not replay an entrance')
   assert.equal(render(true, 'sorted'), false)
   assert.equal(render(false, 'sorted'), true, 'the new sort arrives once loaded')

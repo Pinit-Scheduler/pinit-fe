@@ -8,7 +8,7 @@ import './ScheduleState.css'
 import { stateIcon, stateLabel } from '@constants/schedules'
 import { useEffect, useRef, useState } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { usePresence } from '@shared/motion'
+import { useChangedWhileMounted, usePresence } from '@shared/motion'
 
 const MiniPlayerBar = () => {
   const activeSchedule = useActiveSchedule()
@@ -34,15 +34,7 @@ const MiniPlayerBar = () => {
   if (visible && !presence.closing && endedState !== liveState) setEndedState(liveState)
   const shownState = presence.closing ? endedState : liveState
   // A state changed while the bar was on screen: the new glyph and label fade in.
-  const [stateChanged, setStateChanged] = useState(false)
-  const [firstState, setFirstState] = useState<ScheduleState | null>(null)
-  if (presence.mounted && firstState === null) setFirstState(shownState)
-  if (!presence.mounted && firstState !== null) {
-    setFirstState(null)
-    setStateChanged(false)
-  }
-  if (presence.mounted && firstState !== null && !stateChanged && shownState !== firstState)
-    setStateChanged(true)
+  const stateChanged = useChangedWhileMounted(shownState, presence.mounted)
 
   useEffect(() => {
     const root = wrapperRef.current

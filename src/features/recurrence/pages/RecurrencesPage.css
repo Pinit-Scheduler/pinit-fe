@@ -154,7 +154,7 @@
 }
 
 .recurrences__actions button:not(:disabled):active {
-  transform: scale(0.97);
+  transform: scale(var(--motion-press-scale));
 }
 
 .recurrences__actions button.is-primary {

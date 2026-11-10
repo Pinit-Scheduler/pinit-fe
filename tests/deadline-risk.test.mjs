@@ -44,6 +44,7 @@ const motion = {
   useListPresence: (items, getKey) => (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
   presenceProps: () => ({}),
   useTweenedNumber: (value) => value,
+  useArrival: () => false,
 }
 const Item = load('../src/features/deadline-risk/components/DeadlineRiskItem.tsx', {
   'react/jsx-runtime': jsxRuntime,

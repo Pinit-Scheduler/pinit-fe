@@ -1,7 +1,8 @@
 import type { CSSProperties } from 'react'
 import { fetchStatisticsTrend } from '../api/report'
 import useReport from '../hooks/useReport'
-import { useHeldValue, useSawLoading } from '../hooks/useReportMotion'
+import { useArrival } from '@shared/motion'
+import { useHeldValue } from '../hooks/useReportMotion'
 import type { StatisticsUnit } from '../types/report'
 import { barHiddenPercent } from '../utils/chartMotion'
 import { formatRate, trendBars } from '../utils/reportView'
@@ -21,7 +22,7 @@ const TrendSection = ({ unit, end }: Props) => {
     `trend:${unit}:${end ?? ''}`,
   )
   const { shown, held } = useHeldValue(data)
-  const reveal = useSawLoading(isLoading && !shown)
+  const reveal = useArrival(isLoading && !shown)
   const title = unit === 'WEEK' ? '최근 8주 흐름' : '최근 6개월 흐름'
 
   if (error && !data) {
@@ -59,7 +60,7 @@ const TrendSection = ({ unit, end }: Props) => {
         <h2>{title}</h2>
         <p className="report-section__hint">막대는 완료한 일정의 실행 시간, 아래 숫자는 일정 완료율이에요.</p>
       </div>
-      {held && <p className="report-sr-only" role="status">흐름을 불러오는 중...</p>}
+      {held && <p className="sr-only" role="status">흐름을 불러오는 중...</p>}
       {error && (
         <div className="report-inline-error report-section__hint" role="alert">
           <span>흐름을 불러오지 못했어요. {error}</span>

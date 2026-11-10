@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useToast } from '@contexts/ToastContext'
 import useSavedFlash from '../hooks/useSavedFlash'
-import SavedMark from './SavedMark'
+import SavedMark from '@shared/components/motion/SavedMark'
 import './CopyableCode.css'
 
 type CopyableCodeProps = {

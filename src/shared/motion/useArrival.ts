@@ -20,5 +20,3 @@ export function useArrival(waiting: boolean, key: unknown = null) {
 
 /** Stagger step for arriving rows, capped so a long list does not keep the last rows waiting. */
 export const arrivalIndex = (index: number) => Math.min(index, 8)
-
-export default useArrival

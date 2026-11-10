@@ -293,7 +293,7 @@
 }
 
 .routines__save:not(:disabled):active {
-  transform: scale(0.97);
+  transform: scale(var(--motion-press-scale));
 }
 
 .routines__save:disabled {

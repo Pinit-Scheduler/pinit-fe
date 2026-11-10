@@ -46,7 +46,7 @@ import { isResourceUnavailable } from '@features/spaces/metadata'
 import { useSpaces } from '@features/spaces/store'
 import UnavailableNote from '@features/spaces/UnavailableNote'
 import { adminNames, unavailableLines } from '@features/spaces/unavailable'
-import { useArrival } from '../utils/useArrival'
+import { useArrival } from '@shared/motion'
 import { detailRefreshNeeded } from '../utils/taskDetailRefresh'
 
 type TaskDetailModalProps = {

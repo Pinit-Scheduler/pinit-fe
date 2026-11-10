@@ -3,9 +3,10 @@ import { fetchWeeklySchedules } from '@features/schedules/api/schedules'
 import { fetchPeriodStatistics } from '../api/report'
 import type { CSSProperties } from 'react'
 import useReport from '../hooks/useReport'
-import { useHeldValue, useSawLoading } from '../hooks/useReportMotion'
+import { useArrival } from '@shared/motion'
+import { useHeldValue } from '../hooks/useReportMotion'
 import { barHiddenPercent, columnRatio } from '../utils/chartMotion'
-import TweenedNumber from './TweenedNumber'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import './ReportSections.css'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import {
@@ -61,7 +62,7 @@ export default function PlanComparisonSection({
   )
   // 다른 기간으로 넘기는 동안 막대 자리만 붙잡아 둔다. 숫자는 숨긴다.
   const { shown, held } = useHeldValue(data)
-  const reveal = useSawLoading(isLoading && !shown)
+  const reveal = useArrival(isLoading && !shown)
   if (error && !data)
     return (
       <section className="workspace-inline-error" role="alert">
@@ -92,7 +93,7 @@ export default function PlanComparisonSection({
       aria-busy={held || isRefreshing || undefined}
     >
       {held && (
-        <p className="report-sr-only" role="status">
+        <p className="sr-only" role="status">
           계획 시간과 실행 기록을 불러오는 중…
         </p>
       )}
@@ -186,7 +187,7 @@ export default function PlanComparisonSection({
         <section className="workspace-panel plan-comparison">
           <h2>일정 상태</h2>
           <p className="report-datum">
-            전체 <TweenedNumber value={summary.total} format={(n) => String(Math.round(n))} />개
+            전체 <TweenedNumber value={summary.total} />개
           </p>
           <div className="plan-state-list">
             {states.map(([state, label], i) => (

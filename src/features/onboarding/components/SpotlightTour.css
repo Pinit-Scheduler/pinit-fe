@@ -141,7 +141,7 @@
 
 .spotlight-tour__prev:not(:disabled):active,
 .spotlight-tour__next:active {
-  transform: scale(0.97);
+  transform: scale(var(--motion-press-scale));
 }
 
 .spotlight-tour__prev {

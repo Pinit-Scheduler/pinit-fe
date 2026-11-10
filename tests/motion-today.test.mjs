@@ -31,7 +31,7 @@ function load(path, dependencies = {}) {
 
 const settle = load('features/today/settle.ts', {
   react: { useEffect() {}, useState() {} },
-  '@shared/motion/tokens': { MOTION_ENTER_MS: 240 },
+  '@shared/motion/tokens': { COMPLETION_HOLD_MS: 480 },
 })
 const key = (task) => task.id
 const ids = (list) => (list ? Array.from(list, (task) => task.id) : list)
@@ -96,9 +96,9 @@ test('the same list object returns the same state', () => {
   assert.equal(settle.settleStep(state, list, 'day', key, () => true, 0), state)
 })
 
-test('the hold covers the completion stroke', () => {
-  // The strike line starts 80ms after the click and draws for 240ms.
-  assert.ok(settle.SETTLE_HOLD_MS >= 80 + 240)
+test('the completion hold covers the strike line', () => {
+  const tokens = load('shared/motion/tokens.ts')
+  assert.ok(tokens.COMPLETION_HOLD_MS >= tokens.MOTION_STRIKE_DELAY_MS + tokens.MOTION_ENTER_MS)
 })
 
 // ---------------------------------------------------------------------------

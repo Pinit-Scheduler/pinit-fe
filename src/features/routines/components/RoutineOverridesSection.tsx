@@ -30,7 +30,7 @@ import {
   validateOverrideItems,
 } from '../utils/routineRules'
 import type { OverrideItemDraft, RoutineDraft, RoutineIssue } from '../utils/routineRules'
-import PresenceList from './PresenceList'
+import PresenceList from '@shared/components/motion/PresenceList'
 
 const KINDS: RoutineKind[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SLEEP', 'CUSTOM']
 const HOUR_OPTIONS = Array.from({ length: 17 }, (_, hours) => hours)

@@ -61,7 +61,7 @@
   color: var(--c-slate-900);
 }
 .statistics-tab__controls button:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 .statistics-tab__controls button:disabled {
   opacity: 0.5;
@@ -115,7 +115,7 @@
   color: var(--c-slate-900);
 }
 .statistics-tab__views button:active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 .statistics-tab__views button[aria-pressed='true'] {
   color: var(--c-blue-700);

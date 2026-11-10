@@ -8,20 +8,27 @@ The causes of the flicker are recorded in [flicker-audit.md](flicker-audit.md), 
 
 ## Tokens
 
-The tokens are defined once, in `src/shared/styles/motion.css`, which `src/main.tsx` imports before any feature CSS. `src/shared/motion/tokens.ts` mirrors the timings for code that has to wait for an animation. A test keeps the two files in step.
+The tokens are defined once, in `src/shared/styles/motion.css`, which `src/main.tsx` imports before any feature CSS. `src/shared/motion/tokens.ts` mirrors the values that code needs to wait for or play an animation. A test keeps the two files in step.
 
 | Token | Value | Use |
 |---|---|---|
-| `--motion-ease` | `cubic-bezier(0.2, 0, 0, 1)` | Everything that enters or changes |
+| `--motion-ease` | `cubic-bezier(0.2, 0, 0, 1)` (`MOTION_EASE`) | Everything that enters or changes |
 | `--motion-ease-exit` | `cubic-bezier(0.4, 0, 1, 1)` | Things that leave |
 | `--motion-fast` | 120ms (`MOTION_FAST_MS`) | Hover, press, reopen, small color changes |
 | `--motion-base` | 180ms (`MOTION_BASE_MS`) | Fades, backdrops, fills |
 | `--motion-enter` | 240ms (`MOTION_ENTER_MS`) | Panels, rows and pages entering |
 | `--motion-exit` | 160ms (`MOTION_EXIT_MS`) | Anything leaving; delayed unmounts wait this long |
-| `--motion-distance` | 8px (0 under reduced motion) | Travel of a rise or drop |
-| `--motion-status-delay` | 150ms (`MOTION_STATUS_DELAY_MS`) | Wait before a loading indicator appears |
+| `--motion-distance` | 8px (`MOTION_DISTANCE_PX`; 0 under reduced motion) | Travel of a rise or drop |
+| `--motion-press-scale` | 0.98 (1 under reduced motion) | `:active` scale of buttons, chips, rows and cards |
+| `--motion-press-scale-small` | 0.94 (1 under reduced motion) | `:active` scale of icon buttons, compact tiles and the completion check |
+| `--motion-stagger` | 24ms (`MOTION_STAGGER_MS`) | Delay between rows that arrive together |
+| `--motion-stagger-section` | 40ms | Delay between the few sections of a page or modal |
+| `--motion-flash` | 1200ms (`MOTION_FLASH_MS`) | Highlight on a row that changed |
+| `--motion-strike-delay` | 80ms (`MOTION_STRIKE_DELAY_MS`) | The strike line starts this long after the check |
+| `--motion-status-delay` | 150ms | Wait before a loading indicator appears |
+| — | 480ms (`COMPLETION_HOLD_MS`) | A just-completed row keeps its place this long before a refresh may remove it (strike delay + enter + exit) |
 
-Shared keyframes live only in `motion.css`: `motion-fade-in`, `motion-fade-out`, `motion-rise-in`, `motion-rise-out`, `motion-drop-in`, `motion-sheet-in` and `motion-sheet-out`. The legacy names `modalFadeIn`, `modalSlideUp`, `fadeIn` and `fadeSlideIn` are kept for existing feature CSS. Never define a keyframe with one of these names anywhere else; a test fails if you do.
+Shared keyframes live only in `motion.css`: `motion-fade-in`, `motion-fade-out`, `motion-rise-in`, `motion-rise-out`, `motion-drop-in`, `motion-sheet-in`, `motion-sheet-out` and `modalSlideUp` (modal panels, twice the distance). Never define a keyframe with one of these names anywhere else; a test fails if you do.
 
 ## The render rule
 
@@ -47,8 +54,14 @@ isInitialLoading ? <StatusPanel variant="loading" title="…" />
 | A modal or popover that should fade out | `usePresence` plus `Modal closing` | `src/shared/motion/usePresence.ts`, `src/shared/components/common/Modal.tsx` |
 | A list where rows are added or removed | `useListPresence` plus `presenceProps` | `src/shared/motion/useListPresence.ts` |
 | A completion checkbox | `CompletionCheck` plus `.motion-strike` | `src/shared/components/motion/CompletionCheck.tsx` |
+| A list rendered as `<ul>` whose rows come and go | `PresenceList` | `src/shared/components/motion/PresenceList.tsx` |
+| A quiet "saved" tick | `SavedMark` | `src/shared/components/motion/SavedMark.tsx` |
 | A loading, error or empty state | `StatusPanel` (the delay and fade are built in) | `src/shared/components/common/StatusPanel.tsx` |
-| A number that changes in place | `useTweenedNumber` | `src/shared/motion/useTweenedNumber.ts` |
+| A number that changes in place | `useTweenedNumber`, or `TweenedNumber` (rounds unless given `format`) | `src/shared/motion/useTweenedNumber.ts`, `src/shared/components/motion/TweenedNumber.tsx` |
+| An entrance only for content the screen waited for | `useArrival` plus `data-arrive` | `src/shared/motion/useArrival.ts` |
+| Animate only a change made while something is on screen | `useChangedWhileMounted` | `src/shared/motion/useChangedWhileMounted.ts` |
+| Replay a rise on content that changed in place | `playRise` | `src/shared/motion/playRise.ts` |
+| A link that opens a route surface | `surfaceLinkClick(open, path)` (`isPlainLeftClick` for other links) | `src/shared/routing/linkClick.ts` |
 | A toast | `useToast().addToast` (enter and exit are built in) | `src/shared/contexts/ToastContext.tsx` |
 | Route surfaces, tab changes, scroll reset | Nothing. The shell does it | `src/app/App.tsx`, `AppShell.tsx`, `RouteSurface.tsx` |
 
@@ -111,7 +124,7 @@ return presence.mounted && presence.value ? (
 ) : null
 ```
 
-- `Modal` adds `data-motion-surface`, `data-state` and `inert`. The exit animation comes from `motion.css`; your modal CSS keeps its own entrance (`modalFadeIn` and `modalSlideUp`).
+- `Modal` adds `data-motion-surface`, `data-state` and `inert`. The exit animation comes from `motion.css`; your modal CSS keeps its own entrance (`motion-fade-in` on the backdrop, `modalSlideUp` on the panel).
 - Pass `usePresence` a stable value: state, a prop or a memoized object. An object literal built during render loops.
 - Replace `if (!isOpen) return null` inside a modal component with `usePresence(isOpen)`.
 - Pass `sheet` to `Modal` if it should slide up as a sheet on mobile.
@@ -211,8 +224,7 @@ A new display zone (from `useMemberZoneSync` or a settings save) resets zone-sco
 
 ## Reduced motion
 
-- **Global override:** `src/index.css` still cuts every animation and transition to 0.01ms under `prefers-reduced-motion: reduce`.
-- **Shared primitives:** `--motion-distance` becomes 0, so nothing travels. The surface, presence, toast and status-panel fades opt back in with `!important` durations in `motion.css`.
+- **One mechanism, in `motion.css`:** under `prefers-reduced-motion: reduce` every animation and transition is cut to 0.01ms, `--motion-distance` goes to 0 and both press scales to 1. An element whose fade should stay sets `--motion-keep-animation` or `--motion-keep-transition` to the duration it keeps, inside its own reduced-motion block; no `!important`. Both are registered with `inherits: false`, so the element's children stay cut.
 - **Sheets:** `motion-sheet-in` and `motion-sheet-out` travel the full panel height, not `--motion-distance`, so under reduced motion a mobile sheet uses `motion-fade-in` and `motion-fade-out` instead. A keyframe that moves by a fixed amount must get the same treatment wherever its duration is restored. A test checks the shared rules.
 - **Completion:** the tick fades in whole instead of drawing, and the strike line appears with a color fade.
 - **New primitives:** keep the same rule. Opacity fades stay, movement goes. Never rely on an animation event to unmount: the presence hooks use timers.
@@ -248,7 +260,7 @@ The motion layer owns these files. Page work must not edit them. If you need a c
 
 - **Styles:**
   - `src/shared/styles/motion.css`
-  - `src/index.css` (the global reduced-motion override)
+  - `src/index.css` (global styles such as `.sr-only`)
 - **Motion hooks:**
   - `src/shared/motion/*` (`tokens.ts`, `presence.ts`, `usePresence.ts`, `useListPresence.ts`, `useTweenedNumber.ts`, `index.ts`)
 - **Completion check:**

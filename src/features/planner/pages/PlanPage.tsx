@@ -23,6 +23,7 @@ import {
 } from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, readFlag, writeFlag } from '@shared/utils/safeStorage'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { surfaceLinkClick } from '@shared/routing/linkClick'
 import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import {
   presenceProps,
@@ -30,7 +31,7 @@ import {
 } from '@shared/motion/useListPresence'
 import { usePresence } from '@shared/motion/usePresence'
 import { useTweenedNumber } from '@shared/motion/useTweenedNumber'
-import { prefersReducedMotion } from '@shared/motion/tokens'
+import { MOTION_FLASH_MS, prefersReducedMotion } from '@shared/motion/tokens'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
@@ -78,12 +79,8 @@ import type {
   RoutineSpan,
   SelectionObstacle,
 } from '../utils/planMapping'
-import {
-  movedSuggestions,
-  staggerIndex,
-  surfaceLinkClick,
-  withCreatedSchedules,
-} from '../utils/planMotion'
+import { withCreatedSchedules } from '../utils/planData'
+import { movedSuggestions, staggerIndex } from '../utils/planMotion'
 import './PlanPage.css'
 
 type DraftBlock = {
@@ -119,8 +116,6 @@ type PlanDrafts = {
 }
 
 const NO_IDS: ReadonlySet<number> = new Set()
-/** The row highlight runs this long (see .plan-page__block[data-flash] in PlanPage.css). */
-const FLASH_MS = 1200
 
 const HORIZON_OPTIONS = [0, 1, 3, 7, 14, 30]
 const DEFAULT_HORIZON_DAYS = 7
@@ -394,7 +389,7 @@ const PlanPage = () => {
         setEditing((prev) =>
           prev.flashed === flashed ? { ...prev, flashed: NO_IDS } : prev,
         ),
-      FLASH_MS,
+      MOTION_FLASH_MS,
     )
     return () => window.clearTimeout(timer)
   }, [flashed])

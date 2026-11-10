@@ -3,7 +3,7 @@ import UnavailableNote from '../UnavailableNote'
 import { dueLabel, type MemberRow } from '../hub'
 import { adminNames, unavailableLines } from '../unavailable'
 import type { Space, SpaceSummary } from '../types'
-import Count from './Count'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import RowMenu from './RowMenu'
 
 /** 참여자별 맡은 미완료와 담당자 미정. 개인 스페이스에서는 그리지 않는다. */
@@ -94,7 +94,7 @@ export default function HubPeople({
               ) : (
                 // Keyed by space: the same member's count in another space is a new number,
                 // not a change to glide from.
-                <Count key={space.id} value={row.openAssignedCount} />
+                <TweenedNumber key={space.id} value={row.openAssignedCount} />
               )}
             </span>
             <span className="hub-due">{dueLabel(row.nearestDueDate)}</span>
@@ -126,7 +126,7 @@ export default function HubPeople({
         <div className="hub-unassigned">
           <span className="hub-person__name">담당자 미정</span>
           <span className="hub-count">
-            <Count key={space.id} value={unassigned.openCount} />개
+            <TweenedNumber key={space.id} value={unassigned.openCount} />개
           </span>
           <span className="hub-due">{dueLabel(unassigned.nearestDueDate)}</span>
           <button

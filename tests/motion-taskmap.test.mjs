@@ -302,7 +302,7 @@ test('task map links to task surfaces open them over the map instead of swapping
   assert.doesNotMatch(page, /<Link[^>]*to=\{`\/app\/tasks/, 'no plain Link to a task surface')
   assert.doesNotMatch(page, /<Link[^>]*to="\/app\/tasks\/new"/, 'no plain Link to the new task surface')
   assert.match(page, /useRouteSurfaceNavigation\(\)/)
-  assert.match(page, /event\.preventDefault\(\)\s*\n\s*open\(path\)/)
+  assert.match(page, /onClick=\{surfaceLinkClick\(open, path\)\}/)
   assert.ok((page.match(/<TaskSurfaceLink/g) ?? []).length >= 4)
 })
 

@@ -103,7 +103,7 @@
 }
 
 .ai-connection__revoke-btn:not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .ai-connection__revoke-btn:hover {

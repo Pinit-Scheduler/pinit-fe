@@ -202,7 +202,7 @@
 }
 
 .login__btn:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .login__btn:active:not(:disabled)::after {
@@ -392,21 +392,18 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Opacity only: travel is already 0 (--motion-distance); keep the fades, drop the press scale and the drawn line. */
+  /* The fades stay; the pending line appears whole instead of drawing. */
   .login__card,
   .auth-message,
   .login__status-item--error {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .auth-message[data-state='closing'] {
-    animation-duration: var(--motion-exit) !important;
-  }
-  .login__btn:active:not(:disabled) {
-    transform: none;
+    --motion-keep-animation: var(--motion-exit);
   }
   .login__btn[aria-busy='true']::before {
     transform: scaleX(1);
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
 }

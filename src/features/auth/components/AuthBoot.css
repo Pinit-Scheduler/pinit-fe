@@ -57,23 +57,11 @@
   }
 }
 
-.auth-boot__label {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 @media (prefers-reduced-motion: reduce) {
   /* Opacity only: the mark and line fade in, the line does not draw. */
   .auth-boot__mark,
   .auth-boot__line {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .auth-boot__line::after {
     animation: none;

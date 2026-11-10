@@ -43,15 +43,17 @@ const settle = async () => {
 }
 
 const motion = load('features/planner/utils/planMotion.ts')
+const planData = load('features/planner/utils/planData.ts')
+const linkClick = load('shared/routing/linkClick.ts')
 
 test('a loaded plan only shows under the key it was requested for', () => {
-  const key = motion.dayPlanKey({ date: '2026-11-10', zoneId: 'Asia/Seoul', horizonDays: 7, spaceId: 3, projectId: null })
+  const key = planData.dayPlanKey({ date: '2026-11-10', zoneId: 'Asia/Seoul', horizonDays: 7, spaceId: 3, projectId: null })
   assert.equal(key, '2026-11-10@Asia/Seoul/7/3/all')
-  const other = motion.dayPlanKey({ date: '2026-11-11', zoneId: 'Asia/Seoul', horizonDays: 7, spaceId: 3, projectId: null })
+  const other = planData.dayPlanKey({ date: '2026-11-11', zoneId: 'Asia/Seoul', horizonDays: 7, spaceId: 3, projectId: null })
   const loaded = { key, plan: { date: '2026-11-10' } }
-  assert.equal(motion.resultForKey(loaded, key), loaded)
-  assert.equal(motion.resultForKey(loaded, other), null)
-  assert.equal(motion.resultForKey(null, key), null)
+  assert.equal(planData.resultForKey(loaded, key), loaded)
+  assert.equal(planData.resultForKey(loaded, other), null)
+  assert.equal(planData.resultForKey(null, key), null)
 })
 
 test('the arrival stagger is capped so a long proposal never waits', () => {
@@ -71,15 +73,15 @@ test('only rows whose suggestion moved between proposals are highlighted', () =>
 test('created schedules join the timeline once, only for their plan date', () => {
   const read = [{ id: 1 }, { id: 2 }]
   const created = { date: '2026-11-10', schedules: [{ id: 2 }, { id: 3 }] }
-  assert.deepEqual(Array.from(motion.withCreatedSchedules(read, created, '2026-11-10'), (s) => s.id), [1, 2, 3])
-  assert.equal(motion.withCreatedSchedules(read, created, '2026-11-11'), read)
-  assert.equal(motion.withCreatedSchedules(read, null, '2026-11-10'), read)
-  assert.equal(motion.withCreatedSchedules(read, { date: '2026-11-10', schedules: [{ id: 1 }] }, '2026-11-10'), read)
+  assert.deepEqual(Array.from(planData.withCreatedSchedules(read, created, '2026-11-10'), (s) => s.id), [1, 2, 3])
+  assert.equal(planData.withCreatedSchedules(read, created, '2026-11-11'), read)
+  assert.equal(planData.withCreatedSchedules(read, null, '2026-11-10'), read)
+  assert.equal(planData.withCreatedSchedules(read, { date: '2026-11-10', schedules: [{ id: 1 }] }, '2026-11-10'), read)
 })
 
 test('a plain click on a surface link opens the surface; modified clicks keep the link', () => {
   const opened = []
-  const handler = motion.surfaceLinkClick((path) => opened.push(path), '/app/tasks/7')
+  const handler = linkClick.surfaceLinkClick((path) => opened.push(path), '/app/tasks/7')
   const click = (extra = {}) => {
     const event = { button: 0, defaultPrevented: false, metaKey: false, altKey: false, ctrlKey: false, shiftKey: false, ...extra, prevented: false }
     event.preventDefault = () => { event.prevented = true }
@@ -141,7 +143,7 @@ const dayPlanHarness = (fetchDayPlan) => {
     '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: 3, selectedProjectId: null }) },
     '@features/schedules/api/schedules': { fetchSchedules: async () => [] },
     '../api/plans': { fetchDayPlan },
-    '../utils/planMotion': motion,
+    '../utils/planData': planData,
   }).default
   return harness
 }
@@ -235,12 +237,13 @@ const planPage = load('features/planner/pages/PlanPage.tsx', {
   '@shared/utils/safeStorage': { NUDGE_KEYS: {}, readFlag: () => true, writeFlag() {} },
   '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open() {} }) },
   '@shared/routing/viewTransitionNavigation': { tabLinkClick: () => () => {} },
+  '@shared/routing/linkClick': linkClick,
   '@shared/motion/useListPresence': { useListPresence: listPresence, presenceProps: () => ({}) },
   '@shared/motion/usePresence': {
     usePresence: (value) => ({ mounted: Boolean(value), closing: false, value: value || undefined }),
   },
   '@shared/motion/useTweenedNumber': { useTweenedNumber: (value) => value },
-  '@shared/motion/tokens': { prefersReducedMotion: () => false },
+  '@shared/motion/tokens': { MOTION_FLASH_MS: 1200, prefersReducedMotion: () => false },
   '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'UTC', offsetMinutes: 0 }) },
   '@contexts/ToastContext': { useToast: () => ({ addToast() {} }) },
   '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ upsertSchedule() {}, invalidateSchedules() {} }) },
@@ -261,6 +264,7 @@ const planPage = load('features/planner/pages/PlanPage.tsx', {
     unplacedReasonLabel: () => '시간 부족',
     validatePlanSelection: () => ({}),
   },
+  '../utils/planData': planData,
   '../utils/planMotion': motion,
   './PlanPage.css': {},
 }).default

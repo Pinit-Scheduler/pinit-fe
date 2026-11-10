@@ -1,29 +1,4 @@
-import {
-  MOTION_BASE_MS,
-  MOTION_ENTER_MS,
-  prefersReducedMotion,
-} from '@shared/motion'
-
-/** --motion-ease, for the Web Animations API (keep in step with src/shared/styles/motion.css). */
-const EASE = 'cubic-bezier(0.2, 0, 0, 1)'
-/** --motion-distance. */
-const DISTANCE = 8
-
-/**
- * Plays a short rise on an element whose content the person just swapped in place,
- * for example the hub overview after choosing another space. The element stays mounted:
- * nothing is re-keyed and no data is thrown away. Under reduced motion it only fades.
- */
-export function riseIn(element: Element | null | undefined) {
-  if (!element || typeof (element as HTMLElement).animate !== 'function') return
-  const frames = prefersReducedMotion()
-    ? [{ opacity: 0 }, { opacity: 1 }]
-    : [
-        { opacity: 0, transform: `translateY(${DISTANCE}px)` },
-        { opacity: 1, transform: 'none' },
-      ]
-  ;(element as HTMLElement).animate(frames, { duration: MOTION_ENTER_MS, easing: EASE })
-}
+import { MOTION_BASE_MS, MOTION_EASE } from '@shared/motion'
 
 /**
  * Fades in text that was replaced in place, so a value that arrives or changes
@@ -34,7 +9,7 @@ export function fadeIn(element: Element | null | undefined) {
   if (!element || typeof (element as HTMLElement).animate !== 'function') return
   ;(element as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], {
     duration: MOTION_BASE_MS,
-    easing: EASE,
+    easing: MOTION_EASE,
   })
 }
 

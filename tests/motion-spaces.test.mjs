@@ -308,7 +308,7 @@ const projectsComponent = () => {
     '../hub': hub,
     '../unavailable': load('features/spaces/unavailable.ts'),
     '../types': {},
-    './Count': load('features/spaces/hub/Count.tsx', {
+    '@shared/components/motion/TweenedNumber': load('shared/components/motion/TweenedNumber.tsx', {
       'react/jsx-runtime': jsxRuntime,
       '@shared/motion': shared,
     }),
@@ -447,7 +447,7 @@ test('hub numbers never glide from another space, and grown bars keep their tran
   // The same member (or the unassigned line) appears in every space. Its count restarts per
   // space instead of tweening from the space shown before.
   const people = read('features/spaces/hub/HubPeople.tsx')
-  assert.equal((people.match(/<Count key=\{space\.id\}/g) ?? []).length, 2)
+  assert.equal((people.match(/<TweenedNumber key=\{space\.id\}/g) ?? []).length, 2)
   // A cached record for another space mounts as its own body, so its bars grow fresh.
   assert.match(
     read('features/spaces/hub/TeamRecord.tsx'),
@@ -488,6 +488,6 @@ test('the affiliation line fades in a changed value and leaves the first one sti
 })
 test('the pending line does not take a row the form would later lose', () => {
   const source = read('features/spaces/AffiliationFields.tsx')
-  assert.match(source, /<p className="space-sr-only" role="status">\s*서버의 소속·담당자 정보를 확인하고 있어요…/)
+  assert.match(source, /<p className="sr-only" role="status">\s*서버의 소속·담당자 정보를 확인하고 있어요…/)
   assert.match(source, /shouldFadeText\(shownSummary\.current, summaryText\)/)
 })

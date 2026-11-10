@@ -7,6 +7,8 @@ import {
   MOTION_ENTER_MS,
   MOTION_EXIT_MS,
   MOTION_FAST_MS,
+  MOTION_STRIKE_DELAY_MS,
+  playRise,
   usePresence,
 } from '@shared/motion'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
@@ -40,7 +42,7 @@ import HubRail from './hub/HubRail'
 import HubSettings from './hub/HubSettings'
 import TeamRecord from './hub/TeamRecord'
 import useHubData from './hub/useHubData'
-import { hubPaneToAnimate, riseIn } from './motion'
+import { hubPaneToAnimate } from './motion'
 import { selectSpace, useSpaces, workspaceChanged } from './store'
 import type { Invitation, Project, Space } from './types'
 import './spaces.css'
@@ -361,8 +363,8 @@ export default function SpacesPage() {
     const next = { id: project.id, completed: !project.completed }
     setSettling(next)
     const started = Date.now()
-    // The strike draws over 80ms + --motion-enter; retracting takes --motion-fast.
-    const settle = next.completed ? 80 + MOTION_ENTER_MS : MOTION_FAST_MS
+    // The strike draws after --motion-strike-delay over --motion-enter; retracting takes --motion-fast.
+    const settle = next.completed ? MOTION_STRIKE_DELAY_MS + MOTION_ENTER_MS : MOTION_FAST_MS
     const ok = await run(
       async () => {
         const result = await updateProject(project.id, {
@@ -432,8 +434,8 @@ export default function SpacesPage() {
     pane.current = { spaceId, detail }
     const narrow = Boolean(window.matchMedia?.('(max-width: 760px)').matches)
     const target = hubPaneToAnimate(before, { spaceId, detail }, narrow)
-    if (target === 'overview') riseIn(overview.current)
-    if (target === 'rail') riseIn(rail.current)
+    if (target === 'overview') playRise(overview.current)
+    if (target === 'rail') playRise(rail.current)
   }, [spaceId, detail])
   const entry = useRef(location.key)
   useEffect(() => {

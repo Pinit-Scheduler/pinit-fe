@@ -5,7 +5,7 @@ import type { ScheduleResponse } from '@features/schedules/types/schedule'
 import { fetchDayPlan } from '../api/plans'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import type { DayPlanResponse } from '../types/plan'
-import { dayPlanKey, resultForKey } from '../utils/planMotion'
+import { dayPlanKey, resultForKey } from '../utils/planData'
 
 type UseDayPlanParams = {
   date: string

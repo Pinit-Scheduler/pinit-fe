@@ -47,11 +47,15 @@ import {
   scheduleMineParam,
 } from '@features/spaces/scope'
 import {
+  MOTION_DISTANCE_PX,
+  MOTION_EASE,
   MOTION_ENTER_MS,
+  MOTION_STAGGER_MS,
   prefersReducedMotion,
   presenceProps,
   useListPresence,
   usePresence,
+  useChangedWhileMounted,
   useTweenedNumber,
 } from '@shared/motion'
 
@@ -70,7 +74,11 @@ const WeeklyTotal = ({ minutes }: { minutes: number }) => {
 const animateDayRows = (root: HTMLElement | null, direction: -1 | 0 | 1) => {
   if (!root) return
   const reduce = prefersReducedMotion()
-  const offset = reduce ? 'none' : direction === 0 ? 'translateY(8px)' : `translateX(${direction * 12}px)`
+  const offset = reduce
+    ? 'none'
+    : direction === 0
+      ? `translateY(${MOTION_DISTANCE_PX}px)`
+      : `translateX(${direction * 12}px)`
   root
     .querySelectorAll<HTMLElement>(':scope > .schedules-tab__item')
     .forEach((row, index) => {
@@ -81,9 +89,9 @@ const animateDayRows = (root: HTMLElement | null, direction: -1 | 0 | 1) => {
         ],
         {
           duration: MOTION_ENTER_MS,
-          easing: 'cubic-bezier(0.2, 0, 0, 1)',
+          easing: MOTION_EASE,
           // A short stagger reads as one sweep; it stops growing after six rows.
-          delay: reduce ? 0 : Math.min(index, 5) * 24,
+          delay: reduce ? 0 : Math.min(index, 5) * MOTION_STAGGER_MS,
           fill: 'backwards',
         },
       )
@@ -198,8 +206,7 @@ const SchedulesTabPage = () => {
   const overdueBanner = usePresence(
     overdueSummary.hasOverdue ? overdueSummary : null,
   )
-  const [bannerEnters, setBannerEnters] = useState(!overdueBanner.mounted)
-  if (!bannerEnters && !overdueBanner.mounted) setBannerEnters(true)
+  const bannerEnters = useChangedWhileMounted(overdueBanner.mounted)
   const statsWeekStart = useMemo(
     () => currentWeekStart.add(1, 'day'),
     [currentWeekStart],

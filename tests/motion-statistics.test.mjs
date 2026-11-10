@@ -69,7 +69,11 @@ const hookRunner = () => {
   return { react, render }
 }
 
-const motionStub = { MOTION_ENTER_MS: 240, prefersReducedMotion: () => false }
+const motionTokens = load('../../shared/motion/tokens.ts')
+const motionStub = {
+  ...motionTokens,
+  playRise: load('../../shared/motion/playRise.ts', { './tokens': motionTokens }).playRise,
+}
 
 // ---------------------------------------------------------------------------
 // Chart geometry: bars and the donut move by transform and stroke-dashoffset
@@ -198,16 +202,6 @@ test('a period switch keeps the last frame, flagged as held, until the new data 
   const week2 = { start: '2026-10-26' }
   assert.deepEqual(plain(render(() => useHeldValue(week2))), { shown: week2, held: false })
   assert.deepEqual(plain(render(() => useHeldValue(null))), { shown: week2, held: true }, 'it holds the latest frame')
-})
-
-test('content rises in only after a loading placeholder, never on a cached render', () => {
-  const cached = motionHooks()
-  assert.equal(cached.render(() => cached.useSawLoading(false)), false)
-  assert.equal(cached.render(() => cached.useSawLoading(false)), false)
-
-  const loaded = motionHooks()
-  assert.equal(loaded.render(() => loaded.useSawLoading(true)), true)
-  assert.equal(loaded.render(() => loaded.useSawLoading(false)), true, 'stays set so the class does not flip')
 })
 
 test('a change fade plays on a real change, not when the value first appears', () => {

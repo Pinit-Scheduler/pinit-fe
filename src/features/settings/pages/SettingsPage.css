@@ -200,7 +200,7 @@
 
 /* 누르면 아주 살짝 눌린다. 가리킬 때 떠오르거나 그림자를 키우지 않는다. */
 .settings__action-btn:not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .settings__action-btn:disabled {
@@ -236,7 +236,7 @@
 }
 
 .settings__logout-btn:not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .settings__badge--new {

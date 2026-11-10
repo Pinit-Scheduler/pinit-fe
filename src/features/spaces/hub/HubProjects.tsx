@@ -3,7 +3,7 @@ import UnavailableNote from '../UnavailableNote'
 import { countsLabel, dueLabel, type ProjectRow } from '../hub'
 import { adminNames, unavailableLines } from '../unavailable'
 import type { Project, Space, SpaceSummary } from '../types'
-import Count from './Count'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import RowMenu from './RowMenu'
 import TaskDots from './TaskDots'
 
@@ -73,7 +73,7 @@ function Row({
       <span className="hub-count" data-pending={!counts || undefined}>
         {counts ? (
           <>
-            <Count value={counts.completed} />/<Count value={counts.total} />
+            <TweenedNumber value={counts.completed} />/<TweenedNumber value={counts.total} />
           </>
         ) : (
           '–'
@@ -219,7 +219,7 @@ export default function HubProjects({
       {loose && loose.total > 0 && (
         <div className="hub-loose">
           <span>프로젝트 없이 기록한 작업 {loose.total}개</span>
-          <span className="hub-sr">{countsLabel(loose)}</span>
+          <span className="sr-only">{countsLabel(loose)}</span>
           <TaskDots counts={loose} />
         </div>
       )}

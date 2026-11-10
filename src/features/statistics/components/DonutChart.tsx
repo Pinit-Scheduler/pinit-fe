@@ -1,5 +1,5 @@
 import './DonutChart.css'
-import TweenedNumber from './TweenedNumber'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import { donutOffsets } from '../utils/chartMotion'
 import { useChangeFade } from '../hooks/useReportMotion'
 
