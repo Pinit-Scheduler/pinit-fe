@@ -120,3 +120,74 @@ test('overdue banner asks the server for the same audience as the week dots', ()
   const page = read('features/schedules/pages/tab/SchedulesTabPage.tsx')
   assert.match(page, /useOverdueSchedulesSummary\(\{ mine \}\)/)
 })
+test('a new item starts in the space and project of the screen behind the form', () => {
+  const { createAffiliationFor } = load('features/spaces/scope.ts')
+  const plain = (value) => JSON.parse(JSON.stringify(value))
+  const projects = [
+    { id: 7, spaceId: 22, completed: false },
+    { id: 8, spaceId: 22, completed: true },
+    { id: 9, spaceId: 22, completed: false, deleted: true },
+    { id: 10, spaceId: 31, completed: false },
+  ]
+  const workspace = (selectedProjectId, overrides = {}) => ({
+    defaultSpaceId: -4,
+    selectedSpaceId: 22,
+    selectedProjectId,
+    projects,
+    ...overrides,
+  })
+  const at = (pathname) => ({ pathname })
+  const from = (pathname, projectId, overrides) =>
+    plain(createAffiliationFor(at(pathname), '', workspace(projectId, overrides)))
+
+  // Lists that show the selected space take its project too.
+  for (const path of [
+    '/app/tasks',
+    '/app/tasks/',
+    '/app/schedules',
+    '/app/task-map',
+    '/app/plan',
+    '/app/settings/recurrences',
+  ])
+    assert.deepEqual(from(path, 7), { spaceId: 22, categoryId: 7 }, path)
+  assert.deepEqual(from('/app/tasks', null), {}, 'whole space: no project')
+  assert.deepEqual(from('/app/tasks', 8), {}, 'completed project')
+  assert.deepEqual(from('/app/tasks', 9), {}, 'deleted project')
+  assert.deepEqual(from('/app/tasks', 10), {}, 'project of another space')
+  assert.deepEqual(from('/app/tasks', 99), {}, 'project not loaded yet')
+  assert.deepEqual(
+    from('/app/tasks', 7, { selectedSpaceId: null }),
+    {},
+    'no space selected yet',
+  )
+
+  // Today keeps the personal space, from its buttons or the query.
+  assert.deepEqual(from('/app/today', 7), { spaceId: -4 })
+  assert.deepEqual(
+    plain(createAffiliationFor(null, '?from=today', workspace(7))),
+    { spaceId: -4 },
+  )
+  assert.deepEqual(
+    from('/app/today', 7, { defaultSpaceId: 0 }),
+    {},
+    'personal space still loading: the form falls back',
+  )
+
+  // Screens that are not a selected-space list, or no screen behind: the form's fallback.
+  for (const path of ['/app/spaces', '/app/statistics', '/app/settings', '/app/deadline-risk'])
+    assert.deepEqual(from(path, 7), {}, path)
+  assert.deepEqual(plain(createAffiliationFor(null, '', workspace(7))), {})
+})
+test('create pages read the screen behind them once, when they open', () => {
+  for (const path of [
+    'features/tasks/pages/TaskCreatePage.tsx',
+    'features/schedules/pages/form/ScheduleCreatePage.tsx',
+  ]) {
+    const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
+    assert.match(
+      source,
+      /useState\(\(\) =>\s*createAffiliationFor\(\s*safeBackground\(location\.state\),\s*location\.search,/,
+      path,
+    )
+  }
+})

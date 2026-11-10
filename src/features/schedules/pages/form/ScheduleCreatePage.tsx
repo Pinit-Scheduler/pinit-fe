@@ -1,6 +1,9 @@
 import { useLocation } from 'react-router-dom'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { safeBackground } from '@shared/routing/routeSurfaceState'
+import { useSpaces } from '@features/spaces/store'
+import { createAffiliationFor } from '@features/spaces/scope'
 import ScheduleForm from '../../components/ScheduleForm'
 import {
   getDisplayZoneId,
@@ -40,18 +43,32 @@ const ScheduleCreatePage = () => {
   const { addToast } = useToast()
   const { offsetMinutes } = useTimePreferences()
   const { initialDateKey } = (location.state as LocationState | null) ?? {}
+  const workspace = useSpaces()
+  // Decided once, when the form opens: the screen behind it names the space and project.
+  const [affiliation] = useState(() =>
+    createAffiliationFor(
+      safeBackground(location.state),
+      location.search,
+      workspace,
+    ),
+  )
 
   const initialValues = useMemo(() => {
     void offsetMinutes
-    if (!initialDateKey) return undefined
-    const now = getTodayWithOffset()
-    const targetDate = toDisplayDayjs(initialDateKey)
-    if (!targetDate.isValid()) return undefined
-    const start = targetDate.hour(now.hour()).minute(0).second(0)
+    const date = (() => {
+      if (!initialDateKey) return undefined
+      const now = getTodayWithOffset()
+      const targetDate = toDisplayDayjs(initialDateKey)
+      if (!targetDate.isValid()) return undefined
+      return targetDate.hour(now.hour()).minute(0).second(0).toDate()
+    })()
+    if (date === undefined && affiliation.spaceId === undefined)
+      return undefined
     return {
-      date: start.toDate(),
+      ...(date === undefined ? {} : { date }),
+      ...affiliation,
     }
-  }, [initialDateKey, offsetMinutes])
+  }, [initialDateKey, offsetMinutes, affiliation])
 
   const handleClose = () => complete('/app/schedules')
   const handleSubmit = async (
