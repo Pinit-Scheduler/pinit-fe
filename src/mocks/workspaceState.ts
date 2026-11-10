@@ -308,6 +308,9 @@ export const changesAfter = (actor: number, spaceId: number | null, after: numbe
     return Boolean(space && memberOf(space, actor))
   })
 
+/** 가장 최근에 기록한 변경의 id. 기록이 없으면 0. */
+export const latestChangeId = () => eventSeq
+
 export const subscribeChanges = (subscriber: Subscriber) => {
   subscribers.add(subscriber)
   return () => {

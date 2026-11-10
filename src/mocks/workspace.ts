@@ -32,6 +32,7 @@ import {
   createReasons,
   findProject,
   findSpace,
+  latestChangeId,
   memberOf,
   mockProjects,
   mockSpaces,
@@ -1615,8 +1616,9 @@ const eventStream = (actor: number, spaceId: number | null, request: Request) =>
           open = false
         }
       }
+      // ready도 지금까지의 마지막 기록 id를 실어, 다시 연결하면 서버처럼 Last-Event-ID 뒤부터 이어 받는다.
       write(
-        `event: ready\ndata: ${JSON.stringify({ spaceId, resourceType: 'SPACE', resourceId: spaceId, version: 0, action: 'READY' })}\n\n`,
+        `id: ${latestChangeId()}\nevent: ready\ndata: ${JSON.stringify({ spaceId, resourceType: 'SPACE', resourceId: spaceId, version: 0, action: 'READY' })}\n\n`,
       )
       if (Number.isFinite(lastEventId))
         changesAfter(actor, spaceId, lastEventId).forEach((event) => write(frame(event)))

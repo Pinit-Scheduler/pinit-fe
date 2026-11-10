@@ -87,7 +87,7 @@ useEffect(() => onTaskChanged((detail, details) => …), [])                    
 - A listener that reacts to both kinds uses `onDataChanged`, not `onTaskChanged` plus `onScheduleChanged`. Otherwise it reloads twice.
 - If you need per-event information such as `reason` or `taskId`, read the `details` array or the batch. `detail` keeps only the fields that every batched event shares.
 - After a dispatch, do not also call `refetch()`. The event already does that. The audit lists the places that do both (B3).
-- `useActiveSchedule` no longer fires `task:changed`. The realtime stream no longer refetches on its first connect, only on a reconnect after a gap. It also skips the global refetch for the echo of a save this client just made: `dispatch*Changed` with an id records the save, and `takeLocalEcho` matches one server event to it.
+- `useActiveSchedule` no longer fires `task:changed`. The realtime stream refetches once after every successful connect, the first one included: with the backend change that starts a fresh connection at the latest change (deployment not verified), changes committed between a view's first read and the connect are not replayed, and a reconnect may have missed some in the gap. That refetch goes through the same 150 ms debounce as live events, so it is one refetch per (re)connect. It also skips the global refetch for the echo of a save this client just made: `dispatch*Changed` with an id records the save, and `takeLocalEcho` matches one server event to it.
 
 ### Surfaces and modals
 
