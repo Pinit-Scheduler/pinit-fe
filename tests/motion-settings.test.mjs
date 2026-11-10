@@ -214,6 +214,52 @@ test('a profile read that started before a save never overwrites the saved value
   assert.equal(hook().settings.dailyObjectiveWork, 'PT6H')
 })
 
+const ZONE_SYNC = 'features/settings/hooks/useMemberZoneSync.ts'
+const zoneContext = (applied = []) => ({
+  '@contexts/TimePreferencesContext': {
+    useTimePreferences: () => ({ zoneId: 'Asia/Seoul', applyZone: (zone) => applied.push(zone) }),
+  },
+})
+
+test('the zone sync read that lands after a save never reverts the saved value', async () => {
+  const reads = pendingCalls()
+  const saves = pendingCalls()
+  const h = settingsHarness({
+    '../api/profileSettings': { fetchProfileSettings: reads.call, updateProfileSettings: saves.call },
+  })
+  const sync = h.mount(ZONE_SYNC, zoneContext())
+  sync.render(sync.module.useMemberZoneSync)
+  const screen = h.mount(PROFILE)
+  const hook = () => screen.render(screen.module.default)
+  hook()
+  await settle()
+  reads.calls[1].resolve({ zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT4H' })
+  await settle()
+  const saving = hook().save({ dailyObjectiveWork: 'PT6H' })
+  saves.calls[0].resolve({ zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT6H' })
+  await saving
+  assert.equal(hook().settings.dailyObjectiveWork, 'PT6H')
+  reads.calls[0].resolve({ zoneId: 'Asia/Seoul', dailyObjectiveWork: 'PT4H' })
+  await settle()
+  assert.equal(hook().settings.dailyObjectiveWork, 'PT6H')
+})
+
+test('a zone sync read that started for another account is dropped', async () => {
+  const applied = []
+  const reads = pendingCalls()
+  const h = settingsHarness({ '../api/profileSettings': { fetchProfileSettings: reads.call } })
+  const sync = h.mount(ZONE_SYNC, zoneContext(applied))
+  sync.render(sync.module.useMemberZoneSync)
+  h.subject.current = 'member-b'
+  reads.calls[0].resolve({ zoneId: 'Europe/Paris', dailyObjectiveWork: 'PT4H' })
+  await settle()
+  assert.deepEqual(applied, [])
+  const screen = h.mount(PROFILE)
+  const shown = screen.render(screen.module.default)
+  assert.equal(shown.settings, null, "member-a's settings never fill member-b's screen")
+  assert.equal(shown.isLoading, true)
+})
+
 test('a notification toggle shows at once, outlives a late read, and rolls back when the save fails', async () => {
   const reads = pendingCalls()
   const saves = pendingCalls()
