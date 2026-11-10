@@ -59,6 +59,7 @@ export default function PlanComparisonSection({
       return { report, summary }
     },
     'plan-comparison:' + unit + ':' + start + ':' + zoneId,
+    '시간 비교를 불러오지 못했어요.',
   )
   // 다른 기간으로 넘기는 동안 막대 자리만 붙잡아 둔다. 숫자는 숨긴다.
   const { shown, held } = useHeldValue(data)

@@ -162,6 +162,7 @@ const detailHarness = (cached, others = {}) => {
     '@contexts/ScheduleCacheContext': {
       useScheduleCache: () => cache,
     },
+    '@features/spaces/metadata': load('features/spaces/metadata.ts'),
   }, { window: new EventTarget() }).default
   return {
     next(value) { response = deferred(); for (const listener of listeners) listener({ scheduleId: 8 }); return response },

@@ -1023,7 +1023,8 @@ test('Schedule edit snapshot survives realtime events with its original version;
         if (response instanceof Error) throw response
         return response
       } },
-      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: cacheSchedule }) },
+      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: cacheSchedule, schedulesById: {} }) },
+      '@features/spaces/metadata': metadata(),
     }, { window }).default
     const render = () => { cursor = 0; return useDetail('8', { refreshOnChange }) }
     render()

@@ -3,6 +3,7 @@ import { fetchScheduleDetail } from '../api/schedules'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useEffect, useState } from 'react'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
+import { isRevokedRead } from '@features/spaces/metadata'
 import type { ScheduleResponse } from '../types/schedule'
 
 type UseScheduleDetailReturn = {
@@ -16,15 +17,6 @@ type UseScheduleDetailReturn = {
 }
 
 const INVALID_ID = '일정 ID가 유효하지 않습니다.'
-
-/** The schedule is gone or no longer visible to this member. Other failures keep what is shown. */
-const isGone = (failure: unknown) => {
-  const status =
-    typeof failure === 'object' && failure !== null && 'status' in failure
-      ? failure.status
-      : undefined
-  return status === 403 || status === 404 || status === 410
-}
 
 /** The newer of the read and the cached copy. A state change made elsewhere lands in the cache first. */
 const newer = (read: ScheduleResponse | null, cached: ScheduleResponse | undefined) =>
@@ -40,14 +32,14 @@ const useScheduleDetail = (
   // The id the current schedule/error belongs to. Another id never shows this one's content.
   const [loadedId, setLoadedId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // The last read for this id said the schedule is gone (see isGone).
+  // The last read for this id said the schedule is gone (see isRevokedRead).
   const [gone, setGone] = useState(false)
   const [timestamp, setTimestamp] = useState(() => Date.now())
   const { setSchedule: cacheSchedule, schedulesById } = useScheduleCache()
   // A list or the mini player usually holds this schedule already. The detail view shows it at
   // once instead of a loading line and lets the read refresh it. An edit session (refreshOnChange
   // false) waits for its own read, so its form and version come from the server, not the cache.
-  const cached = refreshOnChange && valid ? schedulesById?.[numericId] : undefined
+  const cached = refreshOnChange && valid ? schedulesById[numericId] : undefined
 
   useEffect(() => {
     if (!refreshOnChange) return
@@ -82,7 +74,7 @@ const useScheduleDetail = (
           setError(getRequestFailureMessage(err, '일정을 불러오지 못했어요.'))
           // A failed refresh keeps the schedule on screen. Only a schedule that is gone drops it.
           // Another id's schedule never stays.
-          const dropped = isGone(err)
+          const dropped = isRevokedRead(err)
           setGone(dropped)
           setSchedule((previous) =>
             dropped || previous?.id !== numericId ? null : previous,
@@ -109,7 +101,7 @@ const useScheduleDetail = (
       const current = ++sequence
       // Check access without replacing the edit session's content or version.
       void fetchScheduleDetail(numericId).catch((failure: unknown) => {
-        if (!mounted || current !== sequence || !isGone(failure)) return
+        if (!mounted || current !== sequence || !isRevokedRead(failure)) return
         setSchedule(null)
         setError('일정이 이동되었거나 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
       })

@@ -20,6 +20,7 @@ const TrendSection = ({ unit, end }: Props) => {
   const { data, error, isLoading, isRefreshing, reload } = useReport(
     () => fetchStatisticsTrend(unit, end),
     `trend:${unit}:${end ?? ''}`,
+    '흐름을 불러오지 못했어요.',
   )
   const { shown, held } = useHeldValue(data)
   const reveal = useArrival(isLoading && !shown)
@@ -30,7 +31,7 @@ const TrendSection = ({ unit, end }: Props) => {
       <section className="report-section">
         <h2>{title}</h2>
         <p className="report-section__hint" role="alert">
-          흐름을 불러오지 못했어요. {error}
+          {error}
         </p>
         <button type="button" onClick={reload}>
           다시 시도
@@ -63,7 +64,7 @@ const TrendSection = ({ unit, end }: Props) => {
       {held && <p className="sr-only" role="status">흐름을 불러오는 중...</p>}
       {error && (
         <div className="report-inline-error report-section__hint" role="alert">
-          <span>흐름을 불러오지 못했어요. {error}</span>
+          <span>{error}</span>
           <button type="button" onClick={reload}>
             다시 시도
           </button>

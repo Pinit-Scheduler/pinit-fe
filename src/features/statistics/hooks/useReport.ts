@@ -18,11 +18,12 @@ export type UseReportReturn<T> = {
  * 값은 앱 전체 조회 캐시(useRevalidatingQuery)에 key별로 남는다. 다른 보기나 탭에 다녀와도
  * 마지막 값이 바로 보이고 뒤에서 다시 불러온다. 작업·일정 변경은 한 번으로 묶여 한 번만 다시 부른다.
  * key는 앱 전체에서 겹치지 않게 부르는 쪽이 이름을 붙인다(`period:`, `trend:` 등).
+ * action은 실패 문구의 앞 문장이다(예: '흐름을 불러오지 못했어요.'). error는 그대로 화면에 보여 준다.
  */
-const useReport = <T,>(load: () => Promise<T>, key: string): UseReportReturn<T> => {
+const useReport = <T,>(load: () => Promise<T>, key: string, action: string): UseReportReturn<T> => {
   const query = useRevalidatingQuery<T>(`report/${key}`, () => load(), {
     invalidateOn: ['task', 'schedule'],
-    errorMessage: '통계를 불러오지 못했어요.',
+    errorMessage: action,
   })
   const hasData = query.data !== undefined
   // 값이 없는 채로 다시 시도하는 동안에는 지난 실패 대신 불러오는 중으로 보인다.

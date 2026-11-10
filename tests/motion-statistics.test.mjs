@@ -155,10 +155,10 @@ test('useReport reads through the shared query cache under a report/ key', async
 
 test('useReport keeps the hub contract: null data, the same error text, loading while fetching', () => {
   const { useReport, calls } = reportHook(entry({ isInitialLoading: true, isFetching: true }))
-  const first = useReport(() => Promise.resolve(null), 'summary:null')
+  const first = useReport(() => Promise.resolve(null), 'summary:null', '흐름을 불러오지 못했어요.')
   assert.equal(first.data, null)
   assert.equal(first.isLoading, true)
-  assert.equal(calls[0].options.errorMessage, '통계를 불러오지 못했어요.', 'the query adds the server text or the retry hint')
+  assert.equal(calls[0].options.errorMessage, '흐름을 불러오지 못했어요.', 'each section names what failed; the query adds the server text or the retry hint')
 
   const empty = reportHook(entry({ data: null })).useReport(() => Promise.resolve(null), 'summary:null')
   assert.equal(empty.data, null, 'a loaded null stays null')

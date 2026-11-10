@@ -15,6 +15,7 @@ const RecurrenceStatsSection = () => {
   const { data, error, isLoading, isRefreshing, reload } = useReport(
     () => fetchRecurrenceStatistics('ACTIVE'),
     'recurrence:ACTIVE',
+    '반복 기록을 불러오지 못했어요.',
   )
   const reveal = useArrival(isLoading && !data)
   // 반복이 생기거나 지워지면 행이 떠오르거나 제자리에서 사라진다. 같은 목록이 다시 오면 움직이지 않는다.
@@ -27,7 +28,7 @@ const RecurrenceStatsSection = () => {
     return (
       <section className="report-section">
         <p className="report-section__hint" role="alert">
-          반복 기록을 불러오지 못했어요. {error}
+          {error}
         </p>
         <button type="button" onClick={reload}>
           다시 시도
@@ -46,7 +47,7 @@ const RecurrenceStatsSection = () => {
 
   const inlineError = error && (
     <div className="report-inline-error report-section__hint" role="alert">
-      <span>반복 기록을 불러오지 못했어요. {error}</span>
+      <span>{error}</span>
       <button type="button" onClick={reload}>
         다시 시도
       </button>

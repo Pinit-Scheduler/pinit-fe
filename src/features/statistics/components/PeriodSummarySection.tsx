@@ -34,6 +34,7 @@ const PeriodSummarySection = ({ unit, start }: Props) => {
   const { data, error, isLoading, isRefreshing, reload } = useReport(
     () => fetchPeriodStatistics(unit, start),
     `period:${unit}:${start}`,
+    '통계를 불러오지 못했어요.',
   )
   // 다른 기간으로 넘기는 동안 틀(카드·도넛 자리)만 붙잡아 둔다. 숫자는 숨긴다.
   const { shown, held } = useHeldValue(data)
@@ -44,7 +45,7 @@ const PeriodSummarySection = ({ unit, start }: Props) => {
     return (
       <section className="report-section">
         <p className="report-section__hint" role="alert">
-          통계를 불러오지 못했어요. {error}
+          {error}
         </p>
         <button type="button" onClick={reload}>
           다시 시도
@@ -81,7 +82,7 @@ const PeriodSummarySection = ({ unit, start }: Props) => {
       {held && <p className="sr-only" role="status">통계를 불러오는 중...</p>}
       {error && (
         <div className="report-inline-error report-section__hint" role="alert">
-          <span>통계를 불러오지 못했어요. {error}</span>
+          <span>{error}</span>
           <button type="button" onClick={reload}>
             다시 시도
           </button>
