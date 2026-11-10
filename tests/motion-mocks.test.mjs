@@ -363,8 +363,9 @@ test('the workspace event stream sends changed frames that the realtime parser r
   assert.equal(tail.done, true)
 })
 
-test('the mock ready frame carries the latest change id, and Last-Event-ID resumes after it', async () => {
+test('the mock ready frame carries the stream cursor, and Last-Event-ID resumes after it', async () => {
   // 실제 서버처럼 새 연결은 지금부터 시작하고, 다시 연결하면 받은 마지막 id 뒤부터 이어 보낸다.
+  // ready id는 그 연결의 시작 위치라 다시 보낼 기록을 건너뛰지 않는다.
   const { call, workspace } = setup()
   const open = async (headers = {}) => {
     const controller = new AbortController()
@@ -396,7 +397,11 @@ test('the mock ready frame carries the latest change id, and Last-Event-ID resum
 
   const resumed = await open({ 'Last-Event-ID': String(readyId) })
   const replay = await resumed.readUntil(/event: changed[\s\S]*?\n\n/)
-  assert.match(replay, new RegExp(`^id: ${readyId + 1}\\nevent: ready\\n`), 'ready names the latest id')
+  assert.match(
+    replay,
+    new RegExp(`^id: ${readyId}\\nevent: ready\\n`),
+    'ready names the resume cursor, not the latest id, so a drop before the replay loses nothing',
+  )
   const event = JSON.parse(replay.match(/event: changed\ndata: (.+)\n\n/)[1])
   assert.equal(event.resourceId, created.task.id, 'the change after Last-Event-ID is replayed')
   resumed.close()

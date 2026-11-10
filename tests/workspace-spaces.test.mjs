@@ -1377,3 +1377,28 @@ test('SSE ignores non-numeric event ids so Last-Event-ID stays a number', async 
   assert.equal(calls[2].headers['Last-Event-ID'], '12', 'later non-numeric ids keep the last numeric one')
   assert.deepEqual(events, [3, 4, 5], 'the changes themselves are still delivered')
 })
+test('SSE refreshes only after a response is ok, never on a failed attempt', async () => {
+  // The server fixes its cursor before it answers, so a refresh before an ok response could
+  // still miss a change committed before the cursor is fixed.
+  const controller = new AbortController(),
+    log = []
+  let attempts = 0
+  const api = realtimeHarness({
+    respond: async () => {
+      attempts++
+      log.push('connect')
+      if (attempts === 1) return new Response('busy', { status: 503 })
+      if (attempts === 2) return sseStream(readyFrame(5))
+      controller.abort()
+      throw new Error('aborted')
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      if (!event) log.push('refresh')
+    },
+    (connected) => log.push(connected ? 'open' : 'closed'),
+  )
+  assert.deepEqual(log, ['connect', 'closed', 'connect', 'open', 'refresh', 'closed', 'connect'])
+})

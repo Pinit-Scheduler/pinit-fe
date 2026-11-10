@@ -1616,9 +1616,11 @@ const eventStream = (actor: number, spaceId: number | null, request: Request) =>
           open = false
         }
       }
-      // ready도 지금까지의 마지막 기록 id를 실어, 다시 연결하면 서버처럼 Last-Event-ID 뒤부터 이어 받는다.
+      // 서버처럼 ready에 이 연결의 시작 위치를 싣는다. 새 연결은 마지막 기록 id, 다시 연결하면 받은
+      // Last-Event-ID다. 다시 보낼 기록을 받기 전에 끊겨도 다음 연결이 그 기록부터 이어 받는다.
+      const cursor = Number.isFinite(lastEventId) ? lastEventId : latestChangeId()
       write(
-        `id: ${latestChangeId()}\nevent: ready\ndata: ${JSON.stringify({ spaceId, resourceType: 'SPACE', resourceId: spaceId, version: 0, action: 'READY' })}\n\n`,
+        `id: ${cursor}\nevent: ready\ndata: ${JSON.stringify({ spaceId, resourceType: 'SPACE', resourceId: spaceId, version: 0, action: 'READY' })}\n\n`,
       )
       if (Number.isFinite(lastEventId))
         changesAfter(actor, spaceId, lastEventId).forEach((event) => write(frame(event)))
