@@ -135,9 +135,10 @@ test('the schedule view goes back to today in the new zone, in the same render',
   assert.equal(render().selectedDateKey, '2026-11-11', 'a new zone with another id resets too')
 })
 
-test('the time preferences key changes with the zone or its offset', () => {
+test('the time preferences key changes with the zone or its offset; applying a new zone clears the query store first', () => {
   const offsets = { 'Asia/Seoul': 540, 'Asia/Tokyo': 540, 'America/New_York': -300 }
   let zone = 'Asia/Seoul'
+  let clears = 0
   const runtime = hookRuntime()
   const { TimePreferencesProvider } = load('shared/contexts/TimePreferencesContext.tsx', {
     react: runtime.react,
@@ -149,12 +150,18 @@ test('the time preferences key changes with the zone or its offset', () => {
       setDisplayZone: (next) => (zone = next),
     },
     '@shared/utils/safeStorage': { readText: () => null, writeText() {}, STORAGE_KEYS: { displayZoneId: 'zone' } },
+    '@shared/utils/queryStore': { queryStore: { clear: () => clears++ } },
   })
   const render = () => runtime.render(TimePreferencesProvider, { children: null }).value
   assert.equal(render().zoneKey, 'Asia/Seoul@540')
+  // The store is empty before React renders the pages keyed by the new zone.
   render().applyZone('Asia/Tokyo')
+  assert.equal(clears, 1)
   assert.equal(render().zoneKey, 'Asia/Tokyo@540', 'another zone with the same offset is still another key')
+  render().applyZone('Asia/Tokyo')
+  assert.equal(clears, 1, 'the same zone keeps the cache')
   render().applyZone('America/New_York')
+  assert.equal(clears, 2)
   assert.equal(render().zoneKey, 'America/New_York@-300')
 })
 
@@ -171,27 +178,22 @@ const appHarness = () => {
 }
 const byName = (name) => (node) => node.type?.displayName === name
 
-test('a zone change clears the query store before the new pages render; only the account re-keys the caches', () => {
+test('a zone change resets the caches in place; only the account re-keys them', () => {
   const { AppContent, h } = appHarness()
   const render = () => h.runtime.render(AppContent)
   let tree = render()
   const tasks = findElement(tree, byName('@contexts/TaskCacheContext#TaskCacheProvider'))
   assert.equal(tasks.key, 'member-7', 'only the account keys the caches')
   assert.equal(tasks.props.resetKey, 'Asia/Seoul@540')
-  render()
-  assert.equal(h.clears, 0, 'a render in the same zone keeps the cache')
 
   h.zoneKey = 'America/New_York@-300'
   tree = render()
-  // The tree this render returns already mounts the new zone's pages, so the store is empty by now.
-  assert.equal(h.clears, 1)
+  assert.equal(h.clears, 0, 'rendering never clears the store; applying the zone did')
   const schedules = findElement(tree, byName('@contexts/ScheduleCacheContext#ScheduleCacheProvider'))
   assert.equal(schedules.key, null)
   assert.equal(schedules.props.resetKey, 'America/New_York@-300')
   assert.equal(findElement(tree, byName('@contexts/TaskCacheContext#TaskCacheProvider')).key, 'member-7')
   assert.equal(findElement(tree, byName('@contexts/ScheduleViewStateContext#ScheduleViewStateProvider')).key, null)
-  render()
-  assert.equal(h.clears, 1)
 })
 
 test('an open surface page remounts with a new zone, like the background page', () => {
