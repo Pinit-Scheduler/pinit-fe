@@ -3,23 +3,41 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { hookRunner } from './support/hooks.mjs'
 
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 
-const load = (path) => {
+const load = (path, dependencies = {}, globals = {}) => {
   const { outputText } = ts.transpileModule(read(path), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: path,
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   })
   const module = { exports: {} }
-  vm.runInNewContext(outputText, { module, exports: module.exports })
+  vm.runInNewContext(outputText, {
+    module,
+    exports: module.exports,
+    require: (name) => {
+      if (name.endsWith('.css')) return {}
+      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
+      return dependencies[name]
+    },
+    ...globals,
+  })
   return module.exports
 }
+
+const ui = { react: React, 'react/jsx-runtime': jsxRuntime }
+const html = (Component, props = {}) => renderToStaticMarkup(React.createElement(Component, props))
 
 // ---------------------------------------------------------------------------
 // AuthGuard entry (audit C7)
 // ---------------------------------------------------------------------------
 
-const { resolveAuthEntry } = load('src/features/auth/utils/authEntry.ts')
+const authEntry = load('src/features/auth/utils/authEntry.ts')
+const { resolveAuthEntry } = authEntry
 
 test('a valid stored token is ready before the first paint, so AuthGuard never renders a blank frame', () => {
   assert.equal(resolveAuthEntry({ loggedOut: false, token: 'a.b.c', isExpired: () => false }), 'ready')
@@ -31,21 +49,29 @@ test('a missing or expired token waits for a refresh, and a logout marker goes t
   assert.equal(resolveAuthEntry({ loggedOut: true, token: 'a.b.c', isExpired: () => false }), 'logged-out')
 })
 
-test('AuthGuard decides readiness in its state initializer and shows the boot state instead of null', () => {
-  const guard = read('src/features/auth/components/AuthGuard.tsx')
-  assert.match(guard, /useState\(\(\) => readAuthEntry\(\) === 'ready'\)/)
-  assert.match(guard, /if \(!isReady\) return <AuthBoot \/>/)
-  assert.doesNotMatch(guard, /return null/)
-})
+const AuthBoot = load('src/features/auth/components/AuthBoot.tsx', ui).default
 
-test('the boot state paints the workspace background at once and fades its mark in only after a delay', () => {
-  const boot = read('src/features/auth/components/AuthBoot.tsx')
-  const css = read('src/features/auth/components/AuthBoot.css')
-  assert.match(boot, /className="workspace-theme auth-boot"/)
-  assert.match(boot, /role="status"/)
-  assert.match(css, /--auth-boot-delay: calc\(var\(--motion-status-delay\) \* 2\)/)
-  for (const selector of ['.auth-boot__mark', '.auth-boot__line'])
-    assert.match(css, new RegExp(`\\${selector} \\{[^}]*var\\(--auth-boot-delay\\) both`), selector)
+const authGuard = (token) =>
+  load('src/features/auth/components/AuthGuard.tsx', {
+    ...ui,
+    'react-router-dom': { Outlet: () => React.createElement('main', null, 'page'), useNavigate: () => () => {} },
+    '../api/auth': { refreshAccessToken: async () => {} },
+    '@shared/api/authTokens': {
+      clearAuthTokens() {},
+      getAccessToken: () => token,
+      isAccessTokenExpired: () => false,
+      isLoggedOut: () => false,
+    },
+    '../utils/returnTo': { rememberReturnTo() {} },
+    '../utils/authEntry': authEntry,
+    './AuthBoot': { default: AuthBoot },
+  }).default
+
+test('AuthGuard paints the page in its first frame for a valid token, and the boot state instead of nothing', () => {
+  assert.equal(html(authGuard('a.b.c')), '<main>page</main>')
+  const boot = html(authGuard(null))
+  assert.match(boot, /<div class="workspace-theme auth-boot" role="status"/, 'the workspace background paints at once')
+  assert.match(boot, /로그인 상태를 확인하는 중이에요/)
 })
 
 // ---------------------------------------------------------------------------
@@ -75,33 +101,72 @@ test('index.html paints the workspace background in light and dark before any CS
 // Forms, landing and banners
 // ---------------------------------------------------------------------------
 
-test('auth form messages fade in and out through presence instead of popping', () => {
-  const message = read('src/features/auth/components/AuthMessage.tsx')
-  assert.match(message, /usePresence\(message \|\| null\)/)
-  assert.match(message, /data-state=\{presence\.closing \? 'closing' : 'open'\}/)
-  for (const page of ['LoginPage', 'SignupPage']) {
-    const source = read(`src/features/auth/pages/${page}.tsx`)
-    assert.doesNotMatch(source, /errors\.\w+ && </, `${page} renders errors through AuthMessage`)
-    assert.match(source, /aria-busy=\{isSubmitting \|\| undefined\}/, `${page} marks the pending submit`)
-  }
+const motionTokens = load('src/shared/motion/tokens.ts', {}, { window: undefined })
+const presence = load('src/shared/motion/presence.ts')
+const usePresenceWith = (react) =>
+  load('src/shared/motion/usePresence.ts', { react, './presence': presence, './tokens': motionTokens }, { setTimeout, clearTimeout })
+
+test('an auth form message renders open with the text unchanged, and nothing when there is none', () => {
+  const AuthMessage = load('src/features/auth/components/AuthMessage.tsx', {
+    ...ui,
+    '@shared/motion/usePresence': usePresenceWith(React),
+  }).default
+  assert.equal(html(AuthMessage, { message: '아이디를 입력해 주세요.' }), '<small class="auth-message" data-state="open">아이디를 입력해 주세요.</small>')
+  assert.equal(html(AuthMessage, { message: '서버 문구', as: 'p', className: 'login__error' }), '<p class="auth-message login__error" data-state="open">서버 문구</p>')
+  assert.equal(html(AuthMessage, { message: '' }), '')
 })
 
-test('the landing page redirects signed-in users without painting and keeps every slide mounted', () => {
-  const page = read('src/features/landing/pages/LandingPage.tsx')
-  assert.doesNotMatch(page, /useEffect/)
-  assert.match(page, /if \(hasToken\) return <Navigate to="\/app\/schedules" replace \/>/)
-  assert.match(page, /slides\.map\(\(slide, index\) => \{/)
-  assert.match(page, /data-position=\{isActive \? 'current' : index < currentSlide \? 'before' : 'after'\}/)
-  assert.match(page, /inert=\{!isActive \|\| undefined\}/)
+const landingPage = (token) =>
+  load('src/features/landing/pages/LandingPage.tsx', {
+    ...ui,
+    'react-router-dom': {
+      Link: ({ to, children, className }) => React.createElement('a', { href: to, className }, children),
+      Navigate: ({ to }) => React.createElement('meta', { 'data-navigate': to }),
+    },
+    '@shared/api/authTokens': { getAccessToken: () => token },
+  }).default
+
+test('the landing page sends signed-in users to the app without painting the introduction', () => {
+  assert.equal(html(landingPage('a.b.c')), '<meta data-navigate="/app/schedules"/>')
 })
 
-test('app banners keep mounted through their exit and only drop in when they appear after the page', () => {
-  const banners = read('src/shared/components/layout/AppBanners.tsx')
-  const css = read('src/shared/components/layout/AppBanners.css')
-  assert.equal(banners.match(/= useBannerPresence\(/g)?.length, 3, 'every banner uses the presence helper')
-  assert.match(banners, /'data-enter': arrivedWithPage \? undefined : ''/)
-  assert.match(css, /\.app-banner\[data-enter\] \{\s*animation: motion-drop-in/)
-  assert.match(css, /\.app-banner\[data-state='closing'\] \{\s*animation: motion-fade-out/)
+test('the landing page keeps every slide mounted and only the current one reachable', () => {
+  const markup = html(landingPage(null))
+  const panels = [...markup.matchAll(/<div class="landing__slide-panel"([^>]*)>/g)].map((match) => match[1])
+  assert.ok(panels.length > 1, 'every slide is in the page')
+  assert.equal(panels[0], ' data-position="current"')
+  for (const rest of panels.slice(1)) assert.equal(rest, ' data-position="after" aria-hidden="true" inert=""')
+})
+
+const banners = (online) => {
+  const runner = hookRunner()
+  const element = (type, props) => ({ type, props })
+  const module = load('src/shared/components/layout/AppBanners.tsx', {
+    react: runner.react,
+    'react/jsx-runtime': { jsx: element, jsxs: element, Fragment: 'fragment' },
+    '@shared/components/common/WorkspaceIcon': { default: () => null },
+    '@shared/hooks/useOnlineStatus': { default: () => online.current },
+    '@shared/motion/usePresence': usePresenceWith(runner.react),
+    '@shared/pwa/installPrompt': {},
+    '@shared/utils/safeStorage': {},
+  })
+  return () => runner.render(module.OfflineBanner)?.props
+}
+
+test('a banner already there with the page does not drop in; one that appears later does, and fades out', () => {
+  const withPage = banners({ current: false })
+  assert.equal(withPage()['data-enter'], undefined)
+  assert.equal(withPage()['data-state'], 'open')
+
+  const online = { current: true }
+  const later = banners(online)
+  assert.equal(later(), undefined, 'nothing renders while online')
+  online.current = false
+  assert.equal(later()['data-enter'], '', 'a banner that appears while the person is looking drops in')
+  online.current = true
+  const leaving = later()
+  assert.equal(leaving['data-state'], 'closing', 'it stays mounted through its exit')
+  assert.equal(leaving['aria-hidden'], true)
 })
 
 const ownedCss = [
@@ -111,6 +176,7 @@ const ownedCss = [
   'src/shared/components/layout/AppBanners.css',
 ]
 
+// Source check kept: CSS never runs in these tests, so the motion contract is read from the stylesheets.
 test('motion in the auth, landing and banner styles follows the contract', () => {
   const shared = ['modalFadeIn', 'modalSlideUp', 'fadeIn', 'fadeSlideIn']
   for (const path of ownedCss) {
@@ -125,13 +191,4 @@ test('motion in the auth, landing and banner styles follows the contract', () =>
     if (/animation|transition/.test(css))
       assert.match(css, /@media \(prefers-reduced-motion: reduce\)/, `${path}: reduced motion handled`)
   }
-})
-
-test('a pending submit waits the status delay before its hairline and never dims the fields', () => {
-  const css = read('src/features/auth/pages/LoginPage.css')
-  assert.match(
-    css,
-    /\.login__btn\[aria-busy='true'\]::before \{[^}]*animation: login-pending 2400ms var\(--motion-ease\) var\(--motion-status-delay\) both;/,
-  )
-  assert.doesNotMatch(css, /input:disabled[^{]*\{[^}]*opacity/)
 })

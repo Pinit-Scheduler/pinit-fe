@@ -3,6 +3,13 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
+import dayjs from 'dayjs'
+import isoWeek from 'dayjs/plugin/isoWeek.js'
+import timezone from 'dayjs/plugin/timezone.js'
+import utc from 'dayjs/plugin/utc.js'
 import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
@@ -173,16 +180,6 @@ test('a retry without data shows loading instead of the last failure', () => {
   assert.equal(failedRefresh.isRefreshing, true)
 })
 
-test('every statistics section names its own cache key', () => {
-  const sections = [
-    ['components/PeriodSummarySection.tsx', /`period:\$\{unit\}:\$\{start\}`/],
-    ['components/TrendSection.tsx', /`trend:\$\{unit\}:\$\{end \?\? ''\}`/],
-    ['components/PlanComparisonSection.tsx', /'plan-comparison:' \+ unit/],
-    ['components/RecurrenceStatsSection.tsx', /'recurrence:ACTIVE'/],
-  ]
-  for (const [path, key] of sections) assert.match(read(path), key, path)
-})
-
 // ---------------------------------------------------------------------------
 // Holding the frame while another period loads
 // ---------------------------------------------------------------------------
@@ -245,6 +242,7 @@ test('a change fade plays on a real change, not when the value first appears', (
   assert.equal(played.length, 2)
 })
 
+// Source check kept: which rules may start a chart keyframe is a CSS property, with no runtime here.
 test('chart entrance keyframes play only inside a reveal, so a cached render does not refill the bars', () => {
   const css = cssFilesForEntrance.map(read).join('\n')
   for (const name of ['stats-bar-rise', 'stats-bar-slide', 'stats-ring-draw']) {
@@ -327,6 +325,7 @@ const cssFilesForEntrance = ['components/ReportSections.css', 'components/DonutC
 const shared = ['motion-fade-in', 'motion-fade-out', 'motion-rise-in', 'motion-rise-out', 'motion-drop-in',
   'motion-sheet-in', 'motion-sheet-out', 'modalFadeIn', 'modalSlideUp', 'fadeIn', 'fadeSlideIn']
 
+// Source check kept: CSS never runs in these tests, so the motion contract is read from the stylesheets.
 test('statistics styles never animate size or use catch-all transitions', () => {
   for (const path of cssFiles) {
     const css = read(path)
@@ -339,12 +338,117 @@ test('statistics styles never animate size or use catch-all transitions', () => 
   }
 })
 
-test('chart bars move by transform, not by inline width or height', () => {
-  for (const path of ['components/TrendSection.tsx', 'components/PlanComparisonSection.tsx']) {
-    const source = read(path)
-    assert.doesNotMatch(source, /style=\{\{\s*(width|height):/, path)
-    assert.match(source, /report-mark/, path)
-  }
-  assert.match(read('components/DonutChart.tsx'), /strokeDashoffset/)
-  assert.doesNotMatch(read('components/PeriodSummarySection.tsx'), /key=\{data\.start\}/, 'the cards are not re-keyed per period')
+// ---------------------------------------------------------------------------
+// Sections: their own cache keys, my schedules across spaces, bars by transform
+// ---------------------------------------------------------------------------
+
+dayjs.extend(utc)
+dayjs.extend(timezone)
+dayjs.extend(isoWeek)
+
+/** Renders a section with a stub useReport that records each read and answers with `report`. */
+const renderSection = (path, props, { report = {}, api = {}, utils = {} } = {}) => {
+  const reads = []
+  const element = (Component, sectionProps = {}) => React.createElement(Component, sectionProps)
+  const { default: Section } = load(path, {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+    dayjs: { default: dayjs },
+    '../hooks/useReport': {
+      default: (fetcher, key) => {
+        reads.push({ fetcher, key })
+        return { data: undefined, error: null, isLoading: true, isRefreshing: false, reload() {}, ...report }
+      },
+    },
+    '../hooks/useReportMotion': {
+      useHeldValue: (data) => ({ shown: data ?? null, held: false }),
+      useChangeFade: () => ({ current: null }),
+    },
+    '@shared/motion': { useArrival: () => false, useListPresence: () => [], presenceProps: () => ({}) },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+    '../api/report': {},
+    '@features/schedules/api/schedules': {},
+    '../utils/chartMotion': chart,
+    '../utils/reportView': {},
+    '../utils/planComparison': {},
+    '@shared/utils/isoDuration': {},
+    '@shared/utils/statisticsTransform': {},
+    '@shared/utils/datetime': {},
+    './StatisticCard': { default: () => null },
+    './DonutChart': { default: () => null },
+    './SpaceTimeSection': { default: () => null },
+    '@shared/components/motion/TweenedNumber': { default: () => null },
+    '@shared/components/common/WorkspaceIcon': { default: () => null },
+    'react-router-dom': { Link: () => null },
+    './ReportSections.css': {},
+    './PlanComparisonSection.css': {},
+    ...api,
+    ...utils,
+  })
+  const markup = renderToStaticMarkup(element(Section, props))
+  return { reads, markup }
+}
+
+const sections = {
+  period: 'components/PeriodSummarySection.tsx',
+  trend: 'components/TrendSection.tsx',
+  plan: 'components/PlanComparisonSection.tsx',
+  recurrence: 'components/RecurrenceStatsSection.tsx',
+}
+
+test('every statistics section caches under its own key, and per period where it has one', () => {
+  const keyOf = (path, props) => renderSection(path, props).reads[0].key
+  const week = { unit: 'WEEK', start: '2026-11-09' }
+  const keys = [
+    keyOf(sections.period, week),
+    keyOf(sections.trend, { unit: 'WEEK' }),
+    keyOf(sections.plan, week),
+    keyOf(sections.recurrence, {}),
+  ]
+  assert.equal(new Set(keys).size, keys.length, keys.join(', '))
+  const lastWeek = { unit: 'WEEK', start: '2026-11-02' }
+  assert.notEqual(keyOf(sections.period, lastWeek), keys[0])
+  assert.notEqual(keyOf(sections.plan, lastWeek), keys[2])
+  assert.notEqual(keyOf(sections.plan, { unit: 'MONTH', start: '2026-11-01' }), keyOf(sections.plan, { unit: 'WEEK', start: '2026-11-01' }))
+  assert.notEqual(keyOf(sections.trend, { unit: 'MONTH' }), keys[1])
+})
+
+test('the plan comparison section asks for my schedules across spaces', async () => {
+  const weekly = []
+  const { reads } = renderSection(sections.plan, { unit: 'WEEK', start: '2026-11-09' }, {
+    api: {
+      '../api/report': { fetchPeriodStatistics: async () => ({}) },
+      '@features/schedules/api/schedules': {
+        fetchWeeklySchedules: async (anchor, options) => {
+          weekly.push(options)
+          return []
+        },
+      },
+    },
+    utils: {
+      '../utils/planComparison': { summarizePlans: () => ({}) },
+      '@shared/utils/datetime': { toDateKey: () => '' },
+      '@shared/utils/isoDuration': { parseIsoDurationMinutes: () => null },
+    },
+  })
+  await reads[0].fetcher()
+  assert.ok(weekly.length > 0)
+  for (const options of weekly) assert.deepEqual(plain(options), { allSpaces: true, mine: true })
+})
+
+test('trend bars move by transform, never by an inline width or height', () => {
+  const bars = [
+    { label: '11/02', minutes: 60, ratio: 0.5, completionRate: 0.5, current: false },
+    { label: '11/09', minutes: 120, ratio: 1, completionRate: 1, current: true },
+  ]
+  const { markup } = renderSection(sections.trend, { unit: 'WEEK' }, {
+    report: { data: { periods: [] }, isLoading: false },
+    utils: {
+      '../utils/reportView': { trendBars: () => bars, formatRate: (value) => `${value * 100}%` },
+      '@shared/utils/statisticsTransform': { formatMinutesToTime: (minutes) => `${minutes}분` },
+    },
+  })
+  const styles = [...markup.matchAll(/class="trend-chart__bar[^"]*" style="([^"]*)"/g)].map((match) => match[1])
+  assert.deepEqual(styles, ['transform:translateY(50%)', 'transform:translateY(0%)'])
+  assert.doesNotMatch(markup, /style="[^"]*\b(width|height):/)
 })

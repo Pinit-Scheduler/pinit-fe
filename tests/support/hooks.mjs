@@ -1,12 +1,14 @@
 /**
  * Runs one hook instance without a renderer. Slots persist across `render` calls like a mounted
- * component's; effects whose deps changed run after each render. Store updates do not re-render on
- * their own: call `render` again to read the next snapshot.
+ * component's; a state update during render re-runs the hook at once, as React does, and effects
+ * whose deps changed run after each render. Other updates do not re-render on their own: call
+ * `render` again to read the next snapshot.
  */
 export const hookRunner = () => {
   const slots = []
   let cursor = 0
   let pending = []
+  let dirty = false
   const same = (a, b) => a && b && a.length === b.length && a.every((value, i) => Object.is(value, b[i]))
   const memo = (compute, deps) => {
     const i = cursor++
@@ -20,7 +22,9 @@ export const hookRunner = () => {
       if (!(i in slots)) {
         const slot = { value: typeof initial === 'function' ? initial() : initial }
         slot.set = (next) => {
-          slot.value = typeof next === 'function' ? next(slot.value) : next
+          const value = typeof next === 'function' ? next(slot.value) : next
+          if (!Object.is(value, slot.value)) dirty = true
+          slot.value = value
         }
         slots[i] = slot
       }
@@ -55,8 +59,14 @@ export const hookRunner = () => {
     },
   }
   const render = (hook) => {
-    cursor = 0
-    const result = hook()
+    let result
+    for (let pass = 0; ; pass++) {
+      if (pass === 25) throw new Error('render loop')
+      cursor = 0
+      dirty = false
+      result = hook()
+      if (!dirty) break
+    }
     const effects = pending
     pending = []
     effects.forEach((run) => run())

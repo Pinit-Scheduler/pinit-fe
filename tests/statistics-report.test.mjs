@@ -139,14 +139,6 @@ test('plan comparison reads planned time across spaces for me only', async () =>
   assert.equal(query.get('mine'), 'true')
 })
 
-test('the plan comparison section asks for my schedules across spaces', () => {
-  const source = readFileSync(
-    new URL('../src/features/statistics/components/PlanComparisonSection.tsx', import.meta.url),
-    'utf8',
-  )
-  assert.match(source, /fetchWeeklySchedules\(anchor, \{ allSpaces: true, mine: true \}\)/)
-})
-
 test('the day plan preview still follows the selected space', async () => {
   const { exports, urls } = loadWithRequests('../src/features/planner/api/plans.ts', selected)
   await exports.fetchDayPlan({ date: '2026-10-28', zoneId: 'Asia/Seoul' })

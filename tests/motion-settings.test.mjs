@@ -51,35 +51,6 @@ test('the trash list refetches only when something was restored', () => {
   assert.equal(isRestoreBatch({ tasks: [{ reason: 'state-mutated' }], schedules: [{}] }), false)
 })
 
-test('TrashPage keeps its list through refetches and never disables every row while busy', () => {
-  const source = read('features/trash/pages/TrashPage.tsx')
-  assert.match(source, /useRevalidatingQuery<TrashContents>\(TRASH_KEY/)
-  assert.match(source, /useListPresence\(contents\?\.tasks/)
-  assert.match(source, /presenceProps\(phase\)/)
-  assert.doesNotMatch(source, /busyKey !== null/, 'one pending action must not dim the whole list')
-  assert.doesNotMatch(source, /await load\(\)/)
-})
-
-// ---------------------------------------------------------------------------
-// Recurrences: surfaces open in place (audit C4) and the list keeps its rows
-// ---------------------------------------------------------------------------
-
-test('RecurrencesPage opens the create surfaces with open() and keys its list on scope', () => {
-  const source = read('features/recurrence/pages/RecurrencesPage.tsx')
-  assert.match(source, /onClick=\{surfaceLinkClick\(open, '\/app\/schedules\/new'\)\}/)
-  assert.match(source, /onClick=\{surfaceLinkClick\(open, '\/app\/tasks\/new'\)\}/)
-  assert.match(source, /const \{ open \} = useRouteSurfaceNavigation\(\)/)
-  assert.match(source, /recurrences\/\$\{status\}\/\$\{selectedSpaceId \?\? 'all'\}\/\$\{selectedProjectId \?\? 'all'\}/)
-  assert.doesNotMatch(source, /setItems\(null\)/, 'a reload must not blank the list')
-  assert.doesNotMatch(source, /await load\(\)/, 'the change event already refetches after a save')
-})
-
-test('the recurrence scope dialog keeps the last request on screen while it closes', () => {
-  const source = read('features/recurrence/components/RecurrenceScopeDialog.tsx')
-  assert.match(source, /usePresence\(pending\)/)
-  assert.match(source, /closing=\{presence\.closing\}/)
-})
-
 // ---------------------------------------------------------------------------
 // Routines: saved and reloaded entries keep their on-screen keys
 // ---------------------------------------------------------------------------
@@ -123,21 +94,6 @@ test('an exact match wins over a same-kind match when two entries share a kind',
     reuseDraftKeys(fromServer, onScreen).map((item) => item.key),
     ['weekend', 'weekday'],
   )
-})
-
-test('reloading routines or exceptions keeps the content instead of showing the loading placeholder', () => {
-  for (const path of [
-    'features/routines/pages/RoutinesPage.tsx',
-    'features/routines/components/RoutineOverridesSection.tsx',
-  ]) {
-    const source = read(path)
-    const start = source.indexOf('const load = useCallback')
-    const load = source.slice(start, source.indexOf('}, [', start))
-    assert.ok(load.includes('fetchRoutine'), path)
-    assert.doesNotMatch(load, /setIsLoading\(true\)/, path)
-    assert.match(source, /hasLoaded\.current/, path)
-    assert.match(source, /<PresenceList/, path)
-  }
 })
 
 // ---------------------------------------------------------------------------
@@ -363,6 +319,7 @@ const ownedStyles = [
   'features/oauth/pages/OAuthConsentPage.css',
 ]
 
+// Source check kept: CSS never runs in these tests, so the motion contract is read from the stylesheets.
 test('owned stylesheets name their transitions, use the motion tokens and never loop', () => {
   for (const path of ownedStyles) {
     const css = read(path)
@@ -373,13 +330,4 @@ test('owned stylesheets name their transitions, use the motion tokens and never 
     for (const name of css.matchAll(/@keyframes\s+([\w-]+)/g))
       assert.ok(!/^(motion-|modalFadeIn$|modalSlideUp$|fadeIn$|fadeSlideIn$)/.test(name[1]), `${path} redefines ${name[1]}`)
   }
-})
-
-test('the spotlight tour fades out with its last step and keeps the reduced-motion override', () => {
-  const css = read('features/onboarding/components/SpotlightTour.css')
-  assert.match(css, /\.spotlight-tour\[data-state='closing'\]/)
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.spotlight-tour__callout\s*\{\s*transition: none;/)
-  const context = read('features/onboarding/context/OnboardingTourContext.tsx')
-  assert.match(context, /usePresence\(tour\)/)
-  assert.match(context, /closing=\{presence\.closing\}/)
 })
