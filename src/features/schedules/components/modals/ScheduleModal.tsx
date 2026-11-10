@@ -52,7 +52,7 @@ const ScheduleModal = ({ mode, schedule, onClose, closing = false }: ScheduleMod
       } else if (schedule) {
         result = await updateSchedule(schedule.id, payload)
       } else {
-        throw new ClientGuardError('수정할 일정이 없습니다.')
+        throw new ClientGuardError('수정할 일정을 찾지 못했어요. 일정을 다시 연 뒤 수정해 주세요.')
       }
       if (result) {
         dispatchScheduleChanged({ schedule: result, reason: mode === 'create' ? 'created' : 'updated' })

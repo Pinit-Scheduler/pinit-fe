@@ -41,12 +41,20 @@ export default function useHubData(
   const summaries = useRevalidatingQuery<SpaceSummaries>(
     'spaces/hub/summaries',
     (signal) => fetchSpaceSummaries(signal),
-    { invalidateOn: HUB_EVENTS, group: 'spaces/hub/' },
+    {
+      invalidateOn: HUB_EVENTS,
+      group: 'spaces/hub/',
+      errorMessage: '스페이스별 남은 작업 수를 불러오지 못했어요.',
+    },
   )
   const summary = useRevalidatingQuery<SpaceSummary>(
     spaceId === null ? null : `spaces/hub/summary:${spaceId}`,
     (signal) => fetchSpaceSummary(spaceId as number, signal),
-    { invalidateOn: HUB_EVENTS, group: 'spaces/hub/' },
+    {
+      invalidateOn: HUB_EVENTS,
+      group: 'spaces/hub/',
+      errorMessage: '이 스페이스의 작업 수를 불러오지 못했어요.',
+    },
   )
   const record = useRevalidatingQuery<WeeklyRecord>(
     spaceId === null || !withRecord
@@ -54,7 +62,11 @@ export default function useHubData(
       : `spaces/hub/record:${spaceId}:${weekStart}`,
     // The key is null without a space, so the fetcher only runs with one.
     (signal) => fetchWeeklyRecord(spaceId as number, weekStart, signal),
-    { invalidateOn: HUB_EVENTS, group: 'spaces/hub/' },
+    {
+      invalidateOn: HUB_EVENTS,
+      group: 'spaces/hub/',
+      errorMessage: '팀 기록을 불러오지 못했어요.',
+    },
   )
   return { summaries: view(summaries), summary: view(summary), record: view(record) }
 }

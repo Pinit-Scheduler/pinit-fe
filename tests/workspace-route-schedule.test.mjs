@@ -162,7 +162,7 @@ const harness = ({
     '../api/schedules.ts': api,
     '@features/spaces/metadata': { getMetadata: () => undefined },
     '@features/spaces/conflicts': {
-      CONFLICT_RELOADED: 'reloaded',
+      conflictReloadedMessage: () => 'reloaded',
       isEditConflict: (error) => error?.conflict === true,
     },
     '@features/auth/api/member': {

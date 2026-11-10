@@ -99,6 +99,16 @@ function EditorDialog({
           : editor.kind === 'create-project'
             ? '프로젝트 만들기'
             : '프로젝트 수정'
+  const failedAction =
+    editor.kind === 'create-space'
+      ? '스페이스를 만들지 못했어요.'
+      : editor.kind === 'purpose'
+        ? '목적을 저장하지 못했어요.'
+        : editor.kind === 'space'
+          ? '스페이스 정보를 저장하지 못했어요.'
+          : editor.kind === 'create-project'
+            ? '프로젝트를 만들지 못했어요.'
+            : '프로젝트를 저장하지 못했어요.'
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (mutationLock.current) return
@@ -161,7 +171,7 @@ function EditorDialog({
       if (reportEditConflict(failure)) close()
       else
         setError(
-          getRequestFailureMessage(failure, '저장하지 못했어요. 입력한 내용은 유지됩니다.'),
+          `${getRequestFailureMessage(failure, failedAction)} 입력한 내용은 유지돼요.`,
         )
     } finally {
       mutationLock.current = false
@@ -489,7 +499,7 @@ export default function SpacesPage() {
           <HubRail
             spaces={liveSpaces}
             summaries={summaries.data}
-            failed={Boolean(summaries.error) && !summaries.data}
+            loadError={summaries.data ? null : summaries.error}
             onRetry={summaries.reload}
             selectedId={space?.id ?? null}
             onSelect={choose}
@@ -529,7 +539,7 @@ export default function SpacesPage() {
                 space={space}
                 rows={projectRows(workspace.projects, space.id, summary.data)}
                 withoutProject={summary.data?.withoutProject ?? null}
-                failed={Boolean(summary.error) && !summary.data}
+                loadError={summary.data ? null : summary.error}
                 onRetry={summary.reload}
                 busy={busy}
                 settling={settling}
@@ -559,7 +569,7 @@ export default function SpacesPage() {
                     summary.data,
                   )}
                   unassigned={summary.data?.unassigned ?? null}
-                  failed={Boolean(summary.error) && !summary.data}
+                  loadError={summary.data ? null : summary.error}
                   onRetry={summary.reload}
                   busy={busy}
                   onInvite={() => void invite()}
@@ -594,7 +604,7 @@ export default function SpacesPage() {
                 )}
                 meId={workspace.memberId}
                 record={record.data}
-                failed={Boolean(record.error) && !record.data}
+                loadError={record.data ? null : record.error}
                 onRetry={record.reload}
                 today={today}
               />

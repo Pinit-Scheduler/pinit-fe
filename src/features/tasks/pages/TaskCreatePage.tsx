@@ -19,10 +19,7 @@ import {
 } from '@features/recurrence/utils/recurrenceRules'
 import { createRecurrence } from '@features/recurrence/api/recurrences'
 import { ApiError } from '@shared/api/httpClient'
-import {
-  ClientGuardError,
-  getRequestFailureMessage,
-} from '@shared/api/errorMessage'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 const TaskCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
@@ -64,12 +61,17 @@ const TaskCreatePage = () => {
         zoneId: getDisplayZoneId(),
       })
       dispatchTaskChanged({ reason: 'recurrence' })
-      addToast(
-        '반복 작업을 만들었어요. 할 일 목록에는 오늘까지의 회차가 보여요.',
-        'success',
-      )
+      // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
       if (created.id === null)
-        throw new ClientGuardError('반복 시리즈 ID를 확인하지 못했어요.')
+        addToast(
+          '반복 작업을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          'info',
+        )
+      else
+        addToast(
+          '반복 작업을 만들었어요. 할 일 목록에는 오늘까지의 회차가 보여요.',
+          'success',
+        )
       complete('/app/tasks')
     } catch (error) {
       console.error('반복 작업 생성 실패', error)

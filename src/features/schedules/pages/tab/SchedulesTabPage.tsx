@@ -41,7 +41,7 @@ import {
 } from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
 import { useSpaces } from '@features/spaces/store'
-import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import { conflictReloadedMessage, isEditConflict } from '@features/spaces/conflicts'
 import {
   audienceSchedules,
   scheduleMineParam,
@@ -316,7 +316,7 @@ const SchedulesTabPage = () => {
   /** 다른 참여자가 먼저 바꿨으면 알리고 목록을 다시 받는다. 자동으로 다시 보내지 않는다. */
   const handleConflict = (error: unknown) => {
     if (!isEditConflict(error)) return false
-    addToast(CONFLICT_RELOADED, 'error')
+    addToast(conflictReloadedMessage(error), 'error')
     handleRefresh()
     return true
   }
@@ -723,8 +723,7 @@ const SchedulesTabPage = () => {
         ) : scheduleErrorRaw && !hasDayData ? (
           <StatusPanel
             variant="error"
-            title="일정을 불러오지 못했어요"
-            description={scheduleErrorRaw}
+            title={scheduleErrorRaw}
             action={<button onClick={refetchSchedules}>재시도</button>}
           />
         ) : rows.length ? (

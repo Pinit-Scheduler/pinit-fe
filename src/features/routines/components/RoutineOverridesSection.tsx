@@ -355,7 +355,7 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
         <p className="routines__card-sub routines__placeholder--loading">날짜 예외를 불러오는 중...</p>
       ) : loadError ? (
         <p className="routines__error routines__placeholder--notice" role="alert">
-          날짜 예외를 불러오지 못했어요.{' '}
+          {loadError}{' '}
           <button type="button" className="routines__link-button" onClick={load}>
             다시 시도
           </button>

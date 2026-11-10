@@ -227,7 +227,7 @@ export default function AffiliationFields({
       )}
       {unavailable && (
         <p role="alert" className="space-error">
-          현재 스페이스에 접근할 수 없어요. 입력한 내용은 유지됩니다. 최신 화면에서
+          현재 스페이스에 접근할 수 없어요. 입력한 내용은 유지돼요. 최신 화면에서
           권한을 확인해 주세요.
         </p>
       )}

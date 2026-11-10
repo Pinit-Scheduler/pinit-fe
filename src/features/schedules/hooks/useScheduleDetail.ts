@@ -1,6 +1,6 @@
 import { onScheduleChanged } from '@shared/utils/events'
 import { fetchScheduleDetail } from '../api/schedules'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
 import { useEffect, useState } from 'react'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { isRevokedRead } from '@features/spaces/metadata'
@@ -16,7 +16,7 @@ type UseScheduleDetailReturn = {
   replace: (response: ScheduleResponse) => void
 }
 
-const INVALID_ID = '일정 ID가 유효하지 않습니다.'
+const INVALID_ID = '일정 주소가 올바르지 않아요.'
 
 /** The newer of the read and the cached copy. A state change made elsewhere lands in the cache first. */
 const newer = (read: ScheduleResponse | null, cached: ScheduleResponse | undefined) =>
@@ -103,7 +103,10 @@ const useScheduleDetail = (
       void fetchScheduleDetail(numericId).catch((failure: unknown) => {
         if (!mounted || current !== sequence || !isRevokedRead(failure)) return
         setSchedule(null)
-        setError('일정이 이동되었거나 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+        setError(
+          readFailureMessage(failure) ??
+            '일정이 옮겨졌거나 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.',
+        )
       })
     }
     window.addEventListener('workspace:resources-evicted', verifyAccess)

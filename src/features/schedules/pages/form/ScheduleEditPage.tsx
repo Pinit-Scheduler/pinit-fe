@@ -133,7 +133,7 @@ const ScheduleEditPage = () => {
 
   useEffect(() => {
     if (!schedule && !isLoading) {
-      addToast(error ?? '일정을 불러오지 못했습니다.', 'error')
+      addToast(error ?? '일정을 불러오지 못했어요.', 'error')
       handleClose()
     }
   }, [schedule, isLoading, addToast, handleClose, error])
@@ -330,11 +330,8 @@ const ScheduleEditPage = () => {
         <p className="schedule-form-page__status">일정을 불러오는 중...</p>
       ) : categoryLoadError && !categoryLoaded ? (
         <div className="schedule-form-page__status" role="alert">
-          <p>
-            프로젝트를 불러오지 못했어요. 기존 프로젝트를 확인한 뒤 수정할 수
-            있어요.
-          </p>
           <p>{categoryLoadError}</p>
+          <p>프로젝트를 확인해야 일정을 수정할 수 있어요.</p>
           <button
             type="button"
             onClick={() => void reloadCategories().catch(() => {})}
@@ -347,7 +344,7 @@ const ScheduleEditPage = () => {
           {categoryLoadError && (
             <div role="alert">
               <p>
-                프로젝트를 새로 확인하지 못했어요. 작성 중인 내용은 유지됩니다.
+                {categoryLoadError} 작성 중인 내용은 유지돼요.
               </p>
               <button
                 type="button"

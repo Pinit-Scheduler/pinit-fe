@@ -10,7 +10,7 @@ export default function TeamRecord({
   projects,
   meId,
   record,
-  failed,
+  loadError,
   onRetry,
   today,
 }: {
@@ -18,7 +18,8 @@ export default function TeamRecord({
   projects: Project[]
   meId: number | null
   record: WeeklyRecord | null
-  failed: boolean
+  /** 기록을 처음 불러오지 못했을 때의 문구. */
+  loadError: string | null
   onRetry: () => void
   today: string
 }) {
@@ -29,10 +30,10 @@ export default function TeamRecord({
     </div>
   )
   let body
-  if (failed)
+  if (loadError)
     body = (
       <p className="hub-load-error" role="alert">
-        팀 기록을 불러오지 못했어요.{' '}
+        {loadError}{' '}
         <button type="button" className="space-text-button" onClick={onRetry}>
           다시 시도
         </button>

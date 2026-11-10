@@ -212,7 +212,7 @@ const people = (props) =>
     React.createElement(HubPeople(), {
       space: space(),
       rows: [],
-      failed: false,
+      loadError: null,
       onRetry() {},
       busy: false,
       onInvite() {},
@@ -222,6 +222,41 @@ const people = (props) =>
       ...props,
     }),
   )
+
+test('the people card shows the load failure message as given instead of a fixed sentence', () => {
+  const html = people({ loadError: '이 스페이스의 작업 수를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' })
+  assert.match(html, /class="hub-load-error" role="alert">이 스페이스의 작업 수를 불러오지 못했어요. 잠시 후 다시 시도해 주세요. <button/)
+  assert.doesNotMatch(people(), /hub-load-error/)
+})
+
+test('each hub query names what it failed to load, so a failure without a server message has a subject', () => {
+  const options = []
+  const useHubData = load('features/spaces/hub/useHubData.ts', {
+    '@shared/hooks/useRevalidatingQuery': {
+      useRevalidatingQuery: (key, _fetcher, option) => {
+        options.push(option.errorMessage)
+        return { data: undefined, error: null, isInitialLoading: false, refetch() {} }
+      },
+    },
+    '../api': {},
+  }).default
+  useHubData(22, '2026-11-09', true)
+  assert.deepEqual(options, [
+    '스페이스별 남은 작업 수를 불러오지 못했어요.',
+    '이 스페이스의 작업 수를 불러오지 못했어요.',
+    '팀 기록을 불러오지 못했어요.',
+  ])
+})
+
+test('a version conflict keeps the server message and adds only what the screen did', () => {
+  const { conflictMessage, conflictReloadedMessage, CONFLICT_RELOADED } = conflicts()
+  const sent = new ApiError('다른 참여자가 이 작업을 먼저 바꿨어요.', 409, { code: 'VERSION_CONFLICT' })
+  const silent = new ApiError('', 409, { code: 'VERSION_CONFLICT' })
+  assert.equal(conflictReloadedMessage(sent), '다른 참여자가 이 작업을 먼저 바꿨어요. 최신 내용을 다시 불러왔어요.')
+  assert.equal(conflictReloadedMessage(silent), CONFLICT_RELOADED)
+  assert.equal(conflictMessage(sent), '다른 참여자가 이 작업을 먼저 바꿨어요.')
+  assert.equal(conflictMessage(silent), '다른 참여자가 먼저 수정했어요.')
+})
 
 test('the unassigned row offers 배정하기 only when tasks wait, and the server can turn it off', () => {
   const html = people({ unassigned: { openCount: 3, nearestDueDate: '2026-11-20' } })
@@ -339,9 +374,13 @@ test('flow: a version conflict on assign keeps the row, says it was reloaded and
   const { CONFLICT_RELOADED } = conflicts()
   let state = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: page([1, 2]) })
   state = assignReducer(state, { type: 'assigning', id: 1 })
+  // 서버 문구 뒤에 FE가 한 일만 붙인다. 문구 없는 409만 FE 문장 전체를 쓴다.
+  const silent = new ApiError('', 409, { code: 'VERSION_CONFLICT' })
+  assert.deepEqual(plain(assignFailure(silent, '작업 1')), { notice: '작업 1: ' + CONFLICT_RELOADED, reload: true })
   const conflict = new ApiError('버전이 맞지 않아요.', 409, { code: 'VERSION_CONFLICT' })
   const failure = assignFailure(conflict, '작업 1')
-  assert.deepEqual(plain(failure), { notice: '작업 1: ' + CONFLICT_RELOADED, reload: true })
+  const RELOADED = '작업 1: 버전이 맞지 않아요. 최신 내용을 다시 불러왔어요.'
+  assert.deepEqual(plain(failure), { notice: RELOADED, reload: true })
   state = assignReducer(state, { type: 'assignFailed', notice: failure.notice })
   assert.equal(state.busyId, null)
   assert.deepEqual(plain(state.tasks.map((task) => task.id)), [1, 2], 'the row stays until the reload answers')
@@ -350,7 +389,7 @@ test('flow: a version conflict on assign keeps the row, says it was reloaded and
   state = assignReducer(state, { type: 'loaded', replace: true, response: page([2, 3]) })
   assert.deepEqual(plain(state.tasks.map((task) => task.id)), [2, 3])
   assert.equal(state.offset, 2)
-  assert.equal(state.notice, '작업 1: ' + CONFLICT_RELOADED)
+  assert.equal(state.notice, RELOADED)
   state = assignReducer(state, { type: 'assigning', id: 2 })
   assert.equal(state.notice, null, 'a new attempt clears the old message')
 })
