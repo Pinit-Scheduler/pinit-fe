@@ -64,7 +64,7 @@
 }
 /* A press answers at once, before the save does. */
 .mini-player__button:active:not(:disabled) {
-  transform: scale(0.94);
+  transform: scale(var(--motion-press-scale-small));
 }
 .mini-player__button:hover:not(:disabled) {
   border-color: var(--c-blue-600);
@@ -252,15 +252,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Opacity only (the distance token is 0 here, so the bar fades in place). */
   .mini-player,
   .mini-player__swap {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .mini-player[data-state='closing'] {
-    animation-duration: var(--motion-exit) !important;
-  }
-  .mini-player__button:active:not(:disabled) {
-    transform: none;
+    --motion-keep-animation: var(--motion-exit);
   }
 }

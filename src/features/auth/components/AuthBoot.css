@@ -61,7 +61,7 @@
   /* Opacity only: the mark and line fade in, the line does not draw. */
   .auth-boot__mark,
   .auth-boot__line {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .auth-boot__line::after {
     animation: none;

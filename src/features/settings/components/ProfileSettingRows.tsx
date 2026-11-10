@@ -6,7 +6,7 @@ import { formatMinutesLabel, minutesToIsoDuration, parseIsoDurationMinutes } fro
 import type { ProfileSettings } from '../api/profileSettings'
 import { dailyObjectiveOptions, suggestedDeviceZone, timeZoneOptions } from '../utils/profileSettings'
 import useSavedFlash from '../hooks/useSavedFlash'
-import SavedMark from './SavedMark'
+import SavedMark from '@shared/components/motion/SavedMark'
 import './ProfileSettingRows.css'
 
 type RowProps = {

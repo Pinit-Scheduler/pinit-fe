@@ -77,7 +77,7 @@
 
 /* A press answers immediately, before the save does. */
 .completion-check__input:active:not(:disabled) + .completion-check__glyph {
-  transform: scale(0.92);
+  transform: scale(var(--motion-press-scale-small));
 }
 .completion-check__input:hover:not(:disabled) + .completion-check__glyph .completion-check__box {
   stroke: var(--check-accent, var(--c-blue-600));
@@ -102,14 +102,17 @@
   .completion-check__mark {
     stroke-dashoffset: 0;
     opacity: 0;
-    transition-property: opacity !important;
-    transition-duration: var(--motion-fast) !important;
+  }
+  .completion-check__mark,
+  .completion-check[data-checked] .completion-check__mark {
+    transition-property: opacity;
+    --motion-keep-transition: var(--motion-fast);
   }
   .completion-check[data-checked] .completion-check__mark {
     opacity: 1;
   }
   .completion-check__box {
-    transition-duration: var(--motion-fast) !important;
+    --motion-keep-transition: var(--motion-fast);
   }
 }
 

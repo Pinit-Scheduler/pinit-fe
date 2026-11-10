@@ -1,11 +1,11 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { Link } from 'react-router-dom'
-import { presenceProps, useListPresence } from '@shared/motion'
+import { presenceProps, useArrival, useListPresence } from '@shared/motion'
 import { fetchRecurrenceStatistics } from '../api/report'
 import useReport from '../hooks/useReport'
-import { useChangeFade, useSawLoading } from '../hooks/useReportMotion'
+import { useChangeFade } from '../hooks/useReportMotion'
 import { formatRate, pendingTodayLine, streakLine } from '../utils/reportView'
-import TweenedNumber from './TweenedNumber'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import './ReportSections.css'
 
 const rate = (value: number) => formatRate(value)
@@ -16,7 +16,7 @@ const RecurrenceStatsSection = () => {
     () => fetchRecurrenceStatistics('ACTIVE'),
     'recurrence:ACTIVE',
   )
-  const reveal = useSawLoading(isLoading && !data)
+  const reveal = useArrival(isLoading && !data)
   // 반복이 생기거나 지워지면 행이 떠오르거나 제자리에서 사라진다. 같은 목록이 다시 오면 움직이지 않는다.
   const rows = useListPresence(data?.recurrences, (series) => series.seriesId)
   const empty = data ? data.recurrences.length === 0 : null

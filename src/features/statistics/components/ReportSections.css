@@ -189,16 +189,16 @@
 /* 막대. 크기는 그대로 두고 트랙 안에서 transform으로 밀어 넣는다. */
 .report-mark {
   transition:
-    transform var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms),
+    transform var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * var(--motion-stagger)),
     background-color var(--motion-base) var(--motion-ease);
 }
 /* 처음 그리는 막대만 바닥(왼쪽)에서 차오른다. 자리 표시 다음에 들어온 내용(.report-reveal) 안에서만 재생해,
    캐시 값으로 다시 그릴 때(탭·보기를 다녀온 경우)는 막대가 0에서 다시 차오르지 않는다. */
 .report-reveal .report-mark--rise {
-  animation: stats-bar-rise var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms) backwards;
+  animation: stats-bar-rise var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * var(--motion-stagger)) backwards;
 }
 .report-reveal .report-mark--slide {
-  animation: stats-bar-slide var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms) backwards;
+  animation: stats-bar-slide var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * var(--motion-stagger)) backwards;
 }
 /* 새 값을 기다리는 동안 막대는 제자리에서 회색으로 가라앉는다. 빠른 응답이면 색이 바뀌기 전에 새 값으로 간다. */
 [data-pending] .report-mark,
@@ -240,11 +240,11 @@
   /* 움직임은 없애고 투명도 변화만 남긴다(--motion-distance는 0). */
   .report-datum,
   [data-pending] .report-datum {
-    transition-duration: var(--motion-base) !important;
+    --motion-keep-transition: var(--motion-base);
   }
   .report-reveal,
   .report-section--loading,
   .report-inline-error {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
 }

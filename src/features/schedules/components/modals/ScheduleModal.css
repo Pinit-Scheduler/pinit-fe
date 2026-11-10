@@ -7,7 +7,7 @@
   align-items: flex-end;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 @media (min-width: 768px) {

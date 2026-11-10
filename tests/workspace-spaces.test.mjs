@@ -1077,7 +1077,7 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/spaces/conflicts': { isEditConflict: () => false },
     '@shared/components/common/Modal': {},
     '@shared/components/motion/CompletionCheck': { default: () => null },
-    '../utils/useArrival': { useArrival: () => false },
+    '@shared/motion': { useArrival: () => false },
     '../utils/taskDetailRefresh': {
       detailRefreshNeeded: () => ({ refetch: false, ownToggles: 0 }),
     },

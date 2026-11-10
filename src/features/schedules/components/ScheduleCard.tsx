@@ -11,7 +11,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
-import { usePresence, MOTION_FAST_MS } from '@shared/motion'
+import { usePresence, MOTION_FAST_MS, useChangedWhileMounted } from '@shared/motion'
 import { cardPath } from '@features/spaces/cardPath'
 import SpacePath from '@features/spaces/SpacePath'
 import { routeScope } from '@features/spaces/scope'
@@ -56,13 +56,9 @@ const ScheduleCard = ({
   const plannedDurationLabel = formatIsoDurationLabel(schedule.plannedDuration)
   const done = state === 'COMPLETED'
 
-  // Motion bookkeeping, adjusted during render. A card that mounts in a state shows it still;
-  // only a change made while the card is on screen animates.
-  const [initialState] = useState(state)
-  const [hasChanged, setHasChanged] = useState(false)
-  if (!hasChanged && state !== initialState) setHasChanged(true)
-  const [sawOpen, setSawOpen] = useState(!done)
-  if (!sawOpen && !done) setSawOpen(true)
+  // A card that mounts in a state shows it still; only a change made while it is on screen
+  // animates, including the completed mark's drawing.
+  const hasChanged = useChangedWhileMounted(state)
   const [focusMark, setFocusMark] = useState(false)
 
   // The completed mark erases quickly before the state icon returns.
@@ -140,7 +136,7 @@ const ScheduleCard = ({
             <ScheduleCompletionMark
               checked={done}
               leaving={mark.closing}
-              drawOnMount={sawOpen}
+              drawOnMount={hasChanged}
               focusOnMount={focusMark}
               label={`${stateLabel.COMPLETED} 상태`}
               // Permission only. While this card's completion saves, the cached permissions are

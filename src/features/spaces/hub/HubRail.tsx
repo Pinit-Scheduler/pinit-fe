@@ -2,7 +2,7 @@ import { presenceProps, useListPresence } from '@shared/motion'
 import SpaceMark from '../SpaceMark'
 import { railLine } from '../hub'
 import type { Space, SpaceSummaries } from '../types'
-import Count from './Count'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 
 export default function HubRail({
   spaces,
@@ -49,7 +49,7 @@ export default function HubRail({
                   data-pending={line.open === '–' || undefined}
                 >
                   <span aria-hidden>
-                    {line.open === '–' ? line.open : <Count value={Number(line.open)} />}
+                    {line.open === '–' ? line.open : <TweenedNumber value={Number(line.open)} />}
                   </span>
                   <span className="sr-only">
                     {line.open === '–'

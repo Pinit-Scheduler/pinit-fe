@@ -40,9 +40,9 @@
     animation: none;
   }
   .saved-mark {
-    transition-duration: var(--motion-exit) !important;
+    --motion-keep-transition: var(--motion-exit);
   }
   .saved-mark[data-visible] {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
 }

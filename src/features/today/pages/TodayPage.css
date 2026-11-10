@@ -192,17 +192,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* index.css cuts every duration; the fades come back, the travel stays at 0. */
   .today-page__loading,
   .today-page__reveal,
   .today-page__empty--after-rows,
   .today-page__count--reveal {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .today-page__schedule-row > time,
   .today-page__all,
   .today-workspace__schedules > .workspace-panel__head a {
-    transition-duration: var(--motion-base) !important;
+    --motion-keep-transition: var(--motion-base);
   }
 }
 @media (max-width: 1150px) {

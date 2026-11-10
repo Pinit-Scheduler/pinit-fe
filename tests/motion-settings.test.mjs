@@ -66,8 +66,8 @@ test('TrashPage keeps its list through refetches and never disables every row wh
 
 test('RecurrencesPage opens the create surfaces with open() and keys its list on scope', () => {
   const source = read('features/recurrence/pages/RecurrencesPage.tsx')
-  assert.match(source, /onClick=\{openSurface\('\/app\/schedules\/new'\)\}/)
-  assert.match(source, /onClick=\{openSurface\('\/app\/tasks\/new'\)\}/)
+  assert.match(source, /onClick=\{surfaceLinkClick\(open, '\/app\/schedules\/new'\)\}/)
+  assert.match(source, /onClick=\{surfaceLinkClick\(open, '\/app\/tasks\/new'\)\}/)
   assert.match(source, /const \{ open \} = useRouteSurfaceNavigation\(\)/)
   assert.match(source, /recurrences\/\$\{status\}\/\$\{selectedSpaceId \?\? 'all'\}\/\$\{selectedProjectId \?\? 'all'\}/)
   assert.doesNotMatch(source, /setItems\(null\)/, 'a reload must not blank the list')
@@ -208,7 +208,7 @@ test('the deadline time input only fades in when the toggle turns it on', () => 
 
 const ownedStyles = [
   'features/settings/pages/SettingsPage.css',
-  'features/settings/components/SavedMark.css',
+  'shared/components/motion/SavedMark.css',
   'features/settings/components/AccountSection.css',
   'features/settings/components/AiConnectionSection.css',
   'features/settings/components/CopyableCode.css',

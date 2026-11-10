@@ -9,7 +9,10 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { onDataChanged } from '@shared/utils/events'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import {
+  arrivalIndex,
+  COMPLETION_HOLD_MS,
   presenceProps,
+  useArrival,
   useListPresence,
   usePresence,
   useTweenedNumber,
@@ -33,8 +36,7 @@ import {
   toSearchParams,
   type TaskSortOrder,
 } from '../utils/taskSearch'
-import { arrivalIndex, useArrival } from '../utils/useArrival'
-import { COMPLETION_SETTLE_MS, isCompletionOnly } from '../utils/taskListRefresh'
+import { isCompletionOnly } from '../utils/taskListRefresh'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import './TaskPages.css'
 
@@ -182,7 +184,7 @@ export default function TaskListPage() {
     const off = onDataChanged((batch) => {
       window.clearTimeout(timer)
       if (isCompletionOnly(batch))
-        timer = window.setTimeout(refetch, COMPLETION_SETTLE_MS)
+        timer = window.setTimeout(refetch, COMPLETION_HOLD_MS)
       else refetch()
     })
     return () => {

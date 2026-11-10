@@ -775,7 +775,7 @@ button:disabled {
   .space-projects-nav > button,
   .space-option-projects > button
 ):active:not(:disabled) {
-  transform: scale(0.985);
+  transform: scale(var(--motion-press-scale));
 }
 
 /* The chosen space's projects open under it in the mobile sheet. */
@@ -839,14 +839,6 @@ button:disabled {
   .space-dialog[data-motion-surface='panel'][data-state='closing'] {
     animation-name: motion-fade-out;
   }
-  :is(
-    .space-switcher,
-    .space-option,
-    .space-projects-nav > button,
-    .space-option-projects > button
-  ):active:not(:disabled) {
-    transform: none;
-  }
   .space-invite-card,
   .space-invite-card > :not(.workspace-brand),
   .space-option-projects,
@@ -854,10 +846,10 @@ button:disabled {
   .spaces-page > .workspace-inline-error,
   .space-realtime-status {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .space-realtime-status[data-state='closing'] {
     animation-name: motion-fade-out;
-    animation-duration: var(--motion-exit) !important;
+    --motion-keep-animation: var(--motion-exit);
   }
 }

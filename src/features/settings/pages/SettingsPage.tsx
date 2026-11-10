@@ -9,7 +9,7 @@ import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import AccountSection from '../components/AccountSection'
 import AiConnectionSection from '../components/AiConnectionSection'
-import SavedMark from '../components/SavedMark'
+import SavedMark from '@shared/components/motion/SavedMark'
 import ThemeSection from '../components/ThemeSection'
 import useNotificationPreferences from '../hooks/useNotificationPreferences'
 import {

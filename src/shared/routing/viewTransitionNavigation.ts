@@ -1,4 +1,5 @@
 import type { MouseEvent } from 'react'
+import { isPlainLeftClick } from './linkClick'
 
 /**
  * Tab changes with a view transition.
@@ -16,17 +17,7 @@ export const registerTransitionNavigate = (navigate: TransitionNavigate) => {
 
 /** onClick for a tab link. Modified clicks, other buttons and the current page keep the default. */
 export const tabLinkClick = (to: string) => (event: MouseEvent<HTMLAnchorElement>) => {
-  if (
-    !transitionNavigate ||
-    event.defaultPrevented ||
-    event.button !== 0 ||
-    event.metaKey ||
-    event.altKey ||
-    event.ctrlKey ||
-    event.shiftKey ||
-    window.location.pathname === to
-  )
-    return
+  if (!transitionNavigate || !isPlainLeftClick(event) || window.location.pathname === to) return
   event.preventDefault()
   transitionNavigate(to)
 }

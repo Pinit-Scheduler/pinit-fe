@@ -61,7 +61,7 @@
 /* Results this picker waited for rise in with a short stagger (useArrival). */
 .task-dep-modal__list li[data-arrive] {
   animation: motion-rise-in var(--motion-enter) var(--motion-ease)
-    calc(var(--arrive-index, 0) * 24ms) backwards;
+    calc(var(--arrive-index, 0) * var(--motion-stagger)) backwards;
 }
 
 /* A quick search shows nothing; a slow one fades the line in. */
@@ -119,11 +119,11 @@
 @media (prefers-reduced-motion: reduce) {
   .task-dep-modal__list li[data-arrive] {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
     animation-delay: 0ms;
+    --motion-keep-animation: var(--motion-base);
   }
   .task-dep-modal__loading,
   .task-dep-modal__error {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
 }

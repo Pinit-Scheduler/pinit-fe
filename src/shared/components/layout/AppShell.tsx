@@ -18,10 +18,8 @@ import './AppShell.css'
 import { SpaceContextBar, SpaceSwitcher } from '@features/spaces/SpaceChrome'
 import { useSpaces } from '@features/spaces/store'
 import { routeScope, scopeCrumb } from '@features/spaces/scope'
-import {
-  MOTION_ENTER_MS,
-  prefersReducedMotion,
-} from '@shared/motion/tokens'
+import { prefersReducedMotion } from '@shared/motion/tokens'
+import { playRise } from '@shared/motion/playRise'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
@@ -87,18 +85,8 @@ const AppShell = () => {
     content.scrollTop = 0
     // Tab links use a view transition (motion.css). Where the browser has none, fade the new
     // page in on its own so the swap is never a hard cut.
-    if (
-      !('startViewTransition' in document) &&
-      !prefersReducedMotion() &&
-      typeof content.animate === 'function'
-    )
-      content.animate(
-        [
-          { opacity: 0.4, transform: 'translateY(8px)' },
-          { opacity: 1, transform: 'none' },
-        ],
-        { duration: MOTION_ENTER_MS, easing: 'cubic-bezier(0.2, 0, 0, 1)' },
-      )
+    if (!('startViewTransition' in document) && !prefersReducedMotion())
+      playRise(content, { fromOpacity: 0.4 })
   }, [pathname])
   const { selectedSpace, selectedProject, spaces, defaultSpaceId } = useSpaces()
 

@@ -1,12 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MOTION_ENTER_MS } from '@shared/motion/tokens'
-
-/**
- * How long a row that left the list because it was completed stays on screen first.
- * The completion check fills and the strike line draws (80ms delay + 240ms); the row then
- * rests in its completed style for a beat before it fades out with useListPresence.
- */
-export const SETTLE_HOLD_MS = MOTION_ENTER_MS * 2
+import { COMPLETION_HOLD_MS } from '@shared/motion/tokens'
 
 export type SettleState<T> = {
   /** The list as received, compared by identity. */
@@ -35,7 +28,7 @@ export function settleStep<T>(
   getKey: (item: T) => string | number,
   isSettled: (item: T) => boolean,
   now: number,
-  holdMs = SETTLE_HOLD_MS,
+  holdMs = COMPLETION_HOLD_MS,
 ): SettleState<T> {
   if (state.source === items && Object.is(state.resetKey, resetKey)) return state
   if (
@@ -106,7 +99,7 @@ export function useSettlingList<T>(
   items: readonly T[] | undefined,
   getKey: (item: T) => string | number,
   isSettled: (item: T) => boolean,
-  { resetKey, holdMs = SETTLE_HOLD_MS }: { resetKey?: unknown; holdMs?: number } = {},
+  { resetKey, holdMs = COMPLETION_HOLD_MS }: { resetKey?: unknown; holdMs?: number } = {},
 ): readonly T[] | undefined {
   const [state, setState] = useState(() => initialSettle(items, resetKey))
   let current = state

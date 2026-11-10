@@ -96,7 +96,7 @@
 
 .landing__action:active,
 .landing__cta:active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .landing__glow {
@@ -227,7 +227,7 @@
 }
 
 .landing__pagination button:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .landing__pagination button:disabled {
@@ -369,21 +369,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Opacity only. Travel is already 0 (--motion-distance); the fades opt back in. */
   .landing [data-reveal] {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .landing__slide-panel,
   .landing__dots button::before,
   .landing__dots button::after {
-    transition-duration: var(--motion-base) !important;
+    --motion-keep-transition: var(--motion-base);
   }
   .landing__dots button::after {
-    transform: none;
-  }
-  .landing__action:active,
-  .landing__cta:active,
-  .landing__pagination button:active:not(:disabled) {
     transform: none;
   }
 }

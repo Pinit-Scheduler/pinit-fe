@@ -21,14 +21,14 @@
 .day-replan__delay input { width: 78px; min-height: 40px; padding: 8px; border: 1px solid var(--c-slate-300); border-radius: 7px; color: var(--c-slate-900); background: var(--c-surface); }
 .day-replan__primary { min-height: 40px; padding: 9px 12px; border: 0; border-radius: 8px; background: var(--c-blue-600); color: var(--workspace-on-accent, #fff); font-size: 13px; font-weight: 600; }
 .day-replan__primary { transition: opacity var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease); }
-.day-replan__primary:not(:disabled):active { transform: scale(0.98); }
+.day-replan__primary:not(:disabled):active { transform: scale(var(--motion-press-scale)); }
 .day-replan__primary:disabled { opacity: .55; cursor: default; }
 .day-replan input:focus-visible, .day-replan button:focus-visible, .day-replan summary:focus-visible { outline: 2px solid var(--c-blue-600); outline-offset: 3px; }
 .day-replan__preview { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--c-slate-200); padding-top: 12px; animation: motion-rise-in var(--motion-enter) var(--motion-ease) both; }
 /* A preview that is replaced or applied fades out where it was. */
 .day-replan__preview[data-state='closing'] { animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both; pointer-events: none; }
 /* The proposed moves arrive one after another, a little after the preview itself. */
-.day-replan__changes > li { animation: motion-rise-in var(--motion-enter) var(--motion-ease) both; animation-delay: calc(60ms + var(--replan-stagger, 0) * 32ms); }
+.day-replan__changes > li { animation: motion-rise-in var(--motion-enter) var(--motion-ease) both; animation-delay: calc(60ms + var(--replan-stagger, 0) * var(--motion-stagger)); }
 .day-replan__changes, .day-replan__reasons ul { list-style: none; padding: 0; margin: 0; }
 .day-replan__changes > li + li { border-top: 1px solid var(--c-slate-200); }
 .day-replan__change { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; cursor: pointer; }
@@ -61,12 +61,11 @@
   .day-replan__preview,
   .day-replan__changes > li {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
     animation-delay: 0ms;
+    --motion-keep-animation: var(--motion-base);
   }
   .day-replan__preview[data-state='closing'] {
     animation-name: motion-fade-out;
-    animation-duration: var(--motion-exit) !important;
+    --motion-keep-animation: var(--motion-exit);
   }
-  .day-replan__primary:not(:disabled):active { transform: none; }
 }

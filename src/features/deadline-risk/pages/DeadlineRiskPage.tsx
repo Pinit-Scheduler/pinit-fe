@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useSpaces } from '@features/spaces/store'
-import { presenceProps, useListPresence } from '@shared/motion'
+import { presenceProps, useArrival, useListPresence } from '@shared/motion'
 import DeadlineRiskItem from '../components/DeadlineRiskItem'
 import useDeadlineRisk from '../hooks/useDeadlineRisk'
 import type { DeadlineRiskDays } from '../types/deadlineRisk'
@@ -26,8 +26,7 @@ export default function DeadlineRiskPage() {
   // Rows that appear or leave on a refresh rise in or fade out; a new range starts a new baseline.
   const rows = useListPresence(forecast?.items, (item) => item.taskId, { resetKey: `${days}@${zoneId}` })
   // A forecast that arrives after the calculating line fades in. One already cached shows at once.
-  const [waited, setWaited] = useState(false)
-  if (isLoading && !waited) setWaited(true)
+  const arriving = useArrival(isLoading)
 
   return (
     <section className="deadline-risk" aria-labelledby="deadline-risk-title" aria-busy={isRefreshing || undefined}>
@@ -51,7 +50,7 @@ export default function DeadlineRiskPage() {
       {isLoading ? <p className="deadline-risk__loading" role="status">마감과 남은 시간을 계산하고 있어요.</p> : null}
       {error ? <p className="deadline-risk__error" role="alert">{error}</p> : null}
       {forecast && counts ? (
-        <div className="deadline-risk__result" data-arrive={waited || undefined}>
+        <div className="deadline-risk__result" data-arrive={arriving || undefined}>
           <div className="deadline-risk__basis">
             <p><time dateTime={forecast.generatedAt}>{forecastTimeLabel(forecast.generatedAt, forecast.zoneId)}</time> 조회 기준</p>
             <p>시간대 {forecast.zoneId} · <time dateTime={forecast.horizonEnd}>{forecastTimeLabel(forecast.horizonEnd, forecast.zoneId)}</time> 전까지</p>

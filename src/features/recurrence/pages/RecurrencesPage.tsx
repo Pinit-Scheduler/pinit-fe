@@ -8,7 +8,8 @@ import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
 import { presenceProps, useListPresence } from '@shared/motion'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { useEffect, useRef, useState, type MouseEvent } from 'react'
+import { surfaceLinkClick } from '@shared/routing/linkClick'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useRecurrenceScope } from '../components/RecurrenceScopeDialog'
 import { useToast } from '@contexts/ToastContext'
@@ -43,14 +44,6 @@ const loadErrorMessage = (loadError: unknown) => {
   console.error('반복 목록 조회 실패', loadError)
   return getRequestFailureMessage(loadError, '반복 목록을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 }
-
-/** 새 탭·창으로 여는 클릭은 브라우저에 맡긴다. */
-const isPlainClick = (event: MouseEvent) =>
-  event.button === 0 &&
-  !event.metaKey &&
-  !event.ctrlKey &&
-  !event.shiftKey &&
-  !event.altKey
 
 /**
  * 설정 → 반복 관리(ADR-0019 §14). 진행 중·끝난 반복 목록과 규칙 요약을 보고, 제목·규칙을 전체에 바꾸거나 반복을 끝낸다.
@@ -92,12 +85,6 @@ const RecurrencesPage = () => {
     { invalidateOn: ['task', 'schedule'], errorMessage: loadErrorMessage },
   )
   const rows = useListPresence(items, seriesKey, { resetKey: listKey })
-
-  const openSurface = (path: string) => (event: MouseEvent) => {
-    if (!isPlainClick(event)) return
-    event.preventDefault()
-    open(path)
-  }
 
   useEffect(() => {
     writeFlag(NUDGE_KEYS.recurrencesNewBadgeSeen)
@@ -281,7 +268,7 @@ const RecurrencesPage = () => {
               <Link
                 to="/app/schedules/new"
                 state={{ backgroundLocation: location }}
-                onClick={openSurface('/app/schedules/new')}
+                onClick={surfaceLinkClick(open, '/app/schedules/new')}
               >
                 일정 추가
               </Link>
@@ -289,7 +276,7 @@ const RecurrencesPage = () => {
               <Link
                 to="/app/tasks/new"
                 state={{ backgroundLocation: location }}
-                onClick={openSurface('/app/tasks/new')}
+                onClick={surfaceLinkClick(open, '/app/tasks/new')}
               >
                 작업 추가
               </Link>

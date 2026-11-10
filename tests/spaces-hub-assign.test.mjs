@@ -190,7 +190,7 @@ const HubPeople = () =>
   load('features/spaces/hub/HubPeople.tsx', {
     'react/jsx-runtime': jsxRuntime,
     '@shared/motion': motionStub,
-    './Count': { default: ({ value }) => String(value) },
+    '@shared/components/motion/TweenedNumber': { default: ({ value }) => String(value) },
     '../UnavailableNote': load('features/spaces/UnavailableNote.tsx', {
       'react/jsx-runtime': jsxRuntime,
       './spaces.css': {},

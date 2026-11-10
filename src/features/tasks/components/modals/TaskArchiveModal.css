@@ -7,7 +7,7 @@
   align-items: center;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .task-archive-modal__content {
@@ -105,7 +105,7 @@
 /* Archive rows rise in after the first read (useArrival): the first page staggers, later pages rise at once. */
 .task-archive-modal__item[data-arrive] {
   animation: motion-rise-in var(--motion-enter) var(--motion-ease)
-    calc(var(--arrive-index, 0) * 32ms) backwards;
+    calc(var(--arrive-index, 0) * var(--motion-stagger)) backwards;
 }
 
 .task-archive-modal__item-head strong {
@@ -186,10 +186,10 @@
 @media (prefers-reduced-motion: reduce) {
   .task-archive-modal__item[data-arrive] {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
     animation-delay: 0ms;
+    --motion-keep-animation: var(--motion-base);
   }
   .task-archive-modal__placeholder {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
 }

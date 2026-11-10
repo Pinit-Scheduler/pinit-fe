@@ -7,7 +7,7 @@
   align-items: center;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .task-detail-modal__content {
@@ -162,7 +162,7 @@
 .task-detail-modal__body[data-arrive] > .task-detail-modal__section,
 .task-detail-modal__body[data-arrive] > .task-detail-modal__actions {
   animation: motion-rise-in var(--motion-enter) var(--motion-ease)
-    calc(var(--arrive-index, 0) * 40ms) backwards;
+    calc(var(--arrive-index, 0) * var(--motion-stagger-section)) backwards;
 }
 
 .task-detail-modal__actions {
@@ -213,7 +213,7 @@
 }
 
 .task-detail-modal__action-btn:not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .task-detail-modal__action-btn--edit {
@@ -259,19 +259,16 @@
   .task-detail-modal__body[data-arrive] > .task-detail-modal__section,
   .task-detail-modal__body[data-arrive] > .task-detail-modal__actions {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
     animation-delay: 0ms;
+    --motion-keep-animation: var(--motion-base);
   }
   .task-detail-modal__loading--wait,
   .task-detail-modal__notice {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .task-detail-modal__section .task-detail-modal__title,
   .task-detail-modal__badge--state {
-    transition-duration: var(--motion-base) !important;
-  }
-  .task-detail-modal__action-btn:not(:disabled):active {
-    transform: none;
+    --motion-keep-transition: var(--motion-base);
   }
 }
 

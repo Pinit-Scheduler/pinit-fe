@@ -560,6 +560,36 @@ test('number tweens decelerate along --motion-ease and land exactly on the targe
   }
 })
 
+test('a value changed while mounted is told apart from the one it mounted with', () => {
+  const slots = []
+  let index = 0
+  let dirty = false
+  const react = {
+    useState(initial) {
+      const slot = index++
+      if (!(slot in slots)) slots[slot] = typeof initial === 'function' ? initial() : initial
+      return [slots[slot], (next) => { slots[slot] = next; dirty = true }]
+    },
+  }
+  const { useChangedWhileMounted } = load('shared/motion/useChangedWhileMounted.ts', { react })
+  const render = (...args) => {
+    for (let pass = 0; pass < 5; pass++) {
+      index = 0
+      dirty = false
+      const result = useChangedWhileMounted(...args)
+      if (!dirty) return result
+    }
+    throw new Error('render loop')
+  }
+  assert.equal(render('COMPLETED'), false, 'the state it mounted with shows still')
+  assert.equal(render('COMPLETED'), false)
+  assert.equal(render('NOT_STARTED'), true)
+  assert.equal(render('COMPLETED'), true, 'stays set once changed')
+  assert.equal(render('COMPLETED', false), false, 'not shown')
+  assert.equal(render('IN_PROGRESS', true), false, 'the next mount starts a new baseline')
+  assert.equal(render('SUSPENDED', true), true)
+})
+
 test('motion tokens in CSS and TS agree', () => {
   const css = readFileSync(new URL('../src/shared/styles/motion.css', import.meta.url), 'utf8')
   const tokens = load('shared/motion/tokens.ts')
@@ -568,10 +598,22 @@ test('motion tokens in CSS and TS agree', () => {
   assert.equal(value('base'), tokens.MOTION_BASE_MS)
   assert.equal(value('enter'), tokens.MOTION_ENTER_MS)
   assert.equal(value('exit'), tokens.MOTION_EXIT_MS)
-  assert.equal(value('status-delay'), tokens.MOTION_STATUS_DELAY_MS)
-  assert.match(css, /--motion-ease: cubic-bezier\(0\.2, 0, 0, 1\)/)
+  assert.equal(value('stagger'), tokens.MOTION_STAGGER_MS)
+  assert.equal(value('flash'), tokens.MOTION_FLASH_MS)
+  assert.equal(value('strike-delay'), tokens.MOTION_STRIKE_DELAY_MS)
+  assert.equal(/--motion-ease: ([^;]+);/.exec(css)?.[1], tokens.MOTION_EASE)
+  assert.equal(Number(/--motion-distance: (\d+)px/.exec(css)?.[1]), tokens.MOTION_DISTANCE_PX)
   assert.match(css, /--motion-ease-exit: cubic-bezier\(0\.4, 0, 1, 1\)/)
-  assert.match(css, /--motion-distance: 8px/)
+})
+
+test('under reduced motion only the opt-in keeps a duration, and nothing travels or scales', () => {
+  const css = readFileSync(new URL('../src/shared/styles/motion.css', import.meta.url), 'utf8')
+  for (const name of ['--motion-keep-animation', '--motion-keep-transition'])
+    assert.match(css, new RegExp(`@property ${name} \\{[^}]*inherits: false;[^}]*initial-value: 0\\.01ms;`), name)
+  const reduced = css.slice(css.indexOf('/* Reduced motion.'))
+  assert.match(reduced, /animation-duration: var\(--motion-keep-animation, 0\.01ms\) !important;/)
+  assert.match(reduced, /transition-duration: var\(--motion-keep-transition, 0\.01ms\) !important;/)
+  assert.match(reduced, /--motion-distance: 0px;\s*--motion-press-scale: 1;\s*--motion-press-scale-small: 1;/)
 })
 
 test('under reduced motion, no shared rule whose keyframe travels a fixed distance gets its duration back', () => {
@@ -613,8 +655,9 @@ test('shared keyframes are defined once, in motion.css only', async () => {
     for (const match of readFileSync(file, 'utf8').matchAll(/@keyframes ([\w-]+)/g))
       (counts[match[1]] ??= []).push(file.replace(/\\/g, '/').split('/src/')[1])
   }
-  for (const name of ['modalFadeIn', 'modalSlideUp', 'fadeIn', 'fadeSlideIn', 'motion-fade-in', 'motion-rise-in'])
+  for (const name of ['modalSlideUp', 'motion-fade-in', 'motion-rise-in'])
     assert.deepEqual(counts[name], ['shared/styles/motion.css'], name)
+  for (const name of ['modalFadeIn', 'fadeIn', 'fadeSlideIn']) assert.equal(counts[name], undefined, name)
 })
 
 test('edit pages keep the conflict dialog mounted through its fade-out', () => {

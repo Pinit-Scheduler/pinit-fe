@@ -1,6 +1,7 @@
 import { fetchPeriodStatistics } from '../api/report'
 import useReport from '../hooks/useReport'
-import { useHeldValue, useSawLoading } from '../hooks/useReportMotion'
+import { useArrival } from '@shared/motion'
+import { useHeldValue } from '../hooks/useReportMotion'
 import type { StatisticsUnit } from '../types/report'
 import {
   SCHEDULE_TYPE_LABEL,
@@ -8,7 +9,7 @@ import {
   formatRate,
 } from '../utils/reportView'
 import StatisticCard from './StatisticCard'
-import TweenedNumber from './TweenedNumber'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import { formatIsoDurationLabel, formatMinutesLabel } from '@shared/utils/isoDuration'
 import './ReportSections.css'
 import DonutChart from './DonutChart'
@@ -37,7 +38,7 @@ const PeriodSummarySection = ({ unit, start }: Props) => {
   // 다른 기간으로 넘기는 동안 틀(카드·도넛 자리)만 붙잡아 둔다. 숫자는 숨긴다.
   const { shown, held } = useHeldValue(data)
   const showLoading = isLoading && !data && !shown
-  const reveal = useSawLoading(showLoading)
+  const reveal = useArrival(showLoading)
 
   if (error && !data) {
     return (
