@@ -9,6 +9,7 @@ import type { Task } from '../../types/task'
 import { formatDateWithOffset } from '@shared/utils/datetime'
 import { getDeadlineStyle } from '@shared/utils/deadlineStyles'
 import { getDifficultyStyle, getImportanceStyle } from '@shared/utils/priorityStyles'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import './TaskArchiveModal.css'
 
 const PAGE_SIZE = 20
@@ -62,7 +63,7 @@ const ArchiveDialog = ({
       setHasNext(nextHasMore)
       setError(null)
     } catch (err) {
-      const message = err instanceof Error ? err.message : '아카이브 작업을 불러오지 못했습니다.'
+      const message = getRequestFailureMessage(err, '아카이브 작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
       setError(message)
       setHasNext(false)
     } finally {

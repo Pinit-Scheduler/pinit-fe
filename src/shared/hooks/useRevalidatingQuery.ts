@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { onDataChanged, type ChangeKind, type DataChangeBatch } from '@shared/utils/events'
 import {
   queryStore,
@@ -23,7 +24,10 @@ export type RevalidatingQueryOptions = {
   refetchOnFocus?: boolean
   /** Revalidate cached data when the component mounts or the key changes. Default true. */
   revalidateOnMount?: boolean
-  /** Turns a failure into the message to show. Default: the server's message as is. */
+  /**
+   * Turns a failure into the message to show. Default: the server's message for an HTTP error response,
+   * a ClientGuardError's own wording, otherwise a generic line with a connection hint (getRequestFailureMessage).
+   */
   errorMessage?: (error: unknown) => string
   /** For tests. Defaults to the app-wide store. */
   store?: QueryStore
@@ -130,9 +134,10 @@ export function useRevalidatingQuery<T>(
       (error) =>
         messageRef.current
           ? messageRef.current(error)
-          : error instanceof Error && error.message
-            ? error.message
-            : '불러오지 못했어요.',
+          : getRequestFailureMessage(
+              error,
+              '불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            ),
     )
     const current = store.get(scopedKey)
     if (!current.hasData || current.stale || revalidateOnMount) store.revalidate(scopedKey)

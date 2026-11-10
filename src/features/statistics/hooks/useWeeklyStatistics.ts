@@ -7,6 +7,7 @@ import { getTodayWithOffset, toApiDateTimeWithZone } from '@shared/utils/datetim
 import type { WeeklyStatisticsView } from '../types/statistics'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 type Options = {
   weekStart?: dayjs.Dayjs
@@ -28,7 +29,7 @@ type WeeklyPair = {
 }
 
 const weeklyError = (err: unknown) =>
-  err instanceof Error ? err.message : '통계를 불러오는데 실패했습니다.'
+  getRequestFailureMessage(err, '통계를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
 /**
  * This week's statistics and the week before, for the schedules tab.

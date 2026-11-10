@@ -23,6 +23,7 @@ import {
 import type { Task } from '../types/task'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { dispatchTaskChanged } from '@shared/utils/events'
 import {
   formatIsoDurationLabel,
@@ -139,7 +140,10 @@ const TaskEditPage = () => {
       } catch (err) {
         if (!mounted) return
         setError(
-          err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
+          getRequestFailureMessage(
+            err,
+            '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         )
       } finally {
         if (mounted) setIsLoading(false)
@@ -209,9 +213,10 @@ const TaskEditPage = () => {
         return
       }
       addToast(
-        err instanceof Error
-          ? err.message
-          : '반복 작업을 바꾸지 못했어요. 입력한 내용은 유지됩니다.',
+        getRequestFailureMessage(
+          err,
+          '반복 작업을 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
         'error',
       )
     }
@@ -313,9 +318,10 @@ const TaskEditPage = () => {
         return
       }
       addToast(
-        err instanceof Error
-          ? err.message
-          : '작업을 수정하지 못했습니다. 입력한 내용은 유지됩니다.',
+        getRequestFailureMessage(
+          err,
+          '작업을 수정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
         'error',
       )
     }

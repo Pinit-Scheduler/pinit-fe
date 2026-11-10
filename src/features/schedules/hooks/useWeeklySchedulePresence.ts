@@ -5,6 +5,7 @@ import type { DateSchedulePresence } from '../types/schedule'
 import type { ScheduleResponse } from '../types/schedule'
 import { fetchWeeklySchedules } from '../api/schedules'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useSpaces } from '@features/spaces/store'
 
 type Options = {
@@ -28,7 +29,7 @@ type UseWeeklySchedulePresenceReturn = {
 const EMPTY_SCHEDULES: ScheduleResponse[] = []
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error && error.message ? error.message : '주간 일정을 불러오지 못했습니다.'
+  getRequestFailureMessage(error, '주간 일정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
 const useWeeklySchedulePresence = ({ weekStart, mine }: Options): UseWeeklySchedulePresenceReturn => {
   const dateKeys = useMemo(() => getWeekDays(weekStart).map(toDateKey), [weekStart])

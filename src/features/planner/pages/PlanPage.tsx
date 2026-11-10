@@ -10,6 +10,7 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { getTodayWithOffset } from '@shared/utils/datetime'
 import {
   dispatchScheduleChanged,
@@ -304,9 +305,10 @@ const PlanPage = () => {
           if (!background) setCalibration(null)
           setCalibrationRetryValue(null)
           setCalibrationError(
-            err instanceof Error
-              ? err.message
-              : '보정 설정을 불러오지 못했어요.',
+            getRequestFailureMessage(
+              err,
+              '보정 설정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            ),
           )
         }
       } finally {
@@ -346,7 +348,10 @@ const PlanPage = () => {
       setRefreshKey((key) => key + 1)
     } catch (err) {
       setCalibrationError(
-        err instanceof Error ? err.message : '보정 설정을 저장하지 못했어요.',
+        getRequestFailureMessage(
+          err,
+          '보정 설정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
       )
       setCalibrationRetryValue(enabled)
     } finally {
@@ -638,10 +643,18 @@ const PlanPage = () => {
         )
         addToast('승인하지 못했어요. 표시된 블록을 확인해 주세요.', 'error')
       } else {
-        const message =
-          err instanceof Error ? err.message : '계획을 승인하지 못했어요.'
+        const message = getRequestFailureMessage(
+          err,
+          '인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        )
         setApplyError(`승인하지 못했어요. ${message}`)
-        addToast('계획을 승인하지 못했어요.', 'error')
+        addToast(
+          getRequestFailureMessage(
+            err,
+            '계획을 승인하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
+          'error',
+        )
       }
     } finally {
       setIsApplying(false)

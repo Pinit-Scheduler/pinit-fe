@@ -17,6 +17,7 @@ import { toApiDateTimeWithZone, toDateFromApi } from '@shared/utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../types/schedule'
 import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './ScheduleFormPage.css'
 import { fetchScheduleDetail, updateSchedule } from '../../api/schedules'
@@ -201,9 +202,10 @@ const ScheduleEditPage = () => {
         return false
       }
       addToast(
-        error instanceof Error
-          ? error.message
-          : '일정 수정에 실패했습니다. 입력한 내용은 유지됩니다.',
+        getRequestFailureMessage(
+          error,
+          '일정을 수정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
         'error',
       )
       throw error
@@ -270,9 +272,10 @@ const ScheduleEditPage = () => {
         return false
       }
       addToast(
-        error instanceof Error
-          ? error.message
-          : '반복 일정 저장에 실패했습니다. 입력한 내용은 유지됩니다.',
+        getRequestFailureMessage(
+          error,
+          '반복 일정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
         'error',
       )
       throw error

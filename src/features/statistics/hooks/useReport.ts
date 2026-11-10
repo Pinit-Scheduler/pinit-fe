@@ -1,4 +1,5 @@
 import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 export type UseReportReturn<T> = {
   data: T | null
@@ -11,7 +12,7 @@ export type UseReportReturn<T> = {
 }
 
 const reportError = (err: unknown) =>
-  err instanceof Error ? err.message : '통계를 불러오지 못했어요.'
+  getRequestFailureMessage(err, '통계를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
 /**
  * ADR-0025 통계 조회 공통 훅. key가 바뀌거나 일정·작업이 바뀌면 다시 불러온다.

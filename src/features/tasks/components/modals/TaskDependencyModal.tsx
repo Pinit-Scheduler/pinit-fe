@@ -6,6 +6,7 @@ import { usePresence } from '@shared/motion'
 import { arrivalIndex, useArrival } from '../../utils/useArrival'
 import './TaskDependencyModal.css'
 import { searchTasks } from '../../api/tasks'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import type { Task } from '../../types/task'
 import { mergePage, MAX_QUERY_LENGTH } from '../../utils/taskSearch'
 
@@ -114,7 +115,10 @@ const DependencyPicker = ({
     } catch (err) {
       if (requestId !== requestIdRef.current) return
       setError(
-        err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
+        getRequestFailureMessage(
+          err,
+          '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
       )
     } finally {
       if (requestId === requestIdRef.current) {

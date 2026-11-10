@@ -3,6 +3,7 @@ import { toApiDateTimeWithZone, toDateKey } from '@shared/utils/datetime'
 import { fetchWeeklySchedules } from '../api/schedules'
 import { monthWeekStarts, summarizeByDate, type DaySummary } from '../utils/monthGrid'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useSpaces } from '@features/spaces/store'
 
 type UseMonthlySchedulesReturn = {
@@ -15,7 +16,7 @@ type UseMonthlySchedulesReturn = {
 const EMPTY: Record<string, DaySummary> = {}
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error && error.message ? error.message : '월간 일정을 불러오지 못했어요.'
+  getRequestFailureMessage(error, '월간 일정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
 /**
  * 월간 달력용 날짜별 일정 요약. 월 범위 API가 없으므로 달력에 보이는 주마다 주간 API를 한 번씩 부른다.

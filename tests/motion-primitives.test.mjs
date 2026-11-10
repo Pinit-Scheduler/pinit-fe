@@ -31,6 +31,8 @@ function load(path, dependencies = {}, globals = {}) {
     clearTimeout,
     Date,
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('shared/api/errorMessage.ts')
       assert.ok(name in dependencies, 'Unexpected dependency ' + name)
       return dependencies[name]
     },
@@ -452,7 +454,7 @@ test('useRevalidatingQuery: a failed first load is an error, not a spinner; shou
   }
   h.render('task/3', options)
   await microtasks()
-  h.requests[0].reject(new Error('작업을 찾을 수 없어요.'))
+  h.requests[0].reject(Object.assign(new Error('작업을 찾을 수 없어요.'), { name: 'ApiError', status: 404 }))
   await microtasks()
   const failed = h.render('task/3', options)
   assert.equal(failed.isInitialLoading, false)

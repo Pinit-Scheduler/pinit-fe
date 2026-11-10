@@ -5,6 +5,10 @@ import vm from 'node:vm'
 import ts from 'typescript'
 
 const jsx = (type, props, key) => ({ type, props, key })
+/** 서버가 400으로 거절한 저장: httpClient가 던지는 ApiError와 같은 모양이다. */
+const serverRejection = (message) =>
+  Object.assign(new Error(message), { name: 'ApiError', status: 400 })
+
 const load = (path, dependencies) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
@@ -53,6 +57,8 @@ const load = (path, dependencies) => {
         return { changedInput: () => [], isEditConflict: () => false }
       if (name === '@constants/schedules' && !(name in dependencies))
         return { scheduleTypeLabel: {} }
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('../src/shared/api/errorMessage.ts', {})
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     },
@@ -319,7 +325,7 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     '../components/TaskForm': { default: TaskForm },
     '../api/tasks': {
       updateTask: async (id, payload) => {
-        if (failContent) throw new Error('content failed')
+        if (failContent) throw serverRejection('content failed')
         saved.push([id, payload])
         return { ...task, ...payload }
       },
@@ -346,7 +352,7 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     },
     '@features/recurrence/utils/seriesMutations': {
       confirmAndUpdateSeries: async (...args) => {
-        if (failContent) throw new Error('content failed')
+        if (failContent) throw serverRejection('content failed')
         seriesUpdated.push(args)
         return 'updated'
       },
@@ -475,7 +481,7 @@ test('a committed series category write stays successful when its follow-up refr
             allowedActions: {},
           }
         }
-        if (fail) throw new Error('refresh failed')
+        if (fail) throw Object.assign(new Error('refresh failed'), { name: 'ApiError', status: 500 })
         return snapshot
       },
     },

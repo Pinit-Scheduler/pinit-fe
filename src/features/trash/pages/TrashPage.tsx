@@ -7,7 +7,7 @@ import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useRef, useState } from 'react'
 import dayjs from 'dayjs'
 import { useToast } from '@contexts/ToastContext'
-import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
 import { presenceProps, useListPresence, useTweenedNumber } from '@shared/motion'
 import {
@@ -86,7 +86,7 @@ const loadTrash = () => fetchTrash()
 
 const loadErrorMessage = (loadError: unknown) => {
   console.error('휴지통 조회 실패', loadError)
-  return '휴지통을 불러오지 못했어요.'
+  return getRequestFailureMessage(loadError, '휴지통을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 }
 
 /**
@@ -147,9 +147,10 @@ const TrashPage = () => {
       }
       console.error('휴지통 작업 실패', runError)
       addToast(
-        runError instanceof ApiError && runError.status === 404
-          ? '이미 복구했거나 삭제된 항목이에요. 목록을 다시 불러올게요.'
-          : '요청을 처리하지 못했어요.',
+        getRequestFailureMessage(
+          runError,
+          '요청을 처리하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
         'error',
       )
       refetch()

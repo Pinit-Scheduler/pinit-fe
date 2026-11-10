@@ -13,6 +13,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useRecurrenceScope } from '../components/RecurrenceScopeDialog'
 import { useToast } from '@contexts/ToastContext'
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import {
   deleteRecurrence,
   fetchRecurrences,
@@ -40,7 +41,7 @@ const seriesKey = (series: RecurrenceSeries) => series.id ?? `title:${series.tit
 
 const loadErrorMessage = (loadError: unknown) => {
   console.error('반복 목록 조회 실패', loadError)
-  return '반복 목록을 불러오지 못했어요.'
+  return getRequestFailureMessage(loadError, '반복 목록을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 }
 
 /** 새 탭·창으로 여는 클릭은 브라우저에 맡긴다. */
@@ -134,9 +135,10 @@ const RecurrencesPage = () => {
       }
       console.error('반복 변경 실패', runError)
       addToast(
-        runError instanceof ApiError && runError.status === 409
-          ? '반복이 이미 바뀌었어요. 다시 불러올게요.'
-          : '반복을 바꾸지 못했어요.',
+        getRequestFailureMessage(
+          runError,
+          '반복을 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
         'error',
       )
       if (runError instanceof ApiError && runError.status === 409) refetch()

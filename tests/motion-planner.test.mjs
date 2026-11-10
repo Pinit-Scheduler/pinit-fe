@@ -33,6 +33,8 @@ const load = (path, dependencies = {}, globals = {}) => {
     Set,
     Promise,
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('shared/api/errorMessage.ts')
       assert.ok(name in dependencies, 'Unexpected dependency ' + name)
       return dependencies[name]
     },
@@ -153,7 +155,7 @@ test('useDayPlan keeps the plan through a refresh and a failed refresh, and neve
   let fail = false
   let version = 0
   const host = dayPlanHarness(async ({ date }) => {
-    if (fail) throw new Error('서버 오류 메시지')
+    if (fail) throw Object.assign(new Error('서버 오류 메시지'), { name: 'ApiError', status: 500 })
     version += 1
     return planFor(date, version)
   })
@@ -197,7 +199,7 @@ test('useDayPlan keeps the plan through a refresh and a failed refresh, and neve
 
 test('useDayPlan reports a first-load failure without data', async () => {
   const host = dayPlanHarness(async () => {
-    throw new Error('계획 서버 메시지')
+    throw Object.assign(new Error('계획 서버 메시지'), { name: 'ApiError', status: 500 })
   })
   const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7, refreshKey: 0 }
   host.render(props)

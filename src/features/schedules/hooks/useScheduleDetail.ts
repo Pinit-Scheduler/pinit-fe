@@ -1,5 +1,6 @@
 import { onScheduleChanged } from '@shared/utils/events'
 import { fetchScheduleDetail } from '../api/schedules'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useEffect, useState } from 'react'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import type { ScheduleResponse } from '../types/schedule'
@@ -81,8 +82,10 @@ const useScheduleDetail = (
         }
       } catch (err) {
         if (isMounted) {
-          const message =
-            err instanceof Error ? err.message : '일정을 불러오지 못했습니다.'
+          const message = getRequestFailureMessage(
+            err,
+            '일정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          )
           setError(message)
           // A failed refresh keeps the schedule on screen. Only a schedule that is gone or no
           // longer visible to this member drops it. Another id's schedule never stays.

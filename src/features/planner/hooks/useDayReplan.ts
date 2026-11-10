@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '@shared/api/httpClient'
+import { ClientGuardError, getRequestFailureMessage } from '@shared/api/errorMessage'
 import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
 import { getSelectedScope } from '@features/spaces/store'
 import { evictWorkspaceResource, getResourceRevision } from '@features/spaces/metadata'
@@ -140,7 +141,7 @@ const useDayReplan = (
       const next = await previewDayReplan({ ...scope, date, zoneId, delayMinutes: Number(delay) }, controller.current.signal)
       if (!currentRequest(sequence, subject, revision)) return
       if (next.spaceId !== spaceId || next.projectId !== projectId)
-        throw new Error('선택한 스페이스·프로젝트의 제안이 아니에요. 스페이스를 다시 불러와 주세요.')
+        throw new ClientGuardError('선택한 스페이스·프로젝트의 제안이 아니에요. 스페이스를 다시 불러와 주세요.')
       previewRef.current = next
       previewRevision.current = revision
       setPreview(next)
@@ -149,7 +150,7 @@ const useDayReplan = (
     } catch (err) {
       if (!currentRequest(sequence, subject, revision)) return
       if (denied(err)) { clearPreview(); setAccessDenied(true) }
-      setError(err instanceof Error ? err.message : '재배치 제안을 불러오지 못했어요. 다시 시도해 주세요.')
+      setError(getRequestFailureMessage(err, '재배치 제안을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'))
     } finally {
       if (alive.current && sequence === request.current) {
         busy.current = false
@@ -196,7 +197,7 @@ const useDayReplan = (
       const uncertain = !(err instanceof ApiError) || err.status === 0 || err.status >= 500
       if (denied(err)) { clearPreview(); setAccessDenied(true) }
       else setRequiresPreview(uncertain)
-      const message = err instanceof Error ? err.message : '변경을 적용하지 못했어요.'
+      const message = getRequestFailureMessage(err, '변경을 적용하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
       setError(uncertain
         ? `적용 결과를 확인하지 못했어요. 일정을 확인하고 새 미리보기를 받아 주세요. ${message}`
         : err instanceof ApiError && err.status === 409

@@ -27,6 +27,7 @@ import {
 } from '@shared/utils/datetime'
 import { parseDateKey } from '@shared/utils/dateKey'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { dispatchScheduleChanged } from '@shared/utils/events'
@@ -339,7 +340,13 @@ const SchedulesTabPage = () => {
             error,
           )
           if (!handleConflict(error))
-            addToast('반복 일정을 지우지 못했어요.', 'error')
+            addToast(
+              getRequestFailureMessage(
+                error,
+                '반복 일정을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+              ),
+              'error',
+            )
         }
         return
       }
@@ -359,7 +366,14 @@ const SchedulesTabPage = () => {
       offerScheduleUndo(scheduleId)
     } catch (error) {
       console.error(`❌ Delete failed for schedule ${scheduleId}:`, error)
-      if (!handleConflict(error)) addToast('일정 삭제에 실패했습니다.', 'error')
+      if (!handleConflict(error))
+        addToast(
+          getRequestFailureMessage(
+            error,
+            '일정을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
+          'error',
+        )
     }
   }
 
@@ -395,7 +409,13 @@ const SchedulesTabPage = () => {
     } catch (error) {
       console.error('❌ Failed to move schedule by one day:', error)
       if (!handleConflict(error))
-        addToast('일정 날짜를 이동하지 못했어요.', 'error')
+        addToast(
+          getRequestFailureMessage(
+            error,
+            '일정 날짜를 옮기지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
+          'error',
+        )
     } finally {
       setMovingScheduleId(null)
     }
@@ -436,7 +456,13 @@ const SchedulesTabPage = () => {
     } catch (error) {
       console.error('❌ Failed to shift schedule time:', error)
       if (!handleConflict(error))
-        addToast('일정 시간을 옮기지 못했어요.', 'error')
+        addToast(
+          getRequestFailureMessage(
+            error,
+            '일정 시간을 옮기지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
+          'error',
+        )
     } finally {
       setMovingScheduleId(null)
     }

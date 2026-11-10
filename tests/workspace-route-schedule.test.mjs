@@ -101,7 +101,9 @@ const harness = ({
     requests.push([name, id])
     if (deferred) await deferred
     if (failing === 'conflict') throw { conflict: true }
-    if (failing) throw new Error('connection lost')
+    // 응답이 오지 않은 실패: httpClient는 네트워크 오류를 status 0인 ApiError로 던진다.
+    if (failing)
+      throw Object.assign(new Error('connection lost'), { name: 'ApiError', status: 0 })
     return {
       id,
       state: {
@@ -184,6 +186,7 @@ const harness = ({
     },
     '@contexts/ScheduleCacheContext': { useScheduleCache: () => cache },
     '@contexts/ToastContext': { useToast: () => ({ addToast() {} }) },
+    '@shared/api/errorMessage': load('../src/shared/api/errorMessage.ts'),
     '@shared/utils/events': {
       dispatchScheduleChanged: (event) => events.push(event),
     },
@@ -214,7 +217,11 @@ for (const action of ['complete', 'cancel'])
     assert.deepEqual(h.active, [])
     assert.deepEqual(h.updates, [])
     assert.deepEqual(h.events, [])
-    assert.equal(h.states[2], 'connection lost')
+    assert.equal(
+      h.states[2],
+      '일정 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+      'a network failure shows the screen fallback, not the raw error',
+    )
     h.succeed()
     await h.actions.retry()
     assert.deepEqual(h.active, [null])

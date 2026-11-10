@@ -21,6 +21,10 @@ import {
 } from '@features/recurrence/utils/recurrenceRules'
 import { createRecurrence } from '@features/recurrence/api/recurrences'
 import { ApiError } from '@shared/api/httpClient'
+import {
+  ClientGuardError,
+  getRequestFailureMessage,
+} from '@shared/api/errorMessage'
 
 const TaskCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
@@ -69,7 +73,7 @@ const TaskCreatePage = () => {
         'success',
       )
       if (created.id === null)
-        throw new Error('반복 시리즈 ID를 확인하지 못했어요.')
+        throw new ClientGuardError('반복 시리즈 ID를 확인하지 못했어요.')
       complete('/app/tasks')
     } catch (error) {
       console.error('반복 작업 생성 실패', error)
@@ -79,9 +83,10 @@ const TaskCreatePage = () => {
           : []
       addToast(
         fieldErrors[0] ??
-          (error instanceof ApiError && error.status === 409
-            ? '진행 중인 반복이 너무 많아요.'
-            : '반복 작업을 만들지 못했어요.'),
+          getRequestFailureMessage(
+            error,
+            '반복 작업을 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         'error',
       )
     }
@@ -129,7 +134,13 @@ const TaskCreatePage = () => {
       complete('/app/tasks')
     } catch (error) {
       console.error('작업 생성 실패', error)
-      addToast('작업을 생성하지 못했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          error,
+          '작업을 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
+        'error',
+      )
     }
   }
 

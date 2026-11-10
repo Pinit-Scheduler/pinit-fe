@@ -3,6 +3,7 @@ import type { ScheduleSummary } from '../types/schedule'
 import { toApiDateTimeWithZone, toDateKey } from '@shared/utils/datetime'
 import { fetchSchedules } from '../api/schedules'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useSpaces } from '@features/spaces/store'
 
 /** Every cached day list shares this prefix, so one change marks all of them stale. */
@@ -11,7 +12,7 @@ export const SCHEDULE_DAY_GROUP = 'schedules/day/'
 const EMPTY: ScheduleSummary[] = []
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error && error.message ? error.message : '일정을 불러오지 못했습니다.'
+  getRequestFailureMessage(error, '일정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
 /**
  * One day's schedules, cached per day, zone and space scope for the page session.

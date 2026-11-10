@@ -1,5 +1,6 @@
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import { ClientGuardError } from '@shared/api/errorMessage'
 import type {
   Task,
   TaskArchiveCursorResponse,
@@ -235,7 +236,7 @@ export async function fetchTaskDetail(taskId: number, signal?: AbortSignal) {
     const task = normalizeTask(await httpClient<WorkspaceTaskView<TaskApiResponse>>(
       url(`/${taskId}`), { signal }), revision)
     if (isResourceUnavailable('task', taskId, task))
-      throw new Error('작업 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError('작업 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
     return task
   } catch (error) {
     handleResourceReadError('task', taskId, error, revision)
@@ -271,7 +272,7 @@ export async function updateTask(taskId: number, payload: TaskRequest) {
   const revision = getResourceRevision()
   const { expectedVersion, spaceId, projectId, assigneeId, ...task } = payload
   const version = expectedVersion ?? getMetadata('task', taskId)?.version
-  if (version === undefined) throw new Error('작업을 다시 연 뒤 수정해 주세요.')
+  if (version === undefined) throw new ClientGuardError('작업을 다시 연 뒤 수정해 주세요.')
   return normalizeTask(
     await httpClient<WorkspaceTaskView<TaskApiResponse>>(url(`/${taskId}`), {
       method: 'PATCH',
@@ -293,7 +294,7 @@ async function versionOf(taskId: number, expectedVersion?: number) {
   if (expectedVersion !== undefined) return expectedVersion
   const current = getMetadata('task', taskId) ?? (await fetchTaskDetail(taskId))
   if (current.version === undefined)
-    throw new Error('작업을 다시 열어 최신 상태를 확인해 주세요.')
+    throw new ClientGuardError('작업을 다시 열어 최신 상태를 확인해 주세요.')
   return current.version
 }
 export async function deleteTask(

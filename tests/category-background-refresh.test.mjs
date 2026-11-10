@@ -51,6 +51,8 @@ const load = (path, dependencies) => {
         return { changedInput: () => [], isEditConflict: () => false }
       if (name === '@constants/schedules' && !(name in dependencies))
         return { scheduleTypeLabel: {} }
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('../src/shared/api/errorMessage.ts', {})
       assert.ok(name in dependencies, `Unexpected dependency ${name}`)
       return dependencies[name]
     },
@@ -70,7 +72,7 @@ test('a loaded actor-specific category snapshot survives background fetch failur
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': {
       httpClient: async () => {
-        if (fail) throw new Error('refresh failed')
+        if (fail) throw Object.assign(new Error('refresh failed'), { name: 'ApiError', status: 500 })
         return snapshot
       },
     },

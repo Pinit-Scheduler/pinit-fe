@@ -16,6 +16,8 @@ const load = (path, dependencies, globals = {}) => {
   vm.runInNewContext(output, {
     module, exports: module.exports, Error, setTimeout, clearTimeout, queueMicrotask, ...globals,
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('shared/api/errorMessage.ts', {})
       assert.ok(name in dependencies, 'Unexpected dependency ' + name)
       return dependencies[name]
     },
@@ -120,7 +122,7 @@ test('a failed completion rolls the shown state back and passes the server messa
   const h = actionsHarness()
   const saving = h.render().complete()
   assert.equal(h.render().currentState, 'COMPLETED')
-  h.response().reject(new Error('서버가 거절했어요'))
+  h.response().reject(Object.assign(new Error('서버가 거절했어요'), { name: 'ApiError', status: 400 }))
   await saving
   const after = h.render()
   assert.equal(after.currentState, 'NOT_STARTED')

@@ -29,6 +29,8 @@ const load = (path, dependencies = {}, globals = {}) => {
     setTimeout,
     clearTimeout,
     require: (name) => {
+      if (name === '@shared/api/errorMessage' && !(name in dependencies))
+        return load('shared/api/errorMessage.ts')
       assert.ok(name in dependencies, 'Unexpected dependency ' + name)
       return dependencies[name]
     },
@@ -262,7 +264,7 @@ test('a failed refresh keeps the snapshot and passes the server message through'
   const loaded = await h.render()
   loaded.reload()
   await h.render()
-  h.pages[1].reject(new Error('작업 목록을 불러오지 못했어요.'))
+  h.pages[1].reject(Object.assign(new Error('작업 목록을 불러오지 못했어요.'), { name: 'ApiError', status: 500 }))
   await microtasks()
   const failed = await h.render()
   assert.equal(failed.error, '작업 목록을 불러오지 못했어요.')

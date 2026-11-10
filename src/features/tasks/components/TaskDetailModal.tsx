@@ -23,6 +23,10 @@ import TaskScheduleModal from './TaskScheduleModal'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
 import {
+  ClientGuardError,
+  getRequestFailureMessage,
+} from '@shared/api/errorMessage'
+import {
   dispatchScheduleChanged,
   dispatchTaskChanged,
   onTaskChanged,
@@ -121,8 +125,10 @@ const TaskDetailModal = ({
         setFetched({
           id: taskId,
           task: null,
-          error:
-            err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
+          error: getRequestFailureMessage(
+            err,
+            '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
         })
       })
     return () => {
@@ -154,7 +160,13 @@ const TaskDetailModal = ({
       )
     } catch (err) {
       console.error('작업 상태 변경 실패', err)
-      addToast('완료 상태를 변경하지 못했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          err,
+          '완료 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
+        'error',
+      )
     } finally {
       toggleLock.current = false
       setOptimistic(null)
@@ -183,7 +195,13 @@ const TaskDetailModal = ({
           }
         } catch (err) {
           console.error('반복 작업 삭제 실패', err)
-          addToast('반복 작업을 지우지 못했어요.', 'error')
+          addToast(
+            getRequestFailureMessage(
+              err,
+              '반복 작업을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            ),
+            'error',
+          )
         }
         return
       }
@@ -203,7 +221,13 @@ const TaskDetailModal = ({
       onClose()
     } catch (err) {
       console.error('작업 삭제 실패', err)
-      addToast('작업 삭제에 실패했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          err,
+          '작업을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        ),
+        'error',
+      )
     }
   }
 
@@ -213,7 +237,7 @@ const TaskDetailModal = ({
   ) => {
     try {
       if (expectedVersion === undefined)
-        throw new Error('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지됩니다.')
+        throw new ClientGuardError('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지됩니다.')
       await createScheduleFromTask(taskId, payload, expectedVersion)
       dispatchScheduleChanged({
         reason: 'task-assigned',
@@ -224,7 +248,14 @@ const TaskDetailModal = ({
     } catch (err) {
       console.error('작업 일정 배정 실패', err)
       // 충돌은 배정 창이 안내하고 최신 버전을 받는다.
-      if (!isEditConflict(err)) addToast('일정으로 배정하지 못했습니다.', 'error')
+      if (!isEditConflict(err))
+        addToast(
+          getRequestFailureMessage(
+            err,
+            '일정으로 배정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          ),
+          'error',
+        )
       throw err
     }
   }

@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { ScheduleState, ScheduleResponse } from '../types/schedule'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import { useScheduleTaskSync } from '@shared/utils/scheduleTaskSync'
 
@@ -153,11 +154,13 @@ const useScheduleActions = (
         dispatchScheduleChanged({ scheduleId, reason: 'conflict-reloaded' })
         return false
       }
-      const message =
-        error instanceof Error ? error.message : '일정 상태를 바꾸지 못했어요.'
+      const message = getRequestFailureMessage(
+        error,
+        '일정 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+      )
       setLastMessage(message)
       setLastError(message)
-      addToast('일정 상태 변경에 실패했습니다.', 'error')
+      addToast(message, 'error')
       return false
     } finally {
       endMutation(scheduleId)
