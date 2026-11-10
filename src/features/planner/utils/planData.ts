@@ -15,12 +15,6 @@ export const dayPlanKey = ({
   projectId: number | null
 }) => `${date}@${zoneId}/${horizonDays}/${spaceId ?? 'all'}/${projectId ?? 'all'}`
 
-/** A loaded result only belongs on screen under the key it was requested for. */
-export const resultForKey = <T extends { key: string }>(
-  result: T | null,
-  key: string,
-): T | null => (result && result.key === key ? result : null)
-
 /**
  * Schedules on the timeline: the ones read with the plan plus the ones this page just created,
  * so a created schedule takes its block's place at once instead of after the refetch.
