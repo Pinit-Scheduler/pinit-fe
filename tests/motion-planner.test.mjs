@@ -417,7 +417,7 @@ test('a first load shows the delayed status panel; a failure without data shows 
   assert.match(html, /status-panel--loading/)
   assert.match(html, /계획을 만드는 중\.\.\./)
   html = renderPlan({ error: '서버가 보낸 메시지' })
-  assert.match(html, /role="alert"><div class="status-panel status-panel--error">시간표 제안서버가 보낸 메시지<\/div>/)
+  assert.match(html, /role="alert"><div class="status-panel status-panel--error">서버가 보낸 메시지<\/div>/)
 })
 
 test('a refresh keeps the proposal mounted and marks it busy; a failed refresh keeps it with the message', () => {

@@ -1003,11 +1003,7 @@ const PlanPage = () => {
           <StatusPanel variant="loading" title="계획을 만드는 중..." />
         ) : error && !plan ? (
           <div role="alert">
-            <StatusPanel
-              variant="error"
-              title="시간표 제안"
-              description={error}
-            />
+            <StatusPanel variant="error" title={error} />
           </div>
         ) : plan ? (
           <div
