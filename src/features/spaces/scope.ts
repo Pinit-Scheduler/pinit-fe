@@ -26,15 +26,13 @@ export function projectSelectionTarget(pathname: string): string | null {
   return routeScope(pathname) === 'selected' ? null : '/app/tasks'
 }
 
-export function createSpaceIdFor(
-  search: string,
-  defaultSpaceId: number | null,
-): number | undefined {
-  if (new URLSearchParams(search).get('from') !== 'today') return undefined
-  if (defaultSpaceId === null || !Number.isFinite(defaultSpaceId)) {
-    return undefined
-  }
-  return defaultSpaceId === 0 ? undefined : defaultSpaceId
+/** 나의 스페이스 id. 아직 모르면(불러오는 중의 0 포함) 없다. */
+function personalSpaceId(defaultSpaceId: number | null): number | undefined {
+  return defaultSpaceId === null ||
+    !Number.isFinite(defaultSpaceId) ||
+    defaultSpaceId === 0
+    ? undefined
+    : defaultSpaceId
 }
 
 export type CreateAffiliation = { spaceId?: number; categoryId?: number }
@@ -68,7 +66,7 @@ export function createAffiliationFor(
     new URLSearchParams(search).get('from') === 'today' ||
     (from ? listPath(from.pathname) === '/app/today' : false)
   if (today) {
-    const spaceId = createSpaceIdFor('?from=today', workspace.defaultSpaceId)
+    const spaceId = personalSpaceId(workspace.defaultSpaceId)
     return spaceId === undefined ? {} : { spaceId }
   }
   if (!from || routeScope(from.pathname) !== 'selected') return {}
