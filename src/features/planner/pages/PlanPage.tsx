@@ -205,14 +205,21 @@ const PlanPage = () => {
       ? requestedDate
       : today
   const [horizonDays, setHorizonDays] = useState(DEFAULT_HORIZON_DAYS)
+  // Routines and the calibration setting reload with the plan.
   const [refreshKey, setRefreshKey] = useState(0)
-  const { plan, planKey, schedules, isLoading, isInitialLoading, error } =
-    useDayPlan({
-      date,
-      zoneId,
-      horizonDays,
-      refreshKey,
-    })
+  const {
+    plan,
+    planKey,
+    schedules,
+    isLoading,
+    isInitialLoading,
+    error,
+    refetch: refetchPlan,
+  } = useDayPlan({ date, zoneId, horizonDays })
+  const reload = () => {
+    refetchPlan()
+    setRefreshKey((key) => key + 1)
+  }
 
   const [editing, setEditing] = useState<PlanDrafts>({
     plan: null,
@@ -340,7 +347,7 @@ const PlanPage = () => {
           : '기록 기반 보정을 껐어요. 기본 예상 시간으로 다시 제안해요.',
         'success',
       )
-      setRefreshKey((key) => key + 1)
+      reload()
     } catch (err) {
       setCalibrationError(
         getRequestFailureMessage(
@@ -537,8 +544,8 @@ const PlanPage = () => {
   )
 
   const draftRows = useListPresence(
-    plan ? drafts : undefined,
-    (draft) => draft.taskId,
+    plan ? draftSpans : undefined,
+    ({ draft }) => draft.taskId,
     { resetKey: planKey },
   )
 
@@ -620,7 +627,7 @@ const PlanPage = () => {
         schedules: schedulesCreated,
       })
       addToast(`${schedulesCreated.length}개 일정을 만들었어요.`, 'success')
-      setRefreshKey((key) => key + 1)
+      reload()
     } catch (err) {
       const rejections =
         err instanceof ApiError && err.status === 409
@@ -755,7 +762,7 @@ const PlanPage = () => {
           onApplied={(ids) => {
             invalidateSchedules(ids)
             ids.forEach((scheduleId) => dispatchScheduleChanged({ scheduleId, reason: 'day-replanned' }))
-            setRefreshKey((key) => key + 1)
+            reload()
           }}
         />
       )}
@@ -789,7 +796,7 @@ const PlanPage = () => {
         <button
           type="button"
           className="plan-page__refresh"
-          onClick={() => setRefreshKey((key) => key + 1)}
+          onClick={reload}
           disabled={isLoading || isApplying || isUpdatingCalibration}
         >
           다시 제안받기
@@ -1097,12 +1104,8 @@ const PlanPage = () => {
                 </p>
               ) : (
                 <ul className="plan-page__blocks">
-                  {draftRows.map(({ key, item: draft, phase }, index) => {
-                    const startMs = toMs(draft.startLocal, planZoneId)
-                    const endMs =
-                      startMs === null
-                        ? null
-                        : startMs + draft.durationMinutes * 60000
+                  {draftRows.map(({ key, item, phase }, index) => {
+                    const { draft, startMs, endMs } = item
                     const issues = draft.selected
                       ? [
                           ...(clientIssues[draft.taskId] ?? []),

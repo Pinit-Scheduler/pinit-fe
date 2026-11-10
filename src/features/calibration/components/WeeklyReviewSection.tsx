@@ -51,7 +51,7 @@ const WeeklyReviewSection = ({ weekStart }: Props) => {
         if (!cancelled) setReview(response)
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error && err.message ? err.message : '주간 리뷰를 불러오지 못했어요.')
+        if (!cancelled) setError(getRequestFailureMessage(err, '주간 리뷰를 불러오지 못했어요.'))
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -91,7 +91,7 @@ const WeeklyReviewSection = ({ weekStart }: Props) => {
       <section className="weekly-review">
         <h2>주간 리뷰</h2>
         <p className="weekly-review__hint" role="alert">
-          주간 리뷰를 불러오지 못했어요. {error}
+          {error ?? '주간 리뷰를 불러오지 못했어요.'}
         </p>
         <button type="button" onClick={() => setRefreshKey((key) => key + 1)}>
           다시 시도

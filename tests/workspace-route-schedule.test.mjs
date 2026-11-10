@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { apiError, errorMessage } from './support/errors.mjs'
+import { findElement, hookRuntime, loadApp } from './support/app.mjs'
 
 const load = (path, deps = {}, globals = {}) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -382,14 +383,31 @@ test('closing a surface steps back over the page that opened it, never past a re
   assert.deepEqual(close({}), { back: false, to: '/app/tasks' })
 })
 
-test('App records the page a replace navigation swapped for a surface and RouteSurface uses it', () => {
-  const app = readFileSync(new URL('../src/app/App.tsx', import.meta.url), 'utf8')
-  const surface = readFileSync(
-    new URL('../src/shared/routing/RouteSurface.tsx', import.meta.url),
-    'utf8',
-  )
-  assert.match(app, /navigationType === 'REPLACE'/)
-  assert.match(app, /replacedPage=\{replacedPage\}/)
-  assert.match(surface, /surfaceCloseAction\(/)
-  assert.doesNotMatch(surface, /\|\| hasBackground\) && historyIndex > 0/)
+test('a surface that replaced a page hands that page to the surface; a pushed surface does not', () => {
+  const runtime = hookRuntime()
+  let location = null
+  let navigationType = 'POP'
+  const { WorkspaceRoutes } = loadApp(runtime, {
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneKey: 'UTC@0' }) },
+    'react-router-dom': { useLocation: () => location, useNavigationType: () => navigationType },
+  })
+  const at = (pathname, search = '', state = null) => ({ pathname, search, hash: '', state, key: pathname + search })
+  const replacedPage = () => {
+    const tree = runtime.render(WorkspaceRoutes)
+    return findElement(tree, (node) => node.type?.displayName === '@shared/routing/RouteSurface#RouteSurface')?.props.replacedPage
+  }
+  location = at('/app/tasks', '?tour=1')
+  assert.equal(replacedPage(), undefined, 'no surface over a plain page')
+  // The onboarding tour replaces its page with the create form.
+  navigationType = 'REPLACE'
+  location = at('/app/tasks/new')
+  assert.equal(replacedPage(), '/app/tasks?tour=1')
+  // A surface replaced by another surface keeps the page the first one replaced.
+  location = at('/app/tasks/8')
+  assert.equal(replacedPage(), '/app/tasks?tour=1')
+  navigationType = 'PUSH'
+  location = at('/app/today')
+  runtime.render(WorkspaceRoutes)
+  location = at('/app/tasks/9')
+  assert.equal(replacedPage(), null, 'a pushed surface steps back normally')
 })

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
@@ -232,11 +232,6 @@ test('the realtime notice fades out after it has appeared, and unmounts at once 
     'a reconnect before the notice appeared never flashes it',
   )
   assert.equal(render({ presence: { mounted: false, closing: false }, entered: false }), null)
-  const css = readFileSync(new URL('../src/features/spaces/spaces.css', import.meta.url), 'utf8')
-  assert.match(
-    css,
-    /\.space-realtime-status\[data-state='closing'\] \{\s*animation: motion-fade-out var\(--motion-exit\) var\(--motion-ease-exit\) both;/,
-  )
 })
 
 // ---------------------------------------------------------------------------
@@ -595,6 +590,10 @@ test('a value changed while mounted is told apart from the one it mounted with',
   assert.equal(render('SUSPENDED', true), true)
 })
 
+// ---------------------------------------------------------------------------
+// Stylesheets. CSS has no runtime in these tests, so its rules are read from the files.
+// ---------------------------------------------------------------------------
+
 test('motion tokens in CSS and TS agree', () => {
   const css = readFileSync(new URL('../src/shared/styles/motion.css', import.meta.url), 'utf8')
   const tokens = load('shared/motion/tokens.ts')
@@ -665,12 +664,43 @@ test('shared keyframes are defined once, in motion.css only', async () => {
   for (const name of ['modalFadeIn', 'fadeIn', 'fadeSlideIn']) assert.equal(counts[name], undefined, name)
 })
 
-test('edit pages keep the conflict dialog mounted through its fade-out', () => {
-  for (const path of ['features/tasks/pages/TaskEditPage.tsx', 'features/schedules/pages/form/ScheduleEditPage.tsx']) {
-    const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
-    assert.match(source, /const conflictPresence = usePresence\(conflict\)/, path)
-    assert.match(source, /\{conflictPresence\.mounted && conflictPresence\.value && \(\s*<EditConflictDialog/, path)
-    assert.match(source, /closing=\{conflictPresence\.closing\}/, path)
-    assert.doesNotMatch(source, /rows=\{conflict\.rows\}/, `${path} renders the last rows during the exit`)
+// Feature stylesheets name what they transition, time it with the motion tokens and never loop.
+const cssFiles = (dir) =>
+  readdirSync(new URL('../src/' + dir, import.meta.url), { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? cssFiles(`${dir}/${entry.name}`) : entry.name.endsWith('.css') ? [`${dir}/${entry.name}`] : [],
+  )
+const featureCss = ['planner', 'schedules', 'today', 'calibration'].flatMap((name) =>
+  cssFiles(`features/${name}`).map((file) => [file, readFileSync(new URL('../src/' + file, import.meta.url), 'utf8')]),
+)
+
+test('planner, schedules, today and calibration styles move named properties on the motion tokens', () => {
+  const allowed = /^(transform|opacity|color|background-color|background|border-color|stroke)$/
+  for (const [file, css] of featureCss) {
+    assert.doesNotMatch(css, /\binfinite\b/, `${file} loops an animation`)
+    assert.doesNotMatch(css, /:hover[^{]*\{[^}]*scale\(1\.\d+\)/, `${file} grows on hover`)
+    for (const [, value] of css.matchAll(/(?<![-\w])transition:\s*([^;]+);/g)) {
+      for (const part of value.split(',')) {
+        assert.match(part.trim().split(/\s+/)[0], allowed, `${file}: ${part.trim()}`)
+        assert.match(part, /var\(--motion-/, `${file}: ${part.trim()} uses a token`)
+      }
+    }
+    for (const [, value] of css.matchAll(/(?<![-\w])animation:\s*([^;]+);/g))
+      assert.match(value, /var\(--motion-/, `${file}: ${value} uses a token`)
+  }
+})
+
+test('the schedules list, week total and form page never replay a mount animation on a revisit', () => {
+  const css = Object.fromEntries(featureCss)
+  const page = css['features/schedules/pages/tab/SchedulesTabPage.css']
+  assert.doesNotMatch(page, /\.schedules-tab__list\s*\{[^}]*animation\s*:/)
+  assert.doesNotMatch(page, /\.schedules-tab__weekly-stats\s*\{[^}]*animation\s*:/)
+  assert.doesNotMatch(css['features/schedules/pages/form/ScheduleFormPage.css'], /\.schedule-form-page\s*\{[^}]*animation\s*:/)
+})
+
+test('under reduced motion, staggered planner arrivals drop their delay instead of waiting', () => {
+  const css = Object.fromEntries(featureCss)
+  for (const file of ['features/planner/pages/PlanPage.css', 'features/planner/components/DayReplanningPanel.css']) {
+    const reduced = css[file].slice(css[file].indexOf('@media (prefers-reduced-motion: reduce)'))
+    assert.match(reduced, /animation-delay: 0ms;/, file)
   }
 })

@@ -17,7 +17,7 @@ import { toApiDateTimeWithZone, toDateFromApi } from '@shared/utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../types/schedule'
 import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { useToast } from '@contexts/ToastContext'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { ClientGuardError, getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './ScheduleFormPage.css'
 import { fetchScheduleDetail, updateSchedule } from '../../api/schedules'
@@ -144,7 +144,7 @@ const ScheduleEditPage = () => {
         preview: async (selected) => {
           if (selected === 'THIS') return '이번 회차만 저장해요.'
           if (toDateKey(values.date) !== toDateKey(schedule.date))
-            throw new Error(
+            throw new ClientGuardError(
               '날짜 이동은 이번 회차만 선택해 주세요. 반복 요일은 반복 관리에서 바꿀 수 있어요.',
             )
           const message = await previewSeriesUpdate(
