@@ -1258,45 +1258,147 @@ test('Server-confirmed lost membership evicts task/schedule/series metadata and 
   assert.equal(registry.getMetadata('task', 1).version, 100)
 })
 
-test('SSE reconnect resumes at Last-Event-ID and refreshes views only after the gap, not on the first connect', async () => {
+const sseStream = (text) =>
+  new Response(
+    new ReadableStream({
+      start(stream) {
+        stream.enqueue(new TextEncoder().encode(text))
+        stream.close()
+      },
+    }),
+    { headers: { 'content-type': 'text/event-stream' } },
+  )
+const readyFrame = (id) =>
+  `${id === undefined ? '' : `id: ${id}\n`}event: ready\ndata: {"spaceId":null,"resourceType":"SPACE","resourceId":null,"version":0,"action":"READY"}\n\n`
+const changedFrame = (id, version = 2) =>
+  `${id === undefined ? '' : `id: ${id}\n`}event: changed\ndata: {"spaceId":22,"resourceType":"TASK","resourceId":1,"version":${version},"action":"UPDATED"}\n\n`
+
+test('SSE reconnect resumes at Last-Event-ID and refreshes views exactly once per connect', async () => {
   const controller = new AbortController(),
     calls = [],
-    events = []
-  let resyncs = 0
+    log = []
   const api = realtimeHarness({
     respond: async (url, init) => {
       calls.push({ url, init })
+      log.push('connect')
       const id = calls.length === 1 ? 40 : 41
-      return new Response(
-        new ReadableStream({
-          start(stream) {
-            stream.enqueue(
-              new TextEncoder().encode(
-                `id: ${id}\nevent: changed\ndata: {"spaceId":22,"resourceType":"TASK","resourceId":1,"version":${id},"action":"UPDATED"}\n\n`,
-              ),
-            )
-            stream.close()
-          },
-        }),
-        { headers: { 'content-type': 'text/event-stream' } },
-      )
+      return sseStream(changedFrame(id, id))
     },
   })
   await api.subscribeToWorkspace(
     controller.signal,
     (event) => {
       if (!event) {
-        resyncs++
+        log.push('refresh')
         return
       }
-      events.push(event.version)
-      if (events.length === 2) controller.abort()
+      log.push(event.version)
+      if (event.version === 41) controller.abort()
     },
     () => {},
   )
   assert.equal(calls.length, 2)
   assert.equal(calls[0].init.headers['Last-Event-ID'], undefined)
   assert.equal(calls[1].init.headers['Last-Event-ID'], '40')
-  assert.deepEqual(events, [40, 41])
-  assert.equal(resyncs, 1)
+  assert.deepEqual(log, ['connect', 'refresh', 40, 'connect', 'refresh', 41])
+})
+test('SSE first connect refreshes views exactly once after the stream opens', async () => {
+  // A fresh connection starts at the latest change, so changes committed between the views'
+  // first reads and the connect are not replayed. One refresh after the connect covers them.
+  const controller = new AbortController(),
+    log = []
+  const api = realtimeHarness({
+    respond: async () => {
+      log.push('connect')
+      return sseStream(readyFrame(7) + changedFrame(8))
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      log.push(event ? 'event' : 'refresh')
+      if (event) controller.abort()
+    },
+    (connected) => {
+      if (connected) log.push('open')
+    },
+  )
+  assert.deepEqual(log, ['connect', 'open', 'refresh', 'event'])
+})
+test('SSE stores the ready frame id and sends it as Last-Event-ID on reconnect', async () => {
+  const controller = new AbortController(),
+    calls = []
+  let refreshes = 0
+  const api = realtimeHarness({
+    respond: async (_url, init) => {
+      calls.push(init)
+      if (calls.length === 2) {
+        controller.abort()
+        throw new Error('aborted')
+      }
+      return sseStream(readyFrame(57))
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      if (!event) refreshes++
+    },
+    () => {},
+  )
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].headers['Last-Event-ID'], undefined)
+  assert.equal(calls[1].headers['Last-Event-ID'], '57')
+  assert.equal(refreshes, 1, 'the ready frame itself is not a change')
+})
+test('SSE ignores non-numeric event ids so Last-Event-ID stays a number', async () => {
+  const controller = new AbortController(),
+    calls = [],
+    events = []
+  const api = realtimeHarness({
+    respond: async (_url, init) => {
+      calls.push(init)
+      if (calls.length === 1) return sseStream(readyFrame('ready-1'))
+      if (calls.length === 2)
+        return sseStream(readyFrame(12) + changedFrame('abc', 3) + changedFrame(' 13', 4) + changedFrame('-1', 5))
+      controller.abort()
+      throw new Error('aborted')
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      if (event) events.push(event.version)
+    },
+    () => {},
+  )
+  assert.equal(calls.length, 3)
+  assert.equal(calls[1].headers['Last-Event-ID'], undefined, 'a non-numeric ready id is not kept')
+  assert.equal(calls[2].headers['Last-Event-ID'], '12', 'later non-numeric ids keep the last numeric one')
+  assert.deepEqual(events, [3, 4, 5], 'the changes themselves are still delivered')
+})
+test('SSE refreshes only after a response is ok, never on a failed attempt', async () => {
+  // The server fixes its cursor before it answers, so a refresh before an ok response could
+  // still miss a change committed before the cursor is fixed.
+  const controller = new AbortController(),
+    log = []
+  let attempts = 0
+  const api = realtimeHarness({
+    respond: async () => {
+      attempts++
+      log.push('connect')
+      if (attempts === 1) return new Response('busy', { status: 503 })
+      if (attempts === 2) return sseStream(readyFrame(5))
+      controller.abort()
+      throw new Error('aborted')
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      if (!event) log.push('refresh')
+    },
+    (connected) => log.push(connected ? 'open' : 'closed'),
+  )
+  assert.deepEqual(log, ['connect', 'closed', 'connect', 'open', 'refresh', 'closed', 'connect'])
 })

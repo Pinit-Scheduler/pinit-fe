@@ -121,6 +121,18 @@ test('Today keys its data on the day, not on a refresh counter', () => {
   assert.doesNotMatch(page, /onDataChanged|onTaskChanged|onScheduleChanged/, 'no second listener')
 })
 
+test('Today seeds both its tasks and its schedules into the shared caches the cards read', () => {
+  // Schedule cards read ScheduleCache before the list item, so an older cached copy would show a
+  // stale state, actions or version. The cache keeps the newer version and skips equal copies.
+  assert.match(page, /import \{ useScheduleCache \} from '@contexts\/ScheduleCacheContext'/)
+  assert.match(page, /const \{ setSchedule \} = useScheduleCache\(\)/)
+  assert.match(
+    page,
+    /useEffect\(\(\) => \{\s*schedules\?\.forEach\(\(schedule\) => setSchedule\(schedule\)\)\s*\}, \[schedules, setSchedule\]\)/,
+  )
+  assert.match(page, /\[\.\.\.tasks\.ready, \.\.\.tasks\.due\]\.forEach\(setTask\)/)
+})
+
 test('Today shows its loading lines only for a first load', () => {
   assert.match(page, /tasksQuery\.isInitialLoading \?/)
   assert.match(page, /schedulesQuery\.isInitialLoading \?/)

@@ -68,7 +68,6 @@ async function subscribeToEvents(
     ...(lastEventId ? { 'Last-Event-ID': lastEventId } : {}),
   })
   let retry = 1000
-  let connectedBefore = false
   const sameMember = () => {
     const token = getAccessToken()
     return token !== null && getTokenSubject(token) === member
@@ -105,15 +104,19 @@ async function subscribeToEvents(
       if (!response.ok || !response.body) throw new Error('Stream unavailable')
       connection(true)
       retry = 1000
-      // Views loaded their own data before the first connect, so only a reconnect refreshes them:
-      // events may have been missed during the gap. Any open edit draft is preserved.
-      if (connectedBefore) changed()
-      connectedBefore = true
+      // A fresh connection starts at the latest change, so changes committed between the views'
+      // own first reads and this connect are not replayed; a reconnect may have missed some in
+      // the gap. The server fixes its cursor before it answers, so one refresh here closes both.
+      // It goes through the debounced global refresh, once per (re)connect, and keeps any open
+      // edit draft.
+      changed()
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       const parse = createEventParser((name, data, id) => {
         if (signal.aborted || !sameMember()) return
-        if (id !== undefined) lastEventId = id
+        // The server binds Last-Event-ID as a number, so a stray non-numeric id would fail every
+        // reconnect. Keep only purely numeric ids.
+        if (id !== undefined && /^\d+$/.test(id)) lastEventId = id
         if (name !== 'changed') return
         try {
           const event = JSON.parse(data) as SpaceEvent

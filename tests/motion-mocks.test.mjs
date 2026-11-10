@@ -363,6 +363,50 @@ test('the workspace event stream sends changed frames that the realtime parser r
   assert.equal(tail.done, true)
 })
 
+test('the mock ready frame carries the stream cursor, and Last-Event-ID resumes after it', async () => {
+  // 실제 서버처럼 새 연결은 지금부터 시작하고, 다시 연결하면 받은 마지막 id 뒤부터 이어 보낸다.
+  // ready id는 그 연결의 시작 위치라 다시 보낼 기록을 건너뛰지 않는다.
+  const { call, workspace } = setup()
+  const open = async (headers = {}) => {
+    const controller = new AbortController()
+    const response = await call('/v2/workspace/events', 'GET', undefined, {
+      signal: controller.signal,
+      headers: { Accept: 'text/event-stream', ...headers },
+    })
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+    const readUntil = async (pattern) => {
+      while (!pattern.test(text)) {
+        const chunk = await reader.read()
+        if (chunk.done) break
+        text += decoder.decode(chunk.value, { stream: true })
+      }
+      return text
+    }
+    return { readUntil, close: () => controller.abort() }
+  }
+  const first = await open()
+  const ready = (await first.readUntil(/event: ready\n/)).match(/^id: (\d+)\nevent: ready\n/)
+  assert.ok(ready, 'the ready frame has a numeric id')
+  const readyId = Number(ready[1])
+  const created = workspace.mockWorkspaceRemote.createTask('다시 연결 확인')
+  const live = (await first.readUntil(/event: changed[\s\S]*?\n\n/)).match(/id: (\d+)\nevent: changed\n/)
+  assert.equal(Number(live[1]), readyId + 1, 'the next change follows the ready id')
+  first.close()
+
+  const resumed = await open({ 'Last-Event-ID': String(readyId) })
+  const replay = await resumed.readUntil(/event: changed[\s\S]*?\n\n/)
+  assert.match(
+    replay,
+    new RegExp(`^id: ${readyId}\\nevent: ready\\n`),
+    'ready names the resume cursor, not the latest id, so a drop before the replay loses nothing',
+  )
+  const event = JSON.parse(replay.match(/event: changed\ndata: (.+)\n\n/)[1])
+  assert.equal(event.resourceId, created.task.id, 'the change after Last-Event-ID is replayed')
+  resumed.close()
+})
+
 test('a save answers before its own changed frame, so the client can recognise the echo', async () => {
   // 서버는 커밋한 기록을 주기적으로 읽어 보낸다. 응답보다 이벤트가 먼저 오면 takeLocalEcho가
   // 자기 저장을 알아보지 못해 저장할 때마다 전체를 다시 읽는다(깜빡임 9~10번).

@@ -26,6 +26,7 @@ import TaskScheduleModal from '@features/tasks/components/TaskScheduleModal'
 import WorkspaceTaskCard from '@features/tasks/components/WorkspaceTaskCard'
 import ScheduleCard from '@features/schedules/components/ScheduleCard'
 import { useTaskCache } from '@contexts/TaskCacheContext'
+import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import {
   dispatchScheduleChanged,
@@ -105,6 +106,7 @@ export default function TodayPage() {
     { open } = useRouteSurfaceNavigation()
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
   const { setTask, tasksById } = useTaskCache()
+  const { setSchedule } = useScheduleCache()
   // The key names the day only. A change event refetches the same key and keeps the panels.
   const dayKey = today.format('YYYY-MM-DD') + '@' + zoneId
   const tasksQuery = useRevalidatingQuery<TodayTasks>(
@@ -150,6 +152,9 @@ export default function TodayPage() {
   useEffect(() => {
     if (tasks) [...tasks.ready, ...tasks.due].forEach(setTask)
   }, [tasks, setTask])
+  useEffect(() => {
+    schedules?.forEach((schedule) => setSchedule(schedule))
+  }, [schedules, setSchedule])
 
   // A task completed from the ready list drops out of the next read. Hold it for a beat so the
   // check and strike finish, then fade it out. Deleted or reassigned tasks leave at once.
