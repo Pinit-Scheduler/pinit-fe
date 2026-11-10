@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
-function load(path) {
+function load(path, dependencies = {}) {
   const source = readFileSync(
     new URL('../src/' + path, import.meta.url),
     'utf8',
@@ -22,6 +23,7 @@ function load(path) {
     exports: module.exports,
     URLSearchParams,
     Number,
+    require: requireFrom(dependencies),
   })
   return module.exports
 }
@@ -55,15 +57,6 @@ test('choosing a project stays on scoped lists and leaves detail screens', () =>
   assert.equal(projectSelectionTarget('/app/statistics'), '/app/tasks')
   assert.equal(projectSelectionTarget('/app/tasks/12'), '/app/tasks')
   assert.equal(projectSelectionTarget('/app/schedules/5/edit'), '/app/tasks')
-})
-test('today creates in the personal space only when it is known', () => {
-  const { createSpaceIdFor } = load('features/spaces/scope.ts')
-  assert.equal(createSpaceIdFor('?from=today', -4), -4)
-  assert.equal(createSpaceIdFor('?from=today', null), undefined)
-  assert.equal(createSpaceIdFor('?from=today', 0), undefined)
-  assert.equal(createSpaceIdFor('?from=today', Number.NaN), undefined)
-  assert.equal(createSpaceIdFor('', -4), undefined)
-  assert.equal(createSpaceIdFor('?from=tasks', -4), undefined)
 })
 test('breadcrumb names the scope the screen uses', () => {
   const { scopeCrumb } = load('features/spaces/scope.ts')
@@ -113,12 +106,36 @@ test('my schedules keep only my assignments and count the hidden ones', () => {
   assert.deepEqual(ids(solo), [1, 2, 3, 4])
   assert.equal(solo.hidden, 0)
 })
-test('overdue banner asks the server for the same audience as the week dots', () => {
-  const read = (path) => readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
-  const hook = read('features/schedules/hooks/useOverdueSchedulesSummary.ts')
-  assert.match(hook, /fetchWeeklySchedules\(.*\{ mine \}\)/)
-  const page = read('features/schedules/pages/tab/SchedulesTabPage.tsx')
-  assert.match(page, /useOverdueSchedulesSummary\(\{ mine \}\)/)
+test('the overdue banner asks the server for the audience it is given, under its own key', async () => {
+  const requests = []
+  const queries = []
+  const useOverdueSchedulesSummary = load('features/schedules/hooks/useOverdueSchedulesSummary.ts', {
+    dayjs: { default: () => ({ isBefore: () => false }) },
+    '../api/schedules': {
+      fetchWeeklySchedules: async (start, options) => {
+        requests.push(options)
+        return []
+      },
+    },
+    '@shared/utils/datetime': {
+      getTodayWithOffset: () => new Date(0),
+      toApiDateTimeWithZone: () => '2026-11-10T00:00:00',
+      toDateFromApi: () => new Date(0),
+      toDateKey: () => '2026-11-10',
+    },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ offsetMinutes: 540 }) },
+    '@shared/hooks/useRevalidatingQuery': {
+      useRevalidatingQuery: (key, fetcher) => {
+        queries.push({ key, fetcher })
+        return { data: undefined }
+      },
+    },
+    '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: 22, selectedProjectId: null }) },
+  }).default
+  for (const mine of [true, false, undefined]) useOverdueSchedulesSummary({ mine })
+  for (const { fetcher } of queries) await fetcher(new AbortController().signal)
+  assert.deepEqual(requests.map((options) => options.mine), [true, false, undefined])
+  assert.equal(new Set(queries.map((query) => query.key)).size, 3, 'switching the audience never shows the other count')
 })
 test('a new item starts in the space and project of the screen behind the form', () => {
   const { createAffiliationFor } = load('features/spaces/scope.ts')
@@ -172,22 +189,41 @@ test('a new item starts in the space and project of the screen behind the form',
     {},
     'personal space still loading: the form falls back',
   )
+  assert.deepEqual(from('/app/today', 7, { defaultSpaceId: null }), {}, 'no personal space')
 
   // Screens that are not a selected-space list, or no screen behind: the form's fallback.
   for (const path of ['/app/spaces', '/app/statistics', '/app/settings', '/app/deadline-risk'])
     assert.deepEqual(from(path, 7), {}, path)
   assert.deepEqual(plain(createAffiliationFor(null, '', workspace(7))), {})
 })
-test('create pages read the screen behind them once, when they open', () => {
-  for (const path of [
-    'features/tasks/pages/TaskCreatePage.tsx',
-    'features/schedules/pages/form/ScheduleCreatePage.tsx',
-  ]) {
-    const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
-    assert.match(
-      source,
-      /useState\(\(\) =>\s*createAffiliationFor\(\s*safeBackground\(location\.state\),\s*location\.search,/,
-      path,
-    )
+test('a create form keeps the affiliation it opened with while the screen behind it changes', () => {
+  const slots = []
+  let index = 0
+  const location = { state: { background: { pathname: '/app/tasks' } }, search: '' }
+  let workspace = {
+    defaultSpaceId: -4,
+    selectedSpaceId: 22,
+    selectedProjectId: 7,
+    projects: [{ id: 7, spaceId: 22, completed: false }],
   }
+  const { useCreateAffiliation } = load('features/spaces/useCreateAffiliation.ts', {
+    react: {
+      useState: (initial) => {
+        const i = index++
+        if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
+        return [slots[i], () => {}]
+      },
+    },
+    'react-router-dom': { useLocation: () => location },
+    '@shared/routing/routeSurfaceState': { safeBackground: (state) => state?.background ?? null },
+    './scope': load('features/spaces/scope.ts'),
+    './store': { useSpaces: () => workspace },
+  })
+  const render = () => {
+    index = 0
+    return JSON.parse(JSON.stringify(useCreateAffiliation()))
+  }
+  assert.deepEqual(render(), { spaceId: 22, categoryId: 7 })
+  workspace = { ...workspace, selectedSpaceId: 31, selectedProjectId: null }
+  assert.deepEqual(render(), { spaceId: 22, categoryId: 7 }, 'a later selection change does not rewrite the form')
 })

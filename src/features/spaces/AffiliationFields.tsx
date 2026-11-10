@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { buildApiUrl } from '@shared/api/config'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { httpClient } from '@shared/api/httpClient'
 import {
   affiliationImpact,
@@ -117,9 +118,7 @@ export default function AffiliationFields({
             key,
             draft: null,
             error:
-              failure instanceof Error && failure.message
-                ? failure.message
-                : '소속과 담당자를 불러오지 못했어요.',
+              getRequestFailureMessage(failure, '소속과 담당자를 불러오지 못했어요.'),
           })
       })
     return () => controller.abort()

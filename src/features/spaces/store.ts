@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import {
   dispatchScheduleChanged,
   dispatchTaskChanged,
@@ -198,9 +199,7 @@ export function reloadSpaces(): Promise<void> {
           ...state,
           loading: false,
           error:
-            error instanceof Error && error.message
-              ? error.message
-              : '스페이스를 불러오지 못했어요.',
+            getRequestFailureMessage(error, '스페이스를 불러오지 못했어요.'),
         }
         emit()
       }

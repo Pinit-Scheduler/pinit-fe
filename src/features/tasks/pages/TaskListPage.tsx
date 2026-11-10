@@ -36,7 +36,7 @@ import {
   toSearchParams,
   type TaskSortOrder,
 } from '../utils/taskSearch'
-import { isCompletionOnly } from '../utils/taskListRefresh'
+import { isCompletionOnly, readShownPages } from '../utils/taskListRefresh'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import './TaskPages.css'
 
@@ -147,16 +147,7 @@ export default function TaskListPage() {
         }
         const shown = () =>
           pagesShown.current.key === key ? Math.max(1, pagesShown.current.pages) : 1
-        const responses = await Promise.all(
-          Array.from({ length: shown() }, (_, page) => read(page)),
-        )
-        // "More" may have landed while this refresh ran. Read its pages too, so the refresh
-        // does not take the rows it just added off the screen again.
-        while (
-          responses.length < shown() &&
-          !isLastPage(responses[responses.length - 1], responses.length - 1)
-        )
-          responses.push(await read(responses.length))
+        const responses = await readShownPages(read, shown, isLastPage)
         const pages = responses.length
         const tasks = responses.reduce<Task[]>(
           (merged, response) => mergePage(merged, response.content),

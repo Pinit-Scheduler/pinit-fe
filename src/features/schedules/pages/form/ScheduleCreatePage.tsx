@@ -1,9 +1,7 @@
 import { useLocation } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { safeBackground } from '@shared/routing/routeSurfaceState'
-import { useSpaces } from '@features/spaces/store'
-import { createAffiliationFor } from '@features/spaces/scope'
+import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
 import ScheduleForm from '../../components/ScheduleForm'
 import {
   getDisplayZoneId,
@@ -43,15 +41,7 @@ const ScheduleCreatePage = () => {
   const { addToast } = useToast()
   const { offsetMinutes } = useTimePreferences()
   const { initialDateKey } = (location.state as LocationState | null) ?? {}
-  const workspace = useSpaces()
-  // Decided once, when the form opens: the screen behind it names the space and project.
-  const [affiliation] = useState(() =>
-    createAffiliationFor(
-      safeBackground(location.state),
-      location.search,
-      workspace,
-    ),
-  )
+  const affiliation = useCreateAffiliation()
 
   const initialValues = useMemo(() => {
     void offsetMinutes

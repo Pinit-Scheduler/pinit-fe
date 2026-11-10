@@ -11,6 +11,9 @@ function sourceFiles(dir) {
   })
 }
 
+// Copy rules span every screen's strings, so they are checked over the source text.
+const PLACEHOLDER_COPY = /분류\s*(를\s*)?확인/
+
 test('user-facing copy says 스페이스, not 공간', () => {
   const offenders = sourceFiles('src')
     .filter((file) =>
@@ -24,14 +27,13 @@ test('user-facing copy says 스페이스, not 공간', () => {
 
 test('no placeholder classification copy remains', () => {
   const offenders = sourceFiles('src')
-    .filter((file) => readFileSync(file, 'utf8').match(/분류\s*(를\s*)?확인/))
+    .filter((file) => PLACEHOLDER_COPY.test(readFileSync(file, 'utf8')))
     .map((file) => file.replaceAll(String.fromCharCode(92), '/'))
   assert.deepEqual(offenders, [])
 })
 
 test('classification-check regex rejects the wording variants', () => {
-  const pattern = /분류\s*(를\s*)?확인/
   for (const text of ['분류 확인 중', '분류를 확인', '분류확인', '분류 를 확인'])
-    assert.equal(pattern.test(text), true)
-  assert.equal(pattern.test('프로젝트를 확인한 뒤'), false)
+    assert.equal(PLACEHOLDER_COPY.test(text), true)
+  assert.equal(PLACEHOLDER_COPY.test('프로젝트를 확인한 뒤'), false)
 })
