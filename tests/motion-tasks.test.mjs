@@ -455,7 +455,7 @@ test('task modals hand their exit to the modal and keep naming the task while th
     dayjs: { default: nodeRequire('dayjs') },
     './TaskScheduleModal.css': {},
     '@shared/utils/datetime': { toApiDateTimeWithZone: (date) => date },
-    '@features/spaces/conflicts': { CONFLICT_RELOADED: '', isEditConflict: () => false },
+    '@features/spaces/conflicts': { conflictMessage: () => '', conflictReloadedMessage: () => '', isEditConflict: () => false },
   }).default
   const heading = (props) => {
     index = 0

@@ -107,7 +107,7 @@ const MonthCalendar = ({
       </div>
       {error && (
         <p className="month-calendar__error" role="alert">
-          일정 수를 불러오지 못했어요. 날짜는 고를 수 있어요.
+          {error} 날짜는 고를 수 있어요.
         </p>
       )}
     </div>

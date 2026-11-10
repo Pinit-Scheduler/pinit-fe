@@ -188,7 +188,9 @@ const assign = async (
       buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
     )
     if (!rememberMetadata(resource, id, view, revision))
-      throw new ClientGuardError('업무 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError(
+        `${kind === 'tasks' ? '작업' : '일정'} 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.`,
+      )
     current = view
   }
   const project = state.categories.find((item) => item.id === categoryId)

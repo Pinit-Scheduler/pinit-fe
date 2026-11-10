@@ -1,7 +1,7 @@
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { ApiError } from '@shared/api/httpClient'
 import type { Task } from '@features/tasks/types/task'
-import { CONFLICT_RELOADED, isEditConflict } from '../conflicts'
+import { conflictReloadedMessage, isEditConflict } from '../conflicts'
 import { dueLabel } from '../hub'
 import type { Project, SpaceMember, UnavailableReason } from '../types'
 
@@ -179,7 +179,7 @@ export const assignFailure = (
   title: string,
 ): { notice: string; reload: boolean } => {
   const text = isEditConflict(failure)
-    ? CONFLICT_RELOADED
+    ? conflictReloadedMessage(failure)
     : getRequestFailureMessage(failure, '배정하지 못했어요.')
   const status = failure instanceof ApiError ? failure.status : undefined
   return { notice: `${title}: ${text}`, reload: status === 409 || status === 404 }

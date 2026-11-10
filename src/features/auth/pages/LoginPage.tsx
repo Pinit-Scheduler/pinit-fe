@@ -76,7 +76,7 @@ const LoginPage = () => {
       addToast('로그인에 성공했어요.', 'success')
       navigateAfterLogin()
     } catch (error) {
-      const message = getRequestFailureMessage(error, '로그인에 실패했습니다.')
+      const message = getRequestFailureMessage(error, '로그인하지 못했어요.')
       setErrors({ form: message })
       addToast(message, 'error')
     } finally {

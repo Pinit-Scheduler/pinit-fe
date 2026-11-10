@@ -230,7 +230,7 @@ export async function fetchTaskDetail(taskId: number, signal?: AbortSignal) {
     const task = normalizeTask(await httpClient<WorkspaceTaskView<TaskApiResponse>>(
       url(`/${taskId}`), { signal }), revision)
     if (isResourceUnavailable('task', taskId, task))
-      throw new ClientGuardError('작업 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError('작업 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.')
     return task
   } catch (error) {
     handleResourceReadError('task', taskId, error, revision)

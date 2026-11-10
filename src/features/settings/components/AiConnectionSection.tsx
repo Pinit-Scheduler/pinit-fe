@@ -60,8 +60,7 @@ const AiConnectionSection = () => {
       return (
         <StatusPanel
           variant="error"
-          title="연결된 앱을 불러오지 못했어요."
-          description={error}
+          title={error}
           action={
             <button type="button" onClick={refetch}>
               다시 시도

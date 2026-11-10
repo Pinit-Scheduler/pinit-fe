@@ -24,8 +24,7 @@ const McpActivityList = () => {
       return (
         <StatusPanel
           variant="error"
-          title="AI 사용 이력을 불러오지 못했어요."
-          description={error}
+          title={error}
           action={
             <button type="button" onClick={refetch}>
               다시 시도

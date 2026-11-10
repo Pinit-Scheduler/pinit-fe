@@ -380,7 +380,6 @@ const RoutinesPage = () => {
         <div className="routines__placeholder routines__placeholder--loading">생활 시간을 불러오는 중...</div>
       ) : loadError ? (
         <div className="routines__placeholder routines__placeholder--notice" role="alert">
-          <p>생활 시간을 불러오지 못했어요.</p>
           <p>{loadError}</p>
           <button type="button" className="routines__link-button" onClick={load}>
             다시 시도

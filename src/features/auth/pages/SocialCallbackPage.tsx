@@ -16,7 +16,7 @@ const SocialCallbackPage = () => {
   )
   const [error, setError] = useState<string | null>(providerError)
   const [status, setStatus] = useState(
-    provider ? 'OP에서 받은 토큰을 전달하는 중이에요...' : '오류가 발생했어요.',
+    provider ? 'OP에서 받은 토큰을 전달하는 중이에요...' : '로그인을 멈췄어요.',
   )
 
   const payload = useMemo(
@@ -44,8 +44,8 @@ const SocialCallbackPage = () => {
       })
       .catch((err) => {
         if (isCancelled) return
-        setError(getRequestFailureMessage(err, '로그인 도중 오류가 발생했어요.'))
-        setStatus('오류가 발생했어요.')
+        setError(getRequestFailureMessage(err, '소셜 로그인을 마치지 못했어요.'))
+        setStatus('로그인을 멈췄어요.')
       })
 
     return () => {

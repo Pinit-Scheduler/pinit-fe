@@ -68,10 +68,10 @@ const SettingsPage = () => {
       await requestLogout()
       clearAuthTokens()
       markLoggedOut()
-      addToast('로그아웃되었습니다.', 'info')
+      addToast('로그아웃했어요.', 'info')
       navigate('/login', { replace: true })
     } catch (error) {
-      addToast(getRequestFailureMessage(error, '로그아웃에 실패했어요.'), 'error')
+      addToast(getRequestFailureMessage(error, '로그아웃하지 못했어요.'), 'error')
     } finally {
       setIsLoggingOut(false)
     }
@@ -147,7 +147,7 @@ const SettingsPage = () => {
         addToast('푸시 알림 구독이 완료되었어요.', 'success')
       }
     } catch (error) {
-      addToast(getRequestFailureMessage(error, '푸시 알림 설정에 실패했어요.'), 'error')
+      addToast(getRequestFailureMessage(error, isPushEnabled ? '푸시 알림을 끄지 못했어요.' : '푸시 알림을 켜지 못했어요.'), 'error')
     }
   }
 
@@ -218,7 +218,7 @@ const SettingsPage = () => {
         <h2>알림 설정</h2>
         {preferencesLoadError && (
           <p className="settings__description settings__description--error" role="alert">
-            알림 설정을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.
+            {preferencesLoadError}
           </p>
         )}
         <div className="settings__row">

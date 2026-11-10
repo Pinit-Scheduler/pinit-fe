@@ -6,7 +6,11 @@ import dayjs from 'dayjs'
 import './TaskScheduleModal.css'
 import { toApiDateTimeWithZone } from '@shared/utils/datetime'
 import type { TaskScheduleRequest } from '../types/task'
-import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import {
+  conflictMessage,
+  conflictReloadedMessage,
+  isEditConflict,
+} from '@features/spaces/conflicts'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 type TaskScheduleModalProps = {
@@ -90,10 +94,10 @@ const TaskScheduleModal = ({
       if (isEditConflict(failure) && onConflict) {
         try {
           capturedVersion.current = await onConflict()
-          setError(CONFLICT_RELOADED)
+          setError(conflictReloadedMessage(failure))
         } catch {
           setError(
-            '다른 참여자가 먼저 수정했어요. 최신 내용을 불러오지 못했으니 닫았다가 다시 열어 주세요.',
+            `${conflictMessage(failure)} 최신 내용을 불러오지 못했으니 닫았다가 다시 열어 주세요.`,
           )
         }
       } else

@@ -83,7 +83,7 @@ export const collectTaskGraph = async (
     signal.throwIfAborted()
     if (attempted.size + pending.length > 100000)
       throw new ClientGuardError(
-        '작업 연결이 너무 많아 전체 지도를 확인할 수 없습니다. 잠시 뒤 다시 시도해 주세요.',
+        '작업 연결이 너무 많아 작업 맵을 그릴 수 없어요. 잠시 후 다시 시도해 주세요.',
       )
     const batch = pending.splice(0, 6)
     batch.forEach((id) => attempted.add(id))

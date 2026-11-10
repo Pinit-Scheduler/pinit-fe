@@ -26,10 +26,7 @@ import {
   type RuleDraft,
 } from '@features/recurrence/utils/recurrenceRules'
 import { ApiError } from '@shared/api/httpClient'
-import {
-  ClientGuardError,
-  getRequestFailureMessage,
-} from '@shared/api/errorMessage'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 type LocationState = {
   initialDateKey?: string
@@ -136,9 +133,14 @@ const ScheduleCreatePage = () => {
         zoneId: getDisplayZoneId(),
       }
       const created = await createRecurrence(payload)
-      if (!created.id) throw new ClientGuardError('반복 일정 ID를 확인하지 못했어요.')
       dispatchScheduleChanged({ reason: 'recurrence' })
-      addToast('반복 일정을 만들었어요.', 'success')
+      // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
+      if (!created.id)
+        addToast(
+          '반복 일정을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          'info',
+        )
+      else addToast('반복 일정을 만들었어요.', 'success')
       handleClose()
     } catch (error) {
       console.error('반복 일정 저장 실패:', error)

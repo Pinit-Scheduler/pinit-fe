@@ -7,14 +7,15 @@ import TweenedNumber from '@shared/components/motion/TweenedNumber'
 export default function HubRail({
   spaces,
   summaries,
-  failed,
+  loadError,
   onRetry,
   selectedId,
   onSelect,
 }: {
   spaces: Space[]
   summaries: SpaceSummaries | null
-  failed: boolean
+  /** 숫자를 처음 불러오지 못했을 때의 문구. 다시 읽기만 실패하면 null이라 보이던 숫자를 둔다. */
+  loadError: string | null
   onRetry: () => void
   selectedId: number | null
   onSelect: (spaceId: number) => void
@@ -62,9 +63,9 @@ export default function HubRail({
           )
         })}
       </ul>
-      {failed ? (
+      {loadError ? (
         <p className="hub-load-error" role="alert">
-          숫자를 불러오지 못했어요.{' '}
+          {loadError}{' '}
           <button type="button" className="space-text-button" onClick={onRetry}>
             다시 시도
           </button>

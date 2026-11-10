@@ -11,7 +11,7 @@ export default function HubPeople({
   space,
   rows,
   unassigned,
-  failed,
+  loadError,
   onRetry,
   busy,
   onInvite,
@@ -22,7 +22,8 @@ export default function HubPeople({
   space: Space
   rows: MemberRow[]
   unassigned: SpaceSummary['unassigned'] | null
-  failed: boolean
+  /** 숫자를 처음 불러오지 못했을 때의 문구. 다시 읽기만 실패하면 null이라 보이던 숫자를 둔다. */
+  loadError: string | null
   onRetry: () => void
   busy: boolean
   onInvite: () => void
@@ -64,9 +65,9 @@ export default function HubPeople({
       {notes.map((line) => (
         <UnavailableNote key={line} text={line} />
       ))}
-      {failed && (
+      {loadError && (
         <p className="hub-load-error" role="alert">
-          숫자를 불러오지 못했어요.{' '}
+          {loadError}{' '}
           <button type="button" className="space-text-button" onClick={onRetry}>
             다시 시도
           </button>

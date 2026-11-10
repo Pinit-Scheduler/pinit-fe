@@ -82,7 +82,7 @@ export async function fetchRecurrence(id: number) {
   try {
     const series = normalize(await httpClient<View>(url(`/${id}`)), true, revision)
     if (isResourceUnavailable('series', id, series))
-      throw new ClientGuardError('반복 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError('반복 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.')
     return series
   } catch (error) {
     handleResourceReadError('series', id, error, revision)

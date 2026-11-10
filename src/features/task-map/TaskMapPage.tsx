@@ -889,8 +889,7 @@ export default function TaskMapPage() {
       ) : error && !data ? (
         <StatusPanel
           variant="error"
-          title="작업 맵을 불러오지 못했어요"
-          description={error}
+          title={error}
           action={
             <button type="button" onClick={reload}>
               다시 시도

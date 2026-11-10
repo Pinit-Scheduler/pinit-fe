@@ -341,7 +341,7 @@ const renderProjects = (props) =>
         { project: project(2, true), counts: null, nearestDueDate: null },
       ],
       withoutProject: null,
-      failed: false,
+      loadError: null,
       onRetry() {},
       busy: false,
       onOpen() {},
@@ -360,6 +360,12 @@ test('completed projects carry the strike; the open one does not', () => {
   assert.match(html, /<span class="motion-strike" data-done="true">프로젝트 2<\/span>/)
   assert.match(html, /class="hub-count">1\/4</)
   assert.match(html, /class="hub-count" data-pending="true">–</)
+})
+
+test('a first load failure shows the message it was given, and a refresh failure keeps the numbers', () => {
+  const html = renderProjects({ loadError: '스페이스 참여자만 볼 수 있어요.' })
+  assert.match(html, /class="hub-load-error" role="alert">스페이스 참여자만 볼 수 있어요. <button/)
+  assert.doesNotMatch(renderProjects(), /hub-load-error/)
 })
 
 test('a completion that is saving strikes the row in place, before it moves lists', () => {
@@ -494,7 +500,7 @@ test('hub numbers and record bars start fresh in another space instead of glidin
       space: { id: 22, members: [{ memberId: 7, nickname: '나', role: 'ADMIN' }], allowedActions: { assign: true } },
       rows: [{ memberId: 7, name: '나', admin: true, openAssignedCount: 2, nearestDueDate: null }],
       unassigned: { openCount: 3, nearestDueDate: null },
-      failed: false,
+      loadError: null,
       onRetry() {},
       busy: false,
       onInvite() {},
@@ -520,7 +526,7 @@ test('hub numbers and record bars start fresh in another space instead of glidin
       projects: [],
       meId: 7,
       record: { spaceId: 22, start: '2026-11-09', end: '2026-11-16', completedCount: 1, elapsed: 'PT1H', days: [], byProject: [], byRunner: [] },
-      failed: false,
+      loadError: null,
       loading: false,
       onRetry() {},
       today: '2026-11-10',

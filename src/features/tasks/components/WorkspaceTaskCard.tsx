@@ -10,7 +10,11 @@ import {
 import { formatDateWithOffset } from '@shared/utils/datetime'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import { cardPath } from '@features/spaces/cardPath'
-import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import {
+  conflictMessage,
+  conflictReloadedMessage,
+  isEditConflict,
+} from '@features/spaces/conflicts'
 import SpacePath from '@features/spaces/SpacePath'
 import { routeScope } from '@features/spaces/scope'
 import { useSpaces } from '@features/spaces/store'
@@ -66,11 +70,11 @@ export default function WorkspaceTaskCard({
       if (isEditConflict(e)) {
         // 다른 참여자가 먼저 바꿨다. 최신 작업을 캐시에 넣어 카드와 다음 시도가 새 버전을 쓰게 한다.
         // 목록 전체를 다시 받으면 카드가 다시 그려져 안내가 사라지므로 이벤트는 보내지 않는다. 자동으로 다시 보내지 않는다.
-        setError(CONFLICT_RELOADED)
+        setError(conflictReloadedMessage(e))
         try {
           setTask(await fetchTaskDetail(item.id))
         } catch {
-          setError('다른 참여자가 먼저 수정했어요. 최신 내용을 불러오지 못했어요.')
+          setError(`${conflictMessage(e)} 최신 내용을 불러오지 못했어요.`)
           setRefreshOnly(true)
         }
       } else

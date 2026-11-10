@@ -94,7 +94,7 @@ const actionsHarness = ({ pending = null } = {}) => {
       fetchScheduleDetail: async (id) => cache.schedulesById[id],
     },
     '@features/spaces/metadata': { getMetadata: () => undefined },
-    '@features/spaces/conflicts': { CONFLICT_RELOADED: 'reloaded', isEditConflict: () => false },
+    '@features/spaces/conflicts': { conflictReloadedMessage: () => 'reloaded', isEditConflict: () => false },
     '@features/auth/api/member': { fetchActiveScheduleId: async () => null },
     '@contexts/ScheduleCacheContext': { useScheduleCache: () => cache },
     '@contexts/ToastContext': { useToast: () => ({ addToast: (...args) => toasts.push(args) }) },
@@ -196,7 +196,7 @@ test('a newer cached copy wins over an older read; an invalid id is an error, no
   const invalid = h.render(undefined, 'abc')
   assert.equal(invalid.isLoading, false)
   assert.equal(invalid.schedule, null)
-  assert.equal(invalid.error, '일정 ID가 유효하지 않습니다.')
+  assert.equal(invalid.error, '일정 주소가 올바르지 않아요.')
   h.cleanup()
 })
 
@@ -405,7 +405,7 @@ const tabHarness = () => {
     '@features/recurrence/utils/seriesMutations': { confirmAndDeleteSeries() {}, previewSeriesDelete() {} },
     '@features/recurrence/utils/recurrenceRules': { isBeyondGeneration: () => false },
     '@features/spaces/store': { useSpaces: () => ({ memberId: 1, selectedSpace: null, selectedProjectId: null }) },
-    '@features/spaces/conflicts': { CONFLICT_RELOADED: '', isEditConflict: () => false },
+    '@features/spaces/conflicts': { conflictReloadedMessage: () => '', isEditConflict: () => false },
     '@features/spaces/scope': {
       audienceSchedules: (schedules) => ({ visible: schedules, hidden: 0 }),
       scheduleMineParam: () => undefined,
@@ -447,7 +447,7 @@ test('the schedules tab keeps the day list through a refresh and through failure
   assert.match(html, /<article>일정 1<\/article>/)
   assert.doesNotMatch(html, /status-panel/, 'a refresh, a failed refresh or the week dots never blank the rows')
   html = h.render({ data: undefined, error: '서버가 보낸 이유' })
-  assert.match(html, /status-panel--error">일정을 불러오지 못했어요서버가 보낸 이유/, 'only a day without rows shows the error panel')
+  assert.match(html, /status-panel--error">서버가 보낸 이유</, 'only a day without rows shows the error panel')
   html = h.render({ data: undefined, isLoading: true })
   assert.match(html, /status-panel--loading/)
   assert.doesNotMatch(html, /schedules-tab__overdue/)

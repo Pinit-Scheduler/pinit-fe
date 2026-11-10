@@ -156,10 +156,9 @@ const ScheduleDetailModal = ({
         onClose={onClose}
         ariaLabel="일정 상세"
       >
-        <p className="schedule-detail-modal__loading">
-          일정 정보를 불러오지 못했어요.
+        <p className="schedule-detail-modal__description">
+          {error ?? '일정을 불러오지 못했어요.'}
         </p>
-        <p className="schedule-detail-modal__description">{error}</p>
         <button
           type="button"
           className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"

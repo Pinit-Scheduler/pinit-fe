@@ -237,7 +237,7 @@ const TaskDetailModal = ({
   ) => {
     try {
       if (expectedVersion === undefined)
-        throw new ClientGuardError('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지됩니다.')
+        throw new ClientGuardError('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지돼요.')
       await createScheduleFromTask(taskId, payload, expectedVersion)
       dispatchScheduleChanged({
         reason: 'task-assigned',

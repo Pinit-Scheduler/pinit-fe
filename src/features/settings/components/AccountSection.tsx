@@ -89,7 +89,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
       return
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('새 비밀번호가 일치하지 않습니다.')
+      setPasswordError('새 비밀번호가 서로 달라요.')
       return
     }
     setIsChangingPassword(true)
@@ -143,8 +143,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
       return (
         <StatusPanel
           variant="error"
-          title="계정 정보를 불러오지 못했어요."
-          description={error}
+          title={error}
           action={
             <button type="button" onClick={refetch}>
               다시 시도
