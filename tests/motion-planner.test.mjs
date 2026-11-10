@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const require = createRequire(import.meta.url)
 const dayjs = require('dayjs')
@@ -32,12 +33,7 @@ const load = (path, dependencies = {}, globals = {}) => {
     Map,
     Set,
     Promise,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -155,7 +151,7 @@ test('useDayPlan keeps the plan through a refresh and a failed refresh, and neve
   let fail = false
   let version = 0
   const host = dayPlanHarness(async ({ date }) => {
-    if (fail) throw Object.assign(new Error('서버 오류 메시지'), { name: 'ApiError', status: 500 })
+    if (fail) throw apiError('서버 오류 메시지', 500)
     version += 1
     return planFor(date, version)
   })
@@ -199,7 +195,7 @@ test('useDayPlan keeps the plan through a refresh and a failed refresh, and neve
 
 test('useDayPlan reports a first-load failure without data', async () => {
   const host = dayPlanHarness(async () => {
-    throw Object.assign(new Error('계획 서버 메시지'), { name: 'ApiError', status: 500 })
+    throw apiError('계획 서버 메시지', 500)
   })
   const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7, refreshKey: 0 }
   host.render(props)

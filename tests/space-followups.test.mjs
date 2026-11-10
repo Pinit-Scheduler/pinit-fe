@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 function load(path, dependencies = {}, globals = {}) {
@@ -30,12 +31,7 @@ function load(path, dependencies = {}, globals = {}) {
     setTimeout,
     clearTimeout,
     console: { error() {} },
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports

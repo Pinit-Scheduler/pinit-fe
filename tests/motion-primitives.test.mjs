@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 const settle = () => new Promise((resolve) => setTimeout(resolve, 5))
@@ -30,12 +31,7 @@ function load(path, dependencies = {}, globals = {}) {
     setTimeout,
     clearTimeout,
     Date,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -454,7 +450,7 @@ test('useRevalidatingQuery: a failed first load is an error, not a spinner; shou
   }
   h.render('task/3', options)
   await microtasks()
-  h.requests[0].reject(Object.assign(new Error('작업을 찾을 수 없어요.'), { name: 'ApiError', status: 404 }))
+  h.requests[0].reject(apiError('작업을 찾을 수 없어요.', 404))
   await microtasks()
   const failed = h.render('task/3', options)
   assert.equal(failed.isInitialLoading, false)

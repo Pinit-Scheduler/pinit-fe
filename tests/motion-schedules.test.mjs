@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 // Motion and flicker rules for the schedules area (docs/motion/README.md, flicker-audit A1-A8, B3).
 
@@ -15,12 +16,7 @@ const load = (path, dependencies, globals = {}) => {
   const module = { exports: {} }
   vm.runInNewContext(output, {
     module, exports: module.exports, Error, setTimeout, clearTimeout, queueMicrotask, ...globals,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts', {})
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
   })
   return module.exports
 }
@@ -122,7 +118,7 @@ test('a failed completion rolls the shown state back and passes the server messa
   const h = actionsHarness()
   const saving = h.render().complete()
   assert.equal(h.render().currentState, 'COMPLETED')
-  h.response().reject(Object.assign(new Error('서버가 거절했어요'), { name: 'ApiError', status: 400 }))
+  h.response().reject(apiError('서버가 거절했어요', 400))
   await saving
   const after = h.render()
   assert.equal(after.currentState, 'NOT_STARTED')

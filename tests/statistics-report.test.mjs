@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import vm from 'node:vm'
 import { createRequire } from 'node:module'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
 const requireFromHere = createRequire(import.meta.url)
 const dayjsLib = requireFromHere('dayjs')
@@ -19,12 +20,7 @@ const loadModule = (relativePath, dependencies = {}) => {
     module,
     exports: module.exports,
     URLSearchParams,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return loadModule('../src/shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
   })
   return module.exports
 }

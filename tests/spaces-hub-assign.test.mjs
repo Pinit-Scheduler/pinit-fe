@@ -6,6 +6,7 @@ import ts from 'typescript'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 function load(path, dependencies = {}) {
@@ -28,12 +29,7 @@ function load(path, dependencies = {}) {
     setTimeout,
     clearTimeout,
     console: { error() {} },
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
   })
   return module.exports
 }

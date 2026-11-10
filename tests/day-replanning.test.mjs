@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
 const require = createRequire(import.meta.url)
 const load = (file, dependencies = {}, globals = {}) => {
@@ -17,12 +18,7 @@ const load = (file, dependencies = {}, globals = {}) => {
   const module = { exports: {} }
   vm.runInNewContext(outputText, {
     module, exports: module.exports, console, AbortController, Error, Set, Date,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('../src/shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, `Unexpected dependency ${name}`)
-      return dependencies[name]
-    }, ...globals,
+    require: requireFrom(dependencies), ...globals,
   })
   return module.exports
 }

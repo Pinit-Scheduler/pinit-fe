@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, errorMessage } from './support/errors.mjs'
 
 const load = (path, deps = {}, globals = {}) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -103,7 +104,7 @@ const harness = ({
     if (failing === 'conflict') throw { conflict: true }
     // 응답이 오지 않은 실패: httpClient는 네트워크 오류를 status 0인 ApiError로 던진다.
     if (failing)
-      throw Object.assign(new Error('connection lost'), { name: 'ApiError', status: 0 })
+      throw apiError('connection lost', 0)
     return {
       id,
       state: {
@@ -186,7 +187,7 @@ const harness = ({
     },
     '@contexts/ScheduleCacheContext': { useScheduleCache: () => cache },
     '@contexts/ToastContext': { useToast: () => ({ addToast() {} }) },
-    '@shared/api/errorMessage': load('../src/shared/api/errorMessage.ts'),
+    '@shared/api/errorMessage': errorMessage,
     '@shared/utils/events': {
       dispatchScheduleChanged: (event) => events.push(event),
     },

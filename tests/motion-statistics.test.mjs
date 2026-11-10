@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 const read = (path) => readFileSync(new URL('../src/features/statistics/' + path, import.meta.url), 'utf8')
@@ -26,12 +27,7 @@ const load = (path, dependencies = {}, globals = {}) => {
     Number,
     Object,
     console: { warn() {}, error() {}, log() {} },
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('../../shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports

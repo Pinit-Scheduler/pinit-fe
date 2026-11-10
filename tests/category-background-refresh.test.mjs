@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const load = (path, dependencies) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -51,10 +52,7 @@ const load = (path, dependencies) => {
         return { changedInput: () => [], isEditConflict: () => false }
       if (name === '@constants/schedules' && !(name in dependencies))
         return { scheduleTypeLabel: {} }
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('../src/shared/api/errorMessage.ts', {})
-      assert.ok(name in dependencies, `Unexpected dependency ${name}`)
-      return dependencies[name]
+      return requireFrom(dependencies)(name)
     },
   })
   return module.exports
@@ -72,7 +70,7 @@ test('a loaded actor-specific category snapshot survives background fetch failur
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': {
       httpClient: async () => {
-        if (fail) throw Object.assign(new Error('refresh failed'), { name: 'ApiError', status: 500 })
+        if (fail) throw apiError('refresh failed', 500)
         return snapshot
       },
     },

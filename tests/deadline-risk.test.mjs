@@ -6,6 +6,7 @@ import ts from 'typescript'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { requireFrom } from './support/errors.mjs'
 
 const load = (path, dependencies = {}, globals = {}) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -16,12 +17,7 @@ const load = (path, dependencies = {}, globals = {}) => {
   const module = { exports: {} }
   vm.runInNewContext(outputText, {
     module, exports: module.exports, Intl, Date, AbortController,
-    require(name) {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('../src/shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
