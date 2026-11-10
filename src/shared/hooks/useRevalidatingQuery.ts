@@ -4,6 +4,7 @@ import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { onDataChanged, type ChangeKind, type DataChangeBatch } from '@shared/utils/events'
 import {
   queryStore,
+  type DataUpdate,
   type Fetcher,
   type QueryEntry,
   type QueryStore,
@@ -47,7 +48,7 @@ export type RevalidatingQuery<T> = {
   /** Refetch now, dropping any response that started earlier. */
   refetch: () => void
   /** Patch this key's data locally, e.g. an optimistic toggle. */
-  setData: (update: T | ((previous: T | undefined) => T)) => void
+  setData: (update: DataUpdate<T>) => void
 }
 
 const EMPTY_ENTRY: QueryEntry = {
@@ -165,7 +166,7 @@ export function useRevalidatingQuery<T>(
   }, [store, scopedKey, refetchOnFocus])
 
   const setData = useCallback(
-    (update: T | ((previous: T | undefined) => T)) => {
+    (update: DataUpdate<T>) => {
       if (scopedKey) store.setData<T>(scopedKey, update)
     },
     [store, scopedKey],

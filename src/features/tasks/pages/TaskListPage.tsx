@@ -230,7 +230,7 @@ export default function TaskListPage() {
               pages: page + 1,
               hasMore: !isLastPage(response, page),
             }
-          : (prev as TaskListData),
+          : prev,
       )
       setMore({ key, loading: false, error: null })
     } catch (err) {

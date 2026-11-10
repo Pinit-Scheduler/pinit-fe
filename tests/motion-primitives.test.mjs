@@ -302,10 +302,10 @@ test('a response that started before an invalidation never lands', async () => {
   assert.deepEqual(plain(store.get('day').data), ['after the edit'])
 })
 
-test('a failed refresh keeps the data and reports the server message; keys never share data', async () => {
+test('a failed refresh keeps the data and reports the registered failure message; keys never share data', async () => {
   const { store, requests, fetcher } = storeHarness()
   store.subscribe('a', () => {})
-  store.register('a', fetcher)
+  store.register('a', fetcher, (error) => error.message)
   store.revalidate('a')
   await microtasks()
   requests[0].resolve({ n: 1 })
@@ -343,6 +343,15 @@ test('setData patches locally and clear forgets every account\'s data', () => {
   assert.deepEqual(plain(store.get('list').data), [1, 2])
   store.clear()
   assert.equal(store.get('list').hasData, false)
+})
+
+test('an updater that returns undefined leaves the entry untouched', () => {
+  const { store } = storeHarness()
+  let notified = 0
+  store.subscribe('list', () => notified++)
+  store.setData('list', (previous) => previous && [...previous, 1])
+  assert.equal(store.get('list').hasData, false, 'nothing loaded yet stays not loaded')
+  assert.equal(notified, 0)
 })
 
 // ---------------------------------------------------------------------------

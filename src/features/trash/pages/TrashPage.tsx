@@ -135,9 +135,7 @@ const TrashPage = () => {
     setPendingKey(key)
     try {
       const message = await work()
-      setData((previous) =>
-        previous ? settle(previous) : (previous as unknown as TrashContents),
-      )
+      setData((previous) => previous && settle(previous))
       if (message) addToast(message, 'success')
       if (!notifies) refetch()
     } catch (runError) {
