@@ -10,7 +10,6 @@ import {
 import type {
   FocusEvent,
   KeyboardEvent,
-  MouseEvent,
   PointerEvent,
   ReactNode,
 } from 'react'
@@ -20,14 +19,17 @@ import StatusPanel from '@shared/components/common/StatusPanel'
 import useCurrentDay from '@shared/hooks/useCurrentDay'
 import {
   MOTION_BASE_MS,
+  MOTION_EASE,
   MOTION_ENTER_MS,
   presenceProps,
   prefersReducedMotion,
+  useArrival,
   useListPresence,
   usePresence,
   useTweenedNumber,
 } from '@shared/motion'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { surfaceLinkClick } from '@shared/routing/linkClick'
 import {
   CategoryFilter,
   useCategories,
@@ -102,21 +104,8 @@ function TaskSurfaceLink({
   children: ReactNode
 }) {
   const path = `/app/tasks/${taskId}`
-  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (
-      event.defaultPrevented ||
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey
-    )
-      return
-    event.preventDefault()
-    open(path)
-  }
   return (
-    <Link to={path} className={className} onFocus={onFocus} onClick={onClick}>
+    <Link to={path} className={className} onFocus={onFocus} onClick={surfaceLinkClick(open, path)}>
       {children}
     </Link>
   )
@@ -285,7 +274,7 @@ function SequenceMap({
             : [{ opacity: 0 }, { opacity: 0, offset: 0.45 }, { opacity: 1 }],
           {
             duration: reduced ? MOTION_BASE_MS : MOTION_ENTER_MS,
-            easing: 'cubic-bezier(0.2, 0, 0, 1)',
+            easing: MOTION_EASE,
           },
         )
   }, [edgePaths])
@@ -741,8 +730,7 @@ export default function TaskMapPage() {
     today = useCurrentDay().format('YYYY-MM-DD')
   // A map that the person waited for rises in once. A cached one shows at once, and a refresh
   // keeps it mounted, so the entrance never replays.
-  const [waited, setWaited] = useState(false)
-  if (isLoading && !waited) setWaited(true)
+  const arriving = useArrival(isLoading)
   const graph = useMemo(
     () =>
       buildTaskGraph(data?.tasks ?? [], {
@@ -881,7 +869,7 @@ export default function TaskMapPage() {
       </div>
       {categories.error && (
         <p className="tm-warning" role="status">
-          프로젝트를 불러오지 못했습니다.{' '}
+          {categories.error}{' '}
           <button
             type="button"
             onClick={() => {
@@ -901,8 +889,7 @@ export default function TaskMapPage() {
       ) : error && !data ? (
         <StatusPanel
           variant="error"
-          title="작업 맵을 불러오지 못했어요"
-          description={error}
+          title={error}
           action={
             <button type="button" onClick={reload}>
               다시 시도
@@ -921,7 +908,7 @@ export default function TaskMapPage() {
       ) : (
         <div
           className="tm-content"
-          data-arrive={waited || undefined}
+          data-arrive={arriving || undefined}
           aria-busy={isRefreshing || undefined}
         >
           {refreshError}

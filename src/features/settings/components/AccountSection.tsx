@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useToast } from '@contexts/ToastContext'
 import { StatusPanel } from '@shared/components/common'
 import { clearAuthTokens, markLoggedOut } from '@shared/api/authTokens'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { buildAuthorizeUrl } from '@features/auth/api/auth'
 import { rememberReturnTo } from '@features/auth/utils/returnTo'
 import {
@@ -50,9 +51,6 @@ const unsubscribeBrowserPush = async () => {
   }
 }
 
-const errorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error && error.message ? error.message : fallback
-
 const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
   const { addToast } = useToast()
   const navigate = useNavigate()
@@ -91,7 +89,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
       return
     }
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setPasswordError('새 비밀번호가 일치하지 않습니다.')
+      setPasswordError('새 비밀번호가 서로 달라요.')
       return
     }
     setIsChangingPassword(true)
@@ -104,7 +102,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
       closePasswordForm()
       addToast('비밀번호를 바꿨어요. 다른 기기에서는 다시 로그인해야 해요.', 'success')
     } catch (err) {
-      setPasswordError(errorMessage(err, '비밀번호를 바꾸지 못했어요.'))
+      setPasswordError(getRequestFailureMessage(err, '비밀번호를 바꾸지 못했어요.'))
     } finally {
       setIsChangingPassword(false)
     }
@@ -133,7 +131,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
       addToast('탈퇴가 끝났어요. 그동안 핀잇을 써 주셔서 고마워요.', 'info')
       navigate('/login', { replace: true })
     } catch (err) {
-      setWithdrawalError(errorMessage(err, '탈퇴하지 못했어요.'))
+      setWithdrawalError(getRequestFailureMessage(err, '탈퇴하지 못했어요.'))
       setIsWithdrawing(false)
     }
   }
@@ -145,8 +143,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
       return (
         <StatusPanel
           variant="error"
-          title="계정 정보를 불러오지 못했어요."
-          description={error}
+          title={error}
           action={
             <button type="button" onClick={refetch}>
               다시 시도

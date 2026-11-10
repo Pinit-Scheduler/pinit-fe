@@ -94,7 +94,7 @@
 }
 
 :is(.account__primary-btn, .account__secondary-btn, .account__danger-outline-btn):not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .account__primary-btn {

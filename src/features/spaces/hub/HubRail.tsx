@@ -2,19 +2,20 @@ import { presenceProps, useListPresence } from '@shared/motion'
 import SpaceMark from '../SpaceMark'
 import { railLine } from '../hub'
 import type { Space, SpaceSummaries } from '../types'
-import Count from './Count'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 
 export default function HubRail({
   spaces,
   summaries,
-  failed,
+  loadError,
   onRetry,
   selectedId,
   onSelect,
 }: {
   spaces: Space[]
   summaries: SpaceSummaries | null
-  failed: boolean
+  /** 숫자를 처음 불러오지 못했을 때의 문구. 다시 읽기만 실패하면 null이라 보이던 숫자를 둔다. */
+  loadError: string | null
   onRetry: () => void
   selectedId: number | null
   onSelect: (spaceId: number) => void
@@ -49,9 +50,9 @@ export default function HubRail({
                   data-pending={line.open === '–' || undefined}
                 >
                   <span aria-hidden>
-                    {line.open === '–' ? line.open : <Count value={Number(line.open)} />}
+                    {line.open === '–' ? line.open : <TweenedNumber value={Number(line.open)} />}
                   </span>
-                  <span className="hub-sr">
+                  <span className="sr-only">
                     {line.open === '–'
                       ? '미완료 작업 수 없음'
                       : `미완료 작업 ${line.open}개`}
@@ -62,9 +63,9 @@ export default function HubRail({
           )
         })}
       </ul>
-      {failed ? (
+      {loadError ? (
         <p className="hub-load-error" role="alert">
-          숫자를 불러오지 못했어요.{' '}
+          {loadError}{' '}
           <button type="button" className="space-text-button" onClick={onRetry}>
             다시 시도
           </button>

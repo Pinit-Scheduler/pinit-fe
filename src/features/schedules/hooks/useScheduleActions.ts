@@ -1,5 +1,5 @@
 import { getMetadata } from '@features/spaces/metadata'
-import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import { conflictReloadedMessage, isEditConflict } from '@features/spaces/conflicts'
 import {
   startSchedule,
   suspendSchedule,
@@ -141,9 +141,10 @@ const useScheduleActions = (
       if (isEditConflict(error)) {
         // 다른 참여자가 먼저 바꿨다. 최신 일정을 받아 버전을 맞추고, 자동으로 다시 보내지 않는다.
         retryRef.current = null
-        setLastMessage(CONFLICT_RELOADED)
+        const notice = conflictReloadedMessage(error)
+        setLastMessage(notice)
         setLastError(null)
-        addToast(CONFLICT_RELOADED, 'error')
+        addToast(notice, 'error')
         try {
           const latest = await fetchScheduleDetail(scheduleId)
           setSchedule(latest)
@@ -156,7 +157,7 @@ const useScheduleActions = (
       }
       const message = getRequestFailureMessage(
         error,
-        '일정 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+        '일정 상태를 바꾸지 못했어요.',
       )
       setLastMessage(message)
       setLastError(message)

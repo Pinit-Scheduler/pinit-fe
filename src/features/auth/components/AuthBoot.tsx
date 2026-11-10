@@ -11,7 +11,7 @@ const AuthBoot = () => (
       <span className="auth-boot__name">Pinit</span>
     </div>
     <span className="auth-boot__line" aria-hidden />
-    <span className="auth-boot__label">로그인 상태를 확인하는 중이에요</span>
+    <span className="sr-only">로그인 상태를 확인하는 중이에요</span>
   </div>
 )
 

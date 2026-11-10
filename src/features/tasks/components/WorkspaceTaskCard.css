@@ -138,7 +138,7 @@
   .workspace-task__description[open] > :not(summary),
   .workspace-task__error {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
 }
 @media (max-width: 600px) {

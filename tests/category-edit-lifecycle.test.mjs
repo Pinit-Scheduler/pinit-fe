@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const jsx = (type, props, key) => ({ type, props, key })
-/** 서버가 400으로 거절한 저장: httpClient가 던지는 ApiError와 같은 모양이다. */
-const serverRejection = (message) =>
-  Object.assign(new Error(message), { name: 'ApiError', status: 400 })
+/** 서버가 400으로 거절한 저장. */
+const serverRejection = (message) => apiError(message, 400)
 
 const load = (path, dependencies) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -57,10 +57,7 @@ const load = (path, dependencies) => {
         return { changedInput: () => [], isEditConflict: () => false }
       if (name === '@constants/schedules' && !(name in dependencies))
         return { scheduleTypeLabel: {} }
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('../src/shared/api/errorMessage.ts', {})
-      assert.ok(name in dependencies, `Unexpected dependency ${name}`)
-      return dependencies[name]
+      return requireFrom(dependencies)(name)
     },
   })
   return module.exports
@@ -459,6 +456,7 @@ test('a committed series category write stays successful when its follow-up refr
     scheduleAssignments: { 9: 7 },
   }
   const store = load('../src/features/categories/store.ts', {
+    '@shared/utils/sameData': load('../src/shared/utils/sameData.ts'),
     react: { useEffect() {}, useSyncExternalStore: (_subscribe, get) => get() },
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': {
@@ -481,7 +479,7 @@ test('a committed series category write stays successful when its follow-up refr
             allowedActions: {},
           }
         }
-        if (fail) throw Object.assign(new Error('refresh failed'), { name: 'ApiError', status: 500 })
+        if (fail) throw apiError('refresh failed', 500)
         return snapshot
       },
     },

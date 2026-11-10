@@ -3,8 +3,6 @@ import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import { fetchDeadlineRisk } from '../api/deadlineRisk'
 import type { DeadlineRiskDays, DeadlineRiskResponse } from '../types/deadlineRisk'
 
-const FAILURE = '마감 위험 예보를 불러오지 못했어요. 연결을 확인한 뒤 다시 조회해 주세요.'
-
 export const deadlineRiskKey = (days: DeadlineRiskDays, zoneId: string) =>
   `deadline-risk/${days}@${zoneId}`
 
@@ -23,7 +21,7 @@ export default function useDeadlineRisk(days: DeadlineRiskDays, zoneId: string) 
     invalidateOn: ['task', 'schedule'],
     group: 'deadline-risk/',
     refetchOnFocus: true,
-    errorMessage: () => FAILURE,
+    errorMessage: '마감 위험 예보를 불러오지 못했어요.',
   })
   const forecast = query.error ? null : (query.data ?? null)
   return {

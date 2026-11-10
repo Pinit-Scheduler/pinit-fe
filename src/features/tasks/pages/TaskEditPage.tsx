@@ -142,7 +142,7 @@ const TaskEditPage = () => {
         setError(
           getRequestFailureMessage(
             err,
-            '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '작업을 불러오지 못했어요.',
           ),
         )
       } finally {
@@ -215,7 +215,7 @@ const TaskEditPage = () => {
       addToast(
         getRequestFailureMessage(
           err,
-          '반복 작업을 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '반복 작업을 바꾸지 못했어요.',
         ),
         'error',
       )
@@ -320,7 +320,7 @@ const TaskEditPage = () => {
       addToast(
         getRequestFailureMessage(
           err,
-          '작업을 수정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '작업을 수정하지 못했어요.',
         ),
         'error',
       )
@@ -356,8 +356,7 @@ const TaskEditPage = () => {
           </div>
         ) : error || (categoryLoadError && !categoryLoaded) || !task ? (
           <div className="task-page__placeholder">
-            <p>작업 정보를 불러오지 못했습니다.</p>
-            <p>{error ?? categoryLoadError}</p>
+            <p>{error ?? categoryLoadError ?? '작업을 불러오지 못했어요.'}</p>
             <button
               type="button"
               onClick={() => void reloadCategories().catch(() => {})}
@@ -370,7 +369,7 @@ const TaskEditPage = () => {
             {categoryLoadError && (
               <div role="alert">
                 <p>
-                  프로젝트를 새로 확인하지 못했어요.작성 중인 내용은 유지됩니다.
+                  {categoryLoadError} 작성 중인 내용은 유지돼요.
                 </p>
                 <button
                   type="button"

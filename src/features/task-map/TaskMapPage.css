@@ -39,7 +39,7 @@
   transition: transform var(--motion-fast) var(--motion-ease);
 }
 .tm-primary-link:active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 .task-map-page button,
 .tm-fullscreen button {
@@ -60,7 +60,7 @@
 }
 .task-map-page button:active:not(:disabled),
 .tm-fullscreen button:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 .task-map-page button:hover:not(:disabled),
 .tm-fullscreen button:hover:not(:disabled) {
@@ -691,15 +691,9 @@
   .tm-world {
     will-change: auto;
   }
-  /* Fades stay; travel, gliding and the press scale go. */
   .tm-content[data-arrive],
   .tm-refresh-error {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
-  }
-  .task-map-page button:active:not(:disabled),
-  .tm-fullscreen button:active:not(:disabled),
-  .tm-primary-link:active {
-    transform: none;
+    --motion-keep-animation: var(--motion-base);
   }
 }

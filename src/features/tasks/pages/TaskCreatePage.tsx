@@ -1,9 +1,5 @@
-import { useState } from 'react'
-import { useLocation } from 'react-router-dom'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { safeBackground } from '@shared/routing/routeSurfaceState'
-import { useSpaces } from '@features/spaces/store'
-import { createAffiliationFor } from '@features/spaces/scope'
+import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
 import TaskForm from '../components/TaskForm'
 import type { TaskFormValues } from '../components/TaskForm'
 import { createTask } from '../api/tasks'
@@ -23,23 +19,11 @@ import {
 } from '@features/recurrence/utils/recurrenceRules'
 import { createRecurrence } from '@features/recurrence/api/recurrences'
 import { ApiError } from '@shared/api/httpClient'
-import {
-  ClientGuardError,
-  getRequestFailureMessage,
-} from '@shared/api/errorMessage'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 const TaskCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
-  const location = useLocation()
-  const workspace = useSpaces()
-  // Decided once, when the form opens: the screen behind it names the space and project.
-  const [affiliation] = useState(() =>
-    createAffiliationFor(
-      safeBackground(location.state),
-      location.search,
-      workspace,
-    ),
-  )
+  const affiliation = useCreateAffiliation()
   const { setTask } = useTaskCache()
   const { addToast } = useToast()
 
@@ -77,12 +61,17 @@ const TaskCreatePage = () => {
         zoneId: getDisplayZoneId(),
       })
       dispatchTaskChanged({ reason: 'recurrence' })
-      addToast(
-        '반복 작업을 만들었어요. 할 일 목록에는 오늘까지의 회차가 보여요.',
-        'success',
-      )
+      // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
       if (created.id === null)
-        throw new ClientGuardError('반복 시리즈 ID를 확인하지 못했어요.')
+        addToast(
+          '반복 작업을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          'info',
+        )
+      else
+        addToast(
+          '반복 작업을 만들었어요. 할 일 목록에는 오늘까지의 회차가 보여요.',
+          'success',
+        )
       complete('/app/tasks')
     } catch (error) {
       console.error('반복 작업 생성 실패', error)
@@ -94,7 +83,7 @@ const TaskCreatePage = () => {
         fieldErrors[0] ??
           getRequestFailureMessage(
             error,
-            '반복 작업을 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '반복 작업을 만들지 못했어요.',
           ),
         'error',
       )
@@ -146,7 +135,7 @@ const TaskCreatePage = () => {
       addToast(
         getRequestFailureMessage(
           error,
-          '작업을 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '작업을 만들지 못했어요.',
         ),
         'error',
       )

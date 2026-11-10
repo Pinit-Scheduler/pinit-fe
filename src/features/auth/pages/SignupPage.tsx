@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { signup } from '../api/auth'
 import { NICKNAME_MAX_LENGTH, validateNickname, validatePassword, validateUsername } from '../utils/accountRules'
 import { useToast } from '@contexts/ToastContext'
@@ -71,7 +72,7 @@ const SignupPage = () => {
     if (passwordError) nextErrors.password = passwordError
     if (!values.confirmPassword) nextErrors.confirmPassword = '비밀번호를 다시 입력해 주세요.'
     if (values.password && values.confirmPassword && values.password !== values.confirmPassword) {
-      nextErrors.confirmPassword = '비밀번호가 일치하지 않습니다.'
+      nextErrors.confirmPassword = '비밀번호가 서로 달라요.'
     }
     if (nicknameError) nextErrors.nickname = nicknameError
     setErrors(nextErrors)
@@ -90,10 +91,10 @@ const SignupPage = () => {
         password: values.password,
         nickname: values.nickname.trim(),
       })
-      addToast('회원가입이 완료되었습니다. 로그인해 주세요.', 'success')
+      addToast('회원가입을 마쳤어요. 로그인해 주세요.', 'success')
       navigate('/login', { replace: true })
     } catch (error) {
-      const message = error instanceof Error ? error.message : '회원가입에 실패했습니다.'
+      const message = getRequestFailureMessage(error, '회원가입하지 못했어요.')
       setErrors({ form: message })
       addToast(message, 'error')
     } finally {

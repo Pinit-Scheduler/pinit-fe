@@ -138,31 +138,25 @@ export async function searchTasks({
  * 그 스페이스의 담당자 없는 미완료 작업, 마감 순. 요약의 `unassigned.openCount`와 같은 작업이다
  * (BE 계약 `unassigned=true`, ADR-0030 §3 보충). 선택한 프로젝트로 좁히지 않는다.
  */
-export async function fetchUnassignedTasks({
+export const fetchUnassignedTasks = ({
   spaceId,
-  page = 0,
-  size = 50,
-  signal,
+  ...paging
 }: {
   spaceId: number
-  page?: number
-  size?: number
+  page: number
+  size: number
   signal?: AbortSignal
-}): Promise<TaskListResponse> {
-  const revision = getResourceRevision()
-  const query = new URLSearchParams({
-    spaceId: String(spaceId),
-    status: 'OPEN',
-    unassigned: 'true',
-    sort: 'DEADLINE_ASC',
-    page: String(page),
-    size: String(size),
+}): Promise<TaskListResponse> =>
+  searchTasks({
+    ...paging,
+    spaceId,
+    projectId: null,
+    params: [
+      ['status', 'OPEN'],
+      ['unassigned', 'true'],
+      ['sort', 'DEADLINE_ASC'],
+    ],
   })
-  return normalizePage(
-    await httpClient<PageResponse>(url(`?${query}`), { signal }),
-    revision,
-  )
-}
 /** 담당자만 바꾼다. 작업 내용과 위치는 보내지 않으므로 그대로 남는다. */
 export async function assignTask(
   taskId: number,
@@ -236,7 +230,7 @@ export async function fetchTaskDetail(taskId: number, signal?: AbortSignal) {
     const task = normalizeTask(await httpClient<WorkspaceTaskView<TaskApiResponse>>(
       url(`/${taskId}`), { signal }), revision)
     if (isResourceUnavailable('task', taskId, task))
-      throw new ClientGuardError('작업 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError('작업 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.')
     return task
   } catch (error) {
     handleResourceReadError('task', taskId, error, revision)

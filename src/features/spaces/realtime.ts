@@ -104,11 +104,8 @@ async function subscribeToEvents(
       if (!response.ok || !response.body) throw new Error('Stream unavailable')
       connection(true)
       retry = 1000
-      // A fresh connection starts at the latest change, so changes committed between the views'
-      // own first reads and this connect are not replayed; a reconnect may have missed some in
-      // the gap. The server fixes its cursor before it answers, so one refresh here closes both.
-      // It goes through the debounced global refresh, once per (re)connect, and keeps any open
-      // edit draft.
+      // A (re)connect starts at the latest change, so one debounced refresh covers the gap. The server
+      // fixes the start cursor before it answers (pinit-monolith PR #237, live since c2128cc8).
       changed()
       const reader = response.body.getReader()
       const decoder = new TextDecoder()

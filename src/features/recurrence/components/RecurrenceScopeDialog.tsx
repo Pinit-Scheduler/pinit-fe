@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { usePresence } from '@shared/motion'
 import {
   scopeOptions,
@@ -99,10 +100,7 @@ export const useRecurrenceScope = (): {
           setPreviewState({
             key: previewKey,
             impact: '',
-            error:
-              reason instanceof Error
-                ? reason.message
-                : '변경 범위를 확인하지 못했어요.',
+            error: getRequestFailureMessage(reason, '변경 범위를 확인하지 못했어요.'),
           })
       })
     return () => {

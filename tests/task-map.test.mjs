@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { errorMessage, requireFrom } from './support/errors.mjs'
 
 const load = (name) => {
   const source = readFileSync(
@@ -20,6 +21,7 @@ const load = (name) => {
     module,
     exports: module.exports,
     AbortController,
+    require: requireFrom({}),
   })
   return module.exports
 }
@@ -219,13 +221,18 @@ test('collector does not silently accept failed pages or repeated pagination', a
     ),
     /offline/,
   )
-  await assert.rejects(
-    collectTaskGraph(
-      { ...base, openPage: async () => ({ content: [task(1)], last: false }) },
-      false,
-      new AbortController().signal,
-    ),
-    /다음 페이지/,
+  const stuck = await collectTaskGraph(
+    { ...base, openPage: async () => ({ content: [task(1)], last: false }) },
+    false,
+    new AbortController().signal,
+  ).then(
+    () => assert.fail('a repeated page must not resolve'),
+    (error) => error,
+  )
+  assert.equal(
+    errorMessage.getRequestFailureMessage(stuck, '작업 맵을 불러오지 못했어요.'),
+    '작업 목록의 다음 페이지를 확인할 수 없습니다. 새로고침해 주세요.',
+    'the screen shows why, not the generic connection hint',
   )
 })
 test('missing predecessor details remain explicit and aborted loads do not return a snapshot', async () => {

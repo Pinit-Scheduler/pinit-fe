@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import { useToast } from '@contexts/ToastContext'
 import useSavedFlash from '../hooks/useSavedFlash'
-import SavedMark from './SavedMark'
+import SavedMark from '@shared/components/motion/SavedMark'
 import './CopyableCode.css'
 
 type CopyableCodeProps = {
@@ -24,7 +24,7 @@ const CopyableCode = ({ label, value, copyLabel = '복사' }: CopyableCodeProps)
     } catch {
       // 클립보드 권한이 없으면 직접 복사할 수 있도록 텍스트를 선택해 둔다.
       fieldRef.current?.select()
-      addToast('자동 복사에 실패했어요. 선택된 내용을 직접 복사해주세요.', 'error')
+      addToast('자동으로 복사하지 못했어요. 선택된 내용을 직접 복사해 주세요.', 'error')
     }
   }
 

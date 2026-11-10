@@ -41,17 +41,21 @@ import {
 } from '@features/recurrence/utils/seriesMutations'
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
 import { useSpaces } from '@features/spaces/store'
-import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import { conflictReloadedMessage, isEditConflict } from '@features/spaces/conflicts'
 import {
   audienceSchedules,
   scheduleMineParam,
 } from '@features/spaces/scope'
 import {
+  MOTION_DISTANCE_PX,
+  MOTION_EASE,
   MOTION_ENTER_MS,
+  MOTION_STAGGER_MS,
   prefersReducedMotion,
   presenceProps,
   useListPresence,
   usePresence,
+  useChangedWhileMounted,
   useTweenedNumber,
 } from '@shared/motion'
 
@@ -70,7 +74,11 @@ const WeeklyTotal = ({ minutes }: { minutes: number }) => {
 const animateDayRows = (root: HTMLElement | null, direction: -1 | 0 | 1) => {
   if (!root) return
   const reduce = prefersReducedMotion()
-  const offset = reduce ? 'none' : direction === 0 ? 'translateY(8px)' : `translateX(${direction * 12}px)`
+  const offset = reduce
+    ? 'none'
+    : direction === 0
+      ? `translateY(${MOTION_DISTANCE_PX}px)`
+      : `translateX(${direction * 12}px)`
   root
     .querySelectorAll<HTMLElement>(':scope > .schedules-tab__item')
     .forEach((row, index) => {
@@ -81,9 +89,9 @@ const animateDayRows = (root: HTMLElement | null, direction: -1 | 0 | 1) => {
         ],
         {
           duration: MOTION_ENTER_MS,
-          easing: 'cubic-bezier(0.2, 0, 0, 1)',
+          easing: MOTION_EASE,
           // A short stagger reads as one sweep; it stops growing after six rows.
-          delay: reduce ? 0 : Math.min(index, 5) * 24,
+          delay: reduce ? 0 : Math.min(index, 5) * MOTION_STAGGER_MS,
           fill: 'backwards',
         },
       )
@@ -198,8 +206,7 @@ const SchedulesTabPage = () => {
   const overdueBanner = usePresence(
     overdueSummary.hasOverdue ? overdueSummary : null,
   )
-  const [bannerEnters, setBannerEnters] = useState(!overdueBanner.mounted)
-  if (!bannerEnters && !overdueBanner.mounted) setBannerEnters(true)
+  const bannerEnters = useChangedWhileMounted(overdueBanner.mounted)
   const statsWeekStart = useMemo(
     () => currentWeekStart.add(1, 'day'),
     [currentWeekStart],
@@ -309,7 +316,7 @@ const SchedulesTabPage = () => {
   /** 다른 참여자가 먼저 바꿨으면 알리고 목록을 다시 받는다. 자동으로 다시 보내지 않는다. */
   const handleConflict = (error: unknown) => {
     if (!isEditConflict(error)) return false
-    addToast(CONFLICT_RELOADED, 'error')
+    addToast(conflictReloadedMessage(error), 'error')
     handleRefresh()
     return true
   }
@@ -343,7 +350,7 @@ const SchedulesTabPage = () => {
             addToast(
               getRequestFailureMessage(
                 error,
-                '반복 일정을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+                '반복 일정을 지우지 못했어요.',
               ),
               'error',
             )
@@ -370,7 +377,7 @@ const SchedulesTabPage = () => {
         addToast(
           getRequestFailureMessage(
             error,
-            '일정을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '일정을 삭제하지 못했어요.',
           ),
           'error',
         )
@@ -412,7 +419,7 @@ const SchedulesTabPage = () => {
         addToast(
           getRequestFailureMessage(
             error,
-            '일정 날짜를 옮기지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '일정 날짜를 옮기지 못했어요.',
           ),
           'error',
         )
@@ -459,7 +466,7 @@ const SchedulesTabPage = () => {
         addToast(
           getRequestFailureMessage(
             error,
-            '일정 시간을 옮기지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '일정 시간을 옮기지 못했어요.',
           ),
           'error',
         )
@@ -716,8 +723,7 @@ const SchedulesTabPage = () => {
         ) : scheduleErrorRaw && !hasDayData ? (
           <StatusPanel
             variant="error"
-            title="일정을 불러오지 못했어요"
-            description={scheduleErrorRaw}
+            title={scheduleErrorRaw}
             action={<button onClick={refetchSchedules}>재시도</button>}
           />
         ) : rows.length ? (

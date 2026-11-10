@@ -3,7 +3,7 @@ import UnavailableNote from '../UnavailableNote'
 import { countsLabel, dueLabel, type ProjectRow } from '../hub'
 import { adminNames, unavailableLines } from '../unavailable'
 import type { Project, Space, SpaceSummary } from '../types'
-import Count from './Count'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import RowMenu from './RowMenu'
 import TaskDots from './TaskDots'
 
@@ -73,7 +73,7 @@ function Row({
       <span className="hub-count" data-pending={!counts || undefined}>
         {counts ? (
           <>
-            <Count value={counts.completed} />/<Count value={counts.total} />
+            <TweenedNumber value={counts.completed} />/<TweenedNumber value={counts.total} />
           </>
         ) : (
           '–'
@@ -122,7 +122,7 @@ export default function HubProjects({
   space,
   rows,
   withoutProject,
-  failed,
+  loadError,
   onRetry,
   busy,
   settling = null,
@@ -131,7 +131,8 @@ export default function HubProjects({
   space: Space
   rows: ProjectRow[]
   withoutProject: SpaceSummary['withoutProject'] | null
-  failed: boolean
+  /** 숫자를 처음 불러오지 못했을 때의 문구. 다시 읽기만 실패하면 null이라 보이던 숫자를 둔다. */
+  loadError: string | null
   onRetry: () => void
   busy: boolean
   /**
@@ -195,9 +196,9 @@ export default function HubProjects({
       {createNotes.map((line) => (
         <UnavailableNote key={line} text={line} />
       ))}
-      {failed && (
+      {loadError && (
         <p className="hub-load-error" role="alert">
-          숫자를 불러오지 못했어요.{' '}
+          {loadError}{' '}
           <button type="button" className="space-text-button" onClick={onRetry}>
             다시 시도
           </button>
@@ -219,7 +220,7 @@ export default function HubProjects({
       {loose && loose.total > 0 && (
         <div className="hub-loose">
           <span>프로젝트 없이 기록한 작업 {loose.total}개</span>
-          <span className="hub-sr">{countsLabel(loose)}</span>
+          <span className="sr-only">{countsLabel(loose)}</span>
           <TaskDots counts={loose} />
         </div>
       )}

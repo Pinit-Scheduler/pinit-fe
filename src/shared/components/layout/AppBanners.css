@@ -61,7 +61,7 @@
 
 .app-banner__primary:active,
 .app-banner__close:active {
-  transform: scale(0.96);
+  transform: scale(var(--motion-press-scale-small));
 }
 
 /* Banners that appear while the page is open hang down from the top bar; dismissed ones fade
@@ -76,15 +76,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Opacity only: travel is already 0 (--motion-distance). */
   .app-banner[data-enter] {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .app-banner[data-state='closing'] {
-    animation-duration: var(--motion-exit) !important;
-  }
-  .app-banner__primary:active,
-  .app-banner__close:active {
-    transform: none;
+    --motion-keep-animation: var(--motion-exit);
   }
 }

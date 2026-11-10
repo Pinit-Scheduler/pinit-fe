@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { errorMessage } from './support/errors.mjs'
 
 const loadModule = (relativePath, dependencies = {}, globals = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -28,7 +29,7 @@ const loadModule = (relativePath, dependencies = {}, globals = {}) => {
 }
 
 const returnTo = loadModule('../src/features/auth/utils/returnTo.ts')
-const consent = loadModule('../src/features/oauth/utils/consent.ts')
+const consent = loadModule('../src/features/oauth/utils/consent.ts', { '@shared/api/errorMessage': errorMessage })
 
 const createStorage = () => {
   const values = new Map()
@@ -296,6 +297,23 @@ test('request expiry and API errors map to the consent screen states', () => {
   assert.equal(
     consent.toConsentError({ status: 0, message: 'Failed to fetch' }).kind,
     'network',
+  )
+  // 상태 코드는 화면 흐름만 정하고, 서버가 보낸 문구가 있으면 그 문구를 보인다.
+  assert.deepEqual(
+    { ...consent.toConsentError({ status: 410, message: '이미 만료된 연결 요청이에요.' }) },
+    { kind: 'expired', message: '이미 만료된 연결 요청이에요.' },
+  )
+  assert.deepEqual(
+    { ...consent.toConsentError({ status: 401, message: '세션이 끝났어요.' }) },
+    { kind: 'unauthorized', message: '세션이 끝났어요.' },
+  )
+  assert.equal(
+    consent.toConsentError({ status: 0, message: 'Failed to fetch' }).message,
+    '서버에 연결하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+  )
+  assert.equal(
+    consent.toConsentError({ status: 500 }).message,
+    '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
   )
   assert.deepEqual(
     {

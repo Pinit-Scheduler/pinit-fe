@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 function load(path, dependencies = {}, globals = {}) {
@@ -30,12 +31,7 @@ function load(path, dependencies = {}, globals = {}) {
     setTimeout,
     clearTimeout,
     console: { error() {} },
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -756,6 +752,7 @@ function spacesStoreHarness(respond) {
       },
       './metadata': registry,
       './api': { fetchWorkspace: () => respond(member) },
+      '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     },
     {
       sessionStorage: {
@@ -1026,7 +1023,8 @@ test('Schedule edit snapshot survives realtime events with its original version;
         if (response instanceof Error) throw response
         return response
       } },
-      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: cacheSchedule }) },
+      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: cacheSchedule, schedulesById: {} }) },
+      '@features/spaces/metadata': metadata(),
     }, { window }).default
     const render = () => { cursor = 0; return useDetail('8', { refreshOnChange }) }
     render()
@@ -1050,11 +1048,15 @@ test('Schedule edit snapshot survives realtime events with its original version;
       verify()
       await settle()
       assert.equal(render().schedule.version, 7, 'outage must preserve draft')
-      response = Object.assign(new Error('not accessible'), { status: 404 })
+      response = Object.assign(new Error('이 일정을 볼 수 있는 권한이 없어요.'), { status: 404 })
       verify()
       await settle()
       assert.equal(render().schedule, null, 'server-confirmed lost access must stop editing')
-      assert.match(render().error, /접근 권한/)
+      assert.equal(render().error, '이 일정을 볼 수 있는 권한이 없어요.', 'the server message is shown as sent')
+      response = Object.assign(new Error(''), { status: 404 })
+      verify()
+      await settle()
+      assert.match(render().error, /접근 권한이 바뀌었어요/, 'without a server message the screen says what happened')
     } else {
       await settle()
       assert.equal(render().schedule.version, 11)
@@ -1077,7 +1079,7 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/spaces/conflicts': { isEditConflict: () => false },
     '@shared/components/common/Modal': {},
     '@shared/components/motion/CompletionCheck': { default: () => null },
-    '../utils/useArrival': { useArrival: () => false },
+    '@shared/motion': { useArrival: () => false },
     '../utils/taskDetailRefresh': {
       detailRefreshNeeded: () => ({ refetch: false, ownToggles: 0 }),
     },

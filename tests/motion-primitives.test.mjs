@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 const settle = () => new Promise((resolve) => setTimeout(resolve, 5))
@@ -30,12 +31,7 @@ function load(path, dependencies = {}, globals = {}) {
     setTimeout,
     clearTimeout,
     Date,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -236,11 +232,6 @@ test('the realtime notice fades out after it has appeared, and unmounts at once 
     'a reconnect before the notice appeared never flashes it',
   )
   assert.equal(render({ presence: { mounted: false, closing: false }, entered: false }), null)
-  const css = readFileSync(new URL('../src/features/spaces/spaces.css', import.meta.url), 'utf8')
-  assert.match(
-    css,
-    /\.space-realtime-status\[data-state='closing'\] \{\s*animation: motion-fade-out var\(--motion-exit\) var\(--motion-ease-exit\) both;/,
-  )
 })
 
 // ---------------------------------------------------------------------------
@@ -306,10 +297,10 @@ test('a response that started before an invalidation never lands', async () => {
   assert.deepEqual(plain(store.get('day').data), ['after the edit'])
 })
 
-test('a failed refresh keeps the data and reports the server message; keys never share data', async () => {
+test('a failed refresh keeps the data and reports the registered failure message; keys never share data', async () => {
   const { store, requests, fetcher } = storeHarness()
   store.subscribe('a', () => {})
-  store.register('a', fetcher)
+  store.register('a', fetcher, (error) => error.message)
   store.revalidate('a')
   await microtasks()
   requests[0].resolve({ n: 1 })
@@ -347,6 +338,15 @@ test('setData patches locally and clear forgets every account\'s data', () => {
   assert.deepEqual(plain(store.get('list').data), [1, 2])
   store.clear()
   assert.equal(store.get('list').hasData, false)
+})
+
+test('an updater that returns undefined leaves the entry untouched', () => {
+  const { store } = storeHarness()
+  let notified = 0
+  store.subscribe('list', () => notified++)
+  store.setData('list', (previous) => previous && [...previous, 1])
+  assert.equal(store.get('list').hasData, false, 'nothing loaded yet stays not loaded')
+  assert.equal(notified, 0)
 })
 
 // ---------------------------------------------------------------------------
@@ -454,7 +454,7 @@ test('useRevalidatingQuery: a failed first load is an error, not a spinner; shou
   }
   h.render('task/3', options)
   await microtasks()
-  h.requests[0].reject(Object.assign(new Error('작업을 찾을 수 없어요.'), { name: 'ApiError', status: 404 }))
+  h.requests[0].reject(apiError('작업을 찾을 수 없어요.', 404))
   await microtasks()
   const failed = h.render('task/3', options)
   assert.equal(failed.isInitialLoading, false)
@@ -560,6 +560,40 @@ test('number tweens decelerate along --motion-ease and land exactly on the targe
   }
 })
 
+test('a value changed while mounted is told apart from the one it mounted with', () => {
+  const slots = []
+  let index = 0
+  let dirty = false
+  const react = {
+    useState(initial) {
+      const slot = index++
+      if (!(slot in slots)) slots[slot] = typeof initial === 'function' ? initial() : initial
+      return [slots[slot], (next) => { slots[slot] = next; dirty = true }]
+    },
+  }
+  const { useChangedWhileMounted } = load('shared/motion/useChangedWhileMounted.ts', { react })
+  const render = (...args) => {
+    for (let pass = 0; pass < 5; pass++) {
+      index = 0
+      dirty = false
+      const result = useChangedWhileMounted(...args)
+      if (!dirty) return result
+    }
+    throw new Error('render loop')
+  }
+  assert.equal(render('COMPLETED'), false, 'the state it mounted with shows still')
+  assert.equal(render('COMPLETED'), false)
+  assert.equal(render('NOT_STARTED'), true)
+  assert.equal(render('COMPLETED'), true, 'stays set once changed')
+  assert.equal(render('COMPLETED', false), false, 'not shown')
+  assert.equal(render('IN_PROGRESS', true), false, 'the next mount starts a new baseline')
+  assert.equal(render('SUSPENDED', true), true)
+})
+
+// ---------------------------------------------------------------------------
+// Stylesheets. CSS has no runtime in these tests, so its rules are read from the files.
+// ---------------------------------------------------------------------------
+
 test('motion tokens in CSS and TS agree', () => {
   const css = readFileSync(new URL('../src/shared/styles/motion.css', import.meta.url), 'utf8')
   const tokens = load('shared/motion/tokens.ts')
@@ -568,10 +602,22 @@ test('motion tokens in CSS and TS agree', () => {
   assert.equal(value('base'), tokens.MOTION_BASE_MS)
   assert.equal(value('enter'), tokens.MOTION_ENTER_MS)
   assert.equal(value('exit'), tokens.MOTION_EXIT_MS)
-  assert.equal(value('status-delay'), tokens.MOTION_STATUS_DELAY_MS)
-  assert.match(css, /--motion-ease: cubic-bezier\(0\.2, 0, 0, 1\)/)
+  assert.equal(value('stagger'), tokens.MOTION_STAGGER_MS)
+  assert.equal(value('flash'), tokens.MOTION_FLASH_MS)
+  assert.equal(value('strike-delay'), tokens.MOTION_STRIKE_DELAY_MS)
+  assert.equal(/--motion-ease: ([^;]+);/.exec(css)?.[1], tokens.MOTION_EASE)
+  assert.equal(Number(/--motion-distance: (\d+)px/.exec(css)?.[1]), tokens.MOTION_DISTANCE_PX)
   assert.match(css, /--motion-ease-exit: cubic-bezier\(0\.4, 0, 1, 1\)/)
-  assert.match(css, /--motion-distance: 8px/)
+})
+
+test('under reduced motion only the opt-in keeps a duration, and nothing travels or scales', () => {
+  const css = readFileSync(new URL('../src/shared/styles/motion.css', import.meta.url), 'utf8')
+  for (const name of ['--motion-keep-animation', '--motion-keep-transition'])
+    assert.match(css, new RegExp(`@property ${name} \\{[^}]*inherits: false;[^}]*initial-value: 0\\.01ms;`), name)
+  const reduced = css.slice(css.indexOf('/* Reduced motion.'))
+  assert.match(reduced, /animation-duration: var\(--motion-keep-animation, 0\.01ms\) !important;/)
+  assert.match(reduced, /transition-duration: var\(--motion-keep-transition, 0\.01ms\) !important;/)
+  assert.match(reduced, /--motion-distance: 0px;\s*--motion-press-scale: 1;\s*--motion-press-scale-small: 1;/)
 })
 
 test('under reduced motion, no shared rule whose keyframe travels a fixed distance gets its duration back', () => {
@@ -613,16 +659,48 @@ test('shared keyframes are defined once, in motion.css only', async () => {
     for (const match of readFileSync(file, 'utf8').matchAll(/@keyframes ([\w-]+)/g))
       (counts[match[1]] ??= []).push(file.replace(/\\/g, '/').split('/src/')[1])
   }
-  for (const name of ['modalFadeIn', 'modalSlideUp', 'fadeIn', 'fadeSlideIn', 'motion-fade-in', 'motion-rise-in'])
+  for (const name of ['modalSlideUp', 'motion-fade-in', 'motion-rise-in'])
     assert.deepEqual(counts[name], ['shared/styles/motion.css'], name)
+  for (const name of ['modalFadeIn', 'fadeIn', 'fadeSlideIn']) assert.equal(counts[name], undefined, name)
 })
 
-test('edit pages keep the conflict dialog mounted through its fade-out', () => {
-  for (const path of ['features/tasks/pages/TaskEditPage.tsx', 'features/schedules/pages/form/ScheduleEditPage.tsx']) {
-    const source = readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
-    assert.match(source, /const conflictPresence = usePresence\(conflict\)/, path)
-    assert.match(source, /\{conflictPresence\.mounted && conflictPresence\.value && \(\s*<EditConflictDialog/, path)
-    assert.match(source, /closing=\{conflictPresence\.closing\}/, path)
-    assert.doesNotMatch(source, /rows=\{conflict\.rows\}/, `${path} renders the last rows during the exit`)
+// Feature stylesheets name what they transition, time it with the motion tokens and never loop.
+const cssFiles = (dir) =>
+  readdirSync(new URL('../src/' + dir, import.meta.url), { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? cssFiles(`${dir}/${entry.name}`) : entry.name.endsWith('.css') ? [`${dir}/${entry.name}`] : [],
+  )
+const featureCss = ['planner', 'schedules', 'today', 'calibration'].flatMap((name) =>
+  cssFiles(`features/${name}`).map((file) => [file, readFileSync(new URL('../src/' + file, import.meta.url), 'utf8')]),
+)
+
+test('planner, schedules, today and calibration styles move named properties on the motion tokens', () => {
+  const allowed = /^(transform|opacity|color|background-color|background|border-color|stroke)$/
+  for (const [file, css] of featureCss) {
+    assert.doesNotMatch(css, /\binfinite\b/, `${file} loops an animation`)
+    assert.doesNotMatch(css, /:hover[^{]*\{[^}]*scale\(1\.\d+\)/, `${file} grows on hover`)
+    for (const [, value] of css.matchAll(/(?<![-\w])transition:\s*([^;]+);/g)) {
+      for (const part of value.split(',')) {
+        assert.match(part.trim().split(/\s+/)[0], allowed, `${file}: ${part.trim()}`)
+        assert.match(part, /var\(--motion-/, `${file}: ${part.trim()} uses a token`)
+      }
+    }
+    for (const [, value] of css.matchAll(/(?<![-\w])animation:\s*([^;]+);/g))
+      assert.match(value, /var\(--motion-/, `${file}: ${value} uses a token`)
+  }
+})
+
+test('the schedules list, week total and form page never replay a mount animation on a revisit', () => {
+  const css = Object.fromEntries(featureCss)
+  const page = css['features/schedules/pages/tab/SchedulesTabPage.css']
+  assert.doesNotMatch(page, /\.schedules-tab__list\s*\{[^}]*animation\s*:/)
+  assert.doesNotMatch(page, /\.schedules-tab__weekly-stats\s*\{[^}]*animation\s*:/)
+  assert.doesNotMatch(css['features/schedules/pages/form/ScheduleFormPage.css'], /\.schedule-form-page\s*\{[^}]*animation\s*:/)
+})
+
+test('under reduced motion, staggered planner arrivals drop their delay instead of waiting', () => {
+  const css = Object.fromEntries(featureCss)
+  for (const file of ['features/planner/pages/PlanPage.css', 'features/planner/components/DayReplanningPanel.css']) {
+    const reduced = css[file].slice(css[file].indexOf('@media (prefers-reduced-motion: reduce)'))
+    assert.match(reduced, /animation-delay: 0ms;/, file)
   }
 })

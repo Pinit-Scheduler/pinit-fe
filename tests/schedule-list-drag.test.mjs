@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 import dayjs from 'dayjs'
+import { apiError, errorMessage } from './support/errors.mjs'
 
 const hooks = () => {
   const slots = []
@@ -112,7 +113,6 @@ const listHarness = () => {
   const events = loadModule('../src/shared/utils/events.ts', {}, { window, CustomEvent })
   const { createQueryStore } = loadModule('../src/shared/utils/queryStore.ts', {})
   const store = createQueryStore()
-  const errorMessage = loadModule('../src/shared/api/errorMessage.ts', {})
   const query = loadModule('../src/shared/hooks/useRevalidatingQuery.ts', {
     '@shared/api/errorMessage': errorMessage,
     react,
@@ -159,7 +159,7 @@ test('a newly selected date never renders the previous date rows, even before ef
   assert.equal(switched.isLoading, true)
   assert.equal(switched.data, undefined)
   // 응답이 오지 않은 실패: httpClient는 네트워크 오류를 status 0인 ApiError로 던진다.
-  await h.render('2026-11-05'); h.last('2026-11-05').reject(Object.assign(new Error('offline'), { name: 'ApiError', status: 0 })); await settle()
+  await h.render('2026-11-05'); h.last('2026-11-05').reject(apiError('offline', 0)); await settle()
   const failed = await h.render('2026-11-05')
   assert.deepEqual(ids(failed), [])
   assert.equal(failed.isLoading, false, 'a failed first load is an error, not a spinner')

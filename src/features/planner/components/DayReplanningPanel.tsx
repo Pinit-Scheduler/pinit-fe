@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import dayjs from 'dayjs'
 import { usePresence } from '@shared/motion/usePresence'
 import { useSpaces } from '@features/spaces/store'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import useDayReplan from '../hooks/useDayReplan'
 import type { ReplanScope } from '../hooks/useDayReplan'
 import { isReplanExpired, replanReasonLabel, validateReplanDelay } from '../utils/replanning'
@@ -132,8 +133,8 @@ const DayReplanningPanel = (props: Props) => {
   const project = workspace.selectedProject
   const reload = () => {
     setScopeError(null)
-    void workspace.reload().then(() => setScopeRefresh((value) => value + 1)).catch(() => {
-      setScopeError('스페이스를 불러오지 못했어요. 다시 시도해 주세요.')
+    void workspace.reload().then(() => setScopeRefresh((value) => value + 1)).catch((error) => {
+      setScopeError(getRequestFailureMessage(error, '스페이스를 불러오지 못했어요.'))
     })
   }
   const unavailable = workspace.loading || Boolean(workspace.error) || !space || space.deleted ||

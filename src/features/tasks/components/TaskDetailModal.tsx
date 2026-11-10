@@ -46,7 +46,7 @@ import { isResourceUnavailable } from '@features/spaces/metadata'
 import { useSpaces } from '@features/spaces/store'
 import UnavailableNote from '@features/spaces/UnavailableNote'
 import { adminNames, unavailableLines } from '@features/spaces/unavailable'
-import { useArrival } from '../utils/useArrival'
+import { useArrival } from '@shared/motion'
 import { detailRefreshNeeded } from '../utils/taskDetailRefresh'
 
 type TaskDetailModalProps = {
@@ -127,7 +127,7 @@ const TaskDetailModal = ({
           task: null,
           error: getRequestFailureMessage(
             err,
-            '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '작업을 불러오지 못했어요.',
           ),
         })
       })
@@ -163,7 +163,7 @@ const TaskDetailModal = ({
       addToast(
         getRequestFailureMessage(
           err,
-          '완료 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '완료 상태를 바꾸지 못했어요.',
         ),
         'error',
       )
@@ -198,7 +198,7 @@ const TaskDetailModal = ({
           addToast(
             getRequestFailureMessage(
               err,
-              '반복 작업을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+              '반복 작업을 지우지 못했어요.',
             ),
             'error',
           )
@@ -224,7 +224,7 @@ const TaskDetailModal = ({
       addToast(
         getRequestFailureMessage(
           err,
-          '작업을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '작업을 삭제하지 못했어요.',
         ),
         'error',
       )
@@ -237,7 +237,7 @@ const TaskDetailModal = ({
   ) => {
     try {
       if (expectedVersion === undefined)
-        throw new ClientGuardError('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지됩니다.')
+        throw new ClientGuardError('작업을 다시 연 뒤 일정에 배정해 주세요. 입력한 내용은 유지돼요.')
       await createScheduleFromTask(taskId, payload, expectedVersion)
       dispatchScheduleChanged({
         reason: 'task-assigned',
@@ -252,7 +252,7 @@ const TaskDetailModal = ({
         addToast(
           getRequestFailureMessage(
             err,
-            '일정으로 배정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '일정으로 배정하지 못했어요.',
           ),
           'error',
         )
@@ -279,9 +279,6 @@ const TaskDetailModal = ({
           </p>
         ) : !task ? (
           <div className="task-detail-modal__body">
-            <p className="task-detail-modal__loading">
-              작업 정보를 불러오지 못했습니다.
-            </p>
             <p className="task-detail-modal__description">{error}</p>
             <button
               type="button"

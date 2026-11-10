@@ -160,7 +160,7 @@ export async function fetchScheduleDetail(scheduleId: number) {
     const schedule = normalizeSchedule(await httpClient<WorkspaceScheduleView<ScheduleResponse>>(
       url(`/${scheduleId}`)), revision)
     if (isResourceUnavailable('schedule', scheduleId, schedule))
-      throw new ClientGuardError('일정 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError('일정 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.')
     return schedule
   } catch (error) {
     handleResourceReadError('schedule', scheduleId, error, revision)

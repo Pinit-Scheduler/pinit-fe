@@ -5,31 +5,18 @@ import type { DateSchedulePresence } from '../types/schedule'
 import type { ScheduleResponse } from '../types/schedule'
 import { fetchWeeklySchedules } from '../api/schedules'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useSpaces } from '@features/spaces/store'
 
 type Options = {
   weekStart: dayjs.Dayjs
-  /** Kept for callers. The ISO week of any day in it is the same week, so it does not change the read. */
-  anchorDate?: dayjs.Dayjs
   mine?: boolean
 }
 
 type UseWeeklySchedulePresenceReturn = {
-  weeklySchedules: ScheduleResponse[]
   presenceMap: DateSchedulePresence
-  /** Nothing loaded for this week and audience yet. */
-  isLoading: boolean
-  /** A refetch is running while this week's presence stays on screen. */
-  isRefreshing: boolean
   error: string | null
   refetch: () => void
 }
-
-const EMPTY_SCHEDULES: ScheduleResponse[] = []
-
-const errorMessage = (error: unknown) =>
-  getRequestFailureMessage(error, '주간 일정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 
 const useWeeklySchedulePresence = ({ weekStart, mine }: Options): UseWeeklySchedulePresenceReturn => {
   const dateKeys = useMemo(() => getWeekDays(weekStart).map(toDateKey), [weekStart])
@@ -41,15 +28,14 @@ const useWeeklySchedulePresence = ({ weekStart, mine }: Options): UseWeeklySched
   const query = useRevalidatingQuery<ScheduleResponse[]>(
     key,
     () => fetchWeeklySchedules(time, { mine }),
-    { invalidateOn: ['schedule'], group: 'schedules/week/', errorMessage },
+    { invalidateOn: ['schedule'], group: 'schedules/week/', errorMessage: '주간 일정을 불러오지 못했어요.' },
   )
-  const weeklySchedules = query.data ?? EMPTY_SCHEDULES
 
   const presenceMap = useMemo(() => {
     const map: DateSchedulePresence = {}
     if (query.data === undefined && query.error === null) return map
     // 날짜별 일정 그룹화. 실패했으면 모든 날짜를 false로 둔다.
-    const byDate = weeklySchedules.reduce<Record<string, ScheduleResponse[]>>((acc, schedule) => {
+    const byDate = (query.data ?? []).reduce<Record<string, ScheduleResponse[]>>((acc, schedule) => {
       const dateKey = toDateKey(schedule.date)
       ;(acc[dateKey] ??= []).push(schedule)
       return acc
@@ -62,13 +48,10 @@ const useWeeklySchedulePresence = ({ weekStart, mine }: Options): UseWeeklySched
       }
     })
     return map
-  }, [dateKeys, query.data, query.error, weeklySchedules])
+  }, [dateKeys, query.data, query.error])
 
   return {
-    weeklySchedules,
     presenceMap,
-    isLoading: query.isInitialLoading,
-    isRefreshing: query.isRefreshing,
     error: query.error,
     refetch: query.refetch,
   }

@@ -6,6 +6,7 @@ import ts from 'typescript'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 function load(path, dependencies = {}) {
@@ -28,20 +29,29 @@ function load(path, dependencies = {}) {
     setTimeout,
     clearTimeout,
     console: { error() {} },
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
   })
   return module.exports
 }
 
 const duration = { '@shared/utils/isoDuration': { parseIsoDurationMinutes: () => 0 } }
 const hub = () => load('features/spaces/hub.ts', duration)
+class ApiError extends Error {
+  constructor(message, status, data = null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.data = data
+  }
+}
+const httpClient = { ApiError }
+const conflicts = () => load('features/spaces/conflicts.ts', { '@shared/api/httpClient': httpClient })
 const assignModule = () =>
-  load('features/spaces/hub/assign.ts', { '../hub': hub() })
+  load('features/spaces/hub/assign.ts', {
+    '@shared/api/httpClient': httpClient,
+    '../conflicts': conflicts(),
+    '../hub': hub(),
+  })
 
 function taskApi(response) {
   const calls = []
@@ -81,7 +91,7 @@ const view = (id, extra = {}) => ({
 
 test('the unassigned list asks the server for the space open tasks with no assignee, ignoring the selected project', async () => {
   const { api, calls } = taskApi({ content: [view(5)], last: true })
-  const page = await api.fetchUnassignedTasks({ spaceId: 31, page: 1 })
+  const page = await api.fetchUnassignedTasks({ spaceId: 31, page: 1, size: 50 })
   const url = new URL(calls[0].url)
   assert.equal(url.pathname, '/v2/workspace/tasks')
   assert.deepEqual(Object.fromEntries(url.searchParams), {
@@ -146,16 +156,14 @@ test('assignee choices put me first as 나 and keep the member order', () => {
 test('more pages start at the first unseen server row and never repeat one', () => {
   const { mergeTasks, nextAssignPage, offsetAfter, ASSIGN_PAGE_SIZE } = assignModule()
   assert.equal(ASSIGN_PAGE_SIZE, 50)
-  // 서버가 50행을 보냈으면 화면에서 하나가 걸러져 49개만 보여도 다음은 두 번째 쪽이다.
-  const first = { number: 0, size: 50, numberOfElements: 50, content: new Array(49) }
+  const first = { number: 0, size: 50, content: new Array(50) }
   assert.equal(offsetAfter(first), 50)
   assert.equal(nextAssignPage(offsetAfter(first)), 1)
   // 그중 3개를 배정하면 서버 목록이 3칸 당겨져 안 본 첫 작업은 첫 쪽 끝에 있다.
   assert.equal(nextAssignPage(offsetAfter(first) - 3), 0)
   // 두 번째 쪽까지 받은 뒤 위치.
-  assert.equal(offsetAfter({ number: 1, size: 50, numberOfElements: 5, content: [] }), 55)
-  // numberOfElements가 없는 응답은 받은 줄 수로 센다.
-  assert.equal(offsetAfter({ content: [1, 2] }), 2)
+  assert.equal(offsetAfter({ number: 1, size: 50, content: new Array(5) }), 55)
+  assert.equal(offsetAfter({ content: [1, 2] }), 2, 'no paging fields: the rows received')
   assert.equal(nextAssignPage(-1), 0)
   const merged = mergeTasks([{ id: 1 }, { id: 2 }], [{ id: 2 }, { id: 3 }])
   assert.deepEqual(plain(merged.map((task) => task.id)), [1, 2, 3])
@@ -190,7 +198,7 @@ const HubPeople = () =>
   load('features/spaces/hub/HubPeople.tsx', {
     'react/jsx-runtime': jsxRuntime,
     '@shared/motion': motionStub,
-    './Count': { default: ({ value }) => String(value) },
+    '@shared/components/motion/TweenedNumber': { default: ({ value }) => String(value) },
     '../UnavailableNote': load('features/spaces/UnavailableNote.tsx', {
       'react/jsx-runtime': jsxRuntime,
       './spaces.css': {},
@@ -204,7 +212,7 @@ const people = (props) =>
     React.createElement(HubPeople(), {
       space: space(),
       rows: [],
-      failed: false,
+      loadError: null,
       onRetry() {},
       busy: false,
       onInvite() {},
@@ -214,6 +222,41 @@ const people = (props) =>
       ...props,
     }),
   )
+
+test('the people card shows the load failure message as given instead of a fixed sentence', () => {
+  const html = people({ loadError: '이 스페이스의 작업 수를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' })
+  assert.match(html, /class="hub-load-error" role="alert">이 스페이스의 작업 수를 불러오지 못했어요. 잠시 후 다시 시도해 주세요. <button/)
+  assert.doesNotMatch(people(), /hub-load-error/)
+})
+
+test('each hub query names what it failed to load, so a failure without a server message has a subject', () => {
+  const options = []
+  const useHubData = load('features/spaces/hub/useHubData.ts', {
+    '@shared/hooks/useRevalidatingQuery': {
+      useRevalidatingQuery: (key, _fetcher, option) => {
+        options.push(option.errorMessage)
+        return { data: undefined, error: null, isInitialLoading: false, refetch() {} }
+      },
+    },
+    '../api': {},
+  }).default
+  useHubData(22, '2026-11-09', true)
+  assert.deepEqual(options, [
+    '스페이스별 남은 작업 수를 불러오지 못했어요.',
+    '이 스페이스의 작업 수를 불러오지 못했어요.',
+    '팀 기록을 불러오지 못했어요.',
+  ])
+})
+
+test('a version conflict keeps the server message and adds only what the screen did', () => {
+  const { conflictMessage, conflictReloadedMessage, CONFLICT_RELOADED } = conflicts()
+  const sent = new ApiError('다른 참여자가 이 작업을 먼저 바꿨어요.', 409, { code: 'VERSION_CONFLICT' })
+  const silent = new ApiError('', 409, { code: 'VERSION_CONFLICT' })
+  assert.equal(conflictReloadedMessage(sent), '다른 참여자가 이 작업을 먼저 바꿨어요. 최신 내용을 다시 불러왔어요.')
+  assert.equal(conflictReloadedMessage(silent), CONFLICT_RELOADED)
+  assert.equal(conflictMessage(sent), '다른 참여자가 이 작업을 먼저 바꿨어요.')
+  assert.equal(conflictMessage(silent), '다른 참여자가 먼저 수정했어요.')
+})
 
 test('the unassigned row offers 배정하기 only when tasks wait, and the server can turn it off', () => {
   const html = people({ unassigned: { openCount: 3, nearestDueDate: '2026-11-20' } })
@@ -230,12 +273,13 @@ test('the unassigned row offers 배정하기 only when tasks wait, and the serve
   assert.match(off, /휴지통에 있는 스페이스라 할 수 없어요/)
 })
 
-test('the dialog title is the summary count, not a count of the list', () => {
+test('the dialog title is the summary count, not a count of the list, and the exit reaches the modal', () => {
   const Dialog = load('features/spaces/hub/AssignUnassignedDialog.tsx', {
     react: React,
     'react/jsx-runtime': jsxRuntime,
     '@shared/components/common/Modal': {
-      default: ({ children }) => React.createElement('div', { role: 'dialog' }, children),
+      default: ({ children, closing }) =>
+        React.createElement('div', { role: 'dialog', 'data-closing': String(closing) }, children),
     },
     '@shared/motion': motionStub,
     '@features/tasks/api/tasks': {
@@ -243,11 +287,10 @@ test('the dialog title is the summary count, not a count of the list', () => {
       assignTask: () => new Promise(() => {}),
     },
     '../UnavailableNote': { default: ({ text }) => React.createElement('p', null, text) },
-    '../conflicts': { CONFLICT_RELOADED: '', isEditConflict: () => false },
     '../unavailable': load('features/spaces/unavailable.ts'),
     './assign': assignModule(),
   }).default
-  const render = (openCount) =>
+  const render = (openCount, closing) =>
     renderToStaticMarkup(
       React.createElement(Dialog, {
         space: space(),
@@ -257,25 +300,22 @@ test('the dialog title is the summary count, not a count of the list', () => {
         onClose() {},
         onAssigned() {},
         onStale() {},
+        closing,
       }),
     )
   assert.match(render(4), /<h2 id="hub-assign-title">담당자 미정 작업 4개<\/h2>/)
   assert.match(render(null), /<h2 id="hub-assign-title">담당자 미정 작업<\/h2>/)
   assert.match(render(4), /맡을 사람을 고르고 배정하세요/)
   assert.match(render(4), /불러오는 중/)
-  const source = readFileSync(
-    new URL('../src/features/spaces/hub/AssignUnassignedDialog.tsx', import.meta.url),
-    'utf8',
-  )
-  assert.equal(/\.reduce\(|tasks\.length\}개|rows\.length\}개/.test(source), false)
+  assert.match(render(4), /data-closing="false"/)
+  assert.match(render(4, true), /data-closing="true"/)
 })
 
 const row = (id, extra = {}) => ({ id, title: '작업 ' + id, assigneeId: null, version: 1, ...extra })
-const page = (ids, { number = 0, last = true, extra = {} } = {}) => ({
-  content: ids.map((id) => row(id, extra[id])),
+const page = (ids, { number = 0, last = true } = {}) => ({
+  content: ids.map((id) => row(id)),
   number,
   size: 50,
-  numberOfElements: ids.length,
   last,
 })
 const range = (from, count) => Array.from({ length: count }, (_, i) => from + i)
@@ -326,38 +366,50 @@ test('flow: an empty list while the summary still counts tasks asks for a fresh 
   assert.equal(outOfSync(empty, 3), true)
   assert.equal(outOfSync(empty, 0), false)
   assert.equal(outOfSync(empty, null), false)
-  assert.equal(outOfSync(assignReducer(empty, { type: 'loadFailed' }), 3), false)
+  assert.equal(outOfSync(assignReducer(empty, { type: 'loadFailed', message: '작업을 불러오지 못했어요.' }), 3), false)
 })
 
-test('flow: a failed assignment keeps the row, shows why and reloads only for 409 or 404', () => {
-  const { assignReducer, initialAssignState, reloadAfterFailure } = assignModule()
-  let state = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: page([1]) })
+test('flow: a version conflict on assign keeps the row, says it was reloaded and reloads the list from the top', () => {
+  const { assignReducer, initialAssignState, assignFailure } = assignModule()
+  const { CONFLICT_RELOADED } = conflicts()
+  let state = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: page([1, 2]) })
   state = assignReducer(state, { type: 'assigning', id: 1 })
-  state = assignReducer(state, { type: 'assignFailed', notice: '작업 1: 다른 참여자가 먼저 수정했어요.' })
+  // 서버 문구 뒤에 FE가 한 일만 붙인다. 문구 없는 409만 FE 문장 전체를 쓴다.
+  const silent = new ApiError('', 409, { code: 'VERSION_CONFLICT' })
+  assert.deepEqual(plain(assignFailure(silent, '작업 1')), { notice: '작업 1: ' + CONFLICT_RELOADED, reload: true })
+  const conflict = new ApiError('버전이 맞지 않아요.', 409, { code: 'VERSION_CONFLICT' })
+  const failure = assignFailure(conflict, '작업 1')
+  const RELOADED = '작업 1: 버전이 맞지 않아요. 최신 내용을 다시 불러왔어요.'
+  assert.deepEqual(plain(failure), { notice: RELOADED, reload: true })
+  state = assignReducer(state, { type: 'assignFailed', notice: failure.notice })
   assert.equal(state.busyId, null)
-  assert.equal(state.tasks.length, 1)
-  assert.equal(state.offset, 1)
-  assert.match(state.notice, /먼저 수정/)
-  assert.equal(reloadAfterFailure(409), true)
-  assert.equal(reloadAfterFailure(404), true)
-  assert.equal(reloadAfterFailure(500), false)
-  assert.equal(reloadAfterFailure(undefined), false)
-  state = assignReducer(state, { type: 'assigning', id: 1 })
+  assert.deepEqual(plain(state.tasks.map((task) => task.id)), [1, 2], 'the row stays until the reload answers')
+  // reload means load(0, true): the fresh first page replaces the list and the notice stays.
+  state = assignReducer(state, { type: 'load' })
+  state = assignReducer(state, { type: 'loaded', replace: true, response: page([2, 3]) })
+  assert.deepEqual(plain(state.tasks.map((task) => task.id)), [2, 3])
+  assert.equal(state.offset, 2)
+  assert.equal(state.notice, RELOADED)
+  state = assignReducer(state, { type: 'assigning', id: 2 })
   assert.equal(state.notice, null, 'a new attempt clears the old message')
 })
 
-test('flow: rows that already have an assignee are dropped even if an older server sends them', () => {
-  const { assignReducer, initialAssignState, shouldLoadMore } = assignModule()
-  const mixed = page([1, 2, 3], { last: false, extra: { 2: { assigneeId: 7 }, 3: { assigneeId: 0 } } })
-  let state = assignReducer(initialAssignState, { type: 'loaded', replace: true, response: mixed })
-  assert.deepEqual(plain(state.tasks.map((task) => task.id)), [1])
-  assert.equal(state.offset, 3, 'paging still counts the rows the server sent')
-  // 한 쪽이 모두 담당자 있는 작업이면 다음 쪽으로 넘어간다.
-  state = assignReducer(initialAssignState, {
-    type: 'loaded',
-    replace: true,
-    response: page([4, 5], { last: false, extra: { 4: { assigneeId: 2 }, 5: { assigneeId: 3 } } }),
+test('other assign failures show the server message and reload only when the task changed or left', () => {
+  const { assignFailure } = assignModule()
+  assert.deepEqual(plain(assignFailure(new ApiError('이미 완료된 작업이에요.', 409, { code: 'TASK_COMPLETED' }), '작업 1')), {
+    notice: '작업 1: 이미 완료된 작업이에요.',
+    reload: true,
   })
-  assert.equal(state.tasks.length, 0)
-  assert.equal(shouldLoadMore(state), true)
+  assert.deepEqual(plain(assignFailure(new ApiError('작업을 찾을 수 없어요.', 404), '작업 1')), {
+    notice: '작업 1: 작업을 찾을 수 없어요.',
+    reload: true,
+  })
+  assert.deepEqual(plain(assignFailure(new ApiError('', 500), '작업 1')), {
+    notice: '작업 1: 배정하지 못했어요. 잠시 후 다시 시도해 주세요.',
+    reload: false,
+  })
+  assert.deepEqual(plain(assignFailure(new TypeError('Failed to fetch'), '작업 1')), {
+    notice: '작업 1: 배정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+    reload: false,
+  })
 })

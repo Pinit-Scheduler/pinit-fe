@@ -54,6 +54,7 @@ const listTsxFiles = (dir) =>
     return entry.name.endsWith('.tsx') ? [path] : []
   })
 
+// Source check kept: anchors live on elements across many pages, which cannot all be rendered here.
 test('every fixture anchor exists in the source', () => {
   const sources = listTsxFiles(srcDir).map((path) => ({ path, text: readFileSync(path, 'utf8') }))
   const anchors = fixture.features.filter((feature) => feature.tour).map((feature) => feature.tour.anchor)

@@ -7,7 +7,7 @@
   justify-content: center;
   z-index: calc(var(--z-modal-backdrop) + 1);
   padding: 16px;
-  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .task-sched-modal__content {

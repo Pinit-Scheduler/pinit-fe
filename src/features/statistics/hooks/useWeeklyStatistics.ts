@@ -28,9 +28,6 @@ type WeeklyPair = {
   previous: WeeklyStatisticsView | null
 }
 
-const weeklyError = (err: unknown) =>
-  getRequestFailureMessage(err, '통계를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
-
 /**
  * This week's statistics and the week before, for the schedules tab.
  * The numbers live in the app-wide query cache per week, so coming back to the tab shows them at once
@@ -69,7 +66,7 @@ const useWeeklyStatistics = (options: Options = {}): UseWeeklyStatisticsReturn =
       invalidateOn: ['schedule'],
       errorMessage: (err) => {
         console.error('❌ statistics fetch error:', err)
-        return weeklyError(err)
+        return getRequestFailureMessage(err, '통계를 불러오지 못했어요.')
       },
     },
   )

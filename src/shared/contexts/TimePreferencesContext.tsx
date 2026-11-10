@@ -6,6 +6,7 @@ import {
   getDisplayZoneId,
   setDisplayZone,
 } from '@shared/utils/datetime'
+import { queryStore } from '@shared/utils/queryStore'
 import { readText, STORAGE_KEYS, writeText } from '@shared/utils/safeStorage'
 
 type TimePreferencesContextValue = {
@@ -37,8 +38,11 @@ export const TimePreferencesProvider = ({ children }: { children: ReactNode }) =
   const [offsetMinutes, setOffsetMinutes] = useState(() => getDisplayOffsetMinutes())
 
   const applyZone = useCallback((nextZoneId: string) => {
+    const before = `${getDisplayZoneId()}@${getDisplayOffsetMinutes()}`
     const applied = setDisplayZone(nextZoneId)
     writeText(STORAGE_KEYS.displayZoneId, applied)
+    // 조회 캐시는 시간대에 묶여 있다. zoneKey로 다시 마운트되는 화면이 읽기 전에 비운다.
+    if (`${applied}@${getDisplayOffsetMinutes()}` !== before) queryStore.clear()
     setZoneId(applied)
     setOffsetMinutes(getDisplayOffsetMinutes())
   }, [])
@@ -51,7 +55,12 @@ export const TimePreferencesProvider = ({ children }: { children: ReactNode }) =
       offsetLabel: `${zoneId} (${formatOffsetLabel(offsetMinutes)})`,
       isLoading: false,
       error: null,
-      refresh: () => setOffsetMinutes(getDisplayOffsetMinutes()),
+      refresh: () => {
+        const next = getDisplayOffsetMinutes()
+        if (next === offsetMinutes) return
+        queryStore.clear()
+        setOffsetMinutes(next)
+      },
       applyZone,
     }),
     [offsetMinutes, zoneId, applyZone],

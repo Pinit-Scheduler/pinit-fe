@@ -25,7 +25,7 @@
   transition: border-color var(--motion-fast) var(--motion-ease), transform var(--motion-fast) var(--motion-ease);
 }
 .deadline-risk__toolbar button:hover:not(:disabled) { border-color: var(--workspace-blue); }
-.deadline-risk__toolbar button:active:not(:disabled) { transform: scale(0.98); }
+.deadline-risk__toolbar button:active:not(:disabled) { transform: scale(var(--motion-press-scale)); }
 .deadline-risk__toolbar button:disabled { cursor: wait; opacity: .6; }
 .deadline-risk__toolbar > a { padding-block: 8px; }
 .deadline-risk :is(a, button, select, summary):focus-visible { outline: 3px solid var(--workspace-blue); outline-offset: 4px; }
@@ -59,9 +59,7 @@
 .deadline-risk__result[data-arrive] { animation: motion-rise-in var(--motion-enter) var(--motion-ease) both; }
 .deadline-risk__personal-action { transition: color var(--motion-fast) var(--motion-ease); }
 @media (prefers-reduced-motion: reduce) {
-  /* Fades stay, travel and the press scale go. */
-  .deadline-risk__result[data-arrive], .deadline-risk__error, .deadline-risk__loading { animation-name: motion-fade-in; animation-duration: var(--motion-base) !important; }
-  .deadline-risk__toolbar button:active:not(:disabled) { transform: none; }
+  .deadline-risk__result[data-arrive], .deadline-risk__error, .deadline-risk__loading { animation-name: motion-fade-in; --motion-keep-animation: var(--motion-base); }
 }
 @media (max-width: 760px) {
   .deadline-risk { padding: 18px 16px; }

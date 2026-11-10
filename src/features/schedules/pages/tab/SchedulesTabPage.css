@@ -400,7 +400,7 @@
     transform var(--motion-fast) var(--motion-ease);
 }
 .schedules-tab__header-actions button:active {
-  transform: scale(0.97);
+  transform: scale(var(--motion-press-scale));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -413,20 +413,14 @@
   .week-transition--backward,
   .schedules-tab__calendar-in,
   .schedules-tab__overdue[data-enter],
-  .schedules-tab__stats-value {
-    animation-duration: var(--motion-base) !important;
-  }
+  .schedules-tab__stats-value,
   .schedules-tab__stats-pending {
-    animation-duration: var(--motion-base) !important;
-    animation-delay: var(--motion-status-delay) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .schedules-tab__overdue[data-state='closing'] {
-    animation-duration: var(--motion-exit) !important;
+    --motion-keep-animation: var(--motion-exit);
   }
   .schedules-tab__item.is-dragging {
-    transform: none;
-  }
-  .schedules-tab__header-actions button:active {
     transform: none;
   }
 }

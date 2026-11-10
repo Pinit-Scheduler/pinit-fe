@@ -85,7 +85,7 @@ const ScheduleDetailModal = ({
           addToast(
             getRequestFailureMessage(
               error,
-              '반복 일정을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+              '반복 일정을 지우지 못했어요.',
             ),
             'error',
           )
@@ -119,7 +119,7 @@ const ScheduleDetailModal = ({
         addToast(
           getRequestFailureMessage(
             error,
-            '일정을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '일정을 삭제하지 못했어요.',
           ),
           'error',
         )
@@ -156,10 +156,9 @@ const ScheduleDetailModal = ({
         onClose={onClose}
         ariaLabel="일정 상세"
       >
-        <p className="schedule-detail-modal__loading">
-          일정 정보를 불러오지 못했어요.
+        <p className="schedule-detail-modal__description">
+          {error ?? '일정을 불러오지 못했어요.'}
         </p>
-        <p className="schedule-detail-modal__description">{error}</p>
         <button
           type="button"
           className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"

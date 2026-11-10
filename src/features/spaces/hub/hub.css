@@ -26,17 +26,6 @@
 .spaces-page:has(> .spaces-hub) {
   max-width: 1440px;
 }
-.hub-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
 .spaces-hub {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
@@ -721,7 +710,7 @@
   transition: color var(--motion-fast) var(--motion-ease);
 }
 .hub-rail__item:active {
-  transform: scale(0.985);
+  transform: scale(var(--motion-press-scale));
 }
 .hub-back,
 .hub-menu summary,
@@ -772,7 +761,7 @@
 .hub-day i {
   transform-origin: bottom center;
   animation: hub-day-rise var(--motion-enter) var(--motion-ease) backwards;
-  animation-delay: calc(var(--hub-day-index, 0) * 24ms);
+  animation-delay: calc(var(--hub-day-index, 0) * var(--motion-stagger));
 }
 @keyframes hub-day-rise {
   from {
@@ -796,14 +785,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hub-rail__item:active {
-    transform: none;
-  }
   .hub-day i {
     animation: none;
   }
   .hub-menu[open] > .hub-menu__list,
   .hub-menu[data-state='closing'] > .hub-menu__list {
-    animation-duration: var(--motion-fast) !important;
+    --motion-keep-animation: var(--motion-fast);
   }
 }

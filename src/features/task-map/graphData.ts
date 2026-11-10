@@ -1,3 +1,4 @@
+import { ClientGuardError } from '@shared/api/errorMessage'
 import type {
   Task,
   TaskArchiveCursorResponse,
@@ -44,7 +45,7 @@ export const collectTaskGraph = async (
         : result.content.length < (result.size ?? 100))
     if (last) break
     if (!result.content.length || records.size === prior || page >= 999)
-      throw new Error(
+      throw new ClientGuardError(
         '작업 목록의 다음 페이지를 확인할 수 없습니다. 새로고침해 주세요.',
       )
   }
@@ -59,11 +60,11 @@ export const collectTaskGraph = async (
       const hasNext = result.hasNext ?? Boolean(result.nextCursor)
       if (!hasNext) break
       if (!result.items.length || records.size === prior)
-        throw new Error(
+        throw new ClientGuardError(
           '완료 작업의 다음 페이지를 확인할 수 없습니다. 새로고침해 주세요.',
         )
       if (!result.nextCursor || cursors.has(result.nextCursor) || page >= 999)
-        throw new Error(
+        throw new ClientGuardError(
           '완료 작업의 다음 페이지를 확인할 수 없습니다. 새로고침해 주세요.',
         )
       cursor = result.nextCursor
@@ -81,8 +82,8 @@ export const collectTaskGraph = async (
   while (pending.length) {
     signal.throwIfAborted()
     if (attempted.size + pending.length > 100000)
-      throw new Error(
-        '작업 연결이 너무 많아 전체 지도를 확인할 수 없습니다. 잠시 뒤 다시 시도해 주세요.',
+      throw new ClientGuardError(
+        '작업 연결이 너무 많아 작업 맵을 그릴 수 없어요. 잠시 후 다시 시도해 주세요.',
       )
     const batch = pending.splice(0, 6)
     batch.forEach((id) => attempted.add(id))

@@ -1,9 +1,7 @@
 import { useLocation } from 'react-router-dom'
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { safeBackground } from '@shared/routing/routeSurfaceState'
-import { useSpaces } from '@features/spaces/store'
-import { createAffiliationFor } from '@features/spaces/scope'
+import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
 import ScheduleForm from '../../components/ScheduleForm'
 import {
   getDisplayZoneId,
@@ -28,10 +26,7 @@ import {
   type RuleDraft,
 } from '@features/recurrence/utils/recurrenceRules'
 import { ApiError } from '@shared/api/httpClient'
-import {
-  ClientGuardError,
-  getRequestFailureMessage,
-} from '@shared/api/errorMessage'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 type LocationState = {
   initialDateKey?: string
@@ -43,15 +38,7 @@ const ScheduleCreatePage = () => {
   const { addToast } = useToast()
   const { offsetMinutes } = useTimePreferences()
   const { initialDateKey } = (location.state as LocationState | null) ?? {}
-  const workspace = useSpaces()
-  // Decided once, when the form opens: the screen behind it names the space and project.
-  const [affiliation] = useState(() =>
-    createAffiliationFor(
-      safeBackground(location.state),
-      location.search,
-      workspace,
-    ),
-  )
+  const affiliation = useCreateAffiliation()
 
   const initialValues = useMemo(() => {
     void offsetMinutes
@@ -109,7 +96,7 @@ const ScheduleCreatePage = () => {
       addToast(
         getRequestFailureMessage(
           error,
-          '일정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '일정을 저장하지 못했어요.',
         ),
         'error',
       )
@@ -146,9 +133,14 @@ const ScheduleCreatePage = () => {
         zoneId: getDisplayZoneId(),
       }
       const created = await createRecurrence(payload)
-      if (!created.id) throw new ClientGuardError('반복 일정 ID를 확인하지 못했어요.')
       dispatchScheduleChanged({ reason: 'recurrence' })
-      addToast('반복 일정을 만들었어요.', 'success')
+      // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
+      if (!created.id)
+        addToast(
+          '반복 일정을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          'info',
+        )
+      else addToast('반복 일정을 만들었어요.', 'success')
       handleClose()
     } catch (error) {
       console.error('반복 일정 저장 실패:', error)
@@ -160,7 +152,7 @@ const ScheduleCreatePage = () => {
         fieldErrors[0] ??
           getRequestFailureMessage(
             error,
-            '반복 일정을 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '반복 일정을 만들지 못했어요.',
           ),
         'error',
       )

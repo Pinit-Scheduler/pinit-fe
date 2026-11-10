@@ -17,7 +17,7 @@ import { toApiDateTimeWithZone, toDateFromApi } from '@shared/utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../types/schedule'
 import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { useToast } from '@contexts/ToastContext'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { ClientGuardError, getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './ScheduleFormPage.css'
 import { fetchScheduleDetail, updateSchedule } from '../../api/schedules'
@@ -133,7 +133,7 @@ const ScheduleEditPage = () => {
 
   useEffect(() => {
     if (!schedule && !isLoading) {
-      addToast(error ?? '일정을 불러오지 못했습니다.', 'error')
+      addToast(error ?? '일정을 불러오지 못했어요.', 'error')
       handleClose()
     }
   }, [schedule, isLoading, addToast, handleClose, error])
@@ -144,7 +144,7 @@ const ScheduleEditPage = () => {
         preview: async (selected) => {
           if (selected === 'THIS') return '이번 회차만 저장해요.'
           if (toDateKey(values.date) !== toDateKey(schedule.date))
-            throw new Error(
+            throw new ClientGuardError(
               '날짜 이동은 이번 회차만 선택해 주세요. 반복 요일은 반복 관리에서 바꿀 수 있어요.',
             )
           const message = await previewSeriesUpdate(
@@ -204,7 +204,7 @@ const ScheduleEditPage = () => {
       addToast(
         getRequestFailureMessage(
           error,
-          '일정을 수정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '일정을 수정하지 못했어요.',
         ),
         'error',
       )
@@ -274,7 +274,7 @@ const ScheduleEditPage = () => {
       addToast(
         getRequestFailureMessage(
           error,
-          '반복 일정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '반복 일정을 저장하지 못했어요.',
         ),
         'error',
       )
@@ -330,11 +330,8 @@ const ScheduleEditPage = () => {
         <p className="schedule-form-page__status">일정을 불러오는 중...</p>
       ) : categoryLoadError && !categoryLoaded ? (
         <div className="schedule-form-page__status" role="alert">
-          <p>
-            프로젝트를 불러오지 못했어요. 기존 프로젝트를 확인한 뒤 수정할 수
-            있어요.
-          </p>
           <p>{categoryLoadError}</p>
+          <p>프로젝트를 확인해야 일정을 수정할 수 있어요.</p>
           <button
             type="button"
             onClick={() => void reloadCategories().catch(() => {})}
@@ -347,7 +344,7 @@ const ScheduleEditPage = () => {
           {categoryLoadError && (
             <div role="alert">
               <p>
-                프로젝트를 새로 확인하지 못했어요. 작성 중인 내용은 유지됩니다.
+                {categoryLoadError} 작성 중인 내용은 유지돼요.
               </p>
               <button
                 type="button"

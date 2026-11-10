@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { buildAuthorizeUrl, login, type AuthProvider } from '../api/auth'
 import { clearLogoutMarker } from '@shared/api/authTokens'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
 import AuthMessage from '../components/AuthMessage'
@@ -75,7 +76,7 @@ const LoginPage = () => {
       addToast('로그인에 성공했어요.', 'success')
       navigateAfterLogin()
     } catch (error) {
-      const message = error instanceof Error ? error.message : '로그인에 실패했습니다.'
+      const message = getRequestFailureMessage(error, '로그인하지 못했어요.')
       setErrors({ form: message })
       addToast(message, 'error')
     } finally {

@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const require = createRequire(import.meta.url)
 const dayjs = require('dayjs')
@@ -32,12 +33,7 @@ const load = (path, dependencies = {}, globals = {}) => {
     Map,
     Set,
     Promise,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -47,15 +43,15 @@ const settle = async () => {
 }
 
 const motion = load('features/planner/utils/planMotion.ts')
+const planData = load('features/planner/utils/planData.ts')
+const linkClick = load('shared/routing/linkClick.ts')
 
-test('a loaded plan only shows under the key it was requested for', () => {
-  const key = motion.dayPlanKey({ date: '2026-11-10', zoneId: 'Asia/Seoul', horizonDays: 7, spaceId: 3, projectId: null })
+test('the plan key names every condition the plan depends on', () => {
+  const base = { date: '2026-11-10', zoneId: 'Asia/Seoul', horizonDays: 7, spaceId: 3, projectId: null }
+  const key = planData.dayPlanKey(base)
   assert.equal(key, '2026-11-10@Asia/Seoul/7/3/all')
-  const other = motion.dayPlanKey({ date: '2026-11-11', zoneId: 'Asia/Seoul', horizonDays: 7, spaceId: 3, projectId: null })
-  const loaded = { key, plan: { date: '2026-11-10' } }
-  assert.equal(motion.resultForKey(loaded, key), loaded)
-  assert.equal(motion.resultForKey(loaded, other), null)
-  assert.equal(motion.resultForKey(null, key), null)
+  for (const change of [{ date: '2026-11-11' }, { zoneId: 'UTC' }, { horizonDays: 0 }, { spaceId: null }, { projectId: 5 }])
+    assert.notEqual(planData.dayPlanKey({ ...base, ...change }), key, JSON.stringify(change))
 })
 
 test('the arrival stagger is capped so a long proposal never waits', () => {
@@ -75,15 +71,15 @@ test('only rows whose suggestion moved between proposals are highlighted', () =>
 test('created schedules join the timeline once, only for their plan date', () => {
   const read = [{ id: 1 }, { id: 2 }]
   const created = { date: '2026-11-10', schedules: [{ id: 2 }, { id: 3 }] }
-  assert.deepEqual(Array.from(motion.withCreatedSchedules(read, created, '2026-11-10'), (s) => s.id), [1, 2, 3])
-  assert.equal(motion.withCreatedSchedules(read, created, '2026-11-11'), read)
-  assert.equal(motion.withCreatedSchedules(read, null, '2026-11-10'), read)
-  assert.equal(motion.withCreatedSchedules(read, { date: '2026-11-10', schedules: [{ id: 1 }] }, '2026-11-10'), read)
+  assert.deepEqual(Array.from(planData.withCreatedSchedules(read, created, '2026-11-10'), (s) => s.id), [1, 2, 3])
+  assert.equal(planData.withCreatedSchedules(read, created, '2026-11-11'), read)
+  assert.equal(planData.withCreatedSchedules(read, null, '2026-11-10'), read)
+  assert.equal(planData.withCreatedSchedules(read, { date: '2026-11-10', schedules: [{ id: 1 }] }, '2026-11-10'), read)
 })
 
 test('a plain click on a surface link opens the surface; modified clicks keep the link', () => {
   const opened = []
-  const handler = motion.surfaceLinkClick((path) => opened.push(path), '/app/tasks/7')
+  const handler = linkClick.surfaceLinkClick((path) => opened.push(path), '/app/tasks/7')
   const click = (extra = {}) => {
     const event = { button: 0, defaultPrevented: false, metaKey: false, altKey: false, ctrlKey: false, shiftKey: false, ...extra, prevented: false }
     event.preventDefault = () => { event.prevented = true }
@@ -98,56 +94,73 @@ test('a plain click on a surface link opens the surface; modified clicks keep th
 })
 
 /* ---------------------------------------------------------------- */
-/* useDayPlan with a tiny hook harness.                              */
+/* useDayPlan on the real stale-while-revalidate store.              */
 /* ---------------------------------------------------------------- */
 
-const hookHarness = (useHook) => {
-  const states = []
-  let effects = []
-  const deps = []
+const dayPlanHarness = (fetchDayPlan, fetchSchedules = async () => []) => {
+  const slots = []
+  const pending = []
   let cursor = 0
-  let effectCursor = 0
+  const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]))
+  const memo = (fn, deps) => {
+    const i = cursor++
+    if (!slots[i] || !same(slots[i].deps, deps)) slots[i] = { deps, value: fn() }
+    return slots[i].value
+  }
+  let unsubscribe = null
+  let subscribed = null
   const react = {
-    useState(initial) {
-      const index = cursor++
-      if (!(index in states)) states[index] = typeof initial === 'function' ? initial() : initial
-      return [states[index], (next) => { states[index] = typeof next === 'function' ? next(states[index]) : next }]
+    useRef: (initial) => {
+      const i = cursor++
+      if (!(i in slots)) slots[i] = { current: initial }
+      return slots[i]
     },
-    useEffect(fn, list) {
-      const index = effectCursor++
-      const previous = deps[index]
-      if (!previous || !list || list.some((value, i) => !Object.is(value, previous.list[i]))) {
-        previous?.cleanup?.()
-        deps[index] = { list, cleanup: null }
-        effects.push(() => { deps[index].cleanup = fn() ?? null })
+    useCallback: (fn, deps) => memo(() => fn, deps),
+    useEffect: (fn, deps) => {
+      const i = cursor++
+      const old = slots[i]
+      if (old && deps && same(old.deps, deps)) return
+      slots[i] = { deps }
+      pending.push(() => {
+        old?.cleanup?.()
+        slots[i].cleanup = fn()
+      })
+    },
+    useSyncExternalStore: (subscribe, getSnapshot) => {
+      if (subscribed !== subscribe) {
+        unsubscribe?.()
+        subscribed = subscribe
+        unsubscribe = subscribe(() => {})
       }
+      return getSnapshot()
     },
   }
-  return {
+  const window = new EventTarget()
+  const { createQueryStore } = load('shared/utils/queryStore.ts', {}, { queueMicrotask, AbortController })
+  const store = createQueryStore()
+  const revalidatingQuery = load('shared/hooks/useRevalidatingQuery.ts', {
     react,
+    '@shared/api/authTokens': { getAccessToken: () => 'token', getTokenSubject: () => 'member-1' },
+    '@shared/utils/events': { onDataChanged: () => () => {} },
+    '@shared/utils/queryStore': { queryStore: store },
+  }, { window })
+  const useDayPlan = load('features/planner/hooks/useDayPlan.ts', {
+    react,
+    '@shared/utils/sameData': load('shared/utils/sameData.ts'),
+    '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: 3, selectedProjectId: null }) },
+    '@features/schedules/api/schedules': { fetchSchedules },
+    '@shared/hooks/useRevalidatingQuery': revalidatingQuery,
+    '../api/plans': { fetchDayPlan },
+    '../utils/planData': planData,
+  }).default
+  return {
     render(props) {
       cursor = 0
-      effectCursor = 0
-      const result = useHook()(props)
-      const pending = effects
-      effects = []
-      pending.forEach((run) => run())
+      const result = useDayPlan(props)
+      while (pending.length) pending.shift()()
       return result
     },
   }
-}
-
-const dayPlanHarness = (fetchDayPlan) => {
-  let hook
-  const harness = hookHarness(() => hook)
-  hook = load('features/planner/hooks/useDayPlan.ts', {
-    react: harness.react,
-    '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: 3, selectedProjectId: null }) },
-    '@features/schedules/api/schedules': { fetchSchedules: async () => [] },
-    '../api/plans': { fetchDayPlan },
-    '../utils/planMotion': motion,
-  }).default
-  return harness
 }
 const planFor = (date, version) => ({ date, version, window: { end: { dateTime: `${date}T23:00:00` } } })
 
@@ -155,53 +168,57 @@ test('useDayPlan keeps the plan through a refresh and a failed refresh, and neve
   let fail = false
   let version = 0
   const host = dayPlanHarness(async ({ date }) => {
-    if (fail) throw Object.assign(new Error('서버 오류 메시지'), { name: 'ApiError', status: 500 })
+    if (fail) throw apiError('서버 오류 메시지', 500)
     version += 1
     return planFor(date, version)
   })
-  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7, refreshKey: 0 }
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
   let state = host.render(props)
   assert.equal(state.isInitialLoading, true)
   assert.equal(state.plan, null)
   await settle()
   state = host.render(props)
   assert.equal(state.plan.version, 1)
+  assert.equal(state.planKey, '2026-11-10@UTC/7/3/all')
   assert.equal(state.isInitialLoading, false)
 
   // A refresh keeps the plan on screen while it loads.
-  host.render({ ...props, refreshKey: 1 })
-  state = host.render({ ...props, refreshKey: 1 })
-  assert.equal(state.plan.version, 1)
-  assert.equal(state.isLoading, true)
-  assert.equal(state.isInitialLoading, false)
+  state.refetch()
   await settle()
-  state = host.render({ ...props, refreshKey: 1 })
+  state = host.render(props)
   assert.equal(state.plan.version, 2)
+  assert.equal(state.isLoading, false)
 
   // A failed refresh keeps the plan and passes the server message through unchanged.
   fail = true
-  host.render({ ...props, refreshKey: 2 })
+  state.refetch()
+  await Promise.resolve()
+  state = host.render(props)
+  assert.equal(state.plan.version, 2)
+  assert.equal(state.isLoading, true)
+  assert.equal(state.isInitialLoading, false)
   await settle()
-  state = host.render({ ...props, refreshKey: 2 })
+  state = host.render(props)
   assert.equal(state.plan.version, 2)
   assert.equal(state.error, '서버 오류 메시지')
 
   // Another date never renders the previous date's plan, not even for one render.
   fail = false
-  state = host.render({ ...props, date: '2026-11-11', refreshKey: 2 })
+  state = host.render({ ...props, date: '2026-11-11' })
   assert.equal(state.plan, null)
+  assert.equal(state.planKey, null)
   assert.equal(state.error, null)
   assert.equal(state.isInitialLoading, true)
   await settle()
-  state = host.render({ ...props, date: '2026-11-11', refreshKey: 2 })
+  state = host.render({ ...props, date: '2026-11-11' })
   assert.equal(state.plan.date, '2026-11-11')
 })
 
 test('useDayPlan reports a first-load failure without data', async () => {
   const host = dayPlanHarness(async () => {
-    throw Object.assign(new Error('계획 서버 메시지'), { name: 'ApiError', status: 500 })
+    throw apiError('계획 서버 메시지', 500)
   })
-  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7, refreshKey: 0 }
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
   host.render(props)
   await settle()
   const state = host.render(props)
@@ -210,11 +227,96 @@ test('useDayPlan reports a first-load failure without data', async () => {
   assert.equal(state.error, '계획 서버 메시지')
 })
 
+test('useDayPlan keeps the same plan object when a refetch returns the same content', async () => {
+  let blocks = [{ taskId: 1 }]
+  const host = dayPlanHarness(async ({ date }) => ({ ...planFor(date, 1), blocks: blocks.map((b) => ({ ...b })) }))
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
+  host.render(props)
+  await settle()
+  let state = host.render(props)
+  const first = state.plan
+
+  // An equal response keeps the object, so the page keeps the drafts the user is editing.
+  state.refetch()
+  await Promise.resolve()
+  state = host.render(props)
+  assert.equal(state.isRefreshing, true)
+  await settle()
+  state = host.render(props)
+  assert.equal(state.plan, first)
+  assert.equal(state.isRefreshing, false)
+
+  // A changed response is a new suggestion.
+  blocks = [{ taskId: 2 }]
+  state.refetch()
+  await settle()
+  state = host.render(props)
+  assert.notEqual(state.plan, first)
+  assert.equal(state.plan.blocks[0].taskId, 2)
+})
+
+test('useDayPlan clears a failure while it retries and shows a retry without a plan as loading', async () => {
+  let fail = true
+  const host = dayPlanHarness(async ({ date }) => {
+    if (fail) throw apiError('계획 서버 메시지', 500)
+    return planFor(date, 1)
+  })
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
+  host.render(props)
+  await settle()
+  let state = host.render(props)
+  assert.equal(state.error, '계획 서버 메시지')
+  fail = false
+  state.refetch()
+  await Promise.resolve()
+  state = host.render(props)
+  assert.equal(state.error, null)
+  assert.equal(state.isInitialLoading, true)
+  await settle()
+  state = host.render(props)
+  assert.equal(state.plan.version, 1)
+
+  // A failed refresh shows its message once the retry has ended, and the next retry clears it.
+  fail = true
+  state.refetch()
+  await settle()
+  state = host.render(props)
+  assert.equal(state.error, '계획 서버 메시지')
+  state.refetch()
+  await Promise.resolve()
+  state = host.render(props)
+  assert.equal(state.error, null)
+  assert.equal(state.isInitialLoading, false)
+  assert.equal(state.plan.version, 1)
+})
+
+test('a window past midnight also reads the next day; schedules arrive once each, in start order', async () => {
+  const day = (date, ...entries) => entries.map(([id, time]) => ({ id, date: { dateTime: `${date}T${time}:00` } }))
+  const reads = []
+  const host = dayPlanHarness(
+    async ({ date }) => ({ date, window: { end: { dateTime: '2026-11-11T02:00:00' } } }),
+    async ({ dateTime }) => {
+      reads.push(dateTime)
+      return dateTime.startsWith('2026-11-10')
+        ? day('2026-11-10', [2, '22:00'], [1, '09:00'])
+        : [...day('2026-11-10', [2, '22:00']), ...day('2026-11-11', [3, '01:00'])]
+    },
+  )
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
+  host.render(props)
+  await settle()
+  const state = host.render(props)
+  assert.deepEqual(reads, ['2026-11-10T12:00:00', '2026-11-11T12:00:00'])
+  assert.deepEqual(Array.from(state.schedules, (schedule) => schedule.id), [1, 2, 3])
+})
+
 /* ---------------------------------------------------------------- */
 /* PlanPage markup.                                                  */
 /* ---------------------------------------------------------------- */
 
 let report
+const links = []
+const opened = []
 const listPresence = (items, getKey) =>
   (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' }))
 const planPage = load('features/planner/pages/PlanPage.tsx', {
@@ -222,7 +324,10 @@ const planPage = load('features/planner/pages/PlanPage.tsx', {
   'react/jsx-runtime': require('react/jsx-runtime'),
   dayjs,
   'react-router-dom': {
-    Link: ({ to, children, className }) => React.createElement('a', { href: to, className }, children),
+    Link: ({ to, children, className, onClick }) => {
+      links.push({ to, onClick })
+      return React.createElement('a', { href: to, className }, children)
+    },
     useSearchParams: () => [new URLSearchParams(), () => {}],
   },
   '@shared/components/common/WorkspaceIcon': () => null,
@@ -237,14 +342,15 @@ const planPage = load('features/planner/pages/PlanPage.tsx', {
     parseIsoDurationMinutes: () => 60,
   },
   '@shared/utils/safeStorage': { NUDGE_KEYS: {}, readFlag: () => true, writeFlag() {} },
-  '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open() {} }) },
+  '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open: (path) => opened.push(path) }) },
   '@shared/routing/viewTransitionNavigation': { tabLinkClick: () => () => {} },
+  '@shared/routing/linkClick': linkClick,
   '@shared/motion/useListPresence': { useListPresence: listPresence, presenceProps: () => ({}) },
   '@shared/motion/usePresence': {
     usePresence: (value) => ({ mounted: Boolean(value), closing: false, value: value || undefined }),
   },
   '@shared/motion/useTweenedNumber': { useTweenedNumber: (value) => value },
-  '@shared/motion/tokens': { prefersReducedMotion: () => false },
+  '@shared/motion/tokens': { MOTION_FLASH_MS: 1200, prefersReducedMotion: () => false },
   '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'UTC', offsetMinutes: 0 }) },
   '@contexts/ToastContext': { useToast: () => ({ addToast() {} }) },
   '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ upsertSchedule() {}, invalidateSchedules() {} }) },
@@ -265,6 +371,7 @@ const planPage = load('features/planner/pages/PlanPage.tsx', {
     unplacedReasonLabel: () => '시간 부족',
     validatePlanSelection: () => ({}),
   },
+  '../utils/planData': planData,
   '../utils/planMotion': motion,
   './PlanPage.css': {},
 }).default
@@ -310,7 +417,7 @@ test('a first load shows the delayed status panel; a failure without data shows 
   assert.match(html, /status-panel--loading/)
   assert.match(html, /계획을 만드는 중\.\.\./)
   html = renderPlan({ error: '서버가 보낸 메시지' })
-  assert.match(html, /role="alert"><div class="status-panel status-panel--error">계획을 불러오지 못했어요\.서버가 보낸 메시지/)
+  assert.match(html, /role="alert"><div class="status-panel status-panel--error">서버가 보낸 메시지<\/div>/)
 })
 
 test('a refresh keeps the proposal mounted and marks it busy; a failed refresh keeps it with the message', () => {
@@ -319,17 +426,28 @@ test('a refresh keeps the proposal mounted and marks it busy; a failed refresh k
   assert.match(html, /블록 2/)
   assert.doesNotMatch(html, /status-panel--loading/)
   html = renderPlan({ plan, planKey: 'k1', error: '다시 불러오기 실패 메시지' })
-  assert.match(html, /plan-page__refresh-error" role="alert">계획을 불러오지 못했어요\. 다시 불러오기 실패 메시지/)
+  assert.match(html, /plan-page__refresh-error" role="alert">다시 불러오기 실패 메시지<\/p>/)
   assert.match(html, /블록 3/)
 })
 
+test('the proposal cannot be approved while it is being reloaded', () => {
+  const button = (html) => html.match(/<button type="button" class="plan-page__apply"[^>]*>[^<]*<\/button>/)[0]
+  let html = renderPlan({ plan, planKey: 'k1' })
+  assert.doesNotMatch(button(html), /disabled/)
+  html = renderPlan({ plan, planKey: 'k1', isLoading: true, isRefreshing: true })
+  assert.match(button(html), /disabled=""/)
+  assert.match(button(html), /제안을 확인하는 중\.\.\./)
+})
+
 test('unplaced tasks open the task surface instead of swapping the page behind it', () => {
-  const source = read('features/planner/pages/PlanPage.tsx')
-  const taskLinks = [...source.matchAll(/<Link\s+to=\{`\/app\/tasks\/[^`]*`\}[\s\S]*?>/g)]
-  assert.ok(taskLinks.length > 0)
-  for (const [link] of taskLinks) assert.match(link, /onClick=\{surfaceLinkClick\(/)
+  links.length = 0
   const html = renderPlan({ plan, planKey: 'k1' })
   assert.match(html, /<a href="\/app\/tasks\/7" class="plan-page__unplaced-title">못 넣은 작업<\/a>/)
+  const link = links.find(({ to }) => to === '/app/tasks/7')
+  let prevented = false
+  link.onClick({ button: 0, defaultPrevented: false, preventDefault: () => { prevented = true } })
+  assert.equal(prevented, true)
+  assert.deepEqual(opened, ['/app/tasks/7'])
 })
 
 /* ---------------------------------------------------------------- */
@@ -390,44 +508,4 @@ test('a replaced replanning preview stays for its exit, inert and hidden from as
   assert.match(leaving, /class="day-replan__preview" data-state="closing" inert="" aria-hidden="true"/)
   // The leaving preview keeps the selection it had instead of unchecking mid-fade.
   assert.match(leaving, /<input type="checkbox" checked=""/)
-})
-
-/* ---------------------------------------------------------------- */
-/* CSS contract.                                                      */
-/* ---------------------------------------------------------------- */
-
-const plannerCss = [
-  'features/planner/pages/PlanPage.css',
-  'features/planner/components/PlanTimeline.css',
-  'features/planner/components/DayReplanningPanel.css',
-].map((path) => [path, read(path)])
-
-test('planner CSS animates only allowed properties with the motion tokens', () => {
-  const allowed = /^(transform|opacity|color|background-color|background|border-color|stroke)$/
-  for (const [path, css] of plannerCss) {
-    assert.doesNotMatch(css, /transition:\s*all/, path)
-    assert.doesNotMatch(css, /infinite/, path)
-    for (const [, value] of css.matchAll(/transition:\s*([^;]+);/g)) {
-      for (const part of value.split(',')) {
-        const property = part.trim().split(/\s+/)[0]
-        assert.match(property, allowed, `${path}: ${part.trim()}`)
-        assert.match(part, /var\(--motion-/, `${path}: ${part.trim()} uses a token`)
-      }
-    }
-    for (const [, value] of css.matchAll(/animation:\s*([^;]+);/g))
-      assert.match(value, /var\(--motion-|^plan-page-block-flash 1200ms var\(--motion-ease\)/, `${path}: ${value}`)
-  }
-})
-
-test('planner CSS never redefines shared keyframes and handles reduced motion', () => {
-  const shared = ['motion-fade-in', 'motion-fade-out', 'motion-rise-in', 'motion-rise-out', 'motion-drop-in', 'motion-sheet-in', 'motion-sheet-out', 'modalFadeIn', 'modalSlideUp', 'fadeIn', 'fadeSlideIn']
-  for (const [path, css] of plannerCss) {
-    for (const [, name] of css.matchAll(/@keyframes\s+([\w-]+)/g)) assert.ok(!shared.includes(name), `${path} redefines ${name}`)
-    assert.doesNotMatch(css, /\banimation:\s*(fadeIn|fadeSlideIn)\b/, path)
-  }
-  const page = plannerCss[0][1]
-  const reduced = page.slice(page.indexOf('@media (prefers-reduced-motion: reduce)'))
-  assert.match(reduced, /animation-delay: 0ms/)
-  assert.match(reduced, /animation-name: motion-fade-in/)
-  assert.match(plannerCss[2][1], /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation-delay: 0ms/)
 })

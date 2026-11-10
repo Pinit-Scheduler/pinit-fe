@@ -2,15 +2,15 @@ import WorkspaceIcon, { type WorkspaceIconName } from '@shared/components/common
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { presenceProps, type PresencePhase } from '@shared/motion'
 import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
-import SavedMark from '@features/settings/components/SavedMark'
+import SavedMark from '@shared/components/motion/SavedMark'
 import { Link } from 'react-router-dom'
 import { ApiError } from '@shared/api/httpClient'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import { formatMinutesLabel } from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, writeFlag } from '@shared/utils/safeStorage'
 import usePushSubscription from '@shared/hooks/usePushSubscription'
-import PresenceList from '../components/PresenceList'
+import PresenceList from '@shared/components/motion/PresenceList'
 import RoutineOverridesSection from '../components/RoutineOverridesSection'
 import { fetchRoutines, saveRoutines } from '../api/routines'
 import type { DayOfWeek, Routine, RoutineKind } from '../types/routine'
@@ -136,7 +136,7 @@ const RoutinesPage = () => {
       setConflict(false)
       hasLoaded.current = true
     } catch (error) {
-      const message = getRequestFailureMessage(error, '생활 시간을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+      const message = getRequestFailureMessage(error, '생활 시간을 불러오지 못했어요.')
       // 이미 보이는 내용이 있으면 그대로 두고 알리기만 한다.
       if (hasLoaded.current) addToast(message, 'error')
       else setLoadError(message)
@@ -239,9 +239,9 @@ const RoutinesPage = () => {
         addToast('저장하지 못했어요. 표시된 항목을 확인해 주세요.', 'error')
       } else if (error instanceof ApiError && error.status === 409) {
         setConflict(true)
-        addToast(getRequestFailureMessage(error, '다른 곳에서 생활 시간이 바뀌었어요.'), 'error')
+        addToast(readFailureMessage(error) ?? '다른 곳에서 생활 시간이 바뀌었어요.', 'error')
       } else {
-        const message = getRequestFailureMessage(error, '생활 시간을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+        const message = getRequestFailureMessage(error, '생활 시간을 저장하지 못했어요.')
         setGeneralErrors([message])
         addToast(message, 'error')
       }
@@ -380,7 +380,6 @@ const RoutinesPage = () => {
         <div className="routines__placeholder routines__placeholder--loading">생활 시간을 불러오는 중...</div>
       ) : loadError ? (
         <div className="routines__placeholder routines__placeholder--notice" role="alert">
-          <p>생활 시간을 불러오지 못했어요.</p>
           <p>{loadError}</p>
           <button type="button" className="routines__link-button" onClick={load}>
             다시 시도

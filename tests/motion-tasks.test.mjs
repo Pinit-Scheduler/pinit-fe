@@ -5,6 +5,13 @@ import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { createRequire } from 'node:module'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { requireFrom } from './support/errors.mjs'
+
+const nodeRequire = createRequire(import.meta.url)
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 const flush = async () => {
@@ -29,12 +36,7 @@ function load(path, dependencies = {}, globals = {}) {
     Error,
     JSON,
     Promise,
-    require: (name) => {
-      if (name === '@shared/api/errorMessage' && !(name in dependencies))
-        return load('shared/api/errorMessage.ts')
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -75,6 +77,7 @@ const categoryHarness = () => {
       '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
       '@features/spaces/metadata': {},
       '@shared/utils/events': { onDataChanged: () => () => {} },
+      '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     },
     { window },
   )
@@ -150,7 +153,7 @@ test('a category reload with the same content keeps the same objects, so list fi
 // ---------------------------------------------------------------------------
 
 test('a completion waits for its motion before the task list refreshes; other changes refresh at once', () => {
-  const { isCompletionOnly, COMPLETION_SETTLE_MS } = load(
+  const { isCompletionOnly } = load(
     'features/tasks/utils/taskListRefresh.ts',
   )
   // WorkspaceTaskCard: one task event and one schedule event per toggle.
@@ -170,20 +173,101 @@ test('a completion waits for its motion before the task list refreshes; other ch
     { tasks: [], schedules: [{ reason: 'task-state-mutated' }] },
   ])
     assert.equal(isCompletionOnly(batch), false, JSON.stringify(batch))
-  // Long enough for the strike (80ms delay + enter) to finish, short enough to feel immediate.
-  assert.ok(COMPLETION_SETTLE_MS >= 80 + 240 && COMPLETION_SETTLE_MS <= 800)
 })
 
-test('TaskListPage reads project assignments at render, not in the request', () => {
-  const page = src('features/tasks/pages/TaskListPage.tsx')
-  const fetcher = page.slice(
-    page.indexOf('useRevalidatingQuery<TaskListData>('),
-    page.indexOf('{ errorMessage: errorText }'),
+test('a list refresh re-reads the pages on screen, including one "more" added while it ran', async () => {
+  const { readShownPages } = load('features/tasks/utils/taskListRefresh.ts')
+  let shown = 1
+  const reads = []
+  const read = async (page) => {
+    reads.push(page)
+    // "More" lands while the refresh waits for its first page.
+    if (page === 0) shown = 2
+    return { page, last: page >= 3 }
+  }
+  const pages = await readShownPages(read, () => shown, (response) => response.last)
+  assert.deepEqual(plain(pages.map((response) => response.page)), [0, 1])
+  assert.deepEqual(reads, [0, 1])
+  shown = 2
+  const capped = await readShownPages(
+    async (page) => {
+      if (page === 0) shown = 5
+      return { page, last: page === 2 }
+    },
+    () => shown,
+    (response) => response.last,
   )
-  assert.ok(fetcher.length > 0)
-  assert.doesNotMatch(fetcher, /taskAssignments/, 'a category reload must not re-create the request')
-  assert.match(page, /useListPresence\(visible/)
-  assert.doesNotMatch(page, /setLoading\(true\)/)
+  assert.equal(capped.length, 3, 'never reads past the last page')
+})
+
+const taskListPage = ({ query, taskAssignments = {}, category = 'all' }) => {
+  const queries = []
+  const modals = []
+  const Page = load(
+    'features/tasks/pages/TaskListPage.tsx',
+    {
+      react: React,
+      'react/jsx-runtime': jsxRuntime,
+      '@features/spaces/store': {
+        useProjectFilter: () => [category, () => {}],
+        useSpaces: () => ({ selectedSpaceId: 22 }),
+      },
+      '../api/tasks': { searchTasks: () => new Promise(() => {}) },
+      '@contexts/TaskCacheContext': { useTaskCache: () => ({ setTask() {} }) },
+      '@shared/utils/datetime': { getTodayWithOffset: () => ({ format: () => '2026-11-10' }) },
+      '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ offsetMinutes: 540 }) },
+      '@shared/utils/events': { onDataChanged: () => () => {} },
+      '@shared/hooks/useRevalidatingQuery': {
+        useRevalidatingQuery: (key, fetcher) => {
+          queries.push(key)
+          return { isRefreshing: false, refetch() {}, setData() {}, ...query }
+        },
+      },
+      '@shared/motion': {
+        arrivalIndex: (index) => index,
+        COMPLETION_HOLD_MS: 0,
+        presenceProps: () => ({}),
+        useArrival: () => false,
+        useListPresence: (items, getKey) =>
+          (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+        usePresence: (value) => ({ mounted: Boolean(value), closing: false, value }),
+        useTweenedNumber: (value) => value,
+      },
+      '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open() {} }) },
+      '@features/categories': {
+        CategoryFilter: () => null,
+        CategoryManager: (props) => (modals.push(['manager', props.open]), null),
+        useCategories: () => ({ taskAssignments, hasLoaded: true, error: null }),
+      },
+      '../components/WorkspaceTaskCard': { default: ({ task }) => React.createElement('p', null, task.title) },
+      '../components/modals/TaskArchiveModal': { default: (props) => (modals.push(['archive', props.open]), null) },
+      '../components/TaskFilterPanel': { default: () => null },
+      '../utils/taskSearch': load('features/tasks/utils/taskSearch.ts'),
+      '../utils/taskListRefresh': load('features/tasks/utils/taskListRefresh.ts'),
+      './TaskPages.css': {},
+    },
+    { sessionStorage: { getItem: () => null, setItem() {} } },
+  ).default
+  const html = renderToStaticMarkup(React.createElement(Page))
+  return { html, key: queries[0], modals }
+}
+
+test('the task list shows a failed refresh over an empty result and keeps its modals mounted closed', () => {
+  const { html, modals } = taskListPage({
+    query: { data: { tasks: [], total: 0, pages: 1, hasMore: false }, error: '작업을 새로 불러오지 못했어요.' },
+  })
+  assert.match(html, /role="alert"><p>작업을 새로 불러오지 못했어요\.<\/p>/)
+  assert.match(html, /등록된 작업이 없습니다/, 'the empty result stays under the error')
+  assert.deepEqual(modals, [['archive', false], ['manager', false]], 'closed modals stay mounted, so they can fade out')
+})
+
+test('a project reload never re-creates the task list request', () => {
+  const data = { tasks: [{ id: 1, title: '작업 1' }], total: 1, pages: 1, hasMore: false }
+  const before = taskListPage({ query: { data, error: null }, category: 7, taskAssignments: {} })
+  const after = taskListPage({ query: { data, error: null }, category: 7, taskAssignments: { 1: 7 } })
+  assert.equal(after.key, before.key, 'assignments are applied at render, not in the request')
+  assert.doesNotMatch(before.html, /작업 1/)
+  assert.match(after.html, /작업 1/)
 })
 
 // ---------------------------------------------------------------------------
@@ -212,14 +296,6 @@ test('the task detail ignores its own toggle echo and unrelated tasks, but follo
     detailRefreshNeeded([{ taskId: 5, reason: 'delete' }, { reason: 'space' }], 5, [], 0).refetch,
     true,
   )
-})
-
-test('the task detail seeds from the cache and never swaps shown content for the loading line', () => {
-  const modal = src('features/tasks/components/TaskDetailModal.tsx')
-  assert.match(modal, /const isLoading = !task && !error/)
-  assert.doesNotMatch(modal, /setIsLoading\(true\)/)
-  assert.match(modal, /<CompletionCheck/)
-  assert.match(modal, /className="motion-strike"/)
 })
 
 // ---------------------------------------------------------------------------
@@ -258,7 +334,7 @@ const hookRunner = (path) => {
 }
 
 test('useArrival marks content as arriving only after this screen waited for its key', () => {
-  const render = hookRunner('features/tasks/utils/useArrival.ts')
+  const render = hookRunner('shared/motion/useArrival.ts')
   assert.equal(render(false, 'cached'), false, 'cached content on mount does not replay an entrance')
   assert.equal(render(true, 'sorted'), false)
   assert.equal(render(false, 'sorted'), true, 'the new sort arrives once loaded')
@@ -279,6 +355,7 @@ const areaFiles = ['features/tasks', 'features/categories'].flatMap((dir) =>
   walk(fileURLToPath(new URL('../src/' + dir, import.meta.url))),
 )
 
+// CSS is only readable as text here; the rules apply to every rule in these areas.
 test('tasks and categories CSS name their transitions and define no keyframes', () => {
   for (const file of areaFiles.filter((path) => path.endsWith('.css'))) {
     const css = readFileSync(file, 'utf8')
@@ -295,41 +372,104 @@ test('tasks and categories CSS name their transitions and define no keyframes', 
   assert.doesNotMatch(root, /animation/, 'the page root never animates on mount')
 })
 
-test('task and category modals play their exit instead of unmounting at once', () => {
-  for (const path of [
-    'features/tasks/components/TaskScheduleModal.tsx',
-    'features/tasks/components/modals/TaskDependencyModal.tsx',
-    'features/tasks/components/modals/TaskArchiveModal.tsx',
-    'features/tasks/components/modals/TagManagerModal.tsx',
-    'features/categories/components.tsx',
-  ]) {
-    const source = src(path)
-    assert.match(source, /usePresence\(/, path)
-    assert.match(source, /closing=\{/, path)
-    assert.doesNotMatch(source, /if \(!isOpen\) return null/, path)
+const modalDeps = (presence) => ({
+  react: React,
+  'react/jsx-runtime': jsxRuntime,
+  '@shared/components/common/WorkspaceIcon': { default: () => null },
+  '@shared/components/common/Modal': {
+    default: ({ closing, children }) =>
+      React.createElement('div', { role: 'dialog', 'data-closing': String(closing) }, children),
+  },
+  '@shared/motion': {
+    arrivalIndex: (index) => index,
+    useArrival: () => false,
+    usePresence: (value) => presence ?? { mounted: Boolean(value), closing: false, value },
+  },
+})
+
+test('task pickers open on a loading line, never on an empty result', () => {
+  const Dependency = load('features/tasks/components/modals/TaskDependencyModal.tsx', {
+    ...modalDeps(),
+    './TaskDependencyModal.css': {},
+    '../../api/tasks': { searchTasks: () => new Promise(() => {}) },
+    '../../utils/taskSearch': load('features/tasks/utils/taskSearch.ts'),
+  }).default
+  const picker = renderToStaticMarkup(
+    React.createElement(Dependency, { isOpen: true, onClose() {}, selectedIds: [], onApply() {}, title: '이전 작업' }),
+  )
+  assert.match(picker, /role="status">불러오는 중\.\.\./)
+  assert.doesNotMatch(picker, /작업이 없습니다/)
+
+  const Archive = load('features/tasks/components/modals/TaskArchiveModal.tsx', {
+    ...modalDeps(),
+    './TaskArchiveModal.css': {},
+    '../../api/tasks': { fetchTaskArchiveByCursor: () => new Promise(() => {}) },
+    '@shared/utils/datetime': { formatDateWithOffset: () => '' },
+    '@shared/utils/deadlineStyles': { getDeadlineStyle: () => ({}) },
+    '@shared/utils/priorityStyles': { getDifficultyStyle: () => ({}), getImportanceStyle: () => ({}) },
+  }).default
+  const archive = renderToStaticMarkup(React.createElement(Archive, { onClose() {} }))
+  assert.match(archive, /불러오는 중\.\.\./)
+  assert.doesNotMatch(archive, /아카이브된 작업이 없습니다/)
+})
+
+test('task modals hand their exit to the modal and keep naming the task while they fade', () => {
+  const closing = { mounted: true, closing: true }
+  const Dependency = load('features/tasks/components/modals/TaskDependencyModal.tsx', {
+    ...modalDeps(closing),
+    './TaskDependencyModal.css': {},
+    '../../api/tasks': { searchTasks: () => new Promise(() => {}) },
+    '../../utils/taskSearch': load('features/tasks/utils/taskSearch.ts'),
+  }).default
+  assert.match(
+    renderToStaticMarkup(
+      React.createElement(Dependency, { isOpen: false, onClose() {}, selectedIds: [], onApply() {}, title: '이전 작업' }),
+    ),
+    /data-closing="true"/,
+  )
+
+  // The opener clears the task as the exit starts; a fake hook runtime renders the same instance twice.
+  const slots = []
+  let index = 0
+  const hooks = {
+    useId: () => 'id',
+    useRef: (initial) => {
+      const i = index++
+      if (!(i in slots)) slots[i] = { current: initial }
+      return slots[i]
+    },
+    useState: (initial) => {
+      const i = index++
+      if (!(i in slots)) slots[i] = typeof initial === 'function' ? initial() : initial
+      return [slots[i], (next) => { slots[i] = typeof next === 'function' ? next(slots[i]) : next }]
+    },
+    useEffect() {},
   }
-  const list = src('features/tasks/pages/TaskListPage.tsx')
-  assert.doesNotMatch(list, /archiveOpen &&|managerOpen &&/)
-})
-
-test('a list refresh keeps pages that "more" added meanwhile, and shows a failed refresh over an empty result', () => {
-  const page = src('features/tasks/pages/TaskListPage.tsx')
-  // Page counts belong to a key, and the refresh reads pages that landed while it ran.
-  assert.match(page, /pagesShown\.current\.key === key/)
-  assert.match(page, /responses\.length < shown\(\)/)
-  assert.match(page, /pagesShown\.current = \{ key, pages: page \+ 1 \}/)
-  // The inline refresh error is not tied to the non-empty branch.
-  assert.match(page, /\{error && visible !== undefined && \(/)
-})
-
-test('task modals show neither an empty result on opening nor a blank label while fading', () => {
-  const picker = src('features/tasks/components/modals/TaskDependencyModal.tsx')
-  assert.match(picker, /const \[loading, setLoading\] = useState\(true\)/)
-  const archive = src('features/tasks/components/modals/TaskArchiveModal.tsx')
-  assert.match(archive, /\) : !initialLoaded \? \(/)
-  // A later page that fails keeps the rows already read.
-  assert.match(archive, /\{error && tasks\.length === 0 \? \(/)
-  const schedule = src('features/tasks/components/TaskScheduleModal.tsx')
-  assert.match(schedule, /if \(isOpen && shownLabel !== taskLabel\) setShownLabel\(taskLabel\)/)
-  assert.match(schedule, /\{shownLabel \?\? '작업'\}/)
+  const jsx = (type, props) => ({ type, props })
+  const Schedule = load('features/tasks/components/TaskScheduleModal.tsx', {
+    react: hooks,
+    'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+    '@shared/components/common/WorkspaceIcon': { default: () => null },
+    '@shared/components/common/Modal': { default: () => null },
+    '@shared/motion': { usePresence: (open) => (open ? { mounted: true, closing: false } : closing) },
+    dayjs: { default: nodeRequire('dayjs') },
+    './TaskScheduleModal.css': {},
+    '@shared/utils/datetime': { toApiDateTimeWithZone: (date) => date },
+    '@features/spaces/conflicts': { conflictMessage: () => '', conflictReloadedMessage: () => '', isEditConflict: () => false },
+  }).default
+  const heading = (props) => {
+    index = 0
+    const nodes = []
+    const walk = (node) => {
+      if (Array.isArray(node)) return node.forEach(walk)
+      if (!node || typeof node !== 'object') return
+      nodes.push(node)
+      walk(node.props?.children)
+    }
+    const root = Schedule({ onClose() {}, onSubmit: async () => {}, ...props })
+    walk(root)
+    return { closing: root.props.closing, text: nodes.find((node) => node.type === 'h1').props.children }
+  }
+  assert.deepEqual(heading({ isOpen: true, taskLabel: '보고서 쓰기' }), { closing: false, text: '보고서 쓰기' })
+  assert.deepEqual(heading({ isOpen: false, taskLabel: undefined }), { closing: true, text: '보고서 쓰기' })
 })

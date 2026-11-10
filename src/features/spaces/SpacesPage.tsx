@@ -1,4 +1,5 @@
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Modal from '@shared/components/common/Modal'
@@ -7,6 +8,8 @@ import {
   MOTION_ENTER_MS,
   MOTION_EXIT_MS,
   MOTION_FAST_MS,
+  MOTION_STRIKE_DELAY_MS,
+  playRise,
   usePresence,
 } from '@shared/motion'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
@@ -40,7 +43,7 @@ import HubRail from './hub/HubRail'
 import HubSettings from './hub/HubSettings'
 import TeamRecord from './hub/TeamRecord'
 import useHubData from './hub/useHubData'
-import { hubPaneToAnimate, riseIn } from './motion'
+import { hubPaneToAnimate } from './motion'
 import { selectSpace, useSpaces, workspaceChanged } from './store'
 import type { Invitation, Project, Space } from './types'
 import './spaces.css'
@@ -96,6 +99,16 @@ function EditorDialog({
           : editor.kind === 'create-project'
             ? '프로젝트 만들기'
             : '프로젝트 수정'
+  const failedAction =
+    editor.kind === 'create-space'
+      ? '스페이스를 만들지 못했어요.'
+      : editor.kind === 'purpose'
+        ? '목적을 저장하지 못했어요.'
+        : editor.kind === 'space'
+          ? '스페이스 정보를 저장하지 못했어요.'
+          : editor.kind === 'create-project'
+            ? '프로젝트를 만들지 못했어요.'
+            : '프로젝트를 저장하지 못했어요.'
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (mutationLock.current) return
@@ -158,9 +171,7 @@ function EditorDialog({
       if (reportEditConflict(failure)) close()
       else
         setError(
-          failure instanceof Error
-            ? failure.message
-            : '저장하지 못했어요. 입력한 내용은 유지됩니다.',
+          `${getRequestFailureMessage(failure, failedAction)} 입력한 내용은 유지돼요.`,
         )
     } finally {
       mutationLock.current = false
@@ -283,7 +294,6 @@ export default function SpacesPage() {
   const [invitation, setInvitation] = useState<Invitation | null>(null)
   const [copied, setCopied] = useState(false)
   const [movingProject, setMovingProject] = useState<Project | null>(null)
-  // 배정 대화상자를 연 스페이스. 다른 스페이스로 바뀌면 그 대화상자는 보이지 않는다.
   const [assigningSpaceId, setAssigningSpaceId] = useState<number | null>(null)
   // 다른 스페이스로 바뀌면 배정 대화상자를 닫는다(돌아와도 저절로 열리지 않게). 다시 불러오는 동안 비는 것은 무시한다.
   if (
@@ -324,9 +334,7 @@ export default function SpacesPage() {
       if (reportEditConflict(failure)) setConfirm(null)
       else
         setError(
-          failure instanceof Error
-            ? failure.message
-            : '요청을 처리하지 못했어요. 다시 시도해 주세요.',
+          getRequestFailureMessage(failure, '요청을 처리하지 못했어요.'),
         )
       return false
     } finally {
@@ -361,8 +369,8 @@ export default function SpacesPage() {
     const next = { id: project.id, completed: !project.completed }
     setSettling(next)
     const started = Date.now()
-    // The strike draws over 80ms + --motion-enter; retracting takes --motion-fast.
-    const settle = next.completed ? 80 + MOTION_ENTER_MS : MOTION_FAST_MS
+    // The strike draws after --motion-strike-delay over --motion-enter; retracting takes --motion-fast.
+    const settle = next.completed ? MOTION_STRIKE_DELAY_MS + MOTION_ENTER_MS : MOTION_FAST_MS
     const ok = await run(
       async () => {
         const result = await updateProject(project.id, {
@@ -395,9 +403,7 @@ export default function SpacesPage() {
       setCopied(false)
     } catch (failure) {
       setError(
-        failure instanceof Error
-          ? failure.message
-          : '초대 링크를 만들지 못했어요.',
+        getRequestFailureMessage(failure, '초대 링크를 만들지 못했어요.'),
       )
     } finally {
       mutationLock.current = false
@@ -432,8 +438,8 @@ export default function SpacesPage() {
     pane.current = { spaceId, detail }
     const narrow = Boolean(window.matchMedia?.('(max-width: 760px)').matches)
     const target = hubPaneToAnimate(before, { spaceId, detail }, narrow)
-    if (target === 'overview') riseIn(overview.current)
-    if (target === 'rail') riseIn(rail.current)
+    if (target === 'overview') playRise(overview.current)
+    if (target === 'rail') playRise(rail.current)
   }, [spaceId, detail])
   const entry = useRef(location.key)
   useEffect(() => {
@@ -493,7 +499,7 @@ export default function SpacesPage() {
           <HubRail
             spaces={liveSpaces}
             summaries={summaries.data}
-            failed={Boolean(summaries.error) && !summaries.data}
+            loadError={summaries.data ? null : summaries.error}
             onRetry={summaries.reload}
             selectedId={space?.id ?? null}
             onSelect={choose}
@@ -533,7 +539,7 @@ export default function SpacesPage() {
                 space={space}
                 rows={projectRows(workspace.projects, space.id, summary.data)}
                 withoutProject={summary.data?.withoutProject ?? null}
-                failed={Boolean(summary.error) && !summary.data}
+                loadError={summary.data ? null : summary.error}
                 onRetry={summary.reload}
                 busy={busy}
                 settling={settling}
@@ -563,7 +569,7 @@ export default function SpacesPage() {
                     summary.data,
                   )}
                   unassigned={summary.data?.unassigned ?? null}
-                  failed={Boolean(summary.error) && !summary.data}
+                  loadError={summary.data ? null : summary.error}
                   onRetry={summary.reload}
                   busy={busy}
                   onInvite={() => void invite()}
@@ -598,7 +604,7 @@ export default function SpacesPage() {
                 )}
                 meId={workspace.memberId}
                 record={record.data}
-                failed={Boolean(record.error) && !record.data}
+                loadError={record.data ? null : record.error}
                 onRetry={record.reload}
                 today={today}
               />
@@ -778,9 +784,7 @@ function ProjectMoveDialog({
       if (reportEditConflict(failure)) close()
       else
         setError(
-          failure instanceof Error
-            ? failure.message
-            : '프로젝트를 옮기지 못했어요.',
+          getRequestFailureMessage(failure, '프로젝트를 옮기지 못했어요.'),
         )
     } finally {
       lock.current = false

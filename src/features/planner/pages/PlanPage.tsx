@@ -10,7 +10,10 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import {
+  getRequestFailureMessage,
+  readFailureMessage,
+} from '@shared/api/errorMessage'
 import { getTodayWithOffset } from '@shared/utils/datetime'
 import {
   dispatchScheduleChanged,
@@ -23,6 +26,7 @@ import {
 } from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, readFlag, writeFlag } from '@shared/utils/safeStorage'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { surfaceLinkClick } from '@shared/routing/linkClick'
 import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import {
   presenceProps,
@@ -30,7 +34,7 @@ import {
 } from '@shared/motion/useListPresence'
 import { usePresence } from '@shared/motion/usePresence'
 import { useTweenedNumber } from '@shared/motion/useTweenedNumber'
-import { prefersReducedMotion } from '@shared/motion/tokens'
+import { MOTION_FLASH_MS, prefersReducedMotion } from '@shared/motion/tokens'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useToast } from '@contexts/ToastContext'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
@@ -78,12 +82,8 @@ import type {
   RoutineSpan,
   SelectionObstacle,
 } from '../utils/planMapping'
-import {
-  movedSuggestions,
-  staggerIndex,
-  surfaceLinkClick,
-  withCreatedSchedules,
-} from '../utils/planMotion'
+import { withCreatedSchedules } from '../utils/planData'
+import { movedSuggestions, staggerIndex } from '../utils/planMotion'
 import './PlanPage.css'
 
 type DraftBlock = {
@@ -119,8 +119,6 @@ type PlanDrafts = {
 }
 
 const NO_IDS: ReadonlySet<number> = new Set()
-/** The row highlight runs this long (see .plan-page__block[data-flash] in PlanPage.css). */
-const FLASH_MS = 1200
 
 const HORIZON_OPTIONS = [0, 1, 3, 7, 14, 30]
 const DEFAULT_HORIZON_DAYS = 7
@@ -210,14 +208,22 @@ const PlanPage = () => {
       ? requestedDate
       : today
   const [horizonDays, setHorizonDays] = useState(DEFAULT_HORIZON_DAYS)
+  // Routines and the calibration setting reload with the plan.
   const [refreshKey, setRefreshKey] = useState(0)
-  const { plan, planKey, schedules, isLoading, isInitialLoading, error } =
-    useDayPlan({
-      date,
-      zoneId,
-      horizonDays,
-      refreshKey,
-    })
+  const {
+    plan,
+    planKey,
+    schedules,
+    isLoading,
+    isRefreshing,
+    isInitialLoading,
+    error,
+    refetch: refetchPlan,
+  } = useDayPlan({ date, zoneId, horizonDays })
+  const reload = () => {
+    refetchPlan()
+    setRefreshKey((key) => key + 1)
+  }
 
   const [editing, setEditing] = useState<PlanDrafts>({
     plan: null,
@@ -307,7 +313,7 @@ const PlanPage = () => {
           setCalibrationError(
             getRequestFailureMessage(
               err,
-              '보정 설정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+              '보정 설정을 불러오지 못했어요.',
             ),
           )
         }
@@ -345,12 +351,12 @@ const PlanPage = () => {
           : '기록 기반 보정을 껐어요. 기본 예상 시간으로 다시 제안해요.',
         'success',
       )
-      setRefreshKey((key) => key + 1)
+      reload()
     } catch (err) {
       setCalibrationError(
         getRequestFailureMessage(
           err,
-          '보정 설정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '보정 설정을 저장하지 못했어요.',
         ),
       )
       setCalibrationRetryValue(enabled)
@@ -394,7 +400,7 @@ const PlanPage = () => {
         setEditing((prev) =>
           prev.flashed === flashed ? { ...prev, flashed: NO_IDS } : prev,
         ),
-      FLASH_MS,
+      MOTION_FLASH_MS,
     )
     return () => window.clearTimeout(timer)
   }, [flashed])
@@ -525,8 +531,13 @@ const PlanPage = () => {
     ({ draft }) => (clientIssues[draft.taskId]?.length ?? 0) > 0,
   )
   const tooMany = selectedCount > MAX_APPLY_BLOCKS
+  // 다시 불러오는 동안에는 승인하지 않는다. 화면의 제안이 이미 지난 제안일 수 있다.
   const canApply =
-    selectedCount > 0 && !hasClientIssues && !tooMany && !isApplying
+    selectedCount > 0 &&
+    !hasClientIssues &&
+    !tooMany &&
+    !isApplying &&
+    !isRefreshing
 
   const calibrationNudge = usePresence(
     Boolean(
@@ -542,8 +553,8 @@ const PlanPage = () => {
   )
 
   const draftRows = useListPresence(
-    plan ? drafts : undefined,
-    (draft) => draft.taskId,
+    plan ? draftSpans : undefined,
+    ({ draft }) => draft.taskId,
     { resetKey: planKey },
   )
 
@@ -625,7 +636,7 @@ const PlanPage = () => {
         schedules: schedulesCreated,
       })
       addToast(`${schedulesCreated.length}개 일정을 만들었어요.`, 'success')
-      setRefreshKey((key) => key + 1)
+      reload()
     } catch (err) {
       const rejections =
         err instanceof ApiError && err.status === 409
@@ -638,23 +649,19 @@ const PlanPage = () => {
             submitted.map((draft) => draft.taskId),
           ),
         )
+        const message = readFailureMessage(err)
         setApplyError(
-          '일정은 하나도 만들어지지 않았어요. 표시된 블록을 고치거나 선택을 빼고 다시 승인해 주세요.',
+          message ??
+            '일정은 하나도 만들어지지 않았어요. 표시된 블록을 고치거나 선택을 빼고 다시 승인해 주세요.',
         )
-        addToast('승인하지 못했어요. 표시된 블록을 확인해 주세요.', 'error')
-      } else {
-        const message = getRequestFailureMessage(
-          err,
-          '인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
-        )
-        setApplyError(`승인하지 못했어요. ${message}`)
         addToast(
-          getRequestFailureMessage(
-            err,
-            '계획을 승인하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
-          ),
+          message ?? '승인하지 못했어요. 표시된 블록을 확인해 주세요.',
           'error',
         )
+      } else {
+        const message = getRequestFailureMessage(err, '계획을 승인하지 못했어요.')
+        setApplyError(message)
+        addToast(message, 'error')
       }
     } finally {
       setIsApplying(false)
@@ -769,7 +776,7 @@ const PlanPage = () => {
           onApplied={(ids) => {
             invalidateSchedules(ids)
             ids.forEach((scheduleId) => dispatchScheduleChanged({ scheduleId, reason: 'day-replanned' }))
-            setRefreshKey((key) => key + 1)
+            reload()
           }}
         />
       )}
@@ -803,7 +810,7 @@ const PlanPage = () => {
         <button
           type="button"
           className="plan-page__refresh"
-          onClick={() => setRefreshKey((key) => key + 1)}
+          onClick={reload}
           disabled={isLoading || isApplying || isUpdatingCalibration}
         >
           다시 제안받기
@@ -996,11 +1003,7 @@ const PlanPage = () => {
           <StatusPanel variant="loading" title="계획을 만드는 중..." />
         ) : error && !plan ? (
           <div role="alert">
-            <StatusPanel
-              variant="error"
-              title="계획을 불러오지 못했어요."
-              description={error}
-            />
+            <StatusPanel variant="error" title={error} />
           </div>
         ) : plan ? (
           <div
@@ -1010,7 +1013,7 @@ const PlanPage = () => {
           >
             {error && (
               <p className="plan-page__refresh-error" role="alert">
-                계획을 불러오지 못했어요. {error}
+                {error}
               </p>
             )}
             <section
@@ -1111,12 +1114,8 @@ const PlanPage = () => {
                 </p>
               ) : (
                 <ul className="plan-page__blocks">
-                  {draftRows.map(({ key, item: draft, phase }, index) => {
-                    const startMs = toMs(draft.startLocal, planZoneId)
-                    const endMs =
-                      startMs === null
-                        ? null
-                        : startMs + draft.durationMinutes * 60000
+                  {draftRows.map(({ key, item, phase }, index) => {
+                    const { draft, startMs, endMs } = item
                     const issues = draft.selected
                       ? [
                           ...(clientIssues[draft.taskId] ?? []),
@@ -1382,7 +1381,11 @@ const PlanPage = () => {
               onClick={handleApply}
               disabled={!canApply}
             >
-              {isApplying ? '승인하는 중...' : '선택한 블록으로 일정 만들기'}
+              {isApplying
+                ? '승인하는 중...'
+                : isRefreshing
+                  ? '제안을 확인하는 중...'
+                  : '선택한 블록으로 일정 만들기'}
             </button>
           </div>
         </footer>

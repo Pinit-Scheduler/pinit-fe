@@ -81,7 +81,7 @@
 .plan-daily-bars__value {
   transform: translateY(calc(var(--hidden, 0) * 130px));
   transition:
-    transform var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * 24ms),
+    transform var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * var(--motion-stagger)),
     opacity var(--motion-base) var(--motion-ease);
 }
 [data-pending] .plan-daily-bars__value {

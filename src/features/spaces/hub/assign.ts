@@ -1,4 +1,7 @@
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { ApiError } from '@shared/api/httpClient'
 import type { Task } from '@features/tasks/types/task'
+import { conflictReloadedMessage, isEditConflict } from '../conflicts'
 import { dueLabel } from '../hub'
 import type { Project, SpaceMember, UnavailableReason } from '../types'
 
@@ -52,18 +55,14 @@ export const mergeTasks = (current: Task[], next: Task[]): Task[] => {
   return [...current, ...next.filter((task) => !seen.has(task.id))]
 }
 
-/**
- * 받은 쪽 뒤의 "서버 목록에서 아직 안 본 첫 위치". 화면에서 걸러진 작업이 있어도
- * 서버가 보낸 행 수로 센다.
- */
+/** 받은 쪽 뒤의 "서버 목록에서 아직 안 본 첫 위치". */
 export const offsetAfter = (response: {
   number?: number
   size?: number
-  numberOfElements?: number
   content: unknown[]
 }): number =>
   (response.number ?? 0) * (response.size ?? ASSIGN_PAGE_SIZE) +
-  (response.numberOfElements ?? response.content.length)
+  response.content.length
 
 /**
  * 더 볼 때 받을 쪽. 배정한 작업은 서버 목록에서도 빠지므로 위치를 배정한 수만큼 당긴 값(offset)으로
@@ -81,15 +80,12 @@ export const chosenAssignee = (
     ? picked
     : options[0]?.value
 
-/** 담당자가 있는 행은 뺀다. `unassigned` 조건을 모르는 이전 BE가 담당자 있는 작업을 섞어 보내도 보이지 않게. */
-export const onlyUnassigned = (tasks: Task[]): Task[] =>
-  tasks.filter((task) => task.assigneeId === null || task.assigneeId === undefined)
-
 export type AssignState = {
   tasks: Task[]
   hasMore: boolean
   loading: boolean
-  loadFailed: boolean
+  /** 목록을 받지 못한 이유. 받으면 비운다. */
+  loadError: string | null
   /** 첫 응답을 받았는지. 그전에는 빈 목록 문구를 보이지 않는다. */
   loaded: boolean
   /** 서버 목록에서 아직 안 본 첫 위치. 배정하면 하나 당겨진다. */
@@ -107,11 +103,10 @@ export type AssignAction =
         content: Task[]
         number?: number
         size?: number
-        numberOfElements?: number
         last?: boolean
       }
     }
-  | { type: 'loadFailed' }
+  | { type: 'loadFailed'; message: string }
   | { type: 'assigning'; id: number }
   | { type: 'assigned'; id: number }
   | { type: 'assignFailed'; notice: string }
@@ -120,7 +115,7 @@ export const initialAssignState: AssignState = {
   tasks: [],
   hasMore: false,
   loading: true,
-  loadFailed: false,
+  loadError: null,
   loaded: false,
   offset: 0,
   busyId: null,
@@ -131,21 +126,21 @@ export const initialAssignState: AssignState = {
 export function assignReducer(state: AssignState, action: AssignAction): AssignState {
   switch (action.type) {
     case 'load':
-      return { ...state, loading: true, loadFailed: false }
-    case 'loaded': {
-      const rows = onlyUnassigned(action.response.content)
+      return { ...state, loading: true, loadError: null }
+    case 'loaded':
       return {
         ...state,
-        tasks: action.replace ? rows : mergeTasks(state.tasks, rows),
+        tasks: action.replace
+          ? action.response.content
+          : mergeTasks(state.tasks, action.response.content),
         hasMore: action.response.last === false,
         offset: offsetAfter(action.response),
         loading: false,
-        loadFailed: false,
+        loadError: null,
         loaded: true,
       }
-    }
     case 'loadFailed':
-      return { ...state, loading: false, loadFailed: true }
+      return { ...state, loading: false, loadError: action.message }
     case 'assigning':
       return { ...state, busyId: action.id, notice: null }
     case 'assigned':
@@ -161,7 +156,7 @@ export function assignReducer(state: AssignState, action: AssignAction): AssignS
 }
 
 const idle = (state: AssignState) =>
-  state.loaded && !state.loading && !state.loadFailed && state.busyId === null
+  state.loaded && !state.loading && !state.loadError && state.busyId === null
 
 /** 보이는 줄을 다 배정했는데 서버에 남은 쪽이 있으면 바로 다음 쪽을 받는다. */
 export const shouldLoadMore = (state: AssignState): boolean =>
@@ -175,6 +170,17 @@ export const outOfSync = (state: AssignState, openCount: number | null): boolean
   openCount !== null &&
   openCount > 0
 
-/** 배정 실패 뒤 목록을 다시 받아야 하는지(먼저 고쳐졌거나 사라진 작업). */
-export const reloadAfterFailure = (status: number | undefined): boolean =>
-  status === 409 || status === 404
+/**
+ * 배정 실패의 안내 문구와, 목록을 처음부터 다시 받아야 하는지.
+ * 409·404는 먼저 고쳐졌거나 사라진 작업이라 목록이 낡았다.
+ */
+export const assignFailure = (
+  failure: unknown,
+  title: string,
+): { notice: string; reload: boolean } => {
+  const text = isEditConflict(failure)
+    ? conflictReloadedMessage(failure)
+    : getRequestFailureMessage(failure, '배정하지 못했어요.')
+  const status = failure instanceof ApiError ? failure.status : undefined
+  return { notice: `${title}: ${text}`, reload: status === 409 || status === 404 }
+}

@@ -113,7 +113,7 @@
 }
 .task-page__row[data-arrive] {
   animation: motion-rise-in var(--motion-enter) var(--motion-ease)
-    calc(var(--arrive-index, 0) * 32ms) backwards;
+    calc(var(--arrive-index, 0) * var(--motion-stagger)) backwards;
 }
 /* Each card sits in its own row box, so the card's own :last-child rule matches every card. */
 .task-page__list .task-page__row > .workspace-task {
@@ -419,7 +419,7 @@
 }
 
 .tag-chip:not(.tag-chip--static):active {
-  transform: scale(0.97);
+  transform: scale(var(--motion-press-scale));
 }
 
 .tag-chip.is-active {
@@ -557,20 +557,17 @@
 @media (prefers-reduced-motion: reduce) {
   .task-page__row[data-arrive] {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
     animation-delay: 0ms;
+    --motion-keep-animation: var(--motion-base);
   }
   .task-page__placeholder,
   .task-page__arrive > *,
   .task-search__summary,
   .task-page__notice,
   .task-filter {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .task-filter[data-state='closing'] {
-    animation-duration: var(--motion-exit) !important;
-  }
-  .tag-chip:not(.tag-chip--static):active {
-    transform: none;
+    --motion-keep-animation: var(--motion-exit);
   }
 }

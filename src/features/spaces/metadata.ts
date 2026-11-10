@@ -93,6 +93,13 @@ export function evictWorkspaceResource(
   }
   return true
 }
+/** 읽기 실패가 자원이 사라졌거나 더 볼 수 없다는 뜻인지(403·404·410). 네트워크·서버 장애는 아니다. */
+export function isRevokedRead(error: unknown) {
+  const status =
+    typeof error === 'object' && error !== null && 'status' in error
+      ? error.status : undefined
+  return status === 403 || status === 404 || status === 410
+}
 /** Only authoritative read failures revoke access; network and server outages retain caches. */
 export function handleResourceReadError(
   kind: ResourceKind,
@@ -102,11 +109,7 @@ export function handleResourceReadError(
 ) {
   if (requestRevision < accountRevision ||
     requestRevision < (invalidated.get(resourceKey(kind, id)) ?? 0)) return
-  const status =
-    typeof error === 'object' && error !== null && 'status' in error
-      ? error.status : undefined
-  if (status === 403 || status === 404 || status === 410)
-    evictWorkspaceResource(kind, id)
+  if (isRevokedRead(error)) evictWorkspaceResource(kind, id)
 }
 export function getMetadata(kind: 'task' | 'schedule' | 'series', id: number) {
   return (

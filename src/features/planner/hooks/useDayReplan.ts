@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError } from '@shared/api/httpClient'
-import { ClientGuardError, getRequestFailureMessage } from '@shared/api/errorMessage'
+import { ClientGuardError, getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
 import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
 import { getSelectedScope } from '@features/spaces/store'
 import { evictWorkspaceResource, getResourceRevision } from '@features/spaces/metadata'
@@ -150,7 +150,7 @@ const useDayReplan = (
     } catch (err) {
       if (!currentRequest(sequence, subject, revision)) return
       if (denied(err)) { clearPreview(); setAccessDenied(true) }
-      setError(getRequestFailureMessage(err, '재배치 제안을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'))
+      setError(getRequestFailureMessage(err, '재배치 제안을 불러오지 못했어요.'))
     } finally {
       if (alive.current && sequence === request.current) {
         busy.current = false
@@ -197,12 +197,12 @@ const useDayReplan = (
       const uncertain = !(err instanceof ApiError) || err.status === 0 || err.status >= 500
       if (denied(err)) { clearPreview(); setAccessDenied(true) }
       else setRequiresPreview(uncertain)
-      const message = getRequestFailureMessage(err, '변경을 적용하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+      const serverMessage = readFailureMessage(err)
       setError(uncertain
-        ? `적용 결과를 확인하지 못했어요. 일정을 확인하고 새 미리보기를 받아 주세요. ${message}`
+        ? ['적용 결과를 확인하지 못했어요. 일정을 확인하고 새 미리보기를 받아 주세요.', serverMessage].filter(Boolean).join(' ')
         : err instanceof ApiError && err.status === 409
-          ? `현재 상태에서는 이 동작을 할 수 없어요. ${message} 선택하지 않은 일정과 선행 작업을 확인하거나 새 미리보기를 받아 주세요.`
-          : message)
+          ? serverMessage ?? '현재 상태에서는 이 동작을 할 수 없어요. 선택하지 않은 일정과 선행 작업을 확인하거나 새 미리보기를 받아 주세요.'
+          : getRequestFailureMessage(err, '변경을 적용하지 못했어요.'))
     } finally {
       if (alive.current && sequence === request.current) {
         busy.current = false

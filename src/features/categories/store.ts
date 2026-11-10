@@ -13,6 +13,7 @@ import {
 } from '@features/spaces/metadata'
 import { getAccessToken } from '@shared/api/authTokens'
 import { onDataChanged } from '@shared/utils/events'
+import { sameData } from '@shared/utils/sameData'
 
 export type Category = {
   id: number
@@ -96,7 +97,7 @@ const url = (suffix = '') => buildApiUrl('/categories' + suffix, 'v2')
 // A reload that returns the same content keeps the same objects, so screens that read
 // assignments (TaskListPage filters with them) do not re-render or refetch on focus.
 function same<T>(previous: T, next: T): T {
-  return JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+  return sameData(previous, next) ? previous : next
 }
 export const reloadCategories = (): Promise<void> => {
   const key = sessionKey()
@@ -155,7 +156,7 @@ export const reloadCategories = (): Promise<void> => {
           isLoading: false,
           error: getRequestFailureMessage(
             error,
-            '프로젝트를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '프로젝트를 불러오지 못했어요.',
           ),
         }
         emit()
@@ -187,7 +188,9 @@ const assign = async (
       buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
     )
     if (!rememberMetadata(resource, id, view, revision))
-      throw new ClientGuardError('업무 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError(
+        `${kind === 'tasks' ? '작업' : '일정'} 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.`,
+      )
     current = view
   }
   const project = state.categories.find((item) => item.id === categoryId)

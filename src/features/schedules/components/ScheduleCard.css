@@ -76,7 +76,7 @@
 
 /* A press answers at once, before the save does (and wins over the hover reset below). */
 .schedule-card .schedule-card__state-icon--clickable:active {
-  transform: scale(0.94);
+  transform: scale(var(--motion-press-scale-small));
 }
 
 .schedule-card__state-icon--not_started {
@@ -181,7 +181,7 @@
 }
 
 .schedule-card__delete-btn:active {
-  transform: scale(0.94);
+  transform: scale(var(--motion-press-scale-small));
 }
 
 .schedule-card__description {
@@ -225,7 +225,7 @@
 }
 
 .schedule-card__quick-complete:active {
-  transform: scale(0.96);
+  transform: scale(var(--motion-press-scale-small));
 }
 
 /* The schedule completed: the button fades where it was while the mark draws. */
@@ -261,7 +261,7 @@
 }
 
 .schedule-card__action-btn:active:not(:disabled) {
-  transform: scale(0.94);
+  transform: scale(var(--motion-press-scale-small));
 }
 
 .schedule-card__action-btn:disabled {
@@ -449,21 +449,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Keep the fades, drop the travel (index.css cuts every duration otherwise). */
   .schedule-card__glyph.is-fresh,
   .schedule-card__swap {
-    animation-duration: var(--motion-base) !important;
+    --motion-keep-animation: var(--motion-base);
   }
   .schedule-card__quick-complete[data-state='closing'] {
-    animation-duration: var(--motion-exit) !important;
+    --motion-keep-animation: var(--motion-exit);
   }
   .schedule-card__title,
   .schedule-card__status {
-    transition-duration: var(--motion-base) !important;
-  }
-  .schedule-card .schedule-card__state-icon--clickable:active,
-  .schedule-card__delete-btn:active,
-  .schedule-card__quick-complete:active {
-    transform: none;
+    --motion-keep-transition: var(--motion-base);
   }
 }

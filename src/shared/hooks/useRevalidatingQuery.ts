@@ -4,6 +4,7 @@ import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { onDataChanged, type ChangeKind, type DataChangeBatch } from '@shared/utils/events'
 import {
   queryStore,
+  type DataUpdate,
   type Fetcher,
   type QueryEntry,
   type QueryStore,
@@ -25,11 +26,11 @@ export type RevalidatingQueryOptions = {
   /** Revalidate cached data when the component mounts or the key changes. Default true. */
   revalidateOnMount?: boolean
   /**
-   * Turns a failure into the message to show. Default: the server's message for an HTTP error response,
-   * a ClientGuardError's own wording, otherwise a generic line with a connection hint (getRequestFailureMessage).
+   * The message to show for a failure. A string is this screen's own sentence for getRequestFailureMessage
+   * (the server's message wins when there is one). Default: '불러오지 못했어요.'.
    */
-  errorMessage?: (error: unknown) => string
-  /** For tests. Defaults to the app-wide store. */
+  errorMessage?: string | ((error: unknown) => string)
+  /** Defaults to the app-wide store, which is cleared when the display time zone changes. */
   store?: QueryStore
 }
 
@@ -47,7 +48,7 @@ export type RevalidatingQuery<T> = {
   /** Refetch now, dropping any response that started earlier. */
   refetch: () => void
   /** Patch this key's data locally, e.g. an optimistic toggle. */
-  setData: (update: T | ((previous: T | undefined) => T)) => void
+  setData: (update: DataUpdate<T>) => void
 }
 
 const EMPTY_ENTRY: QueryEntry = {
@@ -79,6 +80,16 @@ const watchAccount = (store: QueryStore) => {
   window.addEventListener('auth:changed', sync)
   window.addEventListener('storage', sync)
 }
+
+/** The signed-in account that query keys are scoped by. Read it before a request to tell whether the account changed meanwhile. */
+export const currentAccountScope = accountScope
+
+/**
+ * Put data the caller already read under a key, as if this key's query had fetched it, but only while the key has
+ * no data yet. A value the screen read itself or just saved is newer than a read that happened to land later.
+ */
+export const primeQuery = <T>(key: string, data: T, store: QueryStore = queryStore) =>
+  store.setData<T>(`${accountScope()}|${key}`, (previous) => (previous === undefined ? data : undefined))
 
 /**
  * Stale-while-revalidate data loading. Pass `null` as the key to load nothing.
@@ -131,13 +142,10 @@ export function useRevalidatingQuery<T>(
     store.register(
       scopedKey,
       (signal) => fetcherRef.current(signal),
-      (error) =>
-        messageRef.current
-          ? messageRef.current(error)
-          : getRequestFailureMessage(
-              error,
-              '불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
-            ),
+      (error) => {
+        const message = messageRef.current ?? '불러오지 못했어요.'
+        return typeof message === 'function' ? message(error) : getRequestFailureMessage(error, message)
+      },
     )
     const current = store.get(scopedKey)
     if (!current.hasData || current.stale || revalidateOnMount) store.revalidate(scopedKey)
@@ -168,7 +176,7 @@ export function useRevalidatingQuery<T>(
   }, [store, scopedKey, refetchOnFocus])
 
   const setData = useCallback(
-    (update: T | ((previous: T | undefined) => T)) => {
+    (update: DataUpdate<T>) => {
       if (scopedKey) store.setData<T>(scopedKey, update)
     },
     [store, scopedKey],

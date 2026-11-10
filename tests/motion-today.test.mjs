@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
+
+const require = createRequire(import.meta.url)
+const dayjs = require('dayjs')
+const plain = (value) => JSON.parse(JSON.stringify(value))
 
 const read = (path) => readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
 
@@ -31,7 +38,7 @@ function load(path, dependencies = {}) {
 
 const settle = load('features/today/settle.ts', {
   react: { useEffect() {}, useState() {} },
-  '@shared/motion/tokens': { MOTION_ENTER_MS: 240 },
+  '@shared/motion/tokens': { COMPLETION_HOLD_MS: 480 },
 })
 const key = (task) => task.id
 const ids = (list) => (list ? Array.from(list, (task) => task.id) : list)
@@ -96,63 +103,128 @@ test('the same list object returns the same state', () => {
   assert.equal(settle.settleStep(state, list, 'day', key, () => true, 0), state)
 })
 
-test('the hold covers the completion stroke', () => {
-  // The strike line starts 80ms after the click and draws for 240ms.
-  assert.ok(settle.SETTLE_HOLD_MS >= 80 + 240)
+test('the completion hold covers the strike line', () => {
+  const tokens = load('shared/motion/tokens.ts')
+  assert.ok(tokens.COMPLETION_HOLD_MS >= tokens.MOTION_STRIKE_DELAY_MS + tokens.MOTION_ENTER_MS)
 })
 
 // ---------------------------------------------------------------------------
-// TodayPage keeps its panels through refreshes (audit A8 / pages 2)
+// TodayPage keeps its panels through refreshes (audit Data A8, Pages 2)
 // ---------------------------------------------------------------------------
 
-const page = read('features/today/pages/TodayPage.tsx')
-const css = read('features/today/pages/TodayPage.css')
+const todayHarness = () => {
+  const h = { queries: [], presence: [], seededTasks: [], seededSchedules: [], focus: 0, state: {}, leaving: [] }
+  // Effects run inline so the seeding they do is observable without a DOM.
+  const react = { ...React, useEffect: (effect) => void effect(), useLayoutEffect: (effect) => void effect() }
+  const realPresence = load('shared/motion/useListPresence.ts', {
+    react: React,
+    './presence': {},
+    './tokens': { MOTION_EXIT_MS: 1 },
+  })
+  const page = load('features/today/pages/TodayPage.tsx', {
+    react,
+    'react/jsx-runtime': require('react/jsx-runtime'),
+    'react-router-dom': { Link: ({ to, children }) => React.createElement('a', { href: to }, children) },
+    '@features/schedules/api/schedules': { fetchSchedules() {} },
+    '@features/tasks/api/tasks': { fetchTasks() {}, fetchTasksByDeadline() {}, createScheduleFromTask() {}, fetchTaskDetail() {} },
+    '@shared/utils/datetime': {
+      formatDateTimeWithZone: (date) => date.dateTime.slice(11, 16),
+      toApiDateTimeWithZone: () => ({}),
+    },
+    '@shared/hooks/useCurrentDay': { default: () => dayjs('2026-11-10T12:00:00') },
+    '@shared/hooks/useRevalidatingQuery': {
+      default: (key, _fetcher, options) => {
+        h.queries.push({ key, invalidateOn: [...options.invalidateOn] })
+        return {
+          data: undefined, error: null, isInitialLoading: false, isFetching: false, refetch() {},
+          ...h.state[key.split('/')[1]],
+        }
+      },
+    },
+    '@features/tasks/components/TaskScheduleModal': { default: () => null },
+    '@features/tasks/components/WorkspaceTaskCard': { default: ({ task }) => React.createElement('article', null, task.title) },
+    '@features/schedules/components/ScheduleCard': { default: ({ schedule }) => React.createElement('article', null, schedule.title) },
+    '@contexts/TaskCacheContext': { useTaskCache: () => ({ setTask: (task) => h.seededTasks.push(task.id), tasksById: {} }) },
+    '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: (schedule) => h.seededSchedules.push(schedule.id) }) },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+    '@shared/utils/events': { dispatchScheduleChanged() {}, dispatchTaskChanged() {} },
+    '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open() {} }) },
+    '@shared/routing/viewTransitionNavigation': { tabLinkClick: () => () => {} },
+    '@shared/motion/useListPresence': {
+      presenceProps: realPresence.presenceProps,
+      useListPresence: (items, getKey, options) => {
+        h.presence.push(options.resetKey)
+        const present = (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' }))
+        // The ready list is the first of the three.
+        return h.presence.length === 1 ? [...present, ...h.leaving] : present
+      },
+    },
+    '@shared/motion/useTweenedNumber': { useTweenedNumber: (value) => value },
+    '@shared/components/common/WorkspaceIcon': { default: () => null },
+    '../settle': load('features/today/settle.ts', { react: React, '@shared/motion/tokens': { COMPLETION_HOLD_MS: 480 } }),
+    '../focus': { moveFocusOutOfLeavingRow: () => { h.focus++ } },
+    './TodayPage.css': {},
+  }).default
+  h.render = (state) => {
+    h.queries = []
+    h.presence = []
+    h.state = state
+    return renderToStaticMarkup(React.createElement(page))
+  }
+  return h
+}
+const card = (id) => ({ id, title: `작업 ${id}`, completed: false })
+const slot = (id, time) => ({ id, title: `일정 ${id}`, state: 'NOT_STARTED', date: { dateTime: `2026-11-10T${time}:00` } })
+const loaded = {
+  tasks: { data: { ready: [card(1)], due: [card(2)] } },
+  schedules: { data: [slot(5, '13:00'), slot(4, '09:00')] },
+}
 
-test('Today keys its data on the day, not on a refresh counter', () => {
-  assert.doesNotMatch(page, /refresh/i, 'no refresh counter in the key or state')
-  assert.doesNotMatch(page, /loadedKey/)
-  assert.match(page, /useRevalidatingQuery<TodayTasks>\(\s*'today\/tasks\/' \+ dayKey/)
-  assert.match(page, /useRevalidatingQuery<ScheduleResponse\[\]>\(\s*'today\/schedules\/' \+ dayKey/)
-  assert.equal(
-    (page.match(/invalidateOn: \['task', 'schedule'\]/g) ?? []).length,
-    2,
-    'both panels refetch on the coalesced change batch',
-  )
-  assert.doesNotMatch(page, /onDataChanged|onTaskChanged|onScheduleChanged/, 'no second listener')
+test('Today keys both panels on the day and refreshes them on one change batch, not a counter', () => {
+  const h = todayHarness()
+  h.render(loaded)
+  assert.deepEqual(plain(h.queries), [
+    { key: 'today/tasks/2026-11-10@Asia/Seoul', invalidateOn: ['task', 'schedule'] },
+    { key: 'today/schedules/2026-11-10@Asia/Seoul', invalidateOn: ['task', 'schedule'] },
+  ])
+  assert.deepEqual(h.presence, Array(3).fill('2026-11-10@Asia/Seoul'), 'another day is a new baseline, not an animated swap')
 })
 
-test('Today seeds both its tasks and its schedules into the shared caches the cards read', () => {
-  // Schedule cards read ScheduleCache before the list item, so an older cached copy would show a
-  // stale state, actions or version. The cache keeps the newer version and skips equal copies.
-  assert.match(page, /import \{ useScheduleCache \} from '@contexts\/ScheduleCacheContext'/)
-  assert.match(page, /const \{ setSchedule \} = useScheduleCache\(\)/)
-  assert.match(
-    page,
-    /useEffect\(\(\) => \{\s*schedules\?\.forEach\(\(schedule\) => setSchedule\(schedule\)\)\s*\}, \[schedules, setSchedule\]\)/,
-  )
-  assert.match(page, /\[\.\.\.tasks\.ready, \.\.\.tasks\.due\]\.forEach\(setTask\)/)
+test('Today seeds the tasks and schedules it shows into the caches the cards read', () => {
+  const h = todayHarness()
+  h.render(loaded)
+  assert.deepEqual(h.seededTasks, [1, 2])
+  assert.deepEqual(h.seededSchedules, [5, 4])
 })
 
-test('Today shows its loading lines only for a first load', () => {
-  assert.match(page, /tasksQuery\.isInitialLoading \?/)
-  assert.match(page, /schedulesQuery\.isInitialLoading \?/)
-  assert.doesNotMatch(page, /aria-busy=\{loading\}/)
+test('Today shows its loading lines only for a first load; a refresh or a failed refresh keeps the rows', () => {
+  const h = todayHarness()
+  let html = h.render({ tasks: { isInitialLoading: true }, schedules: { isInitialLoading: true } })
+  assert.match(html, /작업을 불러오는 중…/)
+  assert.match(html, /일정을 불러오는 중…/)
+  html = h.render({
+    tasks: { ...loaded.tasks, isFetching: true, error: '작업 서버 메시지' },
+    schedules: { ...loaded.schedules, isFetching: true },
+  })
+  assert.doesNotMatch(html, /불러오는 중/)
+  assert.match(html, /today-workspace__tasks" aria-busy="true"/)
+  assert.match(html, /<span>작업 서버 메시지<\/span>/)
+  assert.match(html, /<article>작업 1<\/article>[\s\S]*<article>작업 2<\/article>|<article>작업 2<\/article>[\s\S]*<article>작업 1<\/article>/)
+  assert.match(html, /<time>09:00<\/time>[\s\S]*<time>13:00<\/time>/, 'schedules in start order')
+  // Content shown straight from the cache does not replay the reveal.
+  assert.doesNotMatch(html, /today-page__reveal|today-page__count--reveal|today-page__empty--after-rows/)
+  html = h.render({ tasks: { error: '작업 서버 메시지' }, schedules: { error: null } })
+  assert.match(html, /workspace-inline-error" role="alert"><span>작업 서버 메시지<\/span>/)
+  assert.match(html, /workspace-inline-error" role="alert"><span>일정을 불러오지 못했어요\.<\/span>/)
 })
 
-test('Today rows enter and leave through list presence', () => {
-  assert.match(page, /useListPresence\(readyShown, taskKey, \{ resetKey: dayKey \}\)/)
-  assert.match(page, /useListPresence\(tasks\?\.due, taskKey, \{ resetKey: dayKey \}\)/)
-  assert.match(page, /useListPresence\(sortedSchedules, scheduleKey/)
-  assert.equal((page.match(/\{\.\.\.presenceProps\(phase\)\}/g) ?? []).length, 2)
-  assert.match(page, /useSettlingList\(tasks\?\.ready/)
-})
-
-test('Today motion uses the shared tokens and never transition: all', () => {
-  assert.doesNotMatch(css, /transition:\s*all/)
-  assert.doesNotMatch(css, /@keyframes/)
-  assert.doesNotMatch(css, /infinite/)
-  for (const [, value] of css.matchAll(/(?:animation|transition):([^;]+);/g))
-    assert.match(value, /var\(--motion-/, 'timing comes from a token: ' + value.trim())
+test('a leaving Today row stays in place, inert, and the focus is handed on first', () => {
+  const h = todayHarness()
+  h.leaving = [{ key: '9', item: card(9), phase: 'exit' }]
+  const html = h.render(loaded)
+  assert.match(html, /<div class="today-page__task-row" data-presence="exit" aria-hidden="true" inert=""><article>작업 9<\/article>/)
+  assert.ok(h.focus > 0)
+  assert.equal(html.match(/<h2 tabindex="-1">/g)?.length, 2, 'both panel headings can take the focus')
 })
 
 // ---------------------------------------------------------------------------
@@ -270,14 +342,4 @@ test('focus outside a leaving row is left alone', () => {
   active.current = a.check
   assert.equal(moveFocusOutOfLeavingRow(root, () => null), false)
   assert.equal(a.check.focused, 0)
-})
-
-test('Today hands the focus on and fades only mounts it is waiting for', () => {
-  assert.match(page, /useLayoutEffect\(\(\) => \{\s*moveFocusOutOfLeavingRow\(workspaceRef\.current/)
-  assert.equal((page.match(/<h2 tabIndex=\{-1\}>/g) ?? []).length, 2)
-  // Cached content shown again on a return to the tab does not replay a fade.
-  assert.doesNotMatch(css, /\.today-page__empty:not\(/)
-  assert.match(css, /\.today-page__empty--after-rows \{\s*animation:/)
-  assert.match(css, /\.today-page__count--reveal \{\s*animation:/)
-  assert.match(css, /\.today-page__reveal \{\s*animation: [^;]* backwards;/)
 })

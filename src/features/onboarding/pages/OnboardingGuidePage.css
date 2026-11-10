@@ -44,7 +44,7 @@
 .onboarding-guide__replay:active,
 .onboarding-guide__retry:active,
 .onboarding-guide__show:active {
-  transform: scale(0.97);
+  transform: scale(var(--motion-press-scale));
 }
 
 .onboarding-guide__list {

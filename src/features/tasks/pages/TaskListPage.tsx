@@ -9,7 +9,10 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { onDataChanged } from '@shared/utils/events'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import {
+  arrivalIndex,
+  COMPLETION_HOLD_MS,
   presenceProps,
+  useArrival,
   useListPresence,
   usePresence,
   useTweenedNumber,
@@ -33,8 +36,7 @@ import {
   toSearchParams,
   type TaskSortOrder,
 } from '../utils/taskSearch'
-import { arrivalIndex, useArrival } from '../utils/useArrival'
-import { COMPLETION_SETTLE_MS, isCompletionOnly } from '../utils/taskListRefresh'
+import { isCompletionOnly, readShownPages } from '../utils/taskListRefresh'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import './TaskPages.css'
 
@@ -67,8 +69,7 @@ const isLastPage = (response: TaskListResponse, page: number) =>
   (response.totalPages !== undefined
     ? page + 1 >= response.totalPages
     : response.content.length < PAGE_SIZE)
-const errorText = (error: unknown) =>
-  getRequestFailureMessage(error, `${LOAD_ERROR} 인터넷 연결을 확인한 뒤 다시 시도해 주세요.`)
+const errorText = (error: unknown) => getRequestFailureMessage(error, LOAD_ERROR)
 
 /** The result count. It shows as is when it appears and glides when a change moves it. */
 function TaskCount({ value }: { value: number }) {
@@ -146,16 +147,7 @@ export default function TaskListPage() {
         }
         const shown = () =>
           pagesShown.current.key === key ? Math.max(1, pagesShown.current.pages) : 1
-        const responses = await Promise.all(
-          Array.from({ length: shown() }, (_, page) => read(page)),
-        )
-        // "More" may have landed while this refresh ran. Read its pages too, so the refresh
-        // does not take the rows it just added off the screen again.
-        while (
-          responses.length < shown() &&
-          !isLastPage(responses[responses.length - 1], responses.length - 1)
-        )
-          responses.push(await read(responses.length))
+        const responses = await readShownPages(read, shown, isLastPage)
         const pages = responses.length
         const tasks = responses.reduce<Task[]>(
           (merged, response) => mergePage(merged, response.content),
@@ -182,7 +174,7 @@ export default function TaskListPage() {
     const off = onDataChanged((batch) => {
       window.clearTimeout(timer)
       if (isCompletionOnly(batch))
-        timer = window.setTimeout(refetch, COMPLETION_SETTLE_MS)
+        timer = window.setTimeout(refetch, COMPLETION_HOLD_MS)
       else refetch()
     })
     return () => {
@@ -231,7 +223,7 @@ export default function TaskListPage() {
               pages: page + 1,
               hasMore: !isLastPage(response, page),
             }
-          : (prev as TaskListData),
+          : prev,
       )
       setMore({ key, loading: false, error: null })
     } catch (err) {

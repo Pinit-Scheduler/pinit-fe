@@ -302,7 +302,7 @@
 
 /* A block whose suggestion moved after a new proposal, or the one picked on the timeline. */
 .plan-page__block[data-flash] {
-  animation: plan-page-block-flash 1200ms var(--motion-ease) both;
+  animation: plan-page-block-flash var(--motion-flash) var(--motion-ease) both;
 }
 
 @keyframes plan-page-block-flash {
@@ -317,12 +317,12 @@
 .plan-page__result[data-arrive] > .plan-page__section,
 .plan-page__result[data-arrive] > .plan-page__refresh-error {
   animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
-  animation-delay: calc(var(--plan-order, 0) * 40ms);
+  animation-delay: calc(var(--plan-order, 0) * var(--motion-stagger-section));
 }
 
 .plan-page__result[data-arrive] .plan-page__block:not([data-presence]):not([data-flash]) {
   animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
-  animation-delay: calc(80ms + var(--plan-stagger, 0) * 32ms);
+  animation-delay: calc(80ms + var(--plan-stagger, 0) * var(--motion-stagger));
 }
 
 .plan-page__block-head {
@@ -465,7 +465,7 @@
 }
 
 .plan-page__apply:not(:disabled):active {
-  transform: scale(0.98);
+  transform: scale(var(--motion-press-scale));
 }
 
 .plan-page__apply:disabled {
@@ -536,20 +536,16 @@
   color: var(--c-amber-700);
 }
 
-/* Reduced motion: nothing travels and nothing waits. index.css cuts durations to 0.01ms;
-   the arrival and the row highlight keep a plain fade instead. */
+/* Reduced motion: nothing travels and nothing waits; the arrival and the row highlight keep a plain fade. */
 @media (prefers-reduced-motion: reduce) {
   .plan-page__result[data-arrive] > .plan-page__section,
   .plan-page__result[data-arrive] > .plan-page__refresh-error,
   .plan-page__result[data-arrive] .plan-page__block:not([data-presence]):not([data-flash]) {
     animation-name: motion-fade-in;
-    animation-duration: var(--motion-base) !important;
     animation-delay: 0ms;
+    --motion-keep-animation: var(--motion-base);
   }
   .plan-page__block[data-flash] {
-    animation-duration: 1200ms !important;
-  }
-  .plan-page__apply:not(:disabled):active {
-    transform: none;
+    --motion-keep-animation: var(--motion-flash);
   }
 }

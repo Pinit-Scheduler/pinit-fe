@@ -40,17 +40,12 @@ import type { PresenceEntry } from '@shared/motion/presence'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useSettlingList } from '../settle'
 import { moveFocusOutOfLeavingRow } from '../focus'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import './TodayPage.css'
 
 type TodayTasks = { ready: Task[]; due: Task[] }
 
-const TASKS_ERROR = '작업을 불러오지 못했어요. 다시 시도해 주세요.'
+const TASKS_ERROR = '작업을 불러오지 못했어요.'
 const SCHEDULES_ERROR = '일정을 불러오지 못했어요.'
-const tasksError = (e: unknown) =>
-  getRequestFailureMessage(e, '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
-const schedulesError = (e: unknown) =>
-  getRequestFailureMessage(e, `${SCHEDULES_ERROR} 인터넷 연결을 확인한 뒤 다시 시도해 주세요.`)
 const taskKey = (task: Task) => task.id
 const scheduleKey = (schedule: ScheduleResponse) => schedule.id
 const isDone = (task: Task) => task.completed ?? task.isCompleted ?? false
@@ -129,7 +124,7 @@ export default function TodayPage() {
     {
       invalidateOn: ['task', 'schedule'],
       group: 'today/tasks/',
-      errorMessage: tasksError,
+      errorMessage: TASKS_ERROR,
     },
   )
   const schedulesQuery = useRevalidatingQuery<ScheduleResponse[]>(
@@ -142,7 +137,7 @@ export default function TodayPage() {
     {
       invalidateOn: ['task', 'schedule'],
       group: 'today/schedules/',
-      errorMessage: schedulesError,
+      errorMessage: SCHEDULES_ERROR,
     },
   )
   const tasks = tasksQuery.data,
@@ -153,7 +148,7 @@ export default function TodayPage() {
     if (tasks) [...tasks.ready, ...tasks.due].forEach(setTask)
   }, [tasks, setTask])
   useEffect(() => {
-    schedules?.forEach((schedule) => setSchedule(schedule))
+    schedules?.forEach(setSchedule)
   }, [schedules, setSchedule])
 
   // A task completed from the ready list drops out of the next read. Hold it for a beat so the

@@ -2,8 +2,7 @@ import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Modal from '@shared/components/common/Modal'
-import { usePresence } from '@shared/motion'
-import { arrivalIndex, useArrival } from '../../utils/useArrival'
+import { arrivalIndex, useArrival, usePresence } from '@shared/motion'
 import './TaskDependencyModal.css'
 import { searchTasks } from '../../api/tasks'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
@@ -117,7 +116,7 @@ const DependencyPicker = ({
       setError(
         getRequestFailureMessage(
           err,
-          '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '작업을 불러오지 못했어요.',
         ),
       )
     } finally {

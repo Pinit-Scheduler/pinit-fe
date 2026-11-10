@@ -1,5 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { buildApiUrl } from '@shared/api/config'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { httpClient } from '@shared/api/httpClient'
 import {
   affiliationImpact,
@@ -117,9 +118,7 @@ export default function AffiliationFields({
             key,
             draft: null,
             error:
-              failure instanceof Error
-                ? failure.message
-                : '소속과 담당자를 불러오지 못했어요.',
+              getRequestFailureMessage(failure, '소속과 담당자를 불러오지 못했어요.'),
           })
       })
     return () => controller.abort()
@@ -228,7 +227,7 @@ export default function AffiliationFields({
       )}
       {unavailable && (
         <p role="alert" className="space-error">
-          현재 스페이스에 접근할 수 없어요. 입력한 내용은 유지됩니다. 최신 화면에서
+          현재 스페이스에 접근할 수 없어요. 입력한 내용은 유지돼요. 최신 화면에서
           권한을 확인해 주세요.
         </p>
       )}
@@ -384,7 +383,7 @@ export default function AffiliationFields({
       {/* 요약 한 줄이 이미 "담당자 확인 중"을 보인다. 확인이 끝날 때 폼이 한 줄 당겨 올라오지 않도록
           안내 문장은 보조 기술에만 읽힌다. */}
       {!draft && !error && (
-        <p className="space-sr-only" role="status">
+        <p className="sr-only" role="status">
           서버의 소속·담당자 정보를 확인하고 있어요…
         </p>
       )}

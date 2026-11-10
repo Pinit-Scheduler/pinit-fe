@@ -2,8 +2,7 @@ import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useCallback, useEffect, useRef, useState, useId } from 'react'
 import type { CSSProperties } from 'react'
 import Modal from '@shared/components/common/Modal'
-import { usePresence } from '@shared/motion'
-import { arrivalIndex, useArrival } from '../../utils/useArrival'
+import { arrivalIndex, useArrival, usePresence } from '@shared/motion'
 import { fetchTaskArchiveByCursor } from '../../api/tasks'
 import type { Task } from '../../types/task'
 import { formatDateWithOffset } from '@shared/utils/datetime'
@@ -63,7 +62,7 @@ const ArchiveDialog = ({
       setHasNext(nextHasMore)
       setError(null)
     } catch (err) {
-      const message = getRequestFailureMessage(err, '아카이브 작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+      const message = getRequestFailureMessage(err, '아카이브 작업을 불러오지 못했어요.')
       setError(message)
       setHasNext(false)
     } finally {
@@ -117,7 +116,6 @@ const ArchiveDialog = ({
       <div className="task-archive-modal__body" ref={scrollRef}>
         {error && tasks.length === 0 ? (
           <div className="task-archive-modal__placeholder">
-            <p>아카이브를 불러오지 못했습니다.</p>
             <p className="task-archive-modal__error">{error}</p>
             <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
           </div>

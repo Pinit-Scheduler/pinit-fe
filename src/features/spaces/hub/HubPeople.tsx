@@ -3,7 +3,7 @@ import UnavailableNote from '../UnavailableNote'
 import { dueLabel, type MemberRow } from '../hub'
 import { adminNames, unavailableLines } from '../unavailable'
 import type { Space, SpaceSummary } from '../types'
-import Count from './Count'
+import TweenedNumber from '@shared/components/motion/TweenedNumber'
 import RowMenu from './RowMenu'
 
 /** 참여자별 맡은 미완료와 담당자 미정. 개인 스페이스에서는 그리지 않는다. */
@@ -11,7 +11,7 @@ export default function HubPeople({
   space,
   rows,
   unassigned,
-  failed,
+  loadError,
   onRetry,
   busy,
   onInvite,
@@ -22,7 +22,8 @@ export default function HubPeople({
   space: Space
   rows: MemberRow[]
   unassigned: SpaceSummary['unassigned'] | null
-  failed: boolean
+  /** 숫자를 처음 불러오지 못했을 때의 문구. 다시 읽기만 실패하면 null이라 보이던 숫자를 둔다. */
+  loadError: string | null
   onRetry: () => void
   busy: boolean
   onInvite: () => void
@@ -64,9 +65,9 @@ export default function HubPeople({
       {notes.map((line) => (
         <UnavailableNote key={line} text={line} />
       ))}
-      {failed && (
+      {loadError && (
         <p className="hub-load-error" role="alert">
-          숫자를 불러오지 못했어요.{' '}
+          {loadError}{' '}
           <button type="button" className="space-text-button" onClick={onRetry}>
             다시 시도
           </button>
@@ -94,7 +95,7 @@ export default function HubPeople({
               ) : (
                 // Keyed by space: the same member's count in another space is a new number,
                 // not a change to glide from.
-                <Count key={space.id} value={row.openAssignedCount} />
+                <TweenedNumber key={space.id} value={row.openAssignedCount} />
               )}
             </span>
             <span className="hub-due">{dueLabel(row.nearestDueDate)}</span>
@@ -126,7 +127,7 @@ export default function HubPeople({
         <div className="hub-unassigned">
           <span className="hub-person__name">담당자 미정</span>
           <span className="hub-count">
-            <Count key={space.id} value={unassigned.openCount} />개
+            <TweenedNumber key={space.id} value={unassigned.openCount} />개
           </span>
           <span className="hub-due">{dueLabel(unassigned.nearestDueDate)}</span>
           <button

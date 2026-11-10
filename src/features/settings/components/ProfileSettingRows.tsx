@@ -1,22 +1,20 @@
 import { useMemo, useRef, useState } from 'react'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { formatOffsetLabel, getZoneOffsetMinutes } from '@shared/utils/datetime'
 import { formatMinutesLabel, minutesToIsoDuration, parseIsoDurationMinutes } from '@shared/utils/isoDuration'
 import type { ProfileSettings } from '../api/profileSettings'
 import { dailyObjectiveOptions, suggestedDeviceZone, timeZoneOptions } from '../utils/profileSettings'
 import useSavedFlash from '../hooks/useSavedFlash'
-import SavedMark from './SavedMark'
+import SavedMark from '@shared/components/motion/SavedMark'
 import './ProfileSettingRows.css'
 
 type RowProps = {
   settings: ProfileSettings | null
   isLoading: boolean
-  isSaving: boolean
   save: (change: Partial<ProfileSettings>) => Promise<ProfileSettings>
 }
-
-const errorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback)
 
 /**
  * 자동 계획의 하루 목표(ADR-0028 §2). 고르면 바로 저장한다.
@@ -41,7 +39,7 @@ export const DailyObjectiveSetting = ({ settings, isLoading, save }: RowProps) =
       flash('dailyObjective')
       addToast(`하루 목표를 ${formatMinutesLabel(minutes)}(으)로 바꿨어요.`, 'success')
     } catch (error) {
-      addToast(errorMessage(error, '하루 목표를 바꾸지 못했어요.'), 'error')
+      addToast(getRequestFailureMessage(error, '하루 목표를 바꾸지 못했어요.'), 'error')
     } finally {
       lock.current = false
       setPending(null)
@@ -124,7 +122,7 @@ export const TimeZoneSetting = ({ settings, isLoading, save }: RowProps) => {
       // 저장한 뒤 표시 시간대를 바꾼다. 앱이 캐시를 비우고 새 시간대로 다시 그린다.
       applyZone(saved.zoneId)
     } catch (error) {
-      addToast(errorMessage(error, '시간대를 바꾸지 못했어요.'), 'error')
+      addToast(getRequestFailureMessage(error, '시간대를 바꾸지 못했어요.'), 'error')
     } finally {
       setIsSaving(false)
     }

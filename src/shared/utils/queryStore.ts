@@ -24,11 +24,13 @@ export type QueryEntry<T = unknown> = {
 
 export type Fetcher<T> = (signal: AbortSignal) => Promise<T>
 
+/** A local patch. An updater that returns undefined leaves the entry as it is. */
+export type DataUpdate<T> = T | ((previous: T | undefined) => T | undefined)
+
 type Internal = {
   entry: QueryEntry
   listeners: Set<() => void>
-  fetcher: Fetcher<unknown> | null
-  errorMessage: (error: unknown) => string
+  source: { fetcher: Fetcher<unknown>; errorMessage: (error: unknown) => string } | null
   controller: AbortController | null
   request: number
   scheduled: boolean
@@ -42,9 +44,6 @@ const EMPTY: QueryEntry = Object.freeze({
   stale: true,
   updatedAt: 0,
 }) as QueryEntry
-
-const defaultMessage = (error: unknown) =>
-  error instanceof Error && error.message ? error.message : '불러오지 못했어요.'
 
 const isAbort = (error: unknown) =>
   typeof error === 'object' &&
@@ -61,8 +60,7 @@ export function createQueryStore({ maxEntries = 200 }: { maxEntries?: number } =
       item = {
         entry: EMPTY,
         listeners: new Set(),
-        fetcher: null,
-        errorMessage: defaultMessage,
+        source: null,
         controller: null,
         request: 0,
         scheduled: false,
@@ -90,8 +88,8 @@ export function createQueryStore({ maxEntries = 200 }: { maxEntries?: number } =
   const run = (key: string) => {
     const item = internal(key)
     item.scheduled = false
-    const fetcher = item.fetcher
-    if (!fetcher) return
+    const source = item.source
+    if (!source) return
     item.controller?.abort()
     const controller = new AbortController()
     item.controller = controller
@@ -99,7 +97,7 @@ export function createQueryStore({ maxEntries = 200 }: { maxEntries?: number } =
     write(item, { fetching: true })
     let promise: Promise<unknown>
     try {
-      promise = fetcher(controller.signal)
+      promise = source.fetcher(controller.signal)
     } catch (error) {
       promise = Promise.reject(error)
     }
@@ -124,7 +122,7 @@ export function createQueryStore({ maxEntries = 200 }: { maxEntries?: number } =
           return
         }
         // Keep this key's data. The caller decides how to show a failed refresh.
-        write(item, { fetching: false, error: item.errorMessage(error) })
+        write(item, { fetching: false, error: source.errorMessage(error) })
       },
     )
   }
@@ -156,11 +154,9 @@ export function createQueryStore({ maxEntries = 200 }: { maxEntries?: number } =
       }
     },
 
-    /** Register the latest fetcher for a key. The most recent caller's fetcher wins. */
-    register<T>(key: string, fetcher: Fetcher<T>, errorMessage?: (error: unknown) => string) {
-      const item = internal(key)
-      item.fetcher = fetcher as Fetcher<unknown>
-      if (errorMessage) item.errorMessage = errorMessage
+    /** Register the latest fetcher for a key. The most recent caller's fetcher and failure message win. */
+    register<T>(key: string, fetcher: Fetcher<T>, errorMessage: (error: unknown) => string) {
+      internal(key).source = { fetcher: fetcher as Fetcher<unknown>, errorMessage }
     },
 
     /** Fetch now (coalesced per microtask). Data already shown stays shown. */
@@ -185,12 +181,13 @@ export function createQueryStore({ maxEntries = 200 }: { maxEntries?: number } =
     },
 
     /** Replace a key's data locally (optimistic update or a saved response). */
-    setData<T>(key: string, update: T | ((previous: T | undefined) => T)) {
+    setData<T>(key: string, update: DataUpdate<T>) {
       const item = internal(key)
       const next =
         typeof update === 'function'
-          ? (update as (previous: T | undefined) => T)(item.entry.data as T | undefined)
+          ? (update as (previous: T | undefined) => T | undefined)(item.entry.data as T | undefined)
           : update
+      if (next === undefined) return
       write(item, { data: next, hasData: true, error: null })
     },
 

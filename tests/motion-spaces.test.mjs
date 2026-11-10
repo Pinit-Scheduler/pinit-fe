@@ -6,6 +6,7 @@ import ts from 'typescript'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 const read = (path) => readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
@@ -29,10 +30,7 @@ function load(path, dependencies = {}, globals = {}) {
     clearTimeout,
     Date,
     console: { error() {} },
-    require: (name) => {
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -89,6 +87,7 @@ function storeHarness(respond) {
         syncAccessibleSpaces: () => ({ spaceIds: [] }),
       },
       './api': { fetchWorkspace: () => respond() },
+      '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     },
     {
       window,
@@ -218,7 +217,7 @@ test('window focus retries at once after a failed load', async () => {
 })
 
 test('sameData compares plain server data structurally', () => {
-  const { sameData } = storeHarness(async () => snapshot()).store
+  const { sameData } = load('shared/utils/sameData.ts')
   assert.equal(sameData(snapshot(), snapshot()), true)
   assert.equal(sameData({ a: [1, { b: 2 }] }, { a: [1, { b: 3 }] }), false)
   assert.equal(sameData({ a: 1 }, { a: 1, b: undefined }), false)
@@ -230,12 +229,13 @@ test('sameData compares plain server data structurally', () => {
 // Hub data: cached per space, kept through refetches
 // ---------------------------------------------------------------------------
 
-test('hub data reads through the revalidating cache, keyed by space and week', () => {
+test('hub data reads through the revalidating cache, keyed by space and week', async () => {
   const calls = []
+  const reads = []
   const useHubData = load('features/spaces/hub/useHubData.ts', {
     '@shared/hooks/useRevalidatingQuery': {
       useRevalidatingQuery: (key, fetcher, options) => {
-        calls.push({ key, options })
+        calls.push({ key, fetcher, options })
         return {
           data: key === 'spaces/hub/summaries' ? { spaces: [] } : undefined,
           error: null,
@@ -245,9 +245,9 @@ test('hub data reads through the revalidating cache, keyed by space and week', (
       },
     },
     '../api': {
-      fetchSpaceSummaries() {},
-      fetchSpaceSummary() {},
-      fetchWeeklyRecord() {},
+      fetchSpaceSummaries: (signal) => reads.push(['summaries', typeof signal]),
+      fetchSpaceSummary: (spaceId, signal) => reads.push(['summary', spaceId, typeof signal]),
+      fetchWeeklyRecord: (spaceId, weekStart, signal) => reads.push(['record', spaceId, weekStart, typeof signal]),
     },
   }).default
   const { summaries, summary, record } = useHubData(22, '2026-11-09', true)
@@ -258,7 +258,13 @@ test('hub data reads through the revalidating cache, keyed by space and week', (
   for (const call of calls) {
     assert.deepEqual(plain(call.options.invalidateOn), ['task', 'schedule'])
     assert.equal(call.options.group, 'spaces/hub/')
+    await call.fetcher(new AbortController().signal)
   }
+  assert.deepEqual(reads, [
+    ['summaries', 'object'],
+    ['summary', 22, 'object'],
+    ['record', 22, '2026-11-09', 'object'],
+  ], 'each key reads the space and week it names')
   assert.deepEqual(plain(summaries.data), { spaces: [] })
   assert.equal(summary.data, null, 'no data yet is null, never another space')
   assert.equal(summary.isLoading, true)
@@ -308,7 +314,7 @@ const projectsComponent = () => {
     '../hub': hub,
     '../unavailable': load('features/spaces/unavailable.ts'),
     '../types': {},
-    './Count': load('features/spaces/hub/Count.tsx', {
+    '@shared/components/motion/TweenedNumber': load('shared/components/motion/TweenedNumber.tsx', {
       'react/jsx-runtime': jsxRuntime,
       '@shared/motion': shared,
     }),
@@ -335,7 +341,7 @@ const renderProjects = (props) =>
         { project: project(2, true), counts: null, nearestDueDate: null },
       ],
       withoutProject: null,
-      failed: false,
+      loadError: null,
       onRetry() {},
       busy: false,
       onOpen() {},
@@ -354,6 +360,12 @@ test('completed projects carry the strike; the open one does not', () => {
   assert.match(html, /<span class="motion-strike" data-done="true">프로젝트 2<\/span>/)
   assert.match(html, /class="hub-count">1\/4</)
   assert.match(html, /class="hub-count" data-pending="true">–</)
+})
+
+test('a first load failure shows the message it was given, and a refresh failure keeps the numbers', () => {
+  const html = renderProjects({ loadError: '스페이스 참여자만 볼 수 있어요.' })
+  assert.match(html, /class="hub-load-error" role="alert">스페이스 참여자만 볼 수 있어요. <button/)
+  assert.doesNotMatch(renderProjects(), /hub-load-error/)
 })
 
 test('a completion that is saving strikes the row in place, before it moves lists', () => {
@@ -392,29 +404,30 @@ test('time bars set a scale and never an animated width', () => {
 // Dialogs fade out instead of vanishing
 // ---------------------------------------------------------------------------
 
-test('every spaces dialog stays mounted through its exit', () => {
-  const page = read('features/spaces/SpacesPage.tsx')
-  for (const name of ['editor', 'confirm', 'invitation', 'movingProject'])
-    assert.match(page, new RegExp(`usePresence\\(${name}\\)`), name)
-  assert.equal((page.match(/closing=\{/g) ?? []).length >= 7, true, 'each Modal gets closing')
-  assert.ok(!/\{editor && \(|\{confirm && \(|\{invitation && \(|\{movingProject && \(/.test(page))
-  assert.match(read('features/spaces/ConflictNotice.tsx'), /usePresence\(open\)/)
-  assert.match(read('features/spaces/SpaceChrome.tsx'), /usePresence\(open\)/)
-  assert.match(read('features/spaces/EditConflictDialog.tsx'), /closing=\{closing\}/)
-  assert.match(read('features/spaces/hub/AssignUnassignedDialog.tsx'), /closing=\{closing\}/)
-})
-
-test('the hub row menu plays an exit before it closes', () => {
-  const menu = read('features/spaces/hub/RowMenu.tsx')
-  assert.match(menu, /MOTION_EXIT_MS/)
-  assert.match(menu, /data-state=\{closing \? 'closing' : undefined\}/)
-  assert.match(read('features/spaces/hub/hub.css'), /\.hub-menu\[data-state='closing'\] > \.hub-menu__list/)
+test('the conflict notice stays mounted through its exit and hands it to the modal', () => {
+  const Notice = (presence) =>
+    load('features/spaces/ConflictNotice.tsx', {
+      react: React,
+      'react/jsx-runtime': jsxRuntime,
+      '@shared/components/common/Modal': {
+        default: ({ closing, children }) =>
+          React.createElement('div', { role: 'dialog', 'data-closing': String(closing) }, children),
+      },
+      '@shared/motion': { usePresence: () => presence },
+      './conflicts': { EVENT: 'workspace:edit-conflict' },
+      './store': { useSpaces: () => ({ reload: async () => {} }) },
+    }).default
+  const render = (presence) => renderToStaticMarkup(React.createElement(Notice(presence)))
+  assert.equal(render({ mounted: false, closing: false }), '')
+  assert.match(render({ mounted: true, closing: false }), /data-closing="false"/)
+  assert.match(render({ mounted: true, closing: true }), /data-closing="true"[^]*다른 참여자가 먼저 수정했어요/)
 })
 
 // ---------------------------------------------------------------------------
 // CSS contract for the spaces area
 // ---------------------------------------------------------------------------
 
+// CSS is only readable as text here; these rules hold for every rule in the area, not one selector.
 test('spaces CSS animates only transform, opacity and colors, with the motion tokens', () => {
   for (const file of [
     'features/spaces/spaces.css',
@@ -440,24 +453,88 @@ test('spaces CSS animates only transform, opacity and colors, with the motion to
       for (const [, property] of body.matchAll(/([\w-]+)\s*:/g))
         assert.ok(['transform', 'opacity'].includes(property), `${file}: ${name} animates ${property}`)
     }
+    // A local grow keeps no end state, or the element's own transform could not transition later.
+    const local = [...css.matchAll(/@keyframes\s+([\w-]+)/g)].map(([, name]) => name)
+    for (const [, value] of css.matchAll(/animation:\s*([^;]+);/g)) {
+      const name = value.trim().split(/\s+/)[0]
+      if (local.includes(name)) assert.match(value, /\bbackwards\b/, `${file}: ${name} fill mode`)
+    }
   }
 })
 
-test('hub numbers never glide from another space, and grown bars keep their transition', () => {
-  // The same member (or the unassigned line) appears in every space. Its count restarts per
-  // space instead of tweening from the space shown before.
-  const people = read('features/spaces/hub/HubPeople.tsx')
-  assert.equal((people.match(/<Count key=\{space\.id\}/g) ?? []).length, 2)
-  // A cached record for another space mounts as its own body, so its bars grow fresh.
-  assert.match(
-    read('features/spaces/hub/TeamRecord.tsx'),
-    /className="hub-record__body" key=\{`\$\{record\.spaceId\}:\$\{record\.start\}`\}/,
+// Element trees keep React keys, which decide whether a node is kept or remounted.
+const tree = (Component, props) => {
+  const jsx = (type, elementProps, key) => ({ type, props: elementProps, key })
+  const nodes = []
+  const walk = (node) => {
+    if (Array.isArray(node)) return node.forEach(walk)
+    if (!node || typeof node !== 'object') return
+    nodes.push(node)
+    walk(node.props?.children)
+  }
+  walk(Component(jsx)(props))
+  return nodes
+}
+
+test('hub numbers and record bars start fresh in another space instead of gliding from the last one', () => {
+  const hub = load('features/spaces/hub.ts', {
+    '@shared/utils/isoDuration': { parseIsoDurationMinutes: () => 0 },
+  })
+  const Tweened = () => null
+  const people = tree(
+    (jsx) =>
+      load('features/spaces/hub/HubPeople.tsx', {
+        'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+        '@shared/motion': {
+          useListPresence: (items, getKey) =>
+            (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+          presenceProps: () => ({}),
+        },
+        '@shared/components/motion/TweenedNumber': { default: Tweened },
+        '../UnavailableNote': { default: () => null },
+        '../hub': hub,
+        '../unavailable': load('features/spaces/unavailable.ts'),
+        './RowMenu': { default: () => null },
+      }).default,
+    {
+      space: { id: 22, members: [{ memberId: 7, nickname: '나', role: 'ADMIN' }], allowedActions: { assign: true } },
+      rows: [{ memberId: 7, name: '나', admin: true, openAssignedCount: 2, nearestDueDate: null }],
+      unassigned: { openCount: 3, nearestDueDate: null },
+      loadError: null,
+      onRetry() {},
+      busy: false,
+      onInvite() {},
+      onToggleAdmin() {},
+      onRemove() {},
+      onAssign() {},
+    },
   )
-  // A finished grow must not hold the transform, or later length changes could not transition.
-  assert.match(read('features/spaces/TimeBars.css'), /time-bars-grow [^;]+ backwards;/)
-  assert.match(read('features/spaces/hub/hub.css'), /hub-day-rise [^;]+ backwards;/)
-  // The project name mutes on its .motion-strike span only; no chained color transition.
-  assert.ok(!/\.hub-project__main strong \{\s*transition/.test(read('features/spaces/hub/hub.css')))
+  const counts = people.filter((node) => node.type === Tweened)
+  assert.equal(counts.length, 2, 'a member count and the unassigned count')
+  for (const count of counts) assert.equal(String(count.key), '22')
+
+  const record = tree(
+    (jsx) =>
+      load('features/spaces/hub/TeamRecord.tsx', {
+        'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'fragment' },
+        '@shared/utils/isoDuration': { formatIsoDurationLabel: () => '1시간', formatMinutesLabel: () => '1시간' },
+        '../TimeBars': { default: () => null },
+        '../hub': hub,
+      }).default,
+    {
+      space: { id: 22, members: [] },
+      projects: [],
+      meId: 7,
+      record: { spaceId: 22, start: '2026-11-09', end: '2026-11-16', completedCount: 1, elapsed: 'PT1H', days: [], byProject: [], byRunner: [] },
+      loadError: null,
+      loading: false,
+      onRetry() {},
+      today: '2026-11-10',
+    },
+  )
+  const body = record.find((node) => node.props?.className === 'hub-record__body')
+  assert.ok(body, 'the record renders its body')
+  assert.equal(body.key, '22:2026-11-09')
 })
 
 // ---------------------------------------------------------------------------
@@ -485,9 +562,4 @@ test('the affiliation line fades in a changed value and leaves the first one sti
   ], 'opacity only, so reduced motion keeps it')
   assert.doesNotThrow(() => fadeIn(null))
   assert.doesNotThrow(() => fadeIn({}), 'no Web Animations support')
-})
-test('the pending line does not take a row the form would later lose', () => {
-  const source = read('features/spaces/AffiliationFields.tsx')
-  assert.match(source, /<p className="space-sr-only" role="status">\s*서버의 소속·담당자 정보를 확인하고 있어요…/)
-  assert.match(source, /shouldFadeText\(shownSummary\.current, summaryText\)/)
 })

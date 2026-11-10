@@ -7,7 +7,7 @@
   align-items: center;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn var(--motion-base) var(--motion-ease) both;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .schedule-detail-modal__content {
@@ -143,7 +143,7 @@
 
 /* Hover is a color change (below); a press scales down a touch. Nothing lifts. */
 .schedule-detail-modal__action-btn:not(:disabled):active {
-  transform: scale(0.97);
+  transform: scale(var(--motion-press-scale));
 }
 
 .schedule-detail-modal__action-btn--edit {
@@ -205,9 +205,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .schedule-detail-modal__refresh-error {
-    animation-duration: var(--motion-base) !important;
-  }
-  .schedule-detail-modal__action-btn:not(:disabled):active {
-    transform: none;
+    --motion-keep-animation: var(--motion-base);
   }
 }
