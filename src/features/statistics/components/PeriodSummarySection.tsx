@@ -77,7 +77,7 @@ const PeriodSummarySection = ({ unit, start }: Props) => {
       data-pending={held || undefined}
       aria-busy={held || isRefreshing || undefined}
     >
-      {held && <p className="report-sr-only" role="status">통계를 불러오는 중...</p>}
+      {held && <p className="sr-only" role="status">통계를 불러오는 중...</p>}
       {error && (
         <div className="report-inline-error report-section__hint" role="alert">
           <span>통계를 불러오지 못했어요. {error}</span>

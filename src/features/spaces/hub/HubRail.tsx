@@ -51,7 +51,7 @@ export default function HubRail({
                   <span aria-hidden>
                     {line.open === '–' ? line.open : <Count value={Number(line.open)} />}
                   </span>
-                  <span className="hub-sr">
+                  <span className="sr-only">
                     {line.open === '–'
                       ? '미완료 작업 수 없음'
                       : `미완료 작업 ${line.open}개`}

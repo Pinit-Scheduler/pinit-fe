@@ -384,7 +384,7 @@ export default function AffiliationFields({
       {/* 요약 한 줄이 이미 "담당자 확인 중"을 보인다. 확인이 끝날 때 폼이 한 줄 당겨 올라오지 않도록
           안내 문장은 보조 기술에만 읽힌다. */}
       {!draft && !error && (
-        <p className="space-sr-only" role="status">
+        <p className="sr-only" role="status">
           서버의 소속·담당자 정보를 확인하고 있어요…
         </p>
       )}

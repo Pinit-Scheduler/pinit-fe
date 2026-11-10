@@ -209,7 +209,7 @@ export default function AssignUnassignedDialog({
                     {row.detail && <small>{row.detail}</small>}
                   </div>
                   <div className="hub-assign__pick">
-                    <label htmlFor={selectId} className="hub-sr">
+                    <label htmlFor={selectId} className="sr-only">
                       {row.title} 담당자
                     </label>
                     <select

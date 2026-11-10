@@ -92,7 +92,7 @@ export default function PlanComparisonSection({
       aria-busy={held || isRefreshing || undefined}
     >
       {held && (
-        <p className="report-sr-only" role="status">
+        <p className="sr-only" role="status">
           계획 시간과 실행 기록을 불러오는 중…
         </p>
       )}

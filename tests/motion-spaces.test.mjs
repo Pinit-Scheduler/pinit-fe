@@ -488,6 +488,6 @@ test('the affiliation line fades in a changed value and leaves the first one sti
 })
 test('the pending line does not take a row the form would later lose', () => {
   const source = read('features/spaces/AffiliationFields.tsx')
-  assert.match(source, /<p className="space-sr-only" role="status">\s*서버의 소속·담당자 정보를 확인하고 있어요…/)
+  assert.match(source, /<p className="sr-only" role="status">\s*서버의 소속·담당자 정보를 확인하고 있어요…/)
   assert.match(source, /shouldFadeText\(shownSummary\.current, summaryText\)/)
 })

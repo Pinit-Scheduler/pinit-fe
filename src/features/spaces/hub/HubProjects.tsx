@@ -219,7 +219,7 @@ export default function HubProjects({
       {loose && loose.total > 0 && (
         <div className="hub-loose">
           <span>프로젝트 없이 기록한 작업 {loose.total}개</span>
-          <span className="hub-sr">{countsLabel(loose)}</span>
+          <span className="sr-only">{countsLabel(loose)}</span>
           <TaskDots counts={loose} />
         </div>
       )}
