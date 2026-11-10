@@ -10,3 +10,23 @@ export const isCompletionOnly = ({ tasks, schedules }: DataChangeBatch) =>
       detail.taskId !== undefined && COMPLETION_REASONS.has(detail.reason ?? ''),
   ) &&
   schedules.every((detail) => detail.reason === 'task-state-mutated')
+
+/**
+ * A refresh re-reads the pages on screen. "More" may land while it runs, so pages added meanwhile
+ * are read too and the refresh does not take the rows it just added off the screen again.
+ */
+export async function readShownPages<T>(
+  read: (page: number) => Promise<T>,
+  shown: () => number,
+  isLast: (response: T, page: number) => boolean,
+): Promise<T[]> {
+  const responses = await Promise.all(
+    Array.from({ length: shown() }, (_, page) => read(page)),
+  )
+  while (
+    responses.length < shown() &&
+    !isLast(responses[responses.length - 1], responses.length - 1)
+  )
+    responses.push(await read(responses.length))
+  return responses
+}

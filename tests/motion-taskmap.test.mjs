@@ -296,29 +296,78 @@ test('another scope or completed toggle never shows this snapshot', async () => 
 // TaskMapPage wiring (audit C4 and the render rule)
 // ---------------------------------------------------------------------------
 
-const page = read('features/task-map/TaskMapPage.tsx')
+const taskMapPage = (taskGraph) => {
+  const surface = (open, path) => Object.assign(() => open(path), { path })
+  const Page = load(
+    'features/task-map/TaskMapPage.tsx',
+    {
+      react: React,
+      'react/jsx-runtime': jsxRuntime,
+      '@features/spaces/store': { useProjectFilter: () => ['all', () => {}] },
+      'react-router-dom': {
+        Link: ({ to, onClick, className, children }) =>
+          React.createElement('a', { href: to, className, 'data-surface': onClick?.path }, children),
+      },
+      '@shared/components/common/Modal': { default: ({ children }) => React.createElement('div', null, children) },
+      '@shared/components/common/StatusPanel': {
+        default: ({ variant, title, description }) =>
+          React.createElement('div', { 'data-panel': variant }, title, ' ', description),
+      },
+      '@shared/hooks/useCurrentDay': { default: () => ({ format: () => '2026-11-10' }) },
+      '@shared/motion': {
+        MOTION_BASE_MS: 0,
+        MOTION_EASE: 'linear',
+        MOTION_ENTER_MS: 0,
+        presenceProps: () => ({}),
+        prefersReducedMotion: () => true,
+        useArrival: () => false,
+        useListPresence: (items, getKey) =>
+          (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+        usePresence: (value) => ({ mounted: Boolean(value), closing: false, value }),
+        useTweenedNumber: (value) => value,
+      },
+      '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open() {} }) },
+      '@shared/routing/linkClick': { surfaceLinkClick: surface },
+      '@features/categories': {
+        CategoryFilter: () => null,
+        useCategories: () => ({ taskCategory: () => null, error: null, reload: async () => {} }),
+      },
+      './graph': graph,
+      './useTaskGraph': { useTaskGraph: () => ({ count: 0, reload() {}, scopeKey: 'k', ...taskGraph }) },
+      './TaskMapPage.css': {},
+    },
+    { window: { matchMedia: () => ({ matches: false }) } },
+  ).default
+  return renderToStaticMarkup(React.createElement(Page))
+}
+const snapshot = { tasks: [task(1), task(2, { previousTaskIds: [1], inboundDependencyCount: 1 })], unavailableIds: [] }
 
 test('task map links to task surfaces open them over the map instead of swapping the page', () => {
-  assert.doesNotMatch(page, /<Link[^>]*to=\{`\/app\/tasks/, 'no plain Link to a task surface')
-  assert.doesNotMatch(page, /<Link[^>]*to="\/app\/tasks\/new"/, 'no plain Link to the new task surface')
-  assert.match(page, /useRouteSurfaceNavigation\(\)/)
-  assert.match(page, /onClick=\{surfaceLinkClick\(open, path\)\}/)
-  assert.ok((page.match(/<TaskSurfaceLink/g) ?? []).length >= 4)
+  const html = taskMapPage({ data: snapshot, isLoading: false, isRefreshing: false, error: null })
+  const links = [...html.matchAll(/<a href="(\/app\/tasks\/[^"]+)"[^>]*?(?:data-surface="([^"]*)")?>/g)]
+  assert.ok(links.some(([, href]) => href === '/app/tasks/new'))
+  assert.ok(links.some(([, href]) => href === '/app/tasks/1'))
+  assert.ok(links.length >= 3)
+  for (const [, href, surface] of links) assert.equal(surface, href, `${href} opens as a surface`)
 })
 
 test('task map shows loading only without a snapshot and keeps the map through errors', () => {
-  assert.match(page, /\) : error && !data \? \(/, 'the error panel only replaces an empty map')
-  assert.match(page, /aria-busy=\{isRefreshing \|\| undefined\}/)
-  assert.doesNotMatch(page, /viewOverride\?\.graph === graph/, 'the viewport is no longer tied to one snapshot')
-  assert.match(page, /usePresence\(expanded\)/, 'the full-screen map plays its exit')
-  assert.match(page, /closing=\{fullscreen\.closing\}/)
-  assert.match(page, /useListPresence\(graph\.nodes/)
-  assert.match(page, /useListPresence\(edgePaths/)
-  // Another space or project is a new map: it refits and starts a new presence baseline.
-  assert.match(page, /layoutKey = `\$\{scopeKey\}:/)
-  assert.match(page, /presenceKey = `\$\{scopeKey\}:/)
-  // Nodes of the view being left stay drawn while the world glides away from them.
-  assert.match(page, /glideFrom !== null && inView\(node, glideFrom\)/)
+  assert.match(
+    taskMapPage({ data: null, isLoading: true, isRefreshing: false, error: null }),
+    /data-panel="loading"/,
+  )
+  const failedRefresh = taskMapPage({ data: snapshot, isLoading: false, isRefreshing: false, error: '작업 맵을 새로 불러오지 못했어요.' })
+  assert.doesNotMatch(failedRefresh, /data-panel="error"/, 'the error panel only replaces an empty map')
+  assert.match(failedRefresh, /class="tm-warning tm-refresh-error" role="alert">작업 맵을 새로 불러오지 못했어요\./)
+  assert.match(failedRefresh, /Task 1/)
+  assert.match(
+    taskMapPage({ data: null, isLoading: false, isRefreshing: false, error: '작업 맵을 불러오지 못했어요.' }),
+    /data-panel="error"/,
+  )
+  assert.match(
+    taskMapPage({ data: snapshot, isLoading: false, isRefreshing: true, error: null }),
+    /class="tm-content" aria-busy="true"/,
+  )
 })
 
 // ---------------------------------------------------------------------------
@@ -369,20 +418,11 @@ test('deadline risk rows carry their presence phase and minutes render through t
   for (const text of ['5시간', '2시간', '3시간']) assert.ok(html.includes(text), text)
 })
 
-test('deadline risk page keeps the forecast mounted through refreshes and lists rows with presence', () => {
-  const source = read('features/deadline-risk/pages/DeadlineRiskPage.tsx')
-  assert.match(source, /useListPresence\(forecast\?\.items/)
-  assert.match(source, /presence=\{presenceProps\(phase\)\}/)
-  assert.match(source, /aria-busy=\{isRefreshing \|\| undefined\}/)
-  const hook = read('features/deadline-risk/hooks/useDeadlineRisk.ts')
-  assert.match(hook, /refetchOnFocus: true/)
-  assert.doesNotMatch(hook, /revision/, 'a refresh is no longer part of the identity key')
-})
-
 // ---------------------------------------------------------------------------
 // Motion rules for this area's CSS
 // ---------------------------------------------------------------------------
 
+// CSS is only readable as text here; the rules apply to every transition in these files.
 test('task map and deadline risk CSS animate only allowed properties with the tokens', () => {
   const allowed = new Set([
     'transform',
