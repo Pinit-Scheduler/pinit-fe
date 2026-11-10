@@ -119,6 +119,7 @@ const createHarness = (initialToken, respond) => {
         return load('shared/api/httpClient.ts')
       if (name === './httpClientHelpers') return { debugLog() {} }
       if (name === './errorMessage' || name === '@shared/api/errorMessage') return errorMessage
+      if (name === '@shared/utils/sameData') return load('shared/utils/sameData.ts')
       if (name === '@shared/utils/events')
         return {
           onDataChanged: () => () => {},

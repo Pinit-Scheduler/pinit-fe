@@ -66,6 +66,7 @@ test('a loaded actor-specific category snapshot survives background fetch failur
     scheduleAssignments: { 9: 7 },
   }
   const store = load('../src/features/categories/store.ts', {
+    '@shared/utils/sameData': load('../src/shared/utils/sameData.ts'),
     react: { useEffect() {}, useSyncExternalStore: (_subscribe, get) => get() },
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': {

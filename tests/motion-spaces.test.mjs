@@ -89,6 +89,7 @@ function storeHarness(respond) {
         syncAccessibleSpaces: () => ({ spaceIds: [] }),
       },
       './api': { fetchWorkspace: () => respond() },
+      '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     },
     {
       window,
@@ -218,7 +219,7 @@ test('window focus retries at once after a failed load', async () => {
 })
 
 test('sameData compares plain server data structurally', () => {
-  const { sameData } = storeHarness(async () => snapshot()).store
+  const { sameData } = load('shared/utils/sameData.ts')
   assert.equal(sameData(snapshot(), snapshot()), true)
   assert.equal(sameData({ a: [1, { b: 2 }] }, { a: [1, { b: 3 }] }), false)
   assert.equal(sameData({ a: 1 }, { a: 1, b: undefined }), false)

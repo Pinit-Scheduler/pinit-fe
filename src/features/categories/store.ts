@@ -13,6 +13,7 @@ import {
 } from '@features/spaces/metadata'
 import { getAccessToken } from '@shared/api/authTokens'
 import { onDataChanged } from '@shared/utils/events'
+import { sameData } from '@shared/utils/sameData'
 
 export type Category = {
   id: number
@@ -96,7 +97,7 @@ const url = (suffix = '') => buildApiUrl('/categories' + suffix, 'v2')
 // A reload that returns the same content keeps the same objects, so screens that read
 // assignments (TaskListPage filters with them) do not re-render or refetch on focus.
 function same<T>(previous: T, next: T): T {
-  return JSON.stringify(previous) === JSON.stringify(next) ? previous : next
+  return sameData(previous, next) ? previous : next
 }
 export const reloadCategories = (): Promise<void> => {
   const key = sessionKey()

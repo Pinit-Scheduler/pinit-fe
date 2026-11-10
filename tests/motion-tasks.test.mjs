@@ -71,6 +71,7 @@ const categoryHarness = () => {
       '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
       '@features/spaces/metadata': {},
       '@shared/utils/events': { onDataChanged: () => () => {} },
+      '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     },
     { window },
   )

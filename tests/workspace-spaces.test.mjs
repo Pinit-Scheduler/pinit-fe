@@ -752,6 +752,7 @@ function spacesStoreHarness(respond) {
       },
       './metadata': registry,
       './api': { fetchWorkspace: () => respond(member) },
+      '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     },
     {
       sessionStorage: {
