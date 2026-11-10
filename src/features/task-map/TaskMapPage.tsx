@@ -869,7 +869,7 @@ export default function TaskMapPage() {
       </div>
       {categories.error && (
         <p className="tm-warning" role="status">
-          프로젝트를 불러오지 못했습니다.{' '}
+          {categories.error}{' '}
           <button
             type="button"
             onClick={() => {

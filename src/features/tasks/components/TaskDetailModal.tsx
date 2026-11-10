@@ -279,9 +279,6 @@ const TaskDetailModal = ({
           </p>
         ) : !task ? (
           <div className="task-detail-modal__body">
-            <p className="task-detail-modal__loading">
-              작업 정보를 불러오지 못했습니다.
-            </p>
             <p className="task-detail-modal__description">{error}</p>
             <button
               type="button"

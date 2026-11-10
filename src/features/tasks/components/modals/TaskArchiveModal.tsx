@@ -116,7 +116,6 @@ const ArchiveDialog = ({
       <div className="task-archive-modal__body" ref={scrollRef}>
         {error && tasks.length === 0 ? (
           <div className="task-archive-modal__placeholder">
-            <p>아카이브를 불러오지 못했습니다.</p>
             <p className="task-archive-modal__error">{error}</p>
             <button type="button" className="task-archive-modal__ghost" onClick={handleRetry}>다시 시도</button>
           </div>
