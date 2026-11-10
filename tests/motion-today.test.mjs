@@ -109,7 +109,7 @@ test('the completion hold covers the strike line', () => {
 })
 
 // ---------------------------------------------------------------------------
-// TodayPage keeps its panels through refreshes (audit A8 / pages 2)
+// TodayPage keeps its panels through refreshes (audit Data A8, Pages 2)
 // ---------------------------------------------------------------------------
 
 const todayHarness = () => {

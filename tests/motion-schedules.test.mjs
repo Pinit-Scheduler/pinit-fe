@@ -11,7 +11,7 @@ import { apiError, requireFrom } from './support/errors.mjs'
 const require = createRequire(import.meta.url)
 const dayjs = require('dayjs')
 
-// Motion and flicker rules for the schedules area (docs/motion/README.md, flicker-audit A1-A8, B3).
+// Motion and flicker rules for the schedules area (docs/motion/README.md; flicker audit Data A1-A5, Pages 3, Mutations A4-A5).
 
 const source = (path) => readFileSync(new URL('../src/' + path, import.meta.url), 'utf8')
 const load = (path, dependencies, globals = {}) => {
@@ -64,7 +64,7 @@ const statefulReact = () => {
 }
 
 // ---------------------------------------------------------------------------
-// ScheduleCard actions: optimistic state, per-card lock (audit A4, A5)
+// ScheduleCard actions: optimistic state, per-card lock (audit Mutations A4, A5)
 // ---------------------------------------------------------------------------
 
 const actionsHarness = ({ pending = null } = {}) => {
@@ -304,7 +304,7 @@ test('writing the same revision again keeps the cache map, a changed one replace
 })
 
 // ---------------------------------------------------------------------------
-// Schedules tab and card markup (audit A1-A8, B3)
+// Schedules tab and card markup (audit Pages 3A-3D, Mutations A4-A5)
 // ---------------------------------------------------------------------------
 
 // A function stands for a module's default export.
