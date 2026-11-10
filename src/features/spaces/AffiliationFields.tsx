@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
 import {
@@ -6,6 +6,7 @@ import {
   affiliationSummary,
   needsRecordDisclosure,
 } from './affiliationImpact'
+import { fadeIn, shouldFadeText } from './motion'
 import SpaceMark from './SpaceMark'
 import { useSpaces } from './store'
 import UnavailableNote from './UnavailableNote'
@@ -194,6 +195,23 @@ export default function AffiliationFields({
   const expanded = open
   // 입력만 잠근다. 요약 버튼과 다시 시도는 눌려야 불가 사유·영향 안내를 볼 수 있다.
   const locked = disabled || workspace.loading || unavailable
+  const summaryText = affiliationSummary(
+    destination ?? null,
+    project,
+    summaryAssignee,
+  )
+  const summaryMarkRef = useRef<HTMLSpanElement>(null)
+  const summaryTextRef = useRef<HTMLSpanElement>(null)
+  const shownSummary = useRef<string | null>(null)
+  // 서버 기본 담당자가 도착하거나 소속을 바꾸면 요약 한 줄이 제자리에서 바뀐다.
+  // 글자가 한 프레임에 갈아 끼워지지 않도록 새 값을 흐리게 들인다. 폼을 연 첫 값은 움직이지 않는다.
+  useLayoutEffect(() => {
+    if (shouldFadeText(shownSummary.current, summaryText)) {
+      fadeIn(summaryMarkRef.current)
+      fadeIn(summaryTextRef.current)
+    }
+    shownSummary.current = summaryText
+  }, [summaryText])
   return (
     <fieldset className="space-affiliation">
       <legend>소속·담당자</legend>
@@ -221,9 +239,11 @@ export default function AffiliationFields({
         aria-controls={bodyId}
         onClick={() => setOpen(!expanded)}
       >
-        <SpaceMark space={destination ?? null} />
-        <span className="space-affiliation__summary-text">
-          {affiliationSummary(destination ?? null, project, summaryAssignee)}
+        <span ref={summaryMarkRef} className="space-affiliation__summary-mark">
+          <SpaceMark space={destination ?? null} />
+        </span>
+        <span ref={summaryTextRef} className="space-affiliation__summary-text">
+          {summaryText}
         </span>
         <span className="space-affiliation__summary-action">
           {expanded ? '접기' : '바꾸기'}
@@ -361,8 +381,10 @@ export default function AffiliationFields({
         </p>
       )}
       </div>
+      {/* 요약 한 줄이 이미 "담당자 확인 중"을 보인다. 확인이 끝날 때 폼이 한 줄 당겨 올라오지 않도록
+          안내 문장은 보조 기술에만 읽힌다. */}
       {!draft && !error && (
-        <p className="space-help" role="status">
+        <p className="space-sr-only" role="status">
           서버의 소속·담당자 정보를 확인하고 있어요…
         </p>
       )}

@@ -459,3 +459,35 @@ test('hub numbers never glide from another space, and grown bars keep their tran
   // The project name mutes on its .motion-strike span only; no chained color transition.
   assert.ok(!/\.hub-project__main strong \{\s*transition/.test(read('features/spaces/hub/hub.css')))
 })
+
+// ---------------------------------------------------------------------------
+// Form affiliation line: values that arrive or change fade in, the first one does not
+// ---------------------------------------------------------------------------
+
+test('the affiliation line fades in a changed value and leaves the first one still', () => {
+  const { shouldFadeText, fadeIn } = load(
+    'features/spaces/motion.ts',
+    { '@shared/motion': motion() },
+    { window: undefined },
+  )
+  assert.equal(shouldFadeText(null, '핀잇 개선 › 작업 카드 개선, 담당자 확인 중'), false, 'form opens')
+  assert.equal(
+    shouldFadeText('핀잇 개선 › 작업 카드 개선, 담당자 확인 중', '핀잇 개선 › 작업 카드 개선, 담당 나'),
+    true,
+    'server default assignee arrives',
+  )
+  assert.equal(shouldFadeText('나의 스페이스, 담당 나', '나의 스페이스, 담당 나'), false, 'same text')
+
+  const calls = []
+  fadeIn({ animate: (frames, options) => calls.push(plain({ frames, options })) })
+  assert.deepEqual(calls, [
+    { frames: [{ opacity: 0 }, { opacity: 1 }], options: { duration: 180, easing: 'cubic-bezier(0.2, 0, 0, 1)' } },
+  ], 'opacity only, so reduced motion keeps it')
+  assert.doesNotThrow(() => fadeIn(null))
+  assert.doesNotThrow(() => fadeIn({}), 'no Web Animations support')
+})
+test('the pending line does not take a row the form would later lose', () => {
+  const source = read('features/spaces/AffiliationFields.tsx')
+  assert.match(source, /<p className="space-sr-only" role="status">\s*서버의 소속·담당자 정보를 확인하고 있어요…/)
+  assert.match(source, /shouldFadeText\(shownSummary\.current, summaryText\)/)
+})

@@ -1,4 +1,8 @@
-import { MOTION_ENTER_MS, prefersReducedMotion } from '@shared/motion'
+import {
+  MOTION_BASE_MS,
+  MOTION_ENTER_MS,
+  prefersReducedMotion,
+} from '@shared/motion'
 
 /** --motion-ease, for the Web Animations API (keep in step with src/shared/styles/motion.css). */
 const EASE = 'cubic-bezier(0.2, 0, 0, 1)'
@@ -19,6 +23,27 @@ export function riseIn(element: Element | null | undefined) {
         { opacity: 1, transform: 'none' },
       ]
   ;(element as HTMLElement).animate(frames, { duration: MOTION_ENTER_MS, easing: EASE })
+}
+
+/**
+ * Fades in text that was replaced in place, so a value that arrives or changes
+ * (a form's affiliation line filling in the server's default assignee) does not jump.
+ * Opacity only, so it also plays under reduced motion.
+ */
+export function fadeIn(element: Element | null | undefined) {
+  if (!element || typeof (element as HTMLElement).animate !== 'function') return
+  ;(element as HTMLElement).animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: MOTION_BASE_MS,
+    easing: EASE,
+  })
+}
+
+/**
+ * Whether a text that changed in place should fade in.
+ * The first value (what the form opened with) never animates: the surface's own entrance covers it.
+ */
+export function shouldFadeText(before: string | null, after: string): boolean {
+  return before !== null && before !== after
 }
 
 /**

@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { safeBackground } from '@shared/routing/routeSurfaceState'
 import { useSpaces } from '@features/spaces/store'
-import { createSpaceIdFor } from '@features/spaces/scope'
+import { createAffiliationFor } from '@features/spaces/scope'
 import TaskForm from '../components/TaskForm'
 import type { TaskFormValues } from '../components/TaskForm'
 import { createTask } from '../api/tasks'
@@ -29,8 +31,15 @@ import {
 const TaskCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
   const location = useLocation()
-  const { defaultSpaceId } = useSpaces()
-  const spaceId = createSpaceIdFor(location.search, defaultSpaceId)
+  const workspace = useSpaces()
+  // Decided once, when the form opens: the screen behind it names the space and project.
+  const [affiliation] = useState(() =>
+    createAffiliationFor(
+      safeBackground(location.state),
+      location.search,
+      workspace,
+    ),
+  )
   const { setTask } = useTaskCache()
   const { addToast } = useToast()
 
@@ -158,7 +167,9 @@ const TaskCreatePage = () => {
           onSubmit={handleSubmit}
           submitLabel="작업 생성"
           allowRecurrence
-          initialValues={spaceId === undefined ? undefined : { spaceId }}
+          initialValues={
+            affiliation.spaceId === undefined ? undefined : affiliation
+          }
         />
       </div>
     </section>
