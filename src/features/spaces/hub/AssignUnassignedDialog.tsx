@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
-import { ApiError } from '@shared/api/httpClient'
 import { presenceProps, useListPresence } from '@shared/motion'
 import { assignTask, fetchUnassignedTasks } from '@features/tasks/api/tasks'
 import UnavailableNote from '../UnavailableNote'
-import { CONFLICT_RELOADED, isEditConflict } from '../conflicts'
 import { adminNames, unavailableText } from '../unavailable'
 import type { Project, Space } from '../types'
 import {
   ASSIGN_PAGE_SIZE,
+  assignFailure,
   assignReducer,
   assigneeOptions,
   assignRows,
@@ -17,7 +16,6 @@ import {
   initialAssignState,
   nextAssignPage,
   outOfSync,
-  reloadAfterFailure,
   shouldLoadMore,
 } from './assign'
 
@@ -87,20 +85,13 @@ export default function AssignUnassignedDialog({
   )
 
   useEffect(() => {
-    // 첫 조회. 응답이 오면 상태를 바꾸고, 닫히면 요청을 끊는다.
-    const timer = setTimeout(() => load(0, true), 0)
-    return () => {
-      clearTimeout(timer)
-      request.current?.abort()
-    }
+    load(0, true)
+    return () => request.current?.abort()
   }, [load])
 
   const moreNeeded = shouldLoadMore(state)
   useEffect(() => {
-    // 보이는 줄을 다 배정했는데 서버에 남은 작업이 있으면 바로 이어서 받는다.
-    if (!moreNeeded) return
-    const timer = setTimeout(() => load(nextAssignPage(offset), false), 0)
-    return () => clearTimeout(timer)
+    if (moreNeeded) load(nextAssignPage(offset), false)
   }, [moreNeeded, offset, load])
 
   const stale = outOfSync(state, openCount)
@@ -131,13 +122,7 @@ export default function AssignUnassignedDialog({
 
   const assign = async (row: (typeof rows)[number]) => {
     const memberId = chosenAssignee(picked[row.id], options)
-    if (
-      memberId === undefined ||
-      row.version === undefined ||
-      busyId !== null ||
-      loading
-    )
-      return
+    if (memberId === undefined || row.version === undefined) return
     dispatch({ type: 'assigning', id: row.id })
     try {
       await assignTask(row.id, memberId, row.version)
@@ -148,13 +133,11 @@ export default function AssignUnassignedDialog({
       dispatch({ type: 'assigned', id: row.id })
       onAssigned()
     } catch (failure) {
-      const text = isEditConflict(failure)
-        ? CONFLICT_RELOADED
-        : getRequestFailureMessage(failure, '배정하지 못했어요.')
-      dispatch({ type: 'assignFailed', notice: `${row.title}: ${text}` })
-      // 실패하면 허브 숫자도 낡았을 수 있다. 먼저 고쳐졌거나 사라진 작업이면 목록도 다시 받는다.
+      const { notice, reload } = assignFailure(failure, row.title)
+      dispatch({ type: 'assignFailed', notice })
+      // 실패하면 허브 숫자도 낡았을 수 있다.
       onStale()
-      if (reloadAfterFailure(failure instanceof ApiError ? failure.status : undefined)) load(0, true)
+      if (reload) load(0, true)
     }
   }
 

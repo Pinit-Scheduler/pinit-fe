@@ -1,4 +1,7 @@
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { ApiError } from '@shared/api/httpClient'
 import type { Task } from '@features/tasks/types/task'
+import { CONFLICT_RELOADED, isEditConflict } from '../conflicts'
 import { dueLabel } from '../hub'
 import type { Project, SpaceMember, UnavailableReason } from '../types'
 
@@ -52,18 +55,14 @@ export const mergeTasks = (current: Task[], next: Task[]): Task[] => {
   return [...current, ...next.filter((task) => !seen.has(task.id))]
 }
 
-/**
- * 받은 쪽 뒤의 "서버 목록에서 아직 안 본 첫 위치". 화면에서 걸러진 작업이 있어도
- * 서버가 보낸 행 수로 센다.
- */
+/** 받은 쪽 뒤의 "서버 목록에서 아직 안 본 첫 위치". */
 export const offsetAfter = (response: {
   number?: number
   size?: number
-  numberOfElements?: number
   content: unknown[]
 }): number =>
   (response.number ?? 0) * (response.size ?? ASSIGN_PAGE_SIZE) +
-  (response.numberOfElements ?? response.content.length)
+  response.content.length
 
 /**
  * 더 볼 때 받을 쪽. 배정한 작업은 서버 목록에서도 빠지므로 위치를 배정한 수만큼 당긴 값(offset)으로
@@ -80,10 +79,6 @@ export const chosenAssignee = (
   options.some((option) => option.value === picked)
     ? picked
     : options[0]?.value
-
-/** 담당자가 있는 행은 뺀다. `unassigned` 조건을 모르는 이전 BE가 담당자 있는 작업을 섞어 보내도 보이지 않게. */
-export const onlyUnassigned = (tasks: Task[]): Task[] =>
-  tasks.filter((task) => task.assigneeId === null || task.assigneeId === undefined)
 
 export type AssignState = {
   tasks: Task[]
@@ -108,7 +103,6 @@ export type AssignAction =
         content: Task[]
         number?: number
         size?: number
-        numberOfElements?: number
         last?: boolean
       }
     }
@@ -133,18 +127,18 @@ export function assignReducer(state: AssignState, action: AssignAction): AssignS
   switch (action.type) {
     case 'load':
       return { ...state, loading: true, loadError: null }
-    case 'loaded': {
-      const rows = onlyUnassigned(action.response.content)
+    case 'loaded':
       return {
         ...state,
-        tasks: action.replace ? rows : mergeTasks(state.tasks, rows),
+        tasks: action.replace
+          ? action.response.content
+          : mergeTasks(state.tasks, action.response.content),
         hasMore: action.response.last === false,
         offset: offsetAfter(action.response),
         loading: false,
         loadError: null,
         loaded: true,
       }
-    }
     case 'loadFailed':
       return { ...state, loading: false, loadError: action.message }
     case 'assigning':
@@ -176,6 +170,17 @@ export const outOfSync = (state: AssignState, openCount: number | null): boolean
   openCount !== null &&
   openCount > 0
 
-/** 배정 실패 뒤 목록을 다시 받아야 하는지(먼저 고쳐졌거나 사라진 작업). */
-export const reloadAfterFailure = (status: number | undefined): boolean =>
-  status === 409 || status === 404
+/**
+ * 배정 실패의 안내 문구와, 목록을 처음부터 다시 받아야 하는지.
+ * 409·404는 먼저 고쳐졌거나 사라진 작업이라 목록이 낡았다.
+ */
+export const assignFailure = (
+  failure: unknown,
+  title: string,
+): { notice: string; reload: boolean } => {
+  const text = isEditConflict(failure)
+    ? CONFLICT_RELOADED
+    : getRequestFailureMessage(failure, '배정하지 못했어요.')
+  const status = failure instanceof ApiError ? failure.status : undefined
+  return { notice: `${title}: ${text}`, reload: status === 409 || status === 404 }
+}
