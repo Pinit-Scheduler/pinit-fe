@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { findElement, hookRuntime, loadApp } from './support/app.mjs'
 
 // Audit C5: a new display zone resets zone-scoped state in place instead of remounting the
 // router tree. Only an account change re-keys the providers.
@@ -134,24 +135,78 @@ test('the schedule view goes back to today in the new zone, in the same render',
   assert.equal(render().selectedDateKey, '2026-11-11', 'a new zone with another id resets too')
 })
 
-test('the time preferences expose a key that changes with the zone or its offset', () => {
-  const contexts = source('shared/contexts/TimePreferencesContext.tsx')
-  assert.match(contexts, /zoneKey: `\$\{zoneId\}@\$\{offsetMinutes\}`/)
+test('the time preferences key changes with the zone or its offset', () => {
+  const offsets = { 'Asia/Seoul': 540, 'Asia/Tokyo': 540, 'America/New_York': -300 }
+  let zone = 'Asia/Seoul'
+  const runtime = hookRuntime()
+  const { TimePreferencesProvider } = load('shared/contexts/TimePreferencesContext.tsx', {
+    react: runtime.react,
+    'react/jsx-runtime': { jsx: (_type, props) => props },
+    '@shared/utils/datetime': {
+      formatOffsetLabel: (minutes) => String(minutes),
+      getDisplayOffsetMinutes: () => offsets[zone],
+      getDisplayZoneId: () => zone,
+      setDisplayZone: (next) => (zone = next),
+    },
+    '@shared/utils/safeStorage': { readText: () => null, writeText() {}, STORAGE_KEYS: { displayZoneId: 'zone' } },
+  })
+  const render = () => runtime.render(TimePreferencesProvider, { children: null }).value
+  assert.equal(render().zoneKey, 'Asia/Seoul@540')
+  render().applyZone('Asia/Tokyo')
+  assert.equal(render().zoneKey, 'Asia/Tokyo@540', 'another zone with the same offset is still another key')
+  render().applyZone('America/New_York')
+  assert.equal(render().zoneKey, 'America/New_York@-300')
 })
 
-test('a zone change no longer re-keys the providers; only the pages remount', () => {
-  const app = source('app/App.tsx')
-  assert.match(app, /<TaskCacheProvider key=\{actor \?\? 'guest'\} resetKey=\{zoneKey\}>/, 'only the account keys the caches')
-  assert.match(app, /<ScheduleCacheProvider resetKey=\{zoneKey\}>/)
-  assert.match(app, /<ScheduleViewStateProvider>/, 'the schedule view resets in place')
-  assert.doesNotMatch(app, /key=\{`\$\{zoneId\}/)
-  assert.doesNotMatch(app, /key=\{offsetMinutes\}/)
-  assert.match(
-    app,
-    /const \[clearedFor, setClearedFor\] = useState\(zoneKey\)\s*if \(clearedFor !== zoneKey\) \{\s*setClearedFor\(zoneKey\)\s*queryStore\.clear\(\)/,
-    'the query store is cleared before the new pages subscribe',
-  )
-  assert.match(app, /<Routes location=\{surfaceLocation\} key=\{zoneKey\}>/, 'an open surface page remounts too')
-  const shell = source('shared/components/layout/AppShell.tsx')
-  assert.match(shell, /<Outlet key=\{zoneKey\} \/>/, 'the background page remounts; the shell stays')
+const appHarness = () => {
+  const runtime = hookRuntime()
+  const h = { zoneKey: 'Asia/Seoul@540', clears: 0, location: null, runtime }
+  const app = loadApp(runtime, {
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneKey: h.zoneKey, isLoading: false }) },
+    '@shared/api/authTokens': { getAccessToken: () => 'token', getTokenSubject: () => 'member-7' },
+    '@shared/utils/queryStore': { queryStore: { clear: () => h.clears++ } },
+    'react-router-dom': { useLocation: () => h.location },
+  })
+  return { ...app, h }
+}
+const byName = (name) => (node) => node.type?.displayName === name
+
+test('a zone change clears the query store before the new pages render; only the account re-keys the caches', () => {
+  const { AppContent, h } = appHarness()
+  const render = () => h.runtime.render(AppContent)
+  let tree = render()
+  const tasks = findElement(tree, byName('@contexts/TaskCacheContext#TaskCacheProvider'))
+  assert.equal(tasks.key, 'member-7', 'only the account keys the caches')
+  assert.equal(tasks.props.resetKey, 'Asia/Seoul@540')
+  render()
+  assert.equal(h.clears, 0, 'a render in the same zone keeps the cache')
+
+  h.zoneKey = 'America/New_York@-300'
+  tree = render()
+  // The tree this render returns already mounts the new zone's pages, so the store is empty by now.
+  assert.equal(h.clears, 1)
+  const schedules = findElement(tree, byName('@contexts/ScheduleCacheContext#ScheduleCacheProvider'))
+  assert.equal(schedules.key, null)
+  assert.equal(schedules.props.resetKey, 'America/New_York@-300')
+  assert.equal(findElement(tree, byName('@contexts/TaskCacheContext#TaskCacheProvider')).key, 'member-7')
+  assert.equal(findElement(tree, byName('@contexts/ScheduleViewStateContext#ScheduleViewStateProvider')).key, null)
+  render()
+  assert.equal(h.clears, 1)
+})
+
+test('an open surface page remounts with a new zone, like the background page', () => {
+  const { WorkspaceRoutes, h } = appHarness()
+  h.location = { pathname: '/app/tasks/7', search: '', hash: '', state: null, key: 'surface' }
+  const surfaceRoutes = () => {
+    const tree = h.runtime.render(WorkspaceRoutes)
+    const surface = findElement(tree, byName('@shared/routing/RouteSurface#RouteSurface'))
+    return findElement(surface.props.children, byName('Routes'))
+  }
+  assert.equal(surfaceRoutes().key, 'Asia/Seoul@540')
+  h.zoneKey = 'America/New_York@-300'
+  assert.equal(surfaceRoutes().key, 'America/New_York@-300')
+  // AppShell builds the whole shell (sidebar, bars, player), too much to mount here; its Outlet
+  // must carry the zone key so the background page remounts while the shell stays.
+  const shell = readFileSync(new URL('../src/shared/components/layout/AppShell.tsx', import.meta.url), 'utf8')
+  assert.match(shell, /<Outlet key=\{zoneKey\} \/>/)
 })
