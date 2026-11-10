@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useToast } from '@contexts/ToastContext'
 import { StatusPanel } from '@shared/components/common'
+import { getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
+import { ApiError } from '@shared/api/httpClient'
 import { presenceProps, useListPresence } from '@shared/motion'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import type { OAuthGrant } from '@features/oauth/types/oauth'
@@ -14,10 +16,12 @@ import './AiConnectionSection.css'
 
 const DATE_FORMAT = 'YYYY.MM.DD HH:mm'
 
+// 서버 문구가 없을 때만 404를 "이미 끊긴 연결"로 안내한다.
 const toRevokeErrorMessage = (error: unknown) => {
-  const status = error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined
-  if (status === 404) return '이미 연결이 끊긴 앱이에요. 목록을 새로 불러왔어요.'
-  return error instanceof Error && error.message ? error.message : '연결을 끊지 못했어요.'
+  const message = readFailureMessage(error)
+  if (message) return message
+  if (error instanceof ApiError && error.status === 404) return '이미 연결이 끊긴 앱이에요. 목록을 새로 불러왔어요.'
+  return getRequestFailureMessage(error, '연결을 끊지 못했어요.')
 }
 
 const AiConnectionSection = () => {

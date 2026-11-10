@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { exchangeSocialLogin, type AuthProvider } from '../api/auth'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
 import './LoginPage.css'
@@ -43,11 +44,7 @@ const SocialCallbackPage = () => {
       })
       .catch((err) => {
         if (isCancelled) return
-        const message =
-          err instanceof Error && err.message
-            ? err.message
-            : '로그인 도중 오류가 발생했어요. 다시 시도해주세요.'
-        setError(message)
+        setError(getRequestFailureMessage(err, '로그인 도중 오류가 발생했어요.'))
         setStatus('오류가 발생했어요.')
       })
 

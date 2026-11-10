@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { signup } from '../api/auth'
 import { NICKNAME_MAX_LENGTH, validateNickname, validatePassword, validateUsername } from '../utils/accountRules'
 import { useToast } from '@contexts/ToastContext'
@@ -93,7 +94,7 @@ const SignupPage = () => {
       addToast('회원가입이 완료되었습니다. 로그인해 주세요.', 'success')
       navigate('/login', { replace: true })
     } catch (error) {
-      const message = error instanceof Error && error.message ? error.message : '회원가입에 실패했습니다.'
+      const message = getRequestFailureMessage(error, '회원가입에 실패했습니다.')
       setErrors({ form: message })
       addToast(message, 'error')
     } finally {

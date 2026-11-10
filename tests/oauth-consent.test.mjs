@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { errorMessage } from './support/errors.mjs'
 
 const loadModule = (relativePath, dependencies = {}, globals = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -28,7 +29,7 @@ const loadModule = (relativePath, dependencies = {}, globals = {}) => {
 }
 
 const returnTo = loadModule('../src/features/auth/utils/returnTo.ts')
-const consent = loadModule('../src/features/oauth/utils/consent.ts')
+const consent = loadModule('../src/features/oauth/utils/consent.ts', { '@shared/api/errorMessage': errorMessage })
 
 const createStorage = () => {
   const values = new Map()

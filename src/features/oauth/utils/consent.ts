@@ -1,3 +1,5 @@
+import { readFailureMessage } from '@shared/api/errorMessage'
+
 export const READ_SCOPE = 'mcp:read'
 export const WRITE_SCOPE = 'mcp:write'
 export const DELETE_SCOPE = 'mcp:delete'
@@ -148,14 +150,6 @@ const readStatus = (error: unknown) => {
   return typeof status === 'number' ? status : undefined
 }
 
-const readMessage = (error: unknown) => {
-  const message =
-    error && typeof error === 'object'
-      ? (error as { message?: unknown }).message
-      : undefined
-  return typeof message === 'string' && message.trim() ? message : undefined
-}
-
 export const EXPIRED_REQUEST_MESSAGE =
   '연결 요청이 만료됐거나 찾을 수 없어요. AI 클라이언트에서 연결을 다시 시작해주세요.'
 
@@ -179,7 +173,7 @@ export const toConsentError = (error: unknown): ConsentError => {
   return {
     kind: 'unknown',
     message:
-      readMessage(error) ??
+      readFailureMessage(error) ??
       '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
   }
 }
