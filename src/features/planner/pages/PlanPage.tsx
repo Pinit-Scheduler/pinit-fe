@@ -10,7 +10,10 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import {
+  getRequestFailureMessage,
+  readFailureMessage,
+} from '@shared/api/errorMessage'
 import { getTodayWithOffset } from '@shared/utils/datetime'
 import {
   dispatchScheduleChanged,
@@ -212,6 +215,7 @@ const PlanPage = () => {
     planKey,
     schedules,
     isLoading,
+    isRefreshing,
     isInitialLoading,
     error,
     refetch: refetchPlan,
@@ -527,8 +531,13 @@ const PlanPage = () => {
     ({ draft }) => (clientIssues[draft.taskId]?.length ?? 0) > 0,
   )
   const tooMany = selectedCount > MAX_APPLY_BLOCKS
+  // 다시 불러오는 동안에는 승인하지 않는다. 화면의 제안이 이미 지난 제안일 수 있다.
   const canApply =
-    selectedCount > 0 && !hasClientIssues && !tooMany && !isApplying
+    selectedCount > 0 &&
+    !hasClientIssues &&
+    !tooMany &&
+    !isApplying &&
+    !isRefreshing
 
   const calibrationNudge = usePresence(
     Boolean(
@@ -640,10 +649,15 @@ const PlanPage = () => {
             submitted.map((draft) => draft.taskId),
           ),
         )
+        const message = readFailureMessage(err)
         setApplyError(
-          '일정은 하나도 만들어지지 않았어요. 표시된 블록을 고치거나 선택을 빼고 다시 승인해 주세요.',
+          message ??
+            '일정은 하나도 만들어지지 않았어요. 표시된 블록을 고치거나 선택을 빼고 다시 승인해 주세요.',
         )
-        addToast('승인하지 못했어요. 표시된 블록을 확인해 주세요.', 'error')
+        addToast(
+          message ?? '승인하지 못했어요. 표시된 블록을 확인해 주세요.',
+          'error',
+        )
       } else {
         const message = getRequestFailureMessage(err, '계획을 승인하지 못했어요.')
         setApplyError(message)
@@ -991,7 +1005,7 @@ const PlanPage = () => {
           <div role="alert">
             <StatusPanel
               variant="error"
-              title="계획을 불러오지 못했어요."
+              title="시간표 제안"
               description={error}
             />
           </div>
@@ -1003,7 +1017,7 @@ const PlanPage = () => {
           >
             {error && (
               <p className="plan-page__refresh-error" role="alert">
-                계획을 불러오지 못했어요. {error}
+                {error}
               </p>
             )}
             <section
@@ -1371,7 +1385,11 @@ const PlanPage = () => {
               onClick={handleApply}
               disabled={!canApply}
             >
-              {isApplying ? '승인하는 중...' : '선택한 블록으로 일정 만들기'}
+              {isApplying
+                ? '승인하는 중...'
+                : isRefreshing
+                  ? '제안을 확인하는 중...'
+                  : '선택한 블록으로 일정 만들기'}
             </button>
           </div>
         </footer>

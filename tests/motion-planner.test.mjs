@@ -145,6 +145,8 @@ const dayPlanHarness = (fetchDayPlan, fetchSchedules = async () => []) => {
     '@shared/utils/queryStore': { queryStore: store },
   }, { window })
   const useDayPlan = load('features/planner/hooks/useDayPlan.ts', {
+    react,
+    '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: 3, selectedProjectId: null }) },
     '@features/schedules/api/schedules': { fetchSchedules },
     '@shared/hooks/useRevalidatingQuery': revalidatingQuery,
@@ -223,6 +225,69 @@ test('useDayPlan reports a first-load failure without data', async () => {
   assert.equal(state.plan, null)
   assert.equal(state.isInitialLoading, false)
   assert.equal(state.error, '계획 서버 메시지')
+})
+
+test('useDayPlan keeps the same plan object when a refetch returns the same content', async () => {
+  let blocks = [{ taskId: 1 }]
+  const host = dayPlanHarness(async ({ date }) => ({ ...planFor(date, 1), blocks: blocks.map((b) => ({ ...b })) }))
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
+  host.render(props)
+  await settle()
+  let state = host.render(props)
+  const first = state.plan
+
+  // An equal response keeps the object, so the page keeps the drafts the user is editing.
+  state.refetch()
+  await Promise.resolve()
+  state = host.render(props)
+  assert.equal(state.isRefreshing, true)
+  await settle()
+  state = host.render(props)
+  assert.equal(state.plan, first)
+  assert.equal(state.isRefreshing, false)
+
+  // A changed response is a new suggestion.
+  blocks = [{ taskId: 2 }]
+  state.refetch()
+  await settle()
+  state = host.render(props)
+  assert.notEqual(state.plan, first)
+  assert.equal(state.plan.blocks[0].taskId, 2)
+})
+
+test('useDayPlan clears a failure while it retries and shows a retry without a plan as loading', async () => {
+  let fail = true
+  const host = dayPlanHarness(async ({ date }) => {
+    if (fail) throw apiError('계획 서버 메시지', 500)
+    return planFor(date, 1)
+  })
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
+  host.render(props)
+  await settle()
+  let state = host.render(props)
+  assert.equal(state.error, '계획 서버 메시지')
+  fail = false
+  state.refetch()
+  await Promise.resolve()
+  state = host.render(props)
+  assert.equal(state.error, null)
+  assert.equal(state.isInitialLoading, true)
+  await settle()
+  state = host.render(props)
+  assert.equal(state.plan.version, 1)
+
+  // A failed refresh shows its message once the retry has ended, and the next retry clears it.
+  fail = true
+  state.refetch()
+  await settle()
+  state = host.render(props)
+  assert.equal(state.error, '계획 서버 메시지')
+  state.refetch()
+  await Promise.resolve()
+  state = host.render(props)
+  assert.equal(state.error, null)
+  assert.equal(state.isInitialLoading, false)
+  assert.equal(state.plan.version, 1)
 })
 
 test('a window past midnight also reads the next day; schedules arrive once each, in start order', async () => {
@@ -352,7 +417,7 @@ test('a first load shows the delayed status panel; a failure without data shows 
   assert.match(html, /status-panel--loading/)
   assert.match(html, /계획을 만드는 중\.\.\./)
   html = renderPlan({ error: '서버가 보낸 메시지' })
-  assert.match(html, /role="alert"><div class="status-panel status-panel--error">계획을 불러오지 못했어요\.서버가 보낸 메시지/)
+  assert.match(html, /role="alert"><div class="status-panel status-panel--error">시간표 제안서버가 보낸 메시지<\/div>/)
 })
 
 test('a refresh keeps the proposal mounted and marks it busy; a failed refresh keeps it with the message', () => {
@@ -361,8 +426,17 @@ test('a refresh keeps the proposal mounted and marks it busy; a failed refresh k
   assert.match(html, /블록 2/)
   assert.doesNotMatch(html, /status-panel--loading/)
   html = renderPlan({ plan, planKey: 'k1', error: '다시 불러오기 실패 메시지' })
-  assert.match(html, /plan-page__refresh-error" role="alert">계획을 불러오지 못했어요\. 다시 불러오기 실패 메시지/)
+  assert.match(html, /plan-page__refresh-error" role="alert">다시 불러오기 실패 메시지<\/p>/)
   assert.match(html, /블록 3/)
+})
+
+test('the proposal cannot be approved while it is being reloaded', () => {
+  const button = (html) => html.match(/<button type="button" class="plan-page__apply"[^>]*>[^<]*<\/button>/)[0]
+  let html = renderPlan({ plan, planKey: 'k1' })
+  assert.doesNotMatch(button(html), /disabled/)
+  html = renderPlan({ plan, planKey: 'k1', isLoading: true, isRefreshing: true })
+  assert.match(button(html), /disabled=""/)
+  assert.match(button(html), /제안을 확인하는 중\.\.\./)
 })
 
 test('unplaced tasks open the task surface instead of swapping the page behind it', () => {

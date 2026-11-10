@@ -81,9 +81,15 @@ const watchAccount = (store: QueryStore) => {
   window.addEventListener('storage', sync)
 }
 
-/** Put data the caller already read under a key, as if this key's query had fetched it. */
+/** The signed-in account that query keys are scoped by. Read it before a request to tell whether the account changed meanwhile. */
+export const currentAccountScope = accountScope
+
+/**
+ * Put data the caller already read under a key, as if this key's query had fetched it, but only while the key has
+ * no data yet. A value the screen read itself or just saved is newer than a read that happened to land later.
+ */
 export const primeQuery = <T>(key: string, data: T, store: QueryStore = queryStore) =>
-  store.setData<T>(`${accountScope()}|${key}`, data)
+  store.setData<T>(`${accountScope()}|${key}`, (previous) => (previous === undefined ? data : undefined))
 
 /**
  * Stale-while-revalidate data loading. Pass `null` as the key to load nothing.

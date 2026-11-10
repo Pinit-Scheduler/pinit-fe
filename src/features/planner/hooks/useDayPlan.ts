@@ -1,7 +1,9 @@
 import { useSpaces } from '@features/spaces/store'
 import { fetchSchedules } from '@features/schedules/api/schedules'
 import type { ScheduleResponse } from '@features/schedules/types/schedule'
+import { useEffect, useRef } from 'react'
 import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
+import { sameData } from '@shared/utils/sameData'
 import { fetchDayPlan } from '../api/plans'
 import type { DayPlanResponse } from '../types/plan'
 import { dayPlanKey } from '../utils/planData'
@@ -19,6 +21,8 @@ type UseDayPlanReturn = {
   /** 시간창이 걸친 날짜(계획일, 자정을 넘으면 다음 날)의 기존 일정 */
   schedules: ScheduleResponse[]
   isLoading: boolean
+  /** 화면의 계획을 다시 불러오는 중이다. 끝나기 전에는 계획이 바뀔 수 있다 */
+  isRefreshing: boolean
   /** 지금 조건(날짜·시간대·범위·스페이스)의 계획이 아직 한 번도 오지 않았다 */
   isInitialLoading: boolean
   error: string | null
@@ -59,6 +63,17 @@ const loadDayPlan = async (
   }
 }
 
+/** 다시 불러온 내용이 같으면 지난 객체를 그대로 쓴다. 화면이 객체가 바뀐 것을 보고 편집 상태를 되돌리지 않게 한다. */
+const keepUnchanged = (previous: LoadedPlan, next: LoadedPlan): LoadedPlan => {
+  const plan = sameData(previous.plan, next.plan) ? previous.plan : next.plan
+  const schedules = sameData(previous.schedules, next.schedules)
+    ? previous.schedules
+    : next.schedules
+  return plan === previous.plan && schedules === previous.schedules
+    ? previous
+    : { plan, schedules }
+}
+
 /**
  * 하루 계획 제안과, 같은 시간대에 이미 있는 일정을 함께 불러온다.
  * 다시 불러오는 동안과 실패한 뒤에도 같은 조건의 계획은 화면에 남긴다.
@@ -77,18 +92,30 @@ const useDayPlan = ({
     spaceId: selectedSpaceId,
     projectId: selectedProjectId,
   })
+  const shown = useRef<{ key: string; loaded: LoadedPlan } | null>(null)
   const query = useRevalidatingQuery<LoadedPlan>(
     'plan/day/' + key,
-    () => loadDayPlan(date, zoneId, horizonDays),
+    async () => {
+      const loaded = await loadDayPlan(date, zoneId, horizonDays)
+      const previous = shown.current
+      return previous?.key === key ? keepUnchanged(previous.loaded, loaded) : loaded
+    },
     { errorMessage: '계획을 불러오지 못했어요.' },
   )
+  useEffect(() => {
+    shown.current = query.data ? { key, loaded: query.data } : null
+  }, [key, query.data])
+  // 다시 불러오는 동안에는 지난 실패를 내린다. 계획이 없으면 그동안 불러오는 중으로 보인다.
+  const error = query.isFetching ? null : query.error
+  const isInitialLoading = query.data === undefined && error === null
   return {
     plan: query.data?.plan ?? null,
     planKey: query.data ? key : null,
     schedules: query.data?.schedules ?? NO_SCHEDULES,
-    isLoading: query.isFetching || query.isInitialLoading,
-    isInitialLoading: query.isInitialLoading,
-    error: query.error,
+    isLoading: query.isFetching || isInitialLoading,
+    isRefreshing: query.isRefreshing,
+    isInitialLoading,
+    error,
     refetch: query.refetch,
   }
 }
