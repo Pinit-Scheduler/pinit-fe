@@ -282,6 +282,11 @@ test('writing the same revision again keeps the cache map, a changed one replace
   render().setSchedule({ ...schedule, version: 3, state: 'COMPLETED' })
   assert.notEqual(render().schedulesById, first)
   assert.equal(render().schedulesById[3].state, 'COMPLETED')
+  // A list read older than the cached copy (Today seeding a slow response, say) is ignored.
+  const newer = render().schedulesById
+  render().setSchedule({ ...schedule, version: 2, state: 'IN_PROGRESS' })
+  assert.equal(render().schedulesById, newer, 'an older revision never replaces a newer one')
+  assert.equal(render().schedulesById[3].version, 3)
 })
 
 // ---------------------------------------------------------------------------
