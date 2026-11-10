@@ -75,7 +75,7 @@ const LoginPage = () => {
       addToast('로그인에 성공했어요.', 'success')
       navigateAfterLogin()
     } catch (error) {
-      const message = error instanceof Error ? error.message : '로그인에 실패했습니다.'
+      const message = error instanceof Error && error.message ? error.message : '로그인에 실패했습니다.'
       setErrors({ form: message })
       addToast(message, 'error')
     } finally {

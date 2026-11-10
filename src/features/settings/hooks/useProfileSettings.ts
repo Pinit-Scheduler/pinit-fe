@@ -33,7 +33,7 @@ const useProfileSettings = (): UseProfileSettingsReturn => {
         if (response) profileSettingsCache.write(response)
       })
       .catch((err) => {
-        if (isMounted) setError(err instanceof Error ? err.message : '설정을 불러오지 못했어요.')
+        if (isMounted) setError(err instanceof Error && err.message ? err.message : '설정을 불러오지 못했어요.')
       })
       .finally(() => {
         if (isMounted) setIsLoading(false)

@@ -63,7 +63,7 @@ const ArchiveDialog = ({
       setHasNext(nextHasMore)
       setError(null)
     } catch (err) {
-      const message = getRequestFailureMessage(err, '아카이브 작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+      const message = getRequestFailureMessage(err, '아카이브 작업을 불러오지 못했어요.')
       setError(message)
       setHasNext(false)
     } finally {

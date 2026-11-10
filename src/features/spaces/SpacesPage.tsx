@@ -158,7 +158,7 @@ function EditorDialog({
       if (reportEditConflict(failure)) close()
       else
         setError(
-          failure instanceof Error
+          failure instanceof Error && failure.message
             ? failure.message
             : '저장하지 못했어요. 입력한 내용은 유지됩니다.',
         )
@@ -324,7 +324,7 @@ export default function SpacesPage() {
       if (reportEditConflict(failure)) setConfirm(null)
       else
         setError(
-          failure instanceof Error
+          failure instanceof Error && failure.message
             ? failure.message
             : '요청을 처리하지 못했어요. 다시 시도해 주세요.',
         )
@@ -395,7 +395,7 @@ export default function SpacesPage() {
       setCopied(false)
     } catch (failure) {
       setError(
-        failure instanceof Error
+        failure instanceof Error && failure.message
           ? failure.message
           : '초대 링크를 만들지 못했어요.',
       )
@@ -778,7 +778,7 @@ function ProjectMoveDialog({
       if (reportEditConflict(failure)) close()
       else
         setError(
-          failure instanceof Error
+          failure instanceof Error && failure.message
             ? failure.message
             : '프로젝트를 옮기지 못했어요.',
         )

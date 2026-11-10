@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { presenceProps, type PresencePhase } from '@shared/motion'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { getTodayWithOffset } from '@shared/utils/datetime'
@@ -95,7 +95,7 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
       setOverrides(response?.overrides ?? [])
       hasLoaded.current = true
     } catch (error) {
-      const message = getRequestFailureMessage(error, '날짜 예외를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+      const message = getRequestFailureMessage(error, '날짜 예외를 불러오지 못했어요.')
       // 이미 보이는 목록이 있으면 그대로 두고 알리기만 한다.
       if (hasLoaded.current) addToast(message, 'error')
       else setLoadError(message)
@@ -205,17 +205,14 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
         })
         setServerIssues(byKey)
         setGeneralErrors(mapped.general)
-      } else if (error instanceof ApiError && error.status === 409) {
-        setGeneralErrors([getRequestFailureMessage(error, '다른 곳에서 생활 시간이 먼저 바뀌었어요. 다시 저장해 주세요.')])
+        addToast('날짜 예외를 저장하지 못했어요.', 'error')
       } else {
-        setGeneralErrors([getRequestFailureMessage(error, '날짜 예외를 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')])
+        const message = error instanceof ApiError && error.status === 409
+          ? readFailureMessage(error) ?? '다른 곳에서 생활 시간이 먼저 바뀌었어요. 다시 저장해 주세요.'
+          : getRequestFailureMessage(error, '날짜 예외를 저장하지 못했어요.')
+        setGeneralErrors([message])
+        addToast(message, 'error')
       }
-      addToast(
-        error instanceof ApiError && error.status === 400
-          ? '날짜 예외를 저장하지 못했어요.'
-          : getRequestFailureMessage(error, '날짜 예외를 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'),
-        'error',
-      )
     } finally {
       setIsSaving(false)
     }
@@ -230,7 +227,7 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
       if (editor?.originalDate === date) setEditor(null)
       await load()
     } catch (error) {
-      addToast(getRequestFailureMessage(error, '날짜 예외를 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'), 'error')
+      addToast(getRequestFailureMessage(error, '날짜 예외를 지우지 못했어요.'), 'error')
     }
   }
 

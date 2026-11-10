@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { ApiError } from '@shared/api/httpClient'
 import { presenceProps, useListPresence } from '@shared/motion'
 import { assignTask, fetchUnassignedTasks } from '@features/tasks/api/tasks'
 import UnavailableNote from '../UnavailableNote'
@@ -47,7 +49,7 @@ export default function AssignUnassignedDialog({
   closing?: boolean
 }) {
   const [state, dispatch] = useReducer(assignReducer, initialAssignState)
-  const { tasks, hasMore, loading, loadFailed, loaded, busyId, notice, offset } =
+  const { tasks, hasMore, loading, loadError, loaded, busyId, notice, offset } =
     state
   const [picked, setPicked] = useState<Record<number, number>>({})
   const request = useRef<AbortController | null>(null)
@@ -73,8 +75,12 @@ export default function AssignUnassignedDialog({
           if (!controller.signal.aborted)
             dispatch({ type: 'loaded', replace, response })
         })
-        .catch(() => {
-          if (!controller.signal.aborted) dispatch({ type: 'loadFailed' })
+        .catch((failure) => {
+          if (!controller.signal.aborted)
+            dispatch({
+              type: 'loadFailed',
+              message: getRequestFailureMessage(failure, '작업을 불러오지 못했어요.'),
+            })
         })
     },
     [space.id],
@@ -142,16 +148,13 @@ export default function AssignUnassignedDialog({
       dispatch({ type: 'assigned', id: row.id })
       onAssigned()
     } catch (failure) {
-      const status = (failure as { status?: number } | null)?.status
       const text = isEditConflict(failure)
         ? CONFLICT_RELOADED
-        : failure instanceof Error && failure.message
-          ? failure.message
-          : '배정하지 못했어요. 다시 시도해 주세요.'
+        : getRequestFailureMessage(failure, '배정하지 못했어요.')
       dispatch({ type: 'assignFailed', notice: `${row.title}: ${text}` })
       // 실패하면 허브 숫자도 낡았을 수 있다. 먼저 고쳐졌거나 사라진 작업이면 목록도 다시 받는다.
       onStale()
-      if (reloadAfterFailure(status)) load(0, true)
+      if (reloadAfterFailure(failure instanceof ApiError ? failure.status : undefined)) load(0, true)
     }
   }
 
@@ -179,9 +182,9 @@ export default function AssignUnassignedDialog({
             {notice}
           </p>
         )}
-        {loadFailed && (
+        {loadError && (
           <p className="hub-load-error" role="alert">
-            작업을 불러오지 못했어요.{' '}
+            {loadError}{' '}
             <button
               type="button"
               className="space-text-button"
@@ -191,7 +194,7 @@ export default function AssignUnassignedDialog({
             </button>
           </p>
         )}
-        {loaded && !loading && !loadFailed && rows.length === 0 && !hasMore && (
+        {loaded && !loading && !loadError && rows.length === 0 && !hasMore && (
           <p className="hub-quiet">
             {openCount === 0
               ? '모든 작업에 담당자가 있어요.'

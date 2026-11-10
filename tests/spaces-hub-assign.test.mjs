@@ -233,6 +233,7 @@ test('the dialog title is the summary count, not a count of the list', () => {
     '@shared/components/common/Modal': {
       default: ({ children }) => React.createElement('div', { role: 'dialog' }, children),
     },
+    '@shared/api/httpClient': { ApiError: class extends Error {} },
     '@shared/motion': motionStub,
     '@features/tasks/api/tasks': {
       fetchUnassignedTasks: () => new Promise(() => {}),
@@ -322,7 +323,7 @@ test('flow: an empty list while the summary still counts tasks asks for a fresh 
   assert.equal(outOfSync(empty, 3), true)
   assert.equal(outOfSync(empty, 0), false)
   assert.equal(outOfSync(empty, null), false)
-  assert.equal(outOfSync(assignReducer(empty, { type: 'loadFailed' }), 3), false)
+  assert.equal(outOfSync(assignReducer(empty, { type: 'loadFailed', message: '작업을 불러오지 못했어요.' }), 3), false)
 })
 
 test('flow: a failed assignment keeps the row, shows why and reloads only for 409 or 404', () => {

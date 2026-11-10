@@ -153,14 +153,14 @@ const usePushSubscription = () => {
 
       setState({ status: 'idle' })
     } catch (error) {
-      const message = error instanceof Error ? error.message : '구독 상태를 확인하지 못했어요.'
+      const message = error instanceof Error && error.message ? error.message : '구독 상태를 확인하지 못했어요.'
       setState({ status: 'error', message })
     }
   }, [vapidPublicKey, resolveVapidKey])
 
   useEffect(() => {
     resolveVapidKey().catch((error) => {
-      const message = error instanceof Error ? error.message : 'VAPID 키를 가져오지 못했어요.'
+      const message = error instanceof Error && error.message ? error.message : 'VAPID 키를 가져오지 못했어요.'
       setState({ status: 'error', message })
     })
     refreshStatus()
@@ -171,7 +171,7 @@ const usePushSubscription = () => {
     try {
       vapidKey = await resolveVapidKey()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'VAPID 키를 가져오지 못했어요.'
+      const message = error instanceof Error && error.message ? error.message : 'VAPID 키를 가져오지 못했어요.'
       setState({ status: 'error', message })
       throw new Error(message)
     }
@@ -232,7 +232,7 @@ const usePushSubscription = () => {
       void logFcmTokenOnce(registration, vapidKey)
       return subscription
     } catch (error) {
-      const message = error instanceof Error ? error.message : '푸시 알림을 설정하지 못했어요.'
+      const message = error instanceof Error && error.message ? error.message : '푸시 알림을 설정하지 못했어요.'
       setState((prev) => ({
         status: prev.status === 'blocked' ? 'blocked' : 'error',
         message,
@@ -282,7 +282,7 @@ const usePushSubscription = () => {
       }
       setState({ status: 'idle' })
     } catch (error) {
-      const message = error instanceof Error ? error.message : '푸시 알림 해지에 실패했어요.'
+      const message = error instanceof Error && error.message ? error.message : '푸시 알림 해지에 실패했어요.'
       setState({ status: 'error', message })
       throw error
     } finally {

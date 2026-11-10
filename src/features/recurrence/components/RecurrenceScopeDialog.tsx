@@ -100,7 +100,7 @@ export const useRecurrenceScope = (): {
             key: previewKey,
             impact: '',
             error:
-              reason instanceof Error
+              reason instanceof Error && reason.message
                 ? reason.message
                 : '변경 범위를 확인하지 못했어요.',
           })

@@ -222,7 +222,7 @@ export function reloadSpaces(): Promise<void> {
           ...state,
           loading: false,
           error:
-            error instanceof Error
+            error instanceof Error && error.message
               ? error.message
               : '스페이스를 불러오지 못했어요.',
         }

@@ -86,7 +86,7 @@ const loadTrash = () => fetchTrash()
 
 const loadErrorMessage = (loadError: unknown) => {
   console.error('휴지통 조회 실패', loadError)
-  return getRequestFailureMessage(loadError, '휴지통을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+  return getRequestFailureMessage(loadError, '휴지통을 불러오지 못했어요.')
 }
 
 /**
@@ -147,10 +147,7 @@ const TrashPage = () => {
       }
       console.error('휴지통 작업 실패', runError)
       addToast(
-        getRequestFailureMessage(
-          runError,
-          '요청을 처리하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
-        ),
+        getRequestFailureMessage(runError, '요청을 처리하지 못했어요.'),
         'error',
       )
       refetch()

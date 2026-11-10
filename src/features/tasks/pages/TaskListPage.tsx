@@ -67,8 +67,7 @@ const isLastPage = (response: TaskListResponse, page: number) =>
   (response.totalPages !== undefined
     ? page + 1 >= response.totalPages
     : response.content.length < PAGE_SIZE)
-const errorText = (error: unknown) =>
-  getRequestFailureMessage(error, `${LOAD_ERROR} 인터넷 연결을 확인한 뒤 다시 시도해 주세요.`)
+const errorText = (error: unknown) => getRequestFailureMessage(error, LOAD_ERROR)
 
 /** The result count. It shows as is when it appears and glides when a change moves it. */
 function TaskCount({ value }: { value: number }) {

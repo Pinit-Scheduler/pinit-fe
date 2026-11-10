@@ -46,7 +46,7 @@ const useNotificationPreferences = (zoneId: string): UseNotificationPreferencesR
           notificationPreferencesCache.write(response)
         }
       } catch (error) {
-        if (isMounted) setLoadError(error instanceof Error ? error.message : '알림 설정을 불러오지 못했어요.')
+        if (isMounted) setLoadError(error instanceof Error && error.message ? error.message : '알림 설정을 불러오지 못했어요.')
       } finally {
         if (isMounted) setIsLoading(false)
       }

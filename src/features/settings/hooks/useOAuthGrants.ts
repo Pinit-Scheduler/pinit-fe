@@ -38,7 +38,7 @@ const useOAuthGrants = (): UseOAuthGrantsReturn => {
         setHasLoaded(true)
         oauthGrantsCache.write(response ?? [])
       } catch (err) {
-        if (isMounted) setError(err instanceof Error ? err.message : '연결된 앱을 불러오지 못했어요.')
+        if (isMounted) setError(err instanceof Error && err.message ? err.message : '연결된 앱을 불러오지 못했어요.')
       } finally {
         if (isMounted) setIsLoading(false)
       }

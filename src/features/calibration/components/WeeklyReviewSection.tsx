@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
 import { onScheduleChanged } from '@shared/utils/events'
 import { fetchWeeklyReview, updateTimeCalibration } from '../api/calibration'
@@ -50,7 +51,7 @@ const WeeklyReviewSection = ({ weekStart }: Props) => {
         if (!cancelled) setReview(response)
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : '주간 리뷰를 불러오지 못했어요.')
+        if (!cancelled) setError(err instanceof Error && err.message ? err.message : '주간 리뷰를 불러오지 못했어요.')
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false)
@@ -70,7 +71,7 @@ const WeeklyReviewSection = ({ weekStart }: Props) => {
       setReview({ ...review, calibration })
       addToast(enabled ? '이제 하루 계획에 보정을 적용해요.' : '하루 계획 보정을 껐어요.', 'success')
     } catch (err) {
-      addToast(err instanceof Error ? `보정 설정을 바꾸지 못했어요. ${err.message}` : '보정 설정을 바꾸지 못했어요.', 'error')
+      addToast(getRequestFailureMessage(err, '보정 설정을 바꾸지 못했어요.'), 'error')
     } finally {
       setIsSaving(false)
     }

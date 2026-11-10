@@ -5,7 +5,7 @@ import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import SavedMark from '@features/settings/components/SavedMark'
 import { Link } from 'react-router-dom'
 import { ApiError } from '@shared/api/httpClient'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import { formatMinutesLabel } from '@shared/utils/isoDuration'
 import { NUDGE_KEYS, writeFlag } from '@shared/utils/safeStorage'
@@ -136,7 +136,7 @@ const RoutinesPage = () => {
       setConflict(false)
       hasLoaded.current = true
     } catch (error) {
-      const message = getRequestFailureMessage(error, '생활 시간을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+      const message = getRequestFailureMessage(error, '생활 시간을 불러오지 못했어요.')
       // 이미 보이는 내용이 있으면 그대로 두고 알리기만 한다.
       if (hasLoaded.current) addToast(message, 'error')
       else setLoadError(message)
@@ -239,9 +239,9 @@ const RoutinesPage = () => {
         addToast('저장하지 못했어요. 표시된 항목을 확인해 주세요.', 'error')
       } else if (error instanceof ApiError && error.status === 409) {
         setConflict(true)
-        addToast(getRequestFailureMessage(error, '다른 곳에서 생활 시간이 바뀌었어요.'), 'error')
+        addToast(readFailureMessage(error) ?? '다른 곳에서 생활 시간이 바뀌었어요.', 'error')
       } else {
-        const message = getRequestFailureMessage(error, '생활 시간을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+        const message = getRequestFailureMessage(error, '생활 시간을 저장하지 못했어요.')
         setGeneralErrors([message])
         addToast(message, 'error')
       }

@@ -16,7 +16,7 @@ type RowProps = {
   save: (change: Partial<ProfileSettings>) => Promise<ProfileSettings>
 }
 
-const errorMessage = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback)
+const errorMessage = (error: unknown, fallback: string) => (error instanceof Error && error.message ? error.message : fallback)
 
 /**
  * 자동 계획의 하루 목표(ADR-0028 §2). 고르면 바로 저장한다.

@@ -41,7 +41,7 @@ const seriesKey = (series: RecurrenceSeries) => series.id ?? `title:${series.tit
 
 const loadErrorMessage = (loadError: unknown) => {
   console.error('반복 목록 조회 실패', loadError)
-  return getRequestFailureMessage(loadError, '반복 목록을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+  return getRequestFailureMessage(loadError, '반복 목록을 불러오지 못했어요.')
 }
 
 /** 새 탭·창으로 여는 클릭은 브라우저에 맡긴다. */
@@ -137,7 +137,7 @@ const RecurrencesPage = () => {
       addToast(
         getRequestFailureMessage(
           runError,
-          '반복을 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '반복을 바꾸지 못했어요.',
         ),
         'error',
       )

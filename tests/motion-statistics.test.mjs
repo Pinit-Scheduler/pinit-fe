@@ -147,8 +147,7 @@ test('useReport keeps the hub contract: null data, the same error text, loading 
   const first = useReport(() => Promise.resolve(null), 'summary:null')
   assert.equal(first.data, null)
   assert.equal(first.isLoading, true)
-  assert.equal(calls[0].options.errorMessage(Object.assign(new Error('서버 메시지'), { name: 'ApiError', status: 500 })), '서버 메시지', 'server text passes through')
-  assert.equal(calls[0].options.errorMessage('boom'), '통계를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+  assert.equal(calls[0].options.errorMessage, '통계를 불러오지 못했어요.', 'the query adds the server text or the retry hint')
 
   const empty = reportHook(entry({ data: null })).useReport(() => Promise.resolve(null), 'summary:null')
   assert.equal(empty.data, null, 'a loaded null stays null')

@@ -36,7 +36,7 @@ export default function InvitationPage() {
         setError(
           failure instanceof ApiError && [404, 410].includes(failure.status)
             ? '유효하지 않거나 만료된 초대 링크예요. 관리자에게 새 링크를 요청해 주세요.'
-            : failure instanceof Error
+            : failure instanceof Error && failure.message
               ? failure.message
               : '초대 정보를 불러오지 못했어요.',
         )
@@ -64,7 +64,7 @@ export default function InvitationPage() {
       setError(
         failure instanceof ApiError && [404, 410].includes(failure.status)
           ? '초대 링크가 만료되었거나 사용할 수 없어요. 관리자에게 새 링크를 요청해 주세요.'
-          : failure instanceof Error
+          : failure instanceof Error && failure.message
             ? failure.message
             : '참여를 완료하지 못했어요. 다시 시도해 주세요.',
       )

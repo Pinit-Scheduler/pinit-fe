@@ -117,7 +117,7 @@ export default function AffiliationFields({
             key,
             draft: null,
             error:
-              failure instanceof Error
+              failure instanceof Error && failure.message
                 ? failure.message
                 : '소속과 담당자를 불러오지 못했어요.',
           })

@@ -70,7 +70,7 @@ const SettingsPage = () => {
       addToast('로그아웃되었습니다.', 'info')
       navigate('/login', { replace: true })
     } catch (error) {
-      const message = error instanceof Error ? error.message : '로그아웃에 실패했어요.'
+      const message = error instanceof Error && error.message ? error.message : '로그아웃에 실패했어요.'
       addToast(message, 'error')
     } finally {
       setIsLoggingOut(false)
@@ -115,7 +115,7 @@ const SettingsPage = () => {
       await updatePreferences(patch)
       flash(row)
     } catch (error) {
-      const message = error instanceof Error ? error.message : '알림 설정을 저장하지 못했어요.'
+      const message = error instanceof Error && error.message ? error.message : '알림 설정을 저장하지 못했어요.'
       addToast(message, 'error')
     }
   }
@@ -148,7 +148,7 @@ const SettingsPage = () => {
         addToast('푸시 알림 구독이 완료되었어요.', 'success')
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : '푸시 알림 설정에 실패했어요.'
+      const message = error instanceof Error && error.message ? error.message : '푸시 알림 설정에 실패했어요.'
       addToast(message, 'error')
     }
   }

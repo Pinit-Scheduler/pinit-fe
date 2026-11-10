@@ -89,7 +89,8 @@ export type AssignState = {
   tasks: Task[]
   hasMore: boolean
   loading: boolean
-  loadFailed: boolean
+  /** 목록을 받지 못한 이유. 받으면 비운다. */
+  loadError: string | null
   /** 첫 응답을 받았는지. 그전에는 빈 목록 문구를 보이지 않는다. */
   loaded: boolean
   /** 서버 목록에서 아직 안 본 첫 위치. 배정하면 하나 당겨진다. */
@@ -111,7 +112,7 @@ export type AssignAction =
         last?: boolean
       }
     }
-  | { type: 'loadFailed' }
+  | { type: 'loadFailed'; message: string }
   | { type: 'assigning'; id: number }
   | { type: 'assigned'; id: number }
   | { type: 'assignFailed'; notice: string }
@@ -120,7 +121,7 @@ export const initialAssignState: AssignState = {
   tasks: [],
   hasMore: false,
   loading: true,
-  loadFailed: false,
+  loadError: null,
   loaded: false,
   offset: 0,
   busyId: null,
@@ -131,7 +132,7 @@ export const initialAssignState: AssignState = {
 export function assignReducer(state: AssignState, action: AssignAction): AssignState {
   switch (action.type) {
     case 'load':
-      return { ...state, loading: true, loadFailed: false }
+      return { ...state, loading: true, loadError: null }
     case 'loaded': {
       const rows = onlyUnassigned(action.response.content)
       return {
@@ -140,12 +141,12 @@ export function assignReducer(state: AssignState, action: AssignAction): AssignS
         hasMore: action.response.last === false,
         offset: offsetAfter(action.response),
         loading: false,
-        loadFailed: false,
+        loadError: null,
         loaded: true,
       }
     }
     case 'loadFailed':
-      return { ...state, loading: false, loadFailed: true }
+      return { ...state, loading: false, loadError: action.message }
     case 'assigning':
       return { ...state, busyId: action.id, notice: null }
     case 'assigned':
@@ -161,7 +162,7 @@ export function assignReducer(state: AssignState, action: AssignAction): AssignS
 }
 
 const idle = (state: AssignState) =>
-  state.loaded && !state.loading && !state.loadFailed && state.busyId === null
+  state.loaded && !state.loading && !state.loadError && state.busyId === null
 
 /** 보이는 줄을 다 배정했는데 서버에 남은 쪽이 있으면 바로 다음 쪽을 받는다. */
 export const shouldLoadMore = (state: AssignState): boolean =>

@@ -27,7 +27,7 @@ const useAccount = (): UseAccountReturn => {
         setAccount(response ?? null)
         if (response) accountCache.write(response)
       } catch (err) {
-        if (isMounted) setError(err instanceof Error ? err.message : '계정 정보를 불러오지 못했어요.')
+        if (isMounted) setError(err instanceof Error && err.message ? err.message : '계정 정보를 불러오지 못했어요.')
       } finally {
         if (isMounted) setIsLoading(false)
       }

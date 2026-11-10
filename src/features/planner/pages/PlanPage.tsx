@@ -307,7 +307,7 @@ const PlanPage = () => {
           setCalibrationError(
             getRequestFailureMessage(
               err,
-              '보정 설정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+              '보정 설정을 불러오지 못했어요.',
             ),
           )
         }
@@ -350,7 +350,7 @@ const PlanPage = () => {
       setCalibrationError(
         getRequestFailureMessage(
           err,
-          '보정 설정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '보정 설정을 저장하지 못했어요.',
         ),
       )
       setCalibrationRetryValue(enabled)
@@ -643,18 +643,9 @@ const PlanPage = () => {
         )
         addToast('승인하지 못했어요. 표시된 블록을 확인해 주세요.', 'error')
       } else {
-        const message = getRequestFailureMessage(
-          err,
-          '인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
-        )
-        setApplyError(`승인하지 못했어요. ${message}`)
-        addToast(
-          getRequestFailureMessage(
-            err,
-            '계획을 승인하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
-          ),
-          'error',
-        )
+        const message = getRequestFailureMessage(err, '계획을 승인하지 못했어요.')
+        setApplyError(message)
+        addToast(message, 'error')
       }
     } finally {
       setIsApplying(false)

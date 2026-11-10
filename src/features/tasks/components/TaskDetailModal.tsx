@@ -127,7 +127,7 @@ const TaskDetailModal = ({
           task: null,
           error: getRequestFailureMessage(
             err,
-            '작업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '작업을 불러오지 못했어요.',
           ),
         })
       })
@@ -163,7 +163,7 @@ const TaskDetailModal = ({
       addToast(
         getRequestFailureMessage(
           err,
-          '완료 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '완료 상태를 바꾸지 못했어요.',
         ),
         'error',
       )
@@ -198,7 +198,7 @@ const TaskDetailModal = ({
           addToast(
             getRequestFailureMessage(
               err,
-              '반복 작업을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+              '반복 작업을 지우지 못했어요.',
             ),
             'error',
           )
@@ -224,7 +224,7 @@ const TaskDetailModal = ({
       addToast(
         getRequestFailureMessage(
           err,
-          '작업을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '작업을 삭제하지 못했어요.',
         ),
         'error',
       )
@@ -252,7 +252,7 @@ const TaskDetailModal = ({
         addToast(
           getRequestFailureMessage(
             err,
-            '일정으로 배정하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '일정으로 배정하지 못했어요.',
           ),
           'error',
         )

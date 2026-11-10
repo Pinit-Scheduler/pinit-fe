@@ -85,7 +85,7 @@ const ScheduleDetailModal = ({
           addToast(
             getRequestFailureMessage(
               error,
-              '반복 일정을 지우지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+              '반복 일정을 지우지 못했어요.',
             ),
             'error',
           )
@@ -119,7 +119,7 @@ const ScheduleDetailModal = ({
         addToast(
           getRequestFailureMessage(
             error,
-            '일정을 삭제하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '일정을 삭제하지 못했어요.',
           ),
           'error',
         )

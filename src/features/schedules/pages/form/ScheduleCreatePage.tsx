@@ -109,7 +109,7 @@ const ScheduleCreatePage = () => {
       addToast(
         getRequestFailureMessage(
           error,
-          '일정을 저장하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+          '일정을 저장하지 못했어요.',
         ),
         'error',
       )
@@ -160,7 +160,7 @@ const ScheduleCreatePage = () => {
         fieldErrors[0] ??
           getRequestFailureMessage(
             error,
-            '반복 일정을 만들지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+            '반복 일정을 만들지 못했어요.',
           ),
         'error',
       )

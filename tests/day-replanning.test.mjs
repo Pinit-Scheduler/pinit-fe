@@ -183,9 +183,15 @@ test('409 selection conflict retains preview and checkbox selection for correcti
   await host.render().applySelection()
   assert.equal(host.render().preview.snapshotToken, 'server-snapshot')
   assert.deepEqual(plain(host.render().selectedIds), [101])
-  assert.match(host.render().error, /현재 상태에서는 이 동작을 할 수 없어요/)
-  assert.match(host.render().error, /선택하지 않은 일정과 선행 작업/)
+  assert.equal(host.render().error, '원래 일정과 겹칩니다.')
   assert.equal(host.render().requiresPreview, false)
+})
+
+test('409 without a server message tells the member what to check', async () => {
+  const host = harness({ applyApi: async () => { throw new ApiError('', 409) } })
+  await host.render().loadPreview()
+  await host.render().applySelection()
+  assert.equal(host.render().error, '현재 상태에서는 이 동작을 할 수 없어요. 선택하지 않은 일정과 선행 작업을 확인하거나 새 미리보기를 받아 주세요.')
 })
 
 test('unknown apply outcome cannot be retried until a fresh preview succeeds', async () => {
@@ -196,7 +202,7 @@ test('unknown apply outcome cannot be retried until a fresh preview succeeds', a
   })
   await host.render().loadPreview()
   await host.render().applySelection()
-  assert.match(host.render().error, /적용 결과를 확인하지 못했어요/)
+  assert.equal(host.render().error, '적용 결과를 확인하지 못했어요. 일정을 확인하고 새 미리보기를 받아 주세요.')
   await host.render().applySelection()
   assert.equal(applies, 1)
   previewFails = true
