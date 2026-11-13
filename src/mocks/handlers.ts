@@ -38,6 +38,7 @@ import { handleOnboarding } from './onboarding'
 import { handleRecurrences } from './recurrences'
 import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
 import { handleCalibration } from './calibration'
+import { handleEmailAuth, isMockEmailRequired, registerMockMemberEmail, verifyMockSignupEmail } from './emailAuth'
 import { handleStatisticsReport } from './statisticsReport'
 import {
   handleCategories,
@@ -122,7 +123,11 @@ const handleAuth = async (path: string, method: string, request: Request) => {
     )
     if (!user)
       return json({ message: '아이디 또는 비밀번호가 잘못되었습니다.' }, 401)
-    return json({ token: makeToken(user.id), refreshToken: 'mock-refresh' })
+    return json({
+      token: makeToken(user.id),
+      refreshToken: 'mock-refresh',
+      emailRequired: isMockEmailRequired(user.id),
+    })
   }
 
   if (method === 'POST' && path === '/v0/signup') {
@@ -133,9 +138,12 @@ const handleAuth = async (path: string, method: string, request: Request) => {
         400,
       )
     }
+    // 서버처럼 아이디 중복은 코드를 쓰기 전에 400으로 거절한다.
     if (mockUsers.some((user) => user.username === body.username)) {
-      return json({ message: '이미 존재하는 아이디입니다.' }, 409)
+      return json({ message: '이미 존재하는 사용자입니다.' }, 400)
     }
+    const emailRejection = verifyMockSignupEmail(body.email, body.code)
+    if (emailRejection) return emailRejection
     const nextId = mockUsers[mockUsers.length - 1]?.id + 1 || 1
     mockUsers.push({
       id: nextId,
@@ -144,6 +152,7 @@ const handleAuth = async (path: string, method: string, request: Request) => {
       nickname: body.nickname,
       zoneOffset: 'UTC+09:00',
     })
+    registerMockMemberEmail(nextId, body.email)
     return noContent(201)
   }
 
@@ -834,6 +843,9 @@ export const handleMockRequest = async (
 
   const auth = await handleAuth(path, method, request)
   if (auth) return auth
+
+  const emailAuth = await handleEmailAuth(path, method, request)
+  if (emailAuth) return emailAuth
 
   // 스페이스·워크스페이스 경로. 작업·일정 화면은 모두 이 경로로 읽고 쓴다.
   const workspace = await handleWorkspace(path, method, searchParams, request)

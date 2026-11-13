@@ -51,27 +51,52 @@ test('a missing or expired token waits for a refresh, and a logout marker goes t
 
 const AuthBoot = load('src/features/auth/components/AuthBoot.tsx', ui).default
 
-const authGuard = (token) =>
-  load('src/features/auth/components/AuthGuard.tsx', {
+const authPaths = load('src/features/auth/utils/authPaths.ts')
+
+// emailRequired: the email-registration requirement already known for the member, or null while it is unknown.
+const authGuard = (token, { emailRequired = null, pathname = '/app/today' } = {}) => {
+  const requirement = load('src/features/auth/utils/emailRequirement.ts', { './authPaths': authPaths })
+  if (token && emailRequired !== null) requirement.emailRequirement.set('member-1', emailRequired)
+  return load('src/features/auth/components/AuthGuard.tsx', {
     ...ui,
-    'react-router-dom': { Outlet: () => React.createElement('main', null, 'page'), useNavigate: () => () => {} },
+    'react-router-dom': {
+      Outlet: () => React.createElement('main', null, 'page'),
+      useNavigate: () => () => {},
+      useLocation: () => ({ pathname, search: '' }),
+    },
     '../api/auth': { refreshAccessToken: async () => {} },
+    '@features/settings/api/account': { fetchAccount: async () => ({ emailRequired: false }) },
     '@shared/api/authTokens': {
       clearAuthTokens() {},
       getAccessToken: () => token,
       isAccessTokenExpired: () => false,
       isLoggedOut: () => false,
     },
+    '@shared/api/httpClient': { ApiError: class ApiError extends Error {} },
     '../utils/returnTo': { rememberReturnTo() {} },
     '../utils/authEntry': authEntry,
+    '../utils/emailRequirement': requirement,
+    '../utils/authPaths': authPaths,
+    '../utils/currentTokenSubject': { currentTokenSubject: () => (token ? 'member-1' : null) },
+    '../hooks/useNavigateAfterLogin': { default: () => () => {} },
     './AuthBoot': { default: AuthBoot },
   }).default
+}
 
 test('AuthGuard paints the page in its first frame for a valid token, and the boot state instead of nothing', () => {
   assert.equal(html(authGuard('a.b.c')), '<main>page</main>')
   const boot = html(authGuard(null))
   assert.match(boot, /<div class="workspace-theme auth-boot" role="status"/, 'the workspace background paints at once')
   assert.match(boot, /로그인 상태를 확인하는 중이에요/)
+})
+
+test('the email registration check never blocks the first frame, and a known requirement leaves the page', () => {
+  // Unknown (the account lookup is still running): the page paints at once, as before the email gate.
+  assert.equal(html(authGuard('a.b.c')), '<main>page</main>')
+  assert.equal(html(authGuard('a.b.c', { emailRequired: false })), '<main>page</main>')
+  // Known to need an email: nothing paints while the guard moves to the registration screen.
+  assert.equal(html(authGuard('a.b.c', { emailRequired: true })), '')
+  assert.equal(html(authGuard('a.b.c', { emailRequired: true, pathname: '/email-registration' })), '<main>page</main>')
 })
 
 // ---------------------------------------------------------------------------

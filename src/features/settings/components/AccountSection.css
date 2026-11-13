@@ -64,6 +64,12 @@
   gap: 8px;
 }
 
+.account__email {
+  color: var(--c-slate-900);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .account__error {
   margin: 0;
   color: #dc2626;

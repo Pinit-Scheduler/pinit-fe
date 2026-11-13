@@ -7,6 +7,10 @@ export type AccountInfo = {
   username: string | null
   nickname: string
   socialLogin: boolean
+  /** 등록한 이메일을 서버가 일부 가린 값. 화면은 받은 그대로 보여 준다. 소셜 계정이나 미등록이면 null. */
+  email: string | null
+  /** 이메일이 없는 로컬 계정이면 true. 등록 화면으로 보낸다. */
+  emailRequired: boolean
 }
 
 export type ChangePasswordPayload = {

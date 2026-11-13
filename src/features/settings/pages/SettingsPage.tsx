@@ -1,10 +1,9 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useRef, useState } from 'react'
 import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import { NUDGE_KEYS, readFlag } from '@shared/utils/safeStorage'
-import { clearAuthTokens, markLoggedOut } from '@shared/api/authTokens'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
-import { logout as requestLogout } from '@features/auth/api/auth'
+import useLogout from '@features/auth/hooks/useLogout'
 import { useToast } from '@contexts/ToastContext'
 import usePushSubscription from '@shared/hooks/usePushSubscription'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
@@ -26,11 +25,9 @@ import useSavedFlash from '../hooks/useSavedFlash'
 import './SettingsPage.css'
 
 const SettingsPage = () => {
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
   // 처음 한 번만 "새 기능"을 단다. 생활 시간 화면에 들어가면 확인한 것으로 본다.
   const [showRoutinesNew] = useState(() => !readFlag(NUDGE_KEYS.routinesNewBadgeSeen))
   const [showRecurrencesNew] = useState(() => !readFlag(NUDGE_KEYS.recurrencesNewBadgeSeen))
-  const navigate = useNavigate()
   const { addToast } = useToast()
   const { zoneId } = useTimePreferences()
   const {
@@ -57,25 +54,7 @@ const SettingsPage = () => {
     unsubscribe: unsubscribePush,
   } = usePushSubscription()
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true)
-    try {
-      try {
-        await unsubscribePush()
-      } catch (error) {
-        console.warn('[Push] Failed to unsubscribe during logout:', error)
-      }
-      await requestLogout()
-      clearAuthTokens()
-      markLoggedOut()
-      addToast('로그아웃했어요.', 'info')
-      navigate('/login', { replace: true })
-    } catch (error) {
-      addToast(getRequestFailureMessage(error, '로그아웃하지 못했어요.'), 'error')
-    } finally {
-      setIsLoggingOut(false)
-    }
-  }
+  const { logout: handleLogout, isLoggingOut } = useLogout(unsubscribePush)
 
   const pushStatusLabel = (() => {
     switch (pushState.status) {

@@ -8,6 +8,8 @@ export type AuthProvider = 'naver'
 export type LoginResponse = {
   token?: string
   refreshToken?: string
+  /** 이메일이 없는 로컬 회원이면 true. 소셜 로그인 응답에는 없을 수 있다. */
+  emailRequired?: boolean
 }
 
 export type SocialLoginPayload = {
@@ -22,6 +24,9 @@ export type SignupPayload = {
   username: string
   password: string
   nickname: string
+  /** 정규화한 이메일과 그 이메일로 받은 6자리 코드. 서버 설정과 관계없이 항상 함께 보낸다. */
+  email: string
+  code: string
 }
 
 export type LoginPayload = {
@@ -44,6 +49,7 @@ export const exchangeSocialLogin = async (provider: AuthProvider, payload: Socia
   const response = await httpClient<LoginResponse>(url, {
     method: 'GET',
     credentials: 'include',
+    anonymous: true,
   })
 
   setAuthTokens({
@@ -60,6 +66,7 @@ export const login = async (payload: LoginPayload) => {
     method: 'POST',
     json: payload,
     credentials: 'include',
+    anonymous: true,
   })
 
   setAuthTokens({
@@ -76,6 +83,7 @@ export const signup = async (payload: SignupPayload) => {
     method: 'POST',
     json: payload,
     credentials: 'include',
+    anonymous: true,
   })
 }
 

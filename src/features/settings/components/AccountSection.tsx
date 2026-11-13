@@ -136,6 +136,27 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
     }
   }
 
+  // 로컬 계정의 등록 이메일(서버가 일부 가린 값). 이메일 변경은 아직 없다.
+  const renderEmailRow = () => {
+    if (!account || isSocial) return null
+    return (
+      <div className="settings__row">
+        <div>
+          <p className="settings__label">이메일</p>
+          <p className="settings__description">
+            {account.email ? (
+              <>
+                <span className="account__email">{account.email}</span> · 비밀번호를 잊으면 이 이메일로 찾을 수 있어요.
+              </>
+            ) : (
+              '등록한 이메일이 없어요.'
+            )}
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   const renderPasswordRow = () => {
     if (isLoading && !account) return <StatusPanel variant="loading" title="계정 정보를 불러오는 중..." />
     // 이미 보이는 계정 정보가 있으면 다시 읽기에 실패해도 그대로 둔다.
@@ -316,6 +337,7 @@ const AccountSection = ({ onLogout, isLoggingOut }: AccountSectionProps) => {
   return (
     <section className="settings__card settings__card--danger" aria-label="계정">
       <h2>계정</h2>
+      {renderEmailRow()}
       {renderPasswordRow()}
       <div className="settings__row settings__row--between">
         <div>

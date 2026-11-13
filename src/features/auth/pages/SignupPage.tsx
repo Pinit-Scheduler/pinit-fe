@@ -1,9 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { Link, useNavigate } from 'react-router-dom'
 import { signup } from '../api/auth'
-import { NICKNAME_MAX_LENGTH, validateNickname, validatePassword, validateUsername } from '../utils/accountRules'
+import { requestEmailCode } from '../api/email'
+import {
+  NICKNAME_MAX_LENGTH,
+  normalizeEmail,
+  validateEmail,
+  validateEmailCode,
+  validateNickname,
+  validatePassword,
+  validateUsername,
+} from '../utils/accountRules'
+import { describeEmailAuthError } from '../utils/emailAuthErrors'
+import { firstErrorField } from '../utils/formErrors'
+import { FORGOT_PASSWORD_PATH } from '../utils/authPaths'
+import { EmailCodeInput, EmailCodeRequestField } from '../components/EmailCodeFields'
+import { standaloneFocusProps, useAuthPageScroll } from '../hooks/useAuthPageLayout'
+import useEmailCode from '../hooks/useEmailCode'
 import { useToast } from '@contexts/ToastContext'
 import AuthMessage from '../components/AuthMessage'
 import './LoginPage.css'
@@ -13,61 +27,78 @@ type SignupFormState = {
   password: string
   confirmPassword: string
   nickname: string
+  email: string
+  code: string
 }
+
+type SignupField = keyof SignupFormState
+type SignupErrors = Partial<Record<SignupField | 'form', string>>
+
+// 화면에 놓인 순서. 제출이 막히면 이 순서로 처음 오류가 난 입력란에 포커스를 둔다.
+const FIELD_ORDER: readonly SignupField[] = ['username', 'password', 'confirmPassword', 'nickname', 'email', 'code']
 
 const createInitialState = (): SignupFormState => ({
   username: '',
   password: '',
   confirmPassword: '',
   nickname: '',
+  email: '',
+  code: '',
 })
+
+const sendSignupCode = (email: string) => requestEmailCode(email, 'SIGNUP')
 
 const SignupPage = () => {
   const [values, setValues] = useState<SignupFormState>(createInitialState)
-  const [errors, setErrors] = useState<Partial<Record<keyof SignupFormState | 'form', string>>>({})
+  const [errors, setErrors] = useState<SignupErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const fieldRefs = useRef<Partial<Record<SignupField, HTMLInputElement | null>>>({})
+  const emailCode = useEmailCode(sendSignupCode)
   const { addToast } = useToast()
   const navigate = useNavigate()
-  const isStandalone = () =>
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    (window.navigator as unknown as { standalone?: boolean })?.standalone === true
-  const handleTouchFocus = (
-    event: React.TouchEvent<HTMLInputElement> | React.MouseEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>,
-  ) => {
-    const target = event.currentTarget
-    if (!isStandalone()) return
-    requestAnimationFrame(() => {
-      target.focus({ preventScroll: false })
-      setTimeout(() => target.scrollIntoView({ block: 'center', behavior: 'smooth' }), 50)
-    })
+  useAuthPageScroll()
+
+  const bindRef = (field: SignupField) => (element: HTMLInputElement | null) => {
+    fieldRefs.current[field] = element
   }
 
-  useEffect(() => {
-    const body = document.body
-    const root = document.getElementById('root')
-    const prevBodyOverflow = body.style.overflow
-    const prevRootOverflow = root?.style.overflow
-    body.style.overflowX = 'hidden'
-    body.style.overflowY = 'auto'
-    if (root) {
-      root.style.overflowX = 'hidden'
-      root.style.overflowY = 'auto'
-    }
-    return () => {
-      body.style.overflow = prevBodyOverflow
-      if (root && prevRootOverflow !== undefined) root.style.overflow = prevRootOverflow
-    }
-  }, [])
-
-  const onChange = <K extends keyof SignupFormState>(key: K, value: SignupFormState[K]) => {
+  const onChange = <K extends SignupField>(key: K, value: SignupFormState[K]) => {
     setValues((prev) => ({ ...prev, [key]: value }))
   }
 
+  const showErrors = (nextErrors: SignupErrors) => {
+    setErrors(nextErrors)
+    const field = firstErrorField(FIELD_ORDER, nextErrors)
+    if (field) fieldRefs.current[field]?.focus()
+  }
+
+  const showEmailError = (message: string | undefined) => {
+    setErrors((prev) => ({ ...prev, email: message }))
+    if (message) fieldRefs.current.email?.focus()
+  }
+
+  const handleRequestCode = async () => {
+    const emailError = validateEmail(values.email)
+    if (emailError) {
+      showEmailError(emailError)
+      return
+    }
+    showEmailError(undefined)
+    const failure = await emailCode.request(values.email)
+    if (failure) {
+      showEmailError(failure.message)
+      return
+    }
+    fieldRefs.current.code?.focus()
+  }
+
   const validate = () => {
-    const nextErrors: Partial<Record<keyof SignupFormState | 'form', string>> = {}
+    const nextErrors: SignupErrors = {}
     const usernameError = validateUsername(values.username)
     const passwordError = validatePassword(values.password)
     const nicknameError = validateNickname(values.nickname)
+    const emailError = validateEmail(values.email)
+    const codeError = validateEmailCode(values.code)
     if (usernameError) nextErrors.username = usernameError
     if (passwordError) nextErrors.password = passwordError
     if (!values.confirmPassword) nextErrors.confirmPassword = '비밀번호를 다시 입력해 주세요.'
@@ -75,7 +106,9 @@ const SignupPage = () => {
       nextErrors.confirmPassword = '비밀번호가 서로 달라요.'
     }
     if (nicknameError) nextErrors.nickname = nicknameError
-    setErrors(nextErrors)
+    if (emailError) nextErrors.email = emailError
+    if (codeError) nextErrors.code = codeError
+    showErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }
 
@@ -84,23 +117,40 @@ const SignupPage = () => {
     if (!validate()) return
 
     setIsSubmitting(true)
-    setErrors({})
     try {
       await signup({
         username: values.username.trim(),
         password: values.password,
         nickname: values.nickname.trim(),
+        email: normalizeEmail(values.email),
+        code: values.code,
       })
       addToast('회원가입을 마쳤어요. 로그인해 주세요.', 'success')
       navigate('/login', { replace: true })
     } catch (error) {
-      const message = getRequestFailureMessage(error, '회원가입하지 못했어요.')
-      setErrors({ form: message })
-      addToast(message, 'error')
+      const failure = describeEmailAuthError(error, 'submit')
+      if (failure.requiresNewCode) {
+        // 코드는 이미 쓰였다. 새 코드를 받도록 코드 입력을 비우고 이메일 쪽에 이유를 보여 준다.
+        emailCode.requireNewCode()
+        onChange('code', '')
+        showErrors({ email: failure.message })
+      } else {
+        setErrors({ form: failure.message })
+      }
+      addToast(failure.message, 'error')
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  const errorId = (field: SignupField) => `signup-${field}-error`
+
+  const errorProps = (field: SignupField) => ({
+    'aria-invalid': errors[field] ? true : undefined,
+    'aria-describedby': errors[field] ? errorId(field) : undefined,
+  })
+
+  const fieldError = (field: SignupField) => <AuthMessage id={errorId(field)} message={errors[field]} />
 
   return (
     <div className="login">
@@ -119,85 +169,103 @@ const SignupPage = () => {
         <p className="login__eyebrow">회원가입</p>
         <h1>아이디와 비밀번호로 새 계정을 만들어요</h1>
         <p className="login__description">
-          아이디, 비밀번호, 별명만으로 간단히 가입할 수 있어요. 가입 후 로그인하면 일정 관리 기능을
-          바로 사용할 수 있습니다. 비밀번호는 영문과 숫자를 모두 넣어 8자 이상으로 정해 주세요.
+          아이디, 비밀번호, 별명을 정하고 이메일을 인증하면 가입돼요. 이메일은 인증과 비밀번호 찾기에만 써요.
+          비밀번호는 영문과 숫자를 모두 넣어 8자 이상으로 정해 주세요.
         </p>
 
-        <form className="signup__form" onSubmit={handleSubmit}>
+        <form className="signup__form" onSubmit={handleSubmit} noValidate>
           <label className="signup__field">
             <span>아이디</span>
             <input
+              ref={bindRef('username')}
               value={values.username}
               onChange={(event) => onChange('username', event.target.value)}
               placeholder="영문, 숫자, 밑줄(_) 4~20자"
               maxLength={20}
               autoComplete="username"
-              onTouchEnd={handleTouchFocus}
-              onTouchStart={handleTouchFocus}
-              onMouseDown={handleTouchFocus}
-              onFocus={handleTouchFocus}
               required
-              aria-invalid={errors.username ? true : undefined}
+              {...errorProps('username')}
+              {...standaloneFocusProps}
             />
-            <AuthMessage message={errors.username} />
+            {fieldError('username')}
           </label>
 
           <label className="signup__field">
             <span>비밀번호</span>
             <input
+              ref={bindRef('password')}
               type="password"
               value={values.password}
               onChange={(event) => onChange('password', event.target.value)}
               placeholder="영문과 숫자를 포함해 8~64자"
               maxLength={64}
               autoComplete="new-password"
-              onTouchEnd={handleTouchFocus}
-              onTouchStart={handleTouchFocus}
-              onMouseDown={handleTouchFocus}
-              onFocus={handleTouchFocus}
               required
-              aria-invalid={errors.password ? true : undefined}
+              {...errorProps('password')}
+              {...standaloneFocusProps}
             />
-            <AuthMessage message={errors.password} />
+            {fieldError('password')}
           </label>
 
           <label className="signup__field">
             <span>비밀번호 확인</span>
             <input
+              ref={bindRef('confirmPassword')}
               type="password"
               value={values.confirmPassword}
               onChange={(event) => onChange('confirmPassword', event.target.value)}
               placeholder="비밀번호를 다시 입력하세요"
               autoComplete="new-password"
-              onTouchEnd={handleTouchFocus}
-              onTouchStart={handleTouchFocus}
-              onMouseDown={handleTouchFocus}
-              onFocus={handleTouchFocus}
               required
-              aria-invalid={errors.confirmPassword ? true : undefined}
+              {...errorProps('confirmPassword')}
+              {...standaloneFocusProps}
             />
-            <AuthMessage message={errors.confirmPassword} />
+            {fieldError('confirmPassword')}
           </label>
 
           <label className="signup__field">
             <span>별명</span>
             <input
+              ref={bindRef('nickname')}
               value={values.nickname}
               onChange={(event) => onChange('nickname', event.target.value)}
               placeholder="프로필에 표시될 별명(20자 이하)"
               maxLength={NICKNAME_MAX_LENGTH}
               autoComplete="nickname"
-              onTouchEnd={handleTouchFocus}
-              onTouchStart={handleTouchFocus}
-              onMouseDown={handleTouchFocus}
-              onFocus={handleTouchFocus}
               required
-              aria-invalid={errors.nickname ? true : undefined}
+              {...errorProps('nickname')}
+              {...standaloneFocusProps}
             />
-            <AuthMessage message={errors.nickname} />
+            {fieldError('nickname')}
           </label>
 
-          <AuthMessage as="p" className="signup__form-error" message={errors.form} />
+          <EmailCodeRequestField
+            email={values.email}
+            onEmailChange={(email) => onChange('email', email)}
+            inputRef={bindRef('email')}
+            error={errors.email}
+            flow={emailCode.flow}
+            waitSeconds={emailCode.waitSeconds}
+            isSending={emailCode.isSending}
+            onRequestCode={handleRequestCode}
+            disabled={isSubmitting}
+            hint={
+              <>
+                이미 가입한 이메일이면 코드가 가지 않아요. 비밀번호를 잊었다면{' '}
+                <Link to={FORGOT_PASSWORD_PATH}>비밀번호 찾기</Link>를 이용해 주세요.
+              </>
+            }
+          />
+
+          <EmailCodeInput
+            code={values.code}
+            onCodeChange={(code) => onChange('code', code)}
+            inputRef={bindRef('code')}
+            error={errors.code}
+            disabled={isSubmitting}
+          />
+
+          <AuthMessage as="p" className="signup__form-error" role="alert" message={errors.form} />
 
           <div className="login__actions signup__actions">
             <button

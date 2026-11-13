@@ -1,14 +1,15 @@
 import { useCallback, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { buildAuthorizeUrl, login, type AuthProvider } from '../api/auth'
 import { clearLogoutMarker } from '@shared/api/authTokens'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
+import { standaloneFocusProps, useAuthPageScroll } from '../hooks/useAuthPageLayout'
+import { FORGOT_PASSWORD_PATH } from '../utils/authPaths'
 import AuthMessage from '../components/AuthMessage'
 import './LoginPage.css'
-import { useEffect } from 'react'
 
 const LoginPage = () => {
   const [activeProvider, setActiveProvider] = useState<AuthProvider | null>(null)
@@ -18,41 +19,7 @@ const LoginPage = () => {
   const navigate = useNavigate()
   const { addToast } = useToast()
   const navigateAfterLogin = useNavigateAfterLogin()
-  const isStandalone = () =>
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    (window.navigator as unknown as { standalone?: boolean })?.standalone === true
-
-  const handleTouchFocus = (
-    event: React.TouchEvent<HTMLInputElement> | React.MouseEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>,
-  ) => {
-    const target = event.currentTarget
-    if (!isStandalone()) return
-    // PWA standalone 모드에서 포커스가 씹히는 문제를 방지
-    requestAnimationFrame(() => {
-      target.focus({ preventScroll: false })
-      setTimeout(() => {
-        target.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      }, 50)
-    })
-  }
-
-  useEffect(() => {
-    const body = document.body
-    const root = document.getElementById('root')
-    const prevBodyOverflow = body.style.overflow
-    const prevRootOverflow = root?.style.overflow
-    // Allow vertical scrolling within auth page without enabling horizontal body scroll
-    body.style.overflowX = 'hidden'
-    body.style.overflowY = 'auto'
-    if (root) {
-      root.style.overflowX = 'hidden'
-      root.style.overflowY = 'auto'
-    }
-    return () => {
-      body.style.overflow = prevBodyOverflow
-      if (root && prevRootOverflow !== undefined) root.style.overflow = prevRootOverflow
-    }
-  }, [])
+  useAuthPageScroll()
 
   const validate = () => {
     const nextErrors: Partial<Record<'username' | 'password', string>> = {}
@@ -68,13 +35,13 @@ const LoginPage = () => {
     setIsSubmitting(true)
     setErrors({})
     try {
-      await login({
+      const response = await login({
         username: credentials.username.trim(),
         password: credentials.password,
       })
       clearLogoutMarker()
       addToast('로그인에 성공했어요.', 'success')
-      navigateAfterLogin()
+      navigateAfterLogin(response)
     } catch (error) {
       const message = getRequestFailureMessage(error, '로그인하지 못했어요.')
       setErrors({ form: message })
@@ -122,10 +89,7 @@ const LoginPage = () => {
               onChange={(event) => setCredentials((prev) => ({ ...prev, username: event.target.value }))}
               placeholder="아이디를 입력하세요"
               autoComplete="username"
-              onTouchEnd={handleTouchFocus}
-              onTouchStart={handleTouchFocus}
-              onMouseDown={handleTouchFocus}
-              onFocus={handleTouchFocus}
+              {...standaloneFocusProps}
               disabled={isSubmitting || !!activeProvider}
               aria-invalid={errors.username ? true : undefined}
             />
@@ -140,10 +104,7 @@ const LoginPage = () => {
               onChange={(event) => setCredentials((prev) => ({ ...prev, password: event.target.value }))}
               placeholder="비밀번호를 입력하세요"
               autoComplete="current-password"
-              onTouchEnd={handleTouchFocus}
-              onTouchStart={handleTouchFocus}
-              onMouseDown={handleTouchFocus}
-              onFocus={handleTouchFocus}
+              {...standaloneFocusProps}
               disabled={isSubmitting || !!activeProvider}
               aria-invalid={errors.password ? true : undefined}
             />
@@ -151,6 +112,10 @@ const LoginPage = () => {
           </label>
 
           <AuthMessage as="p" className="login__form-error" message={errors.form} />
+
+          <p className="login__links">
+            <Link to={FORGOT_PASSWORD_PATH}>비밀번호를 잊으셨나요? 비밀번호 찾기</Link>
+          </p>
 
           <div className="login__actions">
             <button

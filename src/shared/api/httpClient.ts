@@ -36,6 +36,11 @@ export type HttpClientOptions = RequestInit & {
   sensitiveResponse?: boolean
   /** 초대 링크처럼 요청 경로/본문에 bearer 비밀값이 있을 때 로그에서 제외한다. */
   sensitiveRequest?: boolean
+  /**
+   * 로그인·가입·코드 받기·비밀번호 재설정처럼 로그인 없이 부르는 요청. 저장된 토큰을 싣지 않고,
+   * 만료 토큰의 사전 갱신이나 401 뒤 갱신·토큰 삭제도 하지 않는다. 남은 토큰 상태와 관계없이 첫 요청이 서버에 닿는다.
+   */
+  anonymous?: boolean
 }
 
 export const httpClient = async <T>(
@@ -48,20 +53,21 @@ export const httpClient = async <T>(
     credentials,
     sensitiveResponse: explicitSensitiveResponse,
     sensitiveRequest: explicitSensitiveRequest,
+    anonymous = false,
     ...rest
   } = options
   const url = path.startsWith('http') ? path : buildUrl(API_BASE_URL, path)
   // Login/signup callers must not accidentally log passwords, OAuth codes or returned tokens.
   const requestPath = url.split(/[?#]/, 1)[0].replace(/^https?:\/\/[^/]+/, '')
   const authenticationFlow =
-    /^\/v0\/(?:login(?:\/.*)?|signup|refresh)\/?$/.test(requestPath) ||
+    /^\/v0\/(?:login(?:\/.*)?|signup|refresh|password-reset|email-codes|me\/email(?:-codes)?)\/?$/.test(requestPath) ||
     /^\/oauth\/(?:token|register|revoke|authorize\/decision)\/?$/.test(requestPath)
   const sensitiveRequest = explicitSensitiveRequest || authenticationFlow
   const sensitiveResponse = explicitSensitiveResponse || authenticationFlow
   const logUrl = explicitSensitiveRequest
     ? '[sensitive request]'
     : authenticationFlow ? url.split(/[?#]/, 1)[0] : url
-  let accessToken = getAccessToken()
+  let accessToken = anonymous ? null : getAccessToken()
   const body = json ? JSON.stringify(json) : undefined
 
   let refreshAttempted = false
@@ -131,7 +137,7 @@ export const httpClient = async <T>(
     let response = await performFetch()
 
     // 401일 때 refresh 토큰이 있으면 /refresh 요청 후 한 번만 재시도
-    if (response.status === 401) {
+    if (response.status === 401 && !anonymous) {
       const current = getAccessToken()
       // A delayed 401 must not erase or refresh a token already renewed by another request.
       let refreshed: string | null = null
