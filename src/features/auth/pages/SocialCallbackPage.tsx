@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { exchangeSocialLogin, type AuthProvider } from '../api/auth'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
 import './LoginPage.css'
@@ -15,7 +16,7 @@ const SocialCallbackPage = () => {
   )
   const [error, setError] = useState<string | null>(providerError)
   const [status, setStatus] = useState(
-    provider ? 'OP에서 받은 토큰을 전달하는 중이에요...' : '오류가 발생했어요.',
+    provider ? 'OP에서 받은 토큰을 전달하는 중이에요...' : '로그인을 멈췄어요.',
   )
 
   const payload = useMemo(
@@ -43,12 +44,8 @@ const SocialCallbackPage = () => {
       })
       .catch((err) => {
         if (isCancelled) return
-        const message =
-          err instanceof Error
-            ? err.message
-            : '로그인 도중 오류가 발생했어요. 다시 시도해주세요.'
-        setError(message)
-        setStatus('오류가 발생했어요.')
+        setError(getRequestFailureMessage(err, '소셜 로그인을 마치지 못했어요.'))
+        setStatus('로그인을 멈췄어요.')
       })
 
     return () => {
@@ -65,7 +62,7 @@ const SocialCallbackPage = () => {
           OP에서 받은 access token/code/state를 백엔드로 전달해 세션을 준비하고 있어요.
         </p>
 
-        <div className="login__status">
+        <div className="login__status" aria-live="polite">
           <div className="login__status-item">
             <span className="login__status-dot" />
             <div>
@@ -74,7 +71,7 @@ const SocialCallbackPage = () => {
             </div>
           </div>
           {error ? (
-            <div className="login__status-item">
+            <div className="login__status-item login__status-item--error">
               <span className="login__status-dot login__status-dot--amber" />
               <div>
                 <p className="login__status-label">오류</p>

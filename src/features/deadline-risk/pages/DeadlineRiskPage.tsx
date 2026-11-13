@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useSpaces } from '@features/spaces/store'
+import { presenceProps, useArrival, useListPresence } from '@shared/motion'
 import DeadlineRiskItem from '../components/DeadlineRiskItem'
 import useDeadlineRisk from '../hooks/useDeadlineRisk'
 import type { DeadlineRiskDays } from '../types/deadlineRisk'
@@ -20,11 +21,15 @@ export default function DeadlineRiskPage() {
     navigate(path)
   }
   const [days, setDays] = useState<DeadlineRiskDays>(7)
-  const { forecast, error, isLoading, refresh } = useDeadlineRisk(days, zoneId)
+  const { forecast, error, isLoading, isRefreshing, refresh } = useDeadlineRisk(days, zoneId)
   const counts = forecast ? forecastCounts(forecast.items) : null
+  // Rows that appear or leave on a refresh rise in or fade out; a new range starts a new baseline.
+  const rows = useListPresence(forecast?.items, (item) => item.taskId, { resetKey: `${days}@${zoneId}` })
+  // A forecast that arrives after the calculating line fades in. One already cached shows at once.
+  const arriving = useArrival(isLoading)
 
   return (
-    <section className="deadline-risk" aria-labelledby="deadline-risk-title">
+    <section className="deadline-risk" aria-labelledby="deadline-risk-title" aria-busy={isRefreshing || undefined}>
       <header className="deadline-risk__header">
         <h1 id="deadline-risk-title">마감 위험 예보</h1>
         <p>개인 스페이스의 작업과 일정만 반영해요. 팀이나 다른 스페이스의 작업·일정은 포함하지 않아요.</p>
@@ -42,10 +47,10 @@ export default function DeadlineRiskPage() {
         <button type="button" disabled={!personalSpace} onClick={() => openPersonal('/app/plan')}>개인 스페이스에서 하루 계획 열기</button>
       </div>
       {!personalSpace ? <p className="deadline-risk__hint" role="status">개인 스페이스를 불러온 뒤 작업과 계획 화면을 열 수 있어요. {spaces.error ? <button type="button" onClick={() => void spaces.reload().catch(() => {})}>스페이스 다시 조회</button> : null}</p> : null}
-      {isLoading ? <p role="status">마감과 남은 시간을 계산하고 있어요.</p> : null}
+      {isLoading ? <p className="deadline-risk__loading" role="status">마감과 남은 시간을 계산하고 있어요.</p> : null}
       {error ? <p className="deadline-risk__error" role="alert">{error}</p> : null}
       {forecast && counts ? (
-        <>
+        <div className="deadline-risk__result" data-arrive={arriving || undefined}>
           <div className="deadline-risk__basis">
             <p><time dateTime={forecast.generatedAt}>{forecastTimeLabel(forecast.generatedAt, forecast.zoneId)}</time> 조회 기준</p>
             <p>시간대 {forecast.zoneId} · <time dateTime={forecast.horizonEnd}>{forecastTimeLabel(forecast.horizonEnd, forecast.zoneId)}</time> 전까지</p>
@@ -64,7 +69,7 @@ export default function DeadlineRiskPage() {
               </p>
               <p className="deadline-risk__hint">필요 시간은 미완료 선행 작업까지 포함해요. 같은 선행 작업이 여러 예보에 나올 수 있어 항목별 시간을 합산하지 마세요.</p>
               <ul className="deadline-risk__list" aria-label="작업별 마감 위험">
-                {forecast.items.map((item) => <DeadlineRiskItem key={item.taskId} item={item} zoneId={forecast.zoneId} canOpenPlan={Boolean(personalSpace)} onOpenPlan={() => openPersonal('/app/plan')} />)}
+                {rows.map(({ key, item, phase }) => <DeadlineRiskItem key={key} item={item} zoneId={forecast.zoneId} canOpenPlan={Boolean(personalSpace)} onOpenPlan={() => openPersonal('/app/plan')} presence={presenceProps(phase)} />)}
               </ul>
             </>
           )}
@@ -77,7 +82,7 @@ export default function DeadlineRiskPage() {
             <ul>{forecast.limitations.map((text, index) => <li key={`limit-${index}`}>{text}</li>)}</ul>
             <p>조회 이후 바뀐 내용이나 실행 시간은 다시 조회하면 반영돼요.</p>
           </details>
-        </>
+        </div>
       ) : null}
     </section>
   )

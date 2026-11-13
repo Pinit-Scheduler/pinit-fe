@@ -1,0 +1,48 @@
+/* 저장 확인 체크. 보일 때는 빠르게 스며들며 획이 그려지고, 사라질 때는 획을 그대로 둔 채 흐려진다. */
+.saved-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--c-green-700);
+  opacity: 0;
+  transition: opacity var(--motion-exit) var(--motion-ease-exit);
+  pointer-events: none;
+}
+
+.saved-mark path {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+}
+
+.saved-mark[data-visible] {
+  opacity: 1;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+.saved-mark[data-visible] path {
+  animation: saved-mark-draw var(--motion-enter) var(--motion-ease) 60ms both;
+}
+
+@keyframes saved-mark-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 획은 그리지 않고 한 번에 보이며, 나타나고 사라지는 것만 흐려진다. */
+  .saved-mark[data-visible] path {
+    animation: none;
+  }
+  .saved-mark {
+    --motion-keep-transition: var(--motion-exit);
+  }
+  .saved-mark[data-visible] {
+    --motion-keep-animation: var(--motion-base);
+  }
+}

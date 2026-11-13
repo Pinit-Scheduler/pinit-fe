@@ -1,11 +1,17 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useState, useId, useRef } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { usePresence } from '@shared/motion'
 import dayjs from 'dayjs'
 import './TaskScheduleModal.css'
 import { toApiDateTimeWithZone } from '@shared/utils/datetime'
 import type { TaskScheduleRequest } from '../types/task'
-import { CONFLICT_RELOADED, isEditConflict } from '@features/spaces/conflicts'
+import {
+  conflictMessage,
+  conflictReloadedMessage,
+  isEditConflict,
+} from '@features/spaces/conflicts'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 type TaskScheduleModalProps = {
   isOpen: boolean
@@ -44,6 +50,11 @@ const TaskScheduleModal = ({
   const [title, setTitle] = useState(defaultTitle ?? '')
   const [description, setDescription] = useState(defaultDescription ?? '')
   const [submitting, setSubmitting] = useState(false)
+  // Stays mounted through its exit; the form keeps what was entered while it fades.
+  const presence = usePresence(isOpen)
+  // Callers clear the selected task as the exit starts. Keep naming the task while it fades.
+  const [shownLabel, setShownLabel] = useState(taskLabel)
+  if (isOpen && shownLabel !== taskLabel) setShownLabel(taskLabel)
 
   useEffect(() => {
     if (!isOpen) {
@@ -60,7 +71,7 @@ const TaskScheduleModal = ({
     setDescription(defaultDescription ?? '')
   }, [isOpen, defaultDescription, defaultTitle, expectedVersion])
 
-  if (!isOpen) return null
+  if (!presence.mounted) return null
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -83,17 +94,18 @@ const TaskScheduleModal = ({
       if (isEditConflict(failure) && onConflict) {
         try {
           capturedVersion.current = await onConflict()
-          setError(CONFLICT_RELOADED)
+          setError(conflictReloadedMessage(failure))
         } catch {
           setError(
-            '다른 참여자가 먼저 수정했어요. 최신 내용을 불러오지 못했으니 닫았다가 다시 열어 주세요.',
+            `${conflictMessage(failure)} 최신 내용을 불러오지 못했으니 닫았다가 다시 열어 주세요.`,
           )
         }
       } else
         setError(
-          failure instanceof Error
-            ? failure.message
-            : '일정을 배정하지 못했어요. 입력한 내용은 유지됩니다.',
+          getRequestFailureMessage(
+            failure,
+            '일정을 배정하지 못했어요.',
+          ),
         )
     } finally {
       submissionLock.current = false
@@ -107,11 +119,12 @@ const TaskScheduleModal = ({
       className="task-sched-modal__content"
       onClose={submitting ? undefined : onClose}
       labelledBy={titleId}
+      closing={presence.closing}
     >
       <header className="task-sched-modal__header">
         <div>
           <p className="task-sched-modal__eyebrow">일정으로 배정</p>
-          <h1 id={titleId}>{taskLabel ?? '작업'}</h1>
+          <h1 id={titleId}>{shownLabel ?? '작업'}</h1>
         </div>
         <button
           disabled={submitting}

@@ -1,7 +1,5 @@
-import { useLocation } from 'react-router-dom'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { useSpaces } from '@features/spaces/store'
-import { createSpaceIdFor } from '@features/spaces/scope'
+import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
 import TaskForm from '../components/TaskForm'
 import type { TaskFormValues } from '../components/TaskForm'
 import { createTask } from '../api/tasks'
@@ -21,12 +19,11 @@ import {
 } from '@features/recurrence/utils/recurrenceRules'
 import { createRecurrence } from '@features/recurrence/api/recurrences'
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 const TaskCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
-  const location = useLocation()
-  const { defaultSpaceId } = useSpaces()
-  const spaceId = createSpaceIdFor(location.search, defaultSpaceId)
+  const affiliation = useCreateAffiliation()
   const { setTask } = useTaskCache()
   const { addToast } = useToast()
 
@@ -64,12 +61,17 @@ const TaskCreatePage = () => {
         zoneId: getDisplayZoneId(),
       })
       dispatchTaskChanged({ reason: 'recurrence' })
-      addToast(
-        '반복 작업을 만들었어요. 할 일 목록에는 오늘까지의 회차가 보여요.',
-        'success',
-      )
+      // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
       if (created.id === null)
-        throw new Error('반복 시리즈 ID를 확인하지 못했어요.')
+        addToast(
+          '반복 작업을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          'info',
+        )
+      else
+        addToast(
+          '반복 작업을 만들었어요. 할 일 목록에는 오늘까지의 회차가 보여요.',
+          'success',
+        )
       complete('/app/tasks')
     } catch (error) {
       console.error('반복 작업 생성 실패', error)
@@ -79,9 +81,10 @@ const TaskCreatePage = () => {
           : []
       addToast(
         fieldErrors[0] ??
-          (error instanceof ApiError && error.status === 409
-            ? '진행 중인 반복이 너무 많아요.'
-            : '반복 작업을 만들지 못했어요.'),
+          getRequestFailureMessage(
+            error,
+            '반복 작업을 만들지 못했어요.',
+          ),
         'error',
       )
     }
@@ -129,7 +132,13 @@ const TaskCreatePage = () => {
       complete('/app/tasks')
     } catch (error) {
       console.error('작업 생성 실패', error)
-      addToast('작업을 생성하지 못했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          error,
+          '작업을 만들지 못했어요.',
+        ),
+        'error',
+      )
     }
   }
 
@@ -147,7 +156,9 @@ const TaskCreatePage = () => {
           onSubmit={handleSubmit}
           submitLabel="작업 생성"
           allowRecurrence
-          initialValues={spaceId === undefined ? undefined : { spaceId }}
+          initialValues={
+            affiliation.spaceId === undefined ? undefined : affiliation
+          }
         />
       </div>
     </section>

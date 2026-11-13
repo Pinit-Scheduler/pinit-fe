@@ -46,6 +46,10 @@
   padding: 6px 10px;
   border-radius: 8px;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .task-form__chip.is-active {
@@ -139,13 +143,20 @@
   font-weight: 700;
   color: var(--c-slate-900);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
   text-align: center;
 }
 
-.task-form__difficulty-pill:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+.task-form__difficulty-pill:not(.is-active):hover {
+  border-color: var(--c-slate-300);
+}
+
+.task-form__difficulty-pill:active {
+  transform: scale(var(--motion-press-scale));
 }
 
 .task-form__difficulty-pill.is-active {
@@ -213,4 +224,52 @@
   border: 1px solid var(--c-slate-200);
   border-radius: 8px;
   cursor: pointer;
+}
+
+/* Linked tasks (DependencyChips). Added chips rise in, removed ones fade out in place
+   (useListPresence, motion.css). Inline-flex so the rise can move them. */
+.task-form__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.task-form__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 999px;
+  background: var(--c-slate-50);
+  color: var(--c-slate-700);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.task-form__tag button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--c-slate-500);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.task-form__tag button:hover {
+  background: var(--c-slate-200);
+  color: var(--c-slate-800);
+}
+
+.task-form__tag button svg {
+  width: 12px;
+  height: 12px;
 }

@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiError } from '@shared/api/httpClient'
+import {
+  getRequestFailureMessage,
+  readFailureMessage,
+} from '@shared/api/errorMessage'
 import { acceptInvitation, previewInvitation } from './api'
 import { reloadSpaces, selectSpace } from './store'
 import type { Invitation } from './types'
 import './spaces.css'
+
+const isGone = (failure: unknown) =>
+  failure instanceof ApiError && [404, 410].includes(failure.status)
 
 export default function InvitationPage() {
   const { token } = useParams()
@@ -30,15 +37,13 @@ export default function InvitationPage() {
       .then(setInvitation)
       .catch((failure) => {
         if (controller.signal.aborted) return
-        setUnavailable(
-          failure instanceof ApiError && [404, 410].includes(failure.status),
-        )
+        const gone = isGone(failure)
+        setUnavailable(gone)
         setError(
-          failure instanceof ApiError && [404, 410].includes(failure.status)
-            ? '유효하지 않거나 만료된 초대 링크예요. 관리자에게 새 링크를 요청해 주세요.'
-            : failure instanceof Error
-              ? failure.message
-              : '초대 정보를 불러오지 못했어요.',
+          readFailureMessage(failure) ??
+            (gone
+              ? '유효하지 않거나 만료된 초대 링크예요. 관리자에게 새 링크를 요청해 주세요.'
+              : getRequestFailureMessage(failure, '초대 정보를 불러오지 못했어요.')),
         )
       })
       .finally(() => {
@@ -58,15 +63,13 @@ export default function InvitationPage() {
       void reloadSpaces().catch(() => {})
       navigate('/app/tasks', { replace: true })
     } catch (failure) {
-      setUnavailable(
-        failure instanceof ApiError && [404, 410].includes(failure.status),
-      )
+      const gone = isGone(failure)
+      setUnavailable(gone)
       setError(
-        failure instanceof ApiError && [404, 410].includes(failure.status)
-          ? '초대 링크가 만료되었거나 사용할 수 없어요. 관리자에게 새 링크를 요청해 주세요.'
-          : failure instanceof Error
-            ? failure.message
-            : '참여를 완료하지 못했어요. 다시 시도해 주세요.',
+        readFailureMessage(failure) ??
+          (gone
+            ? '초대 링크가 만료되었거나 사용할 수 없어요. 관리자에게 새 링크를 요청해 주세요.'
+            : getRequestFailureMessage(failure, '참여를 완료하지 못했어요.')),
       )
     } finally {
       mutation.current = false
@@ -80,7 +83,9 @@ export default function InvitationPage() {
           pinit.
         </Link>
         {loading ? (
-          <p role="status">초대 정보를 확인하고 있어요…</p>
+          <p role="status" className="space-invite-card__loading">
+            초대 정보를 확인하고 있어요…
+          </p>
         ) : (
           <>
             <h1>

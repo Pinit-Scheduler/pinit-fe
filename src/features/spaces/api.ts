@@ -1,5 +1,6 @@
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import { ClientGuardError } from '@shared/api/errorMessage'
 import type {
   Invitation,
   Project,
@@ -12,6 +13,7 @@ import type {
   WeeklyRecord,
   WorkspaceSnapshot,
   AllowedActions,
+  UnavailableReasons,
 } from './types'
 const url = (path: string) => buildApiUrl(path, 'v2')
 type RawSpace = Omit<Space, 'members'>
@@ -19,6 +21,11 @@ const actions = (value: AllowedActions): AllowedActions => ({
   ...value,
   update: value.edit,
 })
+/** `update`는 FE 별칭이라 서버는 `edit`의 이유만 준다. */
+const reasons = (
+  value: UnavailableReasons | undefined,
+): UnavailableReasons | undefined =>
+  value && { ...value, update: value.update ?? value.edit }
 const normalizeSpace = (
   space: RawSpace,
   members: SpaceMember[] = [],
@@ -27,11 +34,13 @@ const normalizeSpace = (
   deleted: Boolean(space.deletedAt),
   members,
   allowedActions: actions(space.allowedActions),
+  unavailableReasons: reasons(space.unavailableReasons),
 })
 const normalizeProject = (project: Project): Project => ({
   ...project,
   deleted: Boolean(project.deletedAt),
   allowedActions: actions(project.allowedActions),
+  unavailableReasons: reasons(project.unavailableReasons),
 })
 export async function fetchWorkspace(
   signal?: AbortSignal,
@@ -160,7 +169,7 @@ export async function createInvitation(spaceId: number): Promise<Invitation> {
     resolved.origin !== window.location.origin ||
     !resolved.pathname.startsWith('/spaces/join/')
   )
-    throw new Error('초대 링크를 확인할 수 없어요. 다시 시도해 주세요.')
+    throw new ClientGuardError('초대 링크를 확인할 수 없어요. 다시 시도해 주세요.')
   return { ...issued, id: issued.token, inviteUrl: resolved.href }
 }
 export const revokeInvitation = (spaceId: number, token: string) =>
@@ -181,10 +190,15 @@ export const acceptInvitation = (token: string) =>
 // ADR-0030 읽기 전용 요약. 숫자는 BE가 정의하고 FE는 그대로 보여 준다.
 export const fetchSpaceSummaries = (signal?: AbortSignal) =>
   httpClient<SpaceSummaries>(url('/spaces/summaries'), { signal })
-export const fetchSpaceSummary = (spaceId: number) =>
-  httpClient<SpaceSummary>(url(`/spaces/${spaceId}/summary`))
+export const fetchSpaceSummary = (spaceId: number, signal?: AbortSignal) =>
+  httpClient<SpaceSummary>(url(`/spaces/${spaceId}/summary`), { signal })
 /** start는 호출자 시간대의 월요일(YYYY-MM-DD). 월요일이 아니면 BE가 400을 준다. */
-export const fetchWeeklyRecord = (spaceId: number, start: string) =>
+export const fetchWeeklyRecord = (
+  spaceId: number,
+  start: string,
+  signal?: AbortSignal,
+) =>
   httpClient<WeeklyRecord>(
     url(`/spaces/${spaceId}/weekly-record?start=${encodeURIComponent(start)}`),
+    { signal },
   )

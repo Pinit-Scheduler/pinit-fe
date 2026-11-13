@@ -1,16 +1,20 @@
 import {
-  onTaskChanged,
-  onScheduleChanged,
   dispatchTaskChanged,
   dispatchScheduleChanged,
 } from '@shared/utils/events'
 import { reportEditConflict } from '@features/spaces/conflicts'
+import { useSpaces } from '@features/spaces/store'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
+import { presenceProps, useListPresence } from '@shared/motion'
+import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { surfaceLinkClick } from '@shared/routing/linkClick'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useRecurrenceScope } from '../components/RecurrenceScopeDialog'
 import { useToast } from '@contexts/ToastContext'
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import {
   deleteRecurrence,
   fetchRecurrences,
@@ -34,6 +38,13 @@ import './RecurrencesPage.css'
 
 const MODE_LABEL = { FIXED: '반복 일정', FLEXIBLE: '반복 작업' } as const
 
+const seriesKey = (series: RecurrenceSeries) => series.id ?? `title:${series.title}`
+
+const loadErrorMessage = (loadError: unknown) => {
+  console.error('반복 목록 조회 실패', loadError)
+  return getRequestFailureMessage(loadError, '반복 목록을 불러오지 못했어요.')
+}
+
 /**
  * 설정 → 반복 관리(ADR-0019 §14). 진행 중·끝난 반복 목록과 규칙 요약을 보고, 제목·규칙을 전체에 바꾸거나 반복을 끝낸다.
  * 회차 하나나 "이번 및 이후"는 일정·작업 화면에서 회차를 골라 바꾼다.
@@ -41,6 +52,8 @@ const MODE_LABEL = { FIXED: '반복 일정', FLEXIBLE: '반복 작업' } as cons
 const RecurrencesPage = () => {
   const { addToast } = useToast()
   const location = useLocation()
+  const { open } = useRouteSurfaceNavigation()
+  const { selectedSpaceId, selectedProjectId } = useSpaces()
   const confirmation = useRecurrenceScope()
   const [renaming, setRenaming] = useState<{
     id: number
@@ -48,8 +61,6 @@ const RecurrencesPage = () => {
     title: string
   } | null>(null)
   const [status, setStatus] = useState<RecurrenceStatus>('ACTIVE')
-  const [items, setItems] = useState<RecurrenceSeries[] | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState<{
     id: number
     version?: number
@@ -57,36 +68,23 @@ const RecurrencesPage = () => {
     errors: Record<string, string>
   } | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const lock = useRef(false)
 
-  // 스페이스를 바꿔도 이 화면에 머물므로, 늦게 도착한 이전 범위의 응답이 새 목록을 덮지 않게 한다.
-  const requestRef = useRef(0)
-  const load = useCallback(async () => {
-    const request = ++requestRef.current
-    setError(null)
-    try {
-      const response = await fetchRecurrences(status)
-      if (request !== requestRef.current) return
-      setItems(response.recurrences)
-    } catch (loadError) {
-      if (request !== requestRef.current) return
-      console.error('반복 목록 조회 실패', loadError)
-      setError('반복 목록을 불러오지 못했어요.')
-    }
-  }, [status])
-
-  useEffect(() => {
-    setItems(null)
-    void load()
-  }, [load])
-
-  useEffect(() => {
-    const offTask = onTaskChanged(() => void load())
-    const offSchedule = onScheduleChanged(() => void load())
-    return () => {
-      offTask()
-      offSchedule()
-    }
-  }, [load])
+  // 키에 상태·스페이스·프로젝트를 모두 넣는다. 범위를 바꾸면 이전 범위의 목록을 새 제목 아래에 보이지 않고,
+  // 늦게 도착한 이전 범위의 응답도 새 목록을 덮지 못한다. 같은 범위를 다시 읽는 동안에는 목록을 그대로 둔다.
+  const listKey = `recurrences/${status}/${selectedSpaceId ?? 'all'}/${selectedProjectId ?? 'all'}`
+  const {
+    data: items,
+    error,
+    isInitialLoading,
+    isRefreshing,
+    refetch,
+  } = useRevalidatingQuery<RecurrenceSeries[]>(
+    listKey,
+    async () => (await fetchRecurrences(status)).recurrences,
+    { invalidateOn: ['task', 'schedule'], errorMessage: loadErrorMessage },
+  )
+  const rows = useListPresence(items, seriesKey, { resetKey: listKey })
 
   useEffect(() => {
     writeFlag(NUDGE_KEYS.recurrencesNewBadgeSeen)
@@ -97,22 +95,23 @@ const RecurrencesPage = () => {
     work: (id: number) => Promise<boolean>,
     done: string,
   ) => {
-    if (series.id === null) return
+    if (series.id === null || lock.current) return
+    lock.current = true
     setBusyId(series.id)
     try {
       if (await work(series.id)) {
         addToast(done, 'success')
         setEditing(null)
         setRenaming(null)
+        // 이 이벤트가 목록을 다시 읽게 한다. 따로 다시 읽지 않는다.
         dispatchTaskChanged({ reason: 'recurrence' })
         dispatchScheduleChanged({ reason: 'recurrence' })
-        await load()
       }
     } catch (runError) {
       if (reportEditConflict(runError)) {
         setEditing(null)
         setRenaming(null)
-        await load()
+        refetch()
         return
       }
       if (runError instanceof ApiError && runError.status === 400 && editing) {
@@ -123,13 +122,15 @@ const RecurrencesPage = () => {
       }
       console.error('반복 변경 실패', runError)
       addToast(
-        runError instanceof ApiError && runError.status === 409
-          ? '반복이 이미 바뀌었어요. 다시 불러올게요.'
-          : '반복을 바꾸지 못했어요.',
+        getRequestFailureMessage(
+          runError,
+          '반복을 바꾸지 못했어요.',
+        ),
         'error',
       )
-      if (runError instanceof ApiError && runError.status === 409) await load()
+      if (runError instanceof ApiError && runError.status === 409) refetch()
     } finally {
+      lock.current = false
       setBusyId(null)
     }
   }
@@ -217,7 +218,7 @@ const RecurrencesPage = () => {
     )
 
   return (
-    <section className="recurrences">
+    <section className="recurrences" aria-busy={isRefreshing || undefined}>
       <header className="recurrences__header">
         <p className="recurrences__eyebrow">설정</p>
         <h1 className="recurrences__title">반복 관리</h1>
@@ -244,26 +245,30 @@ const RecurrencesPage = () => {
       </div>
 
       {error && (
-        <div className="recurrences__placeholder" role="alert">
+        <div
+          className="recurrences__placeholder recurrences__placeholder--notice"
+          role="alert"
+        >
           {error}{' '}
-          <button type="button" className="recurrences__link" onClick={load}>
+          <button type="button" className="recurrences__link" onClick={refetch}>
             다시 시도
           </button>
         </div>
       )}
-      {!error && items === null && (
-        <div className="recurrences__placeholder">
+      {isInitialLoading && (
+        <div className="recurrences__placeholder recurrences__placeholder--loading">
           반복 목록을 불러오는 중...
         </div>
       )}
-      {!error && items?.length === 0 && (
-        <div className="recurrences__placeholder">
+      {!error && items !== undefined && rows.length === 0 && (
+        <div className="recurrences__placeholder recurrences__placeholder--notice">
           {status === 'ACTIVE' ? (
             <>
               아직 반복이 없어요.{' '}
               <Link
                 to="/app/schedules/new"
                 state={{ backgroundLocation: location }}
+                onClick={surfaceLinkClick(open, '/app/schedules/new')}
               >
                 일정 추가
               </Link>
@@ -271,6 +276,7 @@ const RecurrencesPage = () => {
               <Link
                 to="/app/tasks/new"
                 state={{ backgroundLocation: location }}
+                onClick={surfaceLinkClick(open, '/app/tasks/new')}
               >
                 작업 추가
               </Link>
@@ -283,8 +289,13 @@ const RecurrencesPage = () => {
       )}
 
       <ul className="recurrences__list">
-        {items?.map((series) => (
-          <li key={series.id ?? series.title} className="recurrences__item">
+        {rows.map(({ key, item: series, phase }) => (
+          <li
+            key={key}
+            className="recurrences__item"
+            aria-busy={busyId === series.id || undefined}
+            {...presenceProps(phase)}
+          >
             <div className="recurrences__item-head">
               <p className="recurrences__item-title">
                 <WorkspaceIcon name="repeat" /> {series.title}
@@ -317,9 +328,7 @@ const RecurrencesPage = () => {
                       version: series.version,
                     })
                   }
-                  disabled={
-                    busyId === series.id || !series.allowedActions?.edit
-                  }
+                  disabled={!series.allowedActions?.edit}
                 >
                   제목 바꾸기
                 </button>
@@ -337,9 +346,7 @@ const RecurrencesPage = () => {
                           },
                     )
                   }
-                  disabled={
-                    busyId === series.id || !series.allowedActions?.edit
-                  }
+                  disabled={!series.allowedActions?.edit}
                 >
                   규칙 바꾸기
                 </button>
@@ -347,9 +354,7 @@ const RecurrencesPage = () => {
                   type="button"
                   className="is-danger"
                   onClick={() => end(series)}
-                  disabled={
-                    busyId === series.id || !series.allowedActions?.delete
-                  }
+                  disabled={!series.allowedActions?.delete}
                 >
                   끝내기
                 </button>
@@ -379,14 +384,13 @@ const RecurrencesPage = () => {
                   <button
                     type="button"
                     onClick={() => setRenaming(null)}
-                    disabled={busyId === series.id}
                   >
                     취소
                   </button>
                   <button
                     type="submit"
                     className="is-primary"
-                    disabled={busyId === series.id || !renaming.title.trim()}
+                    disabled={!renaming.title.trim()}
                   >
                     영향 확인 후 저장
                   </button>
@@ -417,7 +421,6 @@ const RecurrencesPage = () => {
                     type="button"
                     className="is-primary"
                     onClick={() => saveRule(series)}
-                    disabled={busyId === series.id}
                   >
                     규칙 저장
                   </button>

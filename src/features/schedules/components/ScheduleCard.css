@@ -4,18 +4,14 @@
   padding: 16px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
   cursor: pointer;
+  /* State changes recolor the edge; hover only deepens the border. Nothing lifts. */
   transition:
-    box-shadow 0.2s,
-    transform 0.2s;
+    border-color var(--motion-base) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
 }
 
 .schedule-card:hover {
   box-shadow: 0 4px 6px rgba(15, 23, 42, 0.12);
-  transform: translateY(-2px);
-}
-
-.schedule-card:active {
-  transform: translateY(0);
 }
 
 .schedule-card__main {
@@ -52,7 +48,11 @@
   align-items: center;
   justify-content: center;
   cursor: default;
-  transition: all 0.2s ease;
+  transition:
+    color var(--motion-base) var(--motion-ease),
+    background-color var(--motion-base) var(--motion-ease),
+    border-color var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
   flex-shrink: 0;
   box-shadow:
     inset 0 2px 4px rgba(148, 163, 184, 0.35),
@@ -69,14 +69,14 @@
 }
 
 .schedule-card__state-icon--clickable:hover {
-  transform: translateY(-1px) scale(1.02);
   box-shadow:
     inset 0 2px 6px rgba(148, 163, 184, 0.4),
     0 10px 18px rgba(15, 23, 42, 0.16);
 }
 
-.schedule-card__state-icon--clickable:active {
-  transform: scale(0.97);
+/* A press answers at once, before the save does (and wins over the hover reset below). */
+.schedule-card .schedule-card__state-icon--clickable:active {
+  transform: scale(var(--motion-press-scale-small));
 }
 
 .schedule-card__state-icon--not_started {
@@ -107,6 +107,7 @@
 .schedule-card__title {
   font-size: 16px;
   font-weight: 600;
+  transition: color var(--motion-base) var(--motion-ease);
 }
 
 .schedule-card__subtitle {
@@ -169,16 +170,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .schedule-card__delete-btn:hover {
   background-color: var(--c-red-100);
-  transform: scale(1.1);
 }
 
 .schedule-card__delete-btn:active {
-  transform: scale(0.95);
+  transform: scale(var(--motion-press-scale-small));
 }
 
 .schedule-card__description {
@@ -211,19 +214,24 @@
   gap: 6px;
   box-shadow: 0 6px 12px rgba(52, 211, 153, 0.24);
   transition:
-    transform 0.15s ease,
-    box-shadow 0.15s ease,
-    opacity 0.15s ease;
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
   white-space: nowrap;
 }
 
 .schedule-card__quick-complete:hover {
-  transform: translateY(-1px);
   box-shadow: 0 8px 16px rgba(52, 211, 153, 0.28);
 }
 
 .schedule-card__quick-complete:active {
-  transform: translateY(0);
+  transform: scale(var(--motion-press-scale-small));
+}
+
+/* The schedule completed: the button fades where it was while the mark draws. */
+.schedule-card__quick-complete[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
 }
 
 .schedule-card__actions {
@@ -246,15 +254,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
-}
-
-.schedule-card__action-btn:hover:not(:disabled) {
-  transform: scale(1.1);
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .schedule-card__action-btn:active:not(:disabled) {
-  transform: scale(0.95);
+  transform: scale(var(--motion-press-scale-small));
 }
 
 .schedule-card__action-btn:disabled {
@@ -358,7 +365,7 @@
 }
 .schedule-card__quick-complete:hover {
   box-shadow: none;
-  transform: none;
+  background: var(--c-blue-100);
 }
 .schedule-card__delete-btn {
   font-size: 14px;
@@ -399,4 +406,58 @@
   font-size: 12px;
   font-weight: 600;
   line-height: 1.5;
+  transition: color var(--motion-base) var(--motion-ease);
+}
+
+/* ------------------------------------------------------------------ */
+/* State changes. See docs/motion/README.md.                           */
+/* ------------------------------------------------------------------ */
+
+/* One slot for the state icon and the completed mark, so swapping them moves nothing. */
+.schedule-card__state-slot {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+}
+
+.schedule-card__glyph {
+  display: grid;
+  place-items: center;
+}
+
+/* A state changed on screen: the new glyph and label fade in where the old ones were. */
+.schedule-card__glyph.is-fresh,
+.schedule-card__swap {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+/* Completion: the box fills with the state ink, the tick draws, the title is struck through. */
+.schedule-card__check {
+  display: grid;
+  place-items: center;
+  --check-accent: var(--schedule-state-ink);
+}
+/* .completion-check sets its own default size, so the card's size goes on the check itself. */
+.schedule-card__check .completion-check {
+  --check-size: 26px;
+}
+
+/* The completed card settles into a muted title. Color only, so nothing moves. */
+.schedule-card.is-completed .schedule-card__title {
+  color: var(--c-slate-500);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schedule-card__glyph.is-fresh,
+  .schedule-card__swap {
+    --motion-keep-animation: var(--motion-base);
+  }
+  .schedule-card__quick-complete[data-state='closing'] {
+    --motion-keep-animation: var(--motion-exit);
+  }
+  .schedule-card__title,
+  .schedule-card__status {
+    --motion-keep-transition: var(--motion-base);
+  }
 }

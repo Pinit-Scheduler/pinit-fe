@@ -1,5 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { Link, Navigate } from 'react-router-dom'
+import { useState } from 'react'
 import { getAccessToken } from '@shared/api/authTokens'
 import './LandingPage.css'
 
@@ -33,35 +33,31 @@ const slides = [
 
 const LandingPage = () => {
   const [currentSlide, setCurrentSlide] = useState(0)
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    const token = getAccessToken()
-    if (token) {
-      navigate('/app/schedules', { replace: true })
-    }
-  }, [navigate])
+  // 로그인한 사용자는 소개 화면을 한 프레임도 그리지 않고 바로 앱으로 보낸다.
+  const [hasToken] = useState(() => !!getAccessToken())
   const goToSlide = (index: number) => setCurrentSlide(index)
   const goPrev = () => setCurrentSlide((prev) => Math.max(prev - 1, 0))
   const goNext = () => setCurrentSlide((prev) => Math.min(prev + 1, slides.length - 1))
 
+  if (hasToken) return <Navigate to="/app/schedules" replace />
+
   return (
     <div className="landing">
       <header className="landing__hero">
-        <div className="landing__badge">
+        <div className="landing__badge" data-reveal="0">
           <img src="/icons/icon.svg" alt="Pinit 아이콘" className="landing__logo-mark" />
           Pinit · 모바일 우선 플래너
         </div>
-        <h1>
+        <h1 data-reveal="1">
           Pinit으로
           <br />
           오늘의 집중 포인트를 고정하세요.
         </h1>
-        <p>
+        <p data-reveal="2">
           중요도와 난이도로 우선순위를 세우고, 의존 일정까지 한 번에 연결하는 모바일 최적화
           일정 관리 서비스입니다.
         </p>
-        <div className="landing__actions">
+        <div className="landing__actions" data-reveal="3">
           <Link to="/login" className="landing__action landing__action--primary">
             로그인하고 시작하기
           </Link>
@@ -71,29 +67,45 @@ const LandingPage = () => {
         <div className="landing__glow landing__glow--two" />
       </header>
 
-      <section className="landing__slider">
+      <section className="landing__slider" data-reveal="4">
         <div className="landing__slide">
           <p className="landing__eyebrow">
             <img src="/icons/icon.svg" alt="" className="landing__logo-chip" />
             Pinit 소개
           </p>
-          <div className="landing__slide-header">
-            <h2>{slides[currentSlide].title}</h2>
-            <p>{slides[currentSlide].description}</p>
+          {/* 모든 슬라이드를 한 칸에 겹쳐 두고 보이는 것만 바꾼다. 가장 긴 슬라이드에 높이를 맞춰 넘길 때 아래 버튼이 튀지 않는다. */}
+          <div className="landing__slide-stack">
+            {slides.map((slide, index) => {
+              const isActive = index === currentSlide
+              return (
+                <div
+                  key={slide.title}
+                  className="landing__slide-panel"
+                  data-position={isActive ? 'current' : index < currentSlide ? 'before' : 'after'}
+                  aria-hidden={!isActive || undefined}
+                  inert={!isActive || undefined}
+                >
+                  <div className="landing__slide-header">
+                    <h2>{slide.title}</h2>
+                    <p>{slide.description}</p>
+                  </div>
+                  <ul className="landing__bullets">
+                    {slide.bullets.map((bullet) => (
+                      <li key={bullet}>
+                        <span className="landing__dot" />
+                        <span>{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {slide.ctaHref && slide.ctaLabel && (
+                    <Link to={slide.ctaHref} className="landing__cta">
+                      {slide.ctaLabel}
+                    </Link>
+                  )}
+                </div>
+              )
+            })}
           </div>
-          <ul className="landing__bullets">
-            {slides[currentSlide].bullets.map((bullet) => (
-              <li key={bullet}>
-                <span className="landing__dot" />
-                <span>{bullet}</span>
-              </li>
-            ))}
-          </ul>
-          {slides[currentSlide].ctaHref && slides[currentSlide].ctaLabel && (
-            <Link to={slides[currentSlide].ctaHref} className="landing__cta">
-              {slides[currentSlide].ctaLabel}
-            </Link>
-          )}
         </div>
 
         <div className="landing__pagination">
@@ -106,6 +118,7 @@ const LandingPage = () => {
                 key={slide.title}
                 type="button"
                 className={currentSlide === index ? 'is-active' : ''}
+                aria-current={currentSlide === index || undefined}
                 onClick={() => goToSlide(index)}
               >
                 <span className="sr-only">{index + 1}번째 슬라이드</span>

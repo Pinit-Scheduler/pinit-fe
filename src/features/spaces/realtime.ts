@@ -104,13 +104,16 @@ async function subscribeToEvents(
       if (!response.ok || !response.body) throw new Error('Stream unavailable')
       connection(true)
       retry = 1000
-      // Reconnects may have missed events. Refresh views, preserving any open edit draft.
+      // A (re)connect starts at the latest change, so one debounced refresh covers the gap. The server
+      // fixes the start cursor before it answers (pinit-monolith PR #237, live since c2128cc8).
       changed()
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       const parse = createEventParser((name, data, id) => {
         if (signal.aborted || !sameMember()) return
-        if (id !== undefined) lastEventId = id
+        // The server binds Last-Event-ID as a number, so a stray non-numeric id would fail every
+        // reconnect. Keep only purely numeric ids.
+        if (id !== undefined && /^\d+$/.test(id)) lastEventId = id
         if (name !== 'changed') return
         try {
           const event = JSON.parse(data) as SpaceEvent

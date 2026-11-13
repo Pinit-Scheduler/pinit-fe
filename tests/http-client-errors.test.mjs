@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, errorMessage } from './support/errors.mjs'
 
 const loadModule = (relativePath, dependencies = {}, globals = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -33,7 +34,7 @@ const createClient = (response) => loadModule('../src/shared/api/httpClient.ts',
   './authTokens': { getAccessToken: () => null, isAccessTokenExpired: () => false, setAuthTokens: () => {} },
   './httpClientHelpers': { debugLog: () => {} },
   './authSession': { refreshAccessTokenFromCookie: async () => null },
-  './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
+  './errorMessage': errorMessage,
 }, { fetch: async () => response })
 
 test('login displays the server message and retains HTTP error details', async () => {
@@ -59,16 +60,74 @@ test('validation errors display the field reasons instead of an aggregate messag
   await assert.rejects(httpClient('/schedules'), { message: '제목을 입력해주세요. 날짜를 확인해주세요.' })
 })
 
+const ACTION = '일정을 저장하지 못했어요.'
+const failureMessage = async (client) => {
+  try {
+    await client.httpClient('/workspaces/schedules', { method: 'POST', json: { title: 'x' } })
+  } catch (error) {
+    return errorMessage.getRequestFailureMessage(error, ACTION)
+  }
+  assert.fail('request should fail')
+}
+
 for (const [name, response] of [
   ['HTML error', () => new Response('<html>Bad Gateway</html>', { status: 502 })],
   ['empty error', () => new Response(null, { status: 400 })],
   ['malformed message', () => Response.json({ message: { internal: 'details' } }, { status: 400 })],
 ]) {
-  test(`${name} displays a readable fallback`, async () => {
-    const { httpClient } = createClient(response())
-    await assert.rejects(httpClient('/schedules'), { message: '요청을 처리하지 못했습니다. 다시 시도해주세요.' })
+  test(`${name} carries no message, so the screen sentence asks to retry later`, async () => {
+    await assert.rejects(createClient(response()).httpClient('/schedules'), { message: '' })
+    assert.equal(await failureMessage(createClient(response())), `${ACTION} 잠시 후 다시 시도해 주세요.`)
   })
 }
+
+for (const [status, body] of [
+  [403, { code: 'FORBIDDEN', message: '이 프로젝트에 일정을 만들 권한이 없어요.' }],
+  [409, { message: '같은 이름의 태그가 이미 있어요.' }],
+  [503, { message: '잠시 후 다시 시도해 주세요.' }],
+]) {
+  test(`a ${status} response shows the server wording instead of the screen sentence`, async () => {
+    assert.equal(await failureMessage(createClient(Response.json(body, { status }))), body.message)
+  })
+}
+
+test('a network failure shows the screen sentence with a connection hint instead of the browser wording', async () => {
+  const client = loadModule('../src/shared/api/httpClient.ts', {
+    './config': { API_BASE_URL: 'https://api.example.test/v2', buildUrl: (base, path) => `${base}${path}` },
+    './authTokens': { getAccessToken: () => null, isAccessTokenExpired: () => false, setAuthTokens: () => {} },
+    './httpClientHelpers': { debugLog: () => {} },
+    './authSession': { refreshAccessTokenFromCookie: async () => null },
+    './errorMessage': errorMessage,
+  }, { fetch: async () => { throw new TypeError('Failed to fetch') } })
+  assert.equal(await failureMessage(client), `${ACTION} 인터넷 연결을 확인한 뒤 다시 시도해 주세요.`)
+})
+
+test('only a response or a client guard supplies wording that is shown as is', () => {
+  const { ClientGuardError, readFailureMessage } = errorMessage
+  assert.equal(readFailureMessage(apiError(' 서버 문구 ', 500)), '서버 문구')
+  assert.equal(readFailureMessage(new ClientGuardError('  일정을 다시 열어 최신 상태를 확인해 주세요. ')), '일정을 다시 열어 최신 상태를 확인해 주세요.')
+  assert.equal(readFailureMessage(apiError('Failed to fetch', 0)), undefined)
+  assert.equal(readFailureMessage(new Error('internal')), undefined)
+  assert.equal(readFailureMessage(apiError('  ', 400)), undefined)
+  assert.equal(readFailureMessage(undefined), undefined)
+})
+
+test('without shown wording the hint depends on whether a response arrived', () => {
+  const { ClientGuardError, getRequestFailureMessage } = errorMessage
+  const offline = '기본. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'
+  assert.equal(getRequestFailureMessage(new Error('internal'), '기본.'), offline)
+  assert.equal(getRequestFailureMessage(undefined, '기본.'), offline)
+  assert.equal(getRequestFailureMessage(new ClientGuardError(' '), '기본.'), offline)
+  assert.equal(getRequestFailureMessage(apiError('', 500), '기본.'), '기본. 잠시 후 다시 시도해 주세요.')
+  assert.equal(
+    getRequestFailureMessage(apiError('', 0), '기본.', { retryFrom: '설정 → 휴지통에서' }),
+    '기본. 인터넷 연결을 확인한 뒤 설정 → 휴지통에서 다시 시도해 주세요.',
+  )
+  assert.equal(
+    getRequestFailureMessage(apiError('', 404), '기본.', { retryFrom: '설정 → 휴지통에서' }),
+    '기본. 잠시 후 설정 → 휴지통에서 다시 시도해 주세요.',
+  )
+})
 
 test('successful JSON and empty responses remain unchanged', async () => {
   const jsonClient = createClient(Response.json({ token: 'test-token' }))
@@ -93,7 +152,7 @@ test('sensitive responses stay out of debug logs and are not sent as fetch optio
       debugLog: (...args) => logs.push(JSON.stringify(args)),
     },
     './authSession': { refreshAccessTokenFromCookie: async () => null },
-    './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
+    './errorMessage': errorMessage,
   }, {
     fetch: async (_url, init) => {
       fetchInits.push(init)

@@ -6,6 +6,7 @@ import vm from 'node:vm'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
 const require = createRequire(import.meta.url)
 const load = (file, dependencies = {}, globals = {}) => {
@@ -17,10 +18,7 @@ const load = (file, dependencies = {}, globals = {}) => {
   const module = { exports: {} }
   vm.runInNewContext(outputText, {
     module, exports: module.exports, console, AbortController, Error, Set, Date,
-    require: (name) => {
-      assert.ok(name in dependencies, `Unexpected dependency ${name}`)
-      return dependencies[name]
-    }, ...globals,
+    require: requireFrom(dependencies), ...globals,
   })
   return module.exports
 }
@@ -185,9 +183,15 @@ test('409 selection conflict retains preview and checkbox selection for correcti
   await host.render().applySelection()
   assert.equal(host.render().preview.snapshotToken, 'server-snapshot')
   assert.deepEqual(plain(host.render().selectedIds), [101])
-  assert.match(host.render().error, /현재 상태에서는 이 동작을 할 수 없어요/)
-  assert.match(host.render().error, /선택하지 않은 일정과 선행 작업/)
+  assert.equal(host.render().error, '원래 일정과 겹칩니다.')
   assert.equal(host.render().requiresPreview, false)
+})
+
+test('409 without a server message tells the member what to check', async () => {
+  const host = harness({ applyApi: async () => { throw new ApiError('', 409) } })
+  await host.render().loadPreview()
+  await host.render().applySelection()
+  assert.equal(host.render().error, '현재 상태에서는 이 동작을 할 수 없어요. 선택하지 않은 일정과 선행 작업을 확인하거나 새 미리보기를 받아 주세요.')
 })
 
 test('unknown apply outcome cannot be retried until a fresh preview succeeds', async () => {
@@ -198,7 +202,7 @@ test('unknown apply outcome cannot be retried until a fresh preview succeeds', a
   })
   await host.render().loadPreview()
   await host.render().applySelection()
-  assert.match(host.render().error, /적용 결과를 확인하지 못했어요/)
+  assert.equal(host.render().error, '적용 결과를 확인하지 못했어요. 일정을 확인하고 새 미리보기를 받아 주세요.')
   await host.render().applySelection()
   assert.equal(applies, 1)
   previewFails = true
@@ -352,6 +356,7 @@ test('rendered preview exposes before/after, protected reasons and original-slot
       selectedSpace: { id: 10, name: '공유 공간', version: 1, members: [{ memberId: 1, role: 'MEMBER' }], allowedActions: { edit: false } }, selectedProject: null }) },
     '../hooks/useDayReplan': () => ({ delay: '30', preview: preview(), phase: 'idle', selectedIds: [101], appliedCount: null }),
     '../utils/replanning': utils, './DayReplanningPanel.css': {},
+    '@shared/motion/usePresence': { usePresence: (value) => ({ mounted: Boolean(value), closing: false, value: value || undefined }) },
   }).default
   const html = renderToStaticMarkup(React.createElement(panel, { date: '2026-11-09', zoneId: 'Asia/Seoul', onApplied() {} }))
   assert.match(html, /변경 전/)

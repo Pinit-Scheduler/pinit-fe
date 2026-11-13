@@ -1,7 +1,9 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { presenceProps, type PresencePhase } from '@shared/motion'
 import dayjs from 'dayjs'
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { getTodayWithOffset } from '@shared/utils/datetime'
@@ -28,6 +30,7 @@ import {
   validateOverrideItems,
 } from '../utils/routineRules'
 import type { OverrideItemDraft, RoutineDraft, RoutineIssue } from '../utils/routineRules'
+import PresenceList from '@shared/components/motion/PresenceList'
 
 const KINDS: RoutineKind[] = ['BREAKFAST', 'LUNCH', 'DINNER', 'SLEEP', 'CUSTOM']
 const HOUR_OPTIONS = Array.from({ length: 17 }, (_, hours) => hours)
@@ -51,6 +54,9 @@ type Props = {
   onReminderEnabled: () => void
 }
 
+const overrideKey = (override: RoutineOverride) => override.date
+const itemKey = (item: OverrideItemDraft) => item.key
+
 const dateLabel = (date: string) => {
   const day = dayOfWeekOf(date)
   return `${dayjs(date).format('M월 D일')}${day ? ` (${DAY_LABEL[day]})` : ''}`
@@ -73,7 +79,9 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
   const { offsetMinutes } = useTimePreferences()
   const today = useMemo(() => getTodayWithOffset(offsetMinutes).format('YYYY-MM-DD'), [offsetMinutes])
   const [overrides, setOverrides] = useState<RoutineOverride[]>([])
+  // 첫 로딩에만 자리 문구를 보인다. 저장·삭제 뒤 다시 읽을 때는 목록을 그대로 둔다.
   const [isLoading, setIsLoading] = useState(true)
+  const hasLoaded = useRef(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -81,17 +89,20 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
   const [generalErrors, setGeneralErrors] = useState<string[]>([])
 
   const load = useCallback(async () => {
-    setIsLoading(true)
     setLoadError(null)
     try {
       const response = await fetchRoutineOverrides({ from: addDays(today, -1), to: addDays(today, OVERRIDE_FUTURE_DAYS) })
       setOverrides(response?.overrides ?? [])
+      hasLoaded.current = true
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : '날짜 예외를 불러오지 못했어요.')
+      const message = getRequestFailureMessage(error, '날짜 예외를 불러오지 못했어요.')
+      // 이미 보이는 목록이 있으면 그대로 두고 알리기만 한다.
+      if (hasLoaded.current) addToast(message, 'error')
+      else setLoadError(message)
     } finally {
       setIsLoading(false)
     }
-  }, [today])
+  }, [today, addToast])
 
   useEffect(() => {
     load()
@@ -194,12 +205,14 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
         })
         setServerIssues(byKey)
         setGeneralErrors(mapped.general)
-      } else if (error instanceof ApiError && error.status === 409) {
-        setGeneralErrors(['다른 곳에서 생활 시간이 먼저 바뀌었어요. 다시 저장해 주세요.'])
+        addToast('날짜 예외를 저장하지 못했어요.', 'error')
       } else {
-        setGeneralErrors([error instanceof Error ? error.message : '저장하지 못했어요.'])
+        const message = error instanceof ApiError && error.status === 409
+          ? readFailureMessage(error) ?? '다른 곳에서 생활 시간이 먼저 바뀌었어요. 다시 저장해 주세요.'
+          : getRequestFailureMessage(error, '날짜 예외를 저장하지 못했어요.')
+        setGeneralErrors([message])
+        addToast(message, 'error')
       }
-      addToast('날짜 예외를 저장하지 못했어요.', 'error')
     } finally {
       setIsSaving(false)
     }
@@ -208,15 +221,18 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
   const handleDelete = async (date: string) => {
     try {
       await deleteRoutineOverride(date)
+      // 지운 줄은 바로 사라지게 하고, 서버 목록으로 다시 맞춘다.
+      setOverrides((previous) => previous.filter((override) => override.date !== date))
       addToast(`${dateLabel(date)}은 다시 평소 생활 시간을 따라요.`, 'success')
       if (editor?.originalDate === date) setEditor(null)
       await load()
     } catch (error) {
-      addToast(error instanceof Error ? error.message : '날짜 예외를 지우지 못했어요.', 'error')
+      addToast(getRequestFailureMessage(error, '날짜 예외를 지우지 못했어요.'), 'error')
     }
   }
 
-  const renderItem = (item: OverrideItemDraft, index: number) => {
+  const renderItem = (item: OverrideItemDraft, phase: PresencePhase) => {
+    const index = editor ? editor.items.indexOf(item) : -1
     const issues = [...(validation.byIndex[index] ?? []), ...(serverIssues[item.key] ?? [])]
     const minutes = item.durationMinutes ?? 0
     const hours = Math.floor(minutes / 60)
@@ -224,7 +240,11 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
     const minuteOptions = MINUTE_OPTIONS.includes(rest) ? MINUTE_OPTIONS : [...MINUTE_OPTIONS, rest].sort((a, b) => a - b)
     const name = item.kind === 'CUSTOM' ? item.label.trim() || '이름 없음' : KIND_LABEL[item.kind]
     return (
-      <li key={item.key} className={['routines__entry', issues.length > 0 ? 'has-issue' : ''].filter(Boolean).join(' ')}>
+      <li
+        key={item.key}
+        className={['routines__entry', issues.length > 0 ? 'has-issue' : ''].filter(Boolean).join(' ')}
+        {...presenceProps(phase)}
+      >
         <div className="routines__row">
           <label className="routines__field">
             <span>종류</span>
@@ -332,58 +352,56 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
       </div>
 
       {isLoading ? (
-        <p className="routines__card-sub">날짜 예외를 불러오는 중...</p>
+        <p className="routines__card-sub routines__placeholder--loading">날짜 예외를 불러오는 중...</p>
       ) : loadError ? (
-        <p className="routines__error" role="alert">
-          날짜 예외를 불러오지 못했어요.{' '}
+        <p className="routines__error routines__placeholder--notice" role="alert">
+          {loadError}{' '}
           <button type="button" className="routines__link-button" onClick={load}>
             다시 시도
           </button>
         </p>
       ) : (
         <>
-          {editable.length > 0 && (
-            <ul className="routines__overrides">
-              {editable.map((override) => (
-                <li key={override.date} className="routines__override">
-                  <div>
-                    <p className="routines__override-date">
-                      {dateLabel(override.date)}
-                      {override.note && <span className="routines__override-note"> · {override.note}</span>}
-                    </p>
-                    <p className="routines__card-sub">
-                      {override.routines.length === 0
-                        ? '생활 시간 없음'
-                        : override.routines.map((item, index) => (
-                            <span key={index}>
-                              {index > 0 && ' / '}{itemSummary(item)}
-                              {item.remindAtStart && <WorkspaceIcon name="bell" />}
-                            </span>
-                          ))}
-                    </p>
-                  </div>
-                  <div className="routines__override-actions">
-                    <button
-                      type="button"
-                      className="routines__link-button"
-                      onClick={() => openExisting(override)}
-                      disabled={isSaving}
-                    >
-                      고치기
-                    </button>
-                    <button
-                      type="button"
-                      className="routines__link-button"
-                      onClick={() => handleDelete(override.date)}
-                      disabled={isSaving}
-                    >
-                      지우기
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+          <PresenceList items={editable} getKey={overrideKey} className="routines__overrides">
+            {(override, phase) => (
+              <li key={override.date} className="routines__override" {...presenceProps(phase)}>
+                <div>
+                  <p className="routines__override-date">
+                    {dateLabel(override.date)}
+                    {override.note && <span className="routines__override-note"> · {override.note}</span>}
+                  </p>
+                  <p className="routines__card-sub">
+                    {override.routines.length === 0
+                      ? '생활 시간 없음'
+                      : override.routines.map((item, index) => (
+                          <span key={index}>
+                            {index > 0 && ' / '}{itemSummary(item)}
+                            {item.remindAtStart && <WorkspaceIcon name="bell" />}
+                          </span>
+                        ))}
+                  </p>
+                </div>
+                <div className="routines__override-actions">
+                  <button
+                    type="button"
+                    className="routines__link-button"
+                    onClick={() => openExisting(override)}
+                    disabled={isSaving}
+                  >
+                    고치기
+                  </button>
+                  <button
+                    type="button"
+                    className="routines__link-button"
+                    onClick={() => handleDelete(override.date)}
+                    disabled={isSaving}
+                  >
+                    지우기
+                  </button>
+                </div>
+              </li>
+            )}
+          </PresenceList>
 
           {editor ? (
             <div className="routines__override-editor">
@@ -417,7 +435,10 @@ const RoutineOverridesSection = ({ weekly, onReminderEnabled }: Props) => {
                   ? '이날은 생활 시간을 모두 건너뛰어요. 전날 밤 시작한 수면은 전날 설정을 따라요.'
                   : '이날 시작하는 생활 시간을 아래 목록으로 바꿔요.'}
               </p>
-              {editor.items.length > 0 && <ul className="routines__entries">{editor.items.map(renderItem)}</ul>}
+              {/* 날짜를 바꿔 그 요일 항목으로 다시 채울 때는 통째로 바꾸고, 하나씩 더하고 뺄 때만 움직인다. */}
+              <PresenceList items={editor.items} getKey={itemKey} className="routines__entries" resetKey={editor.date}>
+                {renderItem}
+              </PresenceList>
               <div className="routines__override-actions">
                 <select
                   className="routines__add-select"

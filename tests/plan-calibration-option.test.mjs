@@ -23,7 +23,24 @@ const { outputText } = ts.transpileModule(source, {
   },
 })
 const module = { exports: {} }
+const loadPlain = (path) => {
+  const { outputText: code } = ts.transpileModule(
+    readFileSync(new URL('../src/' + path, import.meta.url), 'utf8'),
+    {
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+      },
+    },
+  )
+  const loaded = { exports: {} }
+  vm.runInNewContext(code, { module: loaded, exports: loaded.exports, Set, Map })
+  return loaded.exports
+}
 const dependencies = {
+  '../utils/planMotion': loadPlain('features/planner/utils/planMotion.ts'),
+  '../utils/planData': loadPlain('features/planner/utils/planData.ts'),
+  '@shared/routing/linkClick': loadPlain('shared/routing/linkClick.ts'),
   'react-router-dom': {
     Link: ({ to, children }) =>
       React.createElement('a', { href: to }, children),
@@ -53,8 +70,36 @@ const dependencies = {
     validatePlanSelection: () => ({}),
     findRoutineConflicts: () => ({}),
   },
-  '../hooks/useDayPlan': () => report,
+  '../hooks/useDayPlan': () => ({
+    planKey: null,
+    isInitialLoading: report.isLoading && !report.plan,
+    ...report,
+  }),
   '../components/DayReplanningPanel': () => null,
+  '@shared/components/common/StatusPanel': ({ title, description }) =>
+    React.createElement('div', null, title, description),
+  '@shared/routing/RouteSurface': {
+    useRouteSurfaceNavigation: () => ({ open: () => {} }),
+  },
+  '@shared/routing/viewTransitionNavigation': { tabLinkClick: () => () => {} },
+  '@shared/motion/useListPresence': {
+    useListPresence: (items, getKey) =>
+      (items ?? []).map((item) => ({
+        key: String(getKey(item)),
+        item,
+        phase: 'present',
+      })),
+    presenceProps: () => ({}),
+  },
+  '@shared/motion/usePresence': {
+    usePresence: (value) => ({
+      mounted: Boolean(value),
+      closing: false,
+      value: value || undefined,
+    }),
+  },
+  '@shared/motion/useTweenedNumber': { useTweenedNumber: (value) => value },
+  '@shared/motion/tokens': { MOTION_FLASH_MS: 1200, prefersReducedMotion: () => false },
 }
 vm.runInNewContext(outputText, {
   module,

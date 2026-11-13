@@ -24,6 +24,17 @@
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
 }
 
+/*
+ * 단계(확인 중 → 요청 → 돌아가는 중·오류)가 바뀔 때마다 새 내용이 살짝 올라온다. 확인 중 문구는 잠깐 기다렸다가
+ * 나타나, 빠르게 열리는 요청에는 보이지 않는다. 같은 단계 안에서 다시 그릴 때는 움직이지 않는다.
+ */
+.consent__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
 .consent__brand {
   display: flex;
   align-items: center;
@@ -122,6 +133,18 @@
   border-radius: 12px;
   border: 1px solid var(--c-slate-200);
   cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+/* 고른 선택 권한은 테두리가 조용히 짙어진다. 필수 권한(늘 체크, 바꿀 수 없음)은 그대로 둔다. */
+.consent__scope:has(input:checked:not(:disabled)) {
+  border-color: var(--c-blue-300);
+}
+
+.consent__scope--caution:has(input:checked:not(:disabled)) {
+  border-color: var(--c-red-300);
 }
 
 .consent__scope input {
@@ -175,6 +198,7 @@
 .consent__error {
   font-size: 13px;
   color: var(--c-red-700);
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 
 .consent__actions {
@@ -188,6 +212,15 @@
   border-radius: 12px;
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.consent__btn:not(:disabled):active {
+  transform: scale(var(--motion-press-scale));
 }
 
 .consent__btn:disabled {
@@ -218,6 +251,11 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
+.consent__state--loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) var(--motion-status-delay) both;
 }
 
 .consent__state h1 {

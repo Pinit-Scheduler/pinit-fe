@@ -2,6 +2,13 @@
   position: fixed;
   inset: 0;
   z-index: var(--z-onboarding);
+  /* 투어가 시작되면 덮개가 스며들고, 끝나면 덮개와 말풍선이 함께 흐려진다. */
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+.spotlight-tour[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
 }
 
 .spotlight-tour__backdrop {
@@ -36,12 +43,17 @@
   /* 앵커를 찾기 전에는 보이지도, 눌리지도, focus를 받지도 않는다. */
   visibility: hidden;
   opacity: 0;
-  transition: opacity 150ms ease;
+  /* 단계마다 새 자리에서 살짝 올라오며 나타난다(가운데 정렬 transform과 따로 움직이도록 translate를 쓴다). */
+  translate: 0 var(--motion-distance);
+  transition:
+    opacity var(--motion-base) var(--motion-ease),
+    translate var(--motion-enter) var(--motion-ease);
 }
 
 .spotlight-tour__callout.is-ready {
   visibility: visible;
   opacity: 1;
+  translate: 0 0;
 }
 
 .spotlight-tour__meta {
@@ -121,6 +133,15 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.spotlight-tour__prev:not(:disabled):active,
+.spotlight-tour__next:active {
+  transform: scale(var(--motion-press-scale));
 }
 
 .spotlight-tour__prev {
@@ -149,5 +170,6 @@
 @media (prefers-reduced-motion: reduce) {
   .spotlight-tour__callout {
     transition: none;
+    translate: none;
   }
 }

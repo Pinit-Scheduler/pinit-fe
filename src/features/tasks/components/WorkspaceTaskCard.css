@@ -10,40 +10,8 @@
   border-bottom: 0;
 }
 .workspace-task__check {
-  appearance: none;
-  width: 24px;
-  height: 24px;
+  /* CompletionCheck (src/shared/components/motion). */
   margin-top: 5px;
-  border: 1.5px solid var(--c-slate-300);
-  border-radius: 50%;
-  background: var(--c-surface);
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-}
-.workspace-task__check:checked {
-  border-color: var(--c-blue-600);
-  background: var(--c-blue-600);
-}
-.workspace-task__check:checked::after {
-  content: '';
-  width: 5px;
-  height: 9px;
-  border: solid var(--c-surface);
-  border-width: 0 2px 2px 0;
-  transform: translateY(-1px) rotate(45deg);
-}
-.workspace-task__check:disabled {
-  cursor: wait;
-  opacity: 0.5;
-}
-@media (forced-colors: active) {
-  .workspace-task__check {
-    appearance: auto;
-  }
-  .workspace-task__check:checked::after {
-    content: none;
-  }
 }
 .workspace-task__title {
   font-size: 17px;
@@ -57,8 +25,19 @@
 .workspace-task__title:hover {
   color: var(--c-blue-600);
 }
+.workspace-task__title {
+  transition: color var(--motion-base) var(--motion-ease);
+}
+/* Completed rows settle to the muted style; .motion-strike draws the line. */
 .workspace-task.is-completed .workspace-task__title {
-  text-decoration: line-through;
+  color: var(--c-slate-400);
+}
+.workspace-task__meta,
+.workspace-task__side {
+  transition: color var(--motion-base) var(--motion-ease);
+}
+.workspace-task.is-completed .workspace-task__meta,
+.workspace-task.is-completed .workspace-task__side {
   color: var(--c-slate-400);
 }
 .workspace-task__meta {
@@ -81,6 +60,12 @@
   margin-top: 9px;
   cursor: pointer;
 }
+.workspace-task__connection {
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+.workspace-task__connection:hover {
+  background: var(--c-blue-100);
+}
 .workspace-task__connection svg {
   width: 13px;
   height: 13px;
@@ -94,6 +79,15 @@
 .workspace-task__description summary {
   cursor: pointer;
   min-height: 28px;
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+.workspace-task__description summary:hover {
+  color: var(--c-slate-700);
+}
+/* Opening the description: its content rises in under the summary. Closing is instant,
+   as <details> unmounts the content. */
+.workspace-task__description[open] > :not(summary) {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 .workspace-task__description p {
   margin: 8px 0;
@@ -138,6 +132,14 @@
 }
 .workspace-task__error {
   grid-column: 1/-1;
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-task__description[open] > :not(summary),
+  .workspace-task__error {
+    animation-name: motion-fade-in;
+    --motion-keep-animation: var(--motion-base);
+  }
 }
 @media (max-width: 600px) {
   .workspace-task {

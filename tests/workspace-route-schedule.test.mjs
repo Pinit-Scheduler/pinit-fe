@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, errorMessage } from './support/errors.mjs'
+import { findElement, hookRuntime, loadApp } from './support/app.mjs'
 
 const load = (path, deps = {}, globals = {}) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -101,7 +103,9 @@ const harness = ({
     requests.push([name, id])
     if (deferred) await deferred
     if (failing === 'conflict') throw { conflict: true }
-    if (failing) throw new Error('connection lost')
+    // 응답이 오지 않은 실패: httpClient는 네트워크 오류를 status 0인 ApiError로 던진다.
+    if (failing)
+      throw apiError('connection lost', 0)
     return {
       id,
       state: {
@@ -158,7 +162,7 @@ const harness = ({
     '../api/schedules.ts': api,
     '@features/spaces/metadata': { getMetadata: () => undefined },
     '@features/spaces/conflicts': {
-      CONFLICT_RELOADED: 'reloaded',
+      conflictReloadedMessage: () => 'reloaded',
       isEditConflict: (error) => error?.conflict === true,
     },
     '@features/auth/api/member': {
@@ -184,6 +188,7 @@ const harness = ({
     },
     '@contexts/ScheduleCacheContext': { useScheduleCache: () => cache },
     '@contexts/ToastContext': { useToast: () => ({ addToast() {} }) },
+    '@shared/api/errorMessage': errorMessage,
     '@shared/utils/events': {
       dispatchScheduleChanged: (event) => events.push(event),
     },
@@ -214,7 +219,11 @@ for (const action of ['complete', 'cancel'])
     assert.deepEqual(h.active, [])
     assert.deepEqual(h.updates, [])
     assert.deepEqual(h.events, [])
-    assert.equal(h.states[2], 'connection lost')
+    assert.equal(
+      h.states[2],
+      '일정 상태를 바꾸지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+      'a network failure shows the screen fallback, not the raw error',
+    )
     h.succeed()
     await h.actions.retry()
     assert.deepEqual(h.active, [null])
@@ -342,4 +351,63 @@ test('retry after a successful start with a failed active-ID lookup verifies wit
   assert.deepEqual(h.requests, [['start', 9]])
   assert.deepEqual(h.active, [9])
   assert.equal(h.states[2], null)
+})
+
+test('closing a surface steps back over the page that opened it, never past a replaced page', () => {
+  const close = (input) =>
+    plain(
+      routing.surfaceCloseAction({
+        hasState: false,
+        hasBackground: false,
+        replacedPage: null,
+        historyIndex: 3,
+        fallback: '/app/tasks',
+        ...input,
+      }),
+    )
+  // Opened with open() (background state) or with a plain link over a page shown this session.
+  assert.deepEqual(close({ hasState: true }), { back: true })
+  assert.deepEqual(close({ hasBackground: true }), { back: true })
+  // The onboarding tour replaces /app/tasks with /app/tasks/new: stepping back would leave the
+  // tour's page for whatever came before it. Go to the replaced page instead.
+  assert.deepEqual(close({ hasBackground: true, replacedPage: '/app/tasks?tour=1' }), {
+    back: false,
+    to: '/app/tasks?tour=1',
+  })
+  assert.deepEqual(close({ replacedPage: '/app/today', historyIndex: 0 }), {
+    back: false,
+    to: '/app/today',
+  })
+  // A deep link or the first history entry falls back to the list.
+  assert.deepEqual(close({ hasBackground: true, historyIndex: 0 }), { back: false, to: '/app/tasks' })
+  assert.deepEqual(close({}), { back: false, to: '/app/tasks' })
+})
+
+test('a surface that replaced a page hands that page to the surface; a pushed surface does not', () => {
+  const runtime = hookRuntime()
+  let location = null
+  let navigationType = 'POP'
+  const { WorkspaceRoutes } = loadApp(runtime, {
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneKey: 'UTC@0' }) },
+    'react-router-dom': { useLocation: () => location, useNavigationType: () => navigationType },
+  })
+  const at = (pathname, search = '', state = null) => ({ pathname, search, hash: '', state, key: pathname + search })
+  const replacedPage = () => {
+    const tree = runtime.render(WorkspaceRoutes)
+    return findElement(tree, (node) => node.type?.displayName === '@shared/routing/RouteSurface#RouteSurface')?.props.replacedPage
+  }
+  location = at('/app/tasks', '?tour=1')
+  assert.equal(replacedPage(), undefined, 'no surface over a plain page')
+  // The onboarding tour replaces its page with the create form.
+  navigationType = 'REPLACE'
+  location = at('/app/tasks/new')
+  assert.equal(replacedPage(), '/app/tasks?tour=1')
+  // A surface replaced by another surface keeps the page the first one replaced.
+  location = at('/app/tasks/8')
+  assert.equal(replacedPage(), '/app/tasks?tour=1')
+  navigationType = 'PUSH'
+  location = at('/app/today')
+  runtime.render(WorkspaceRoutes)
+  location = at('/app/tasks/9')
+  assert.equal(replacedPage(), null, 'a pushed surface steps back normally')
 })

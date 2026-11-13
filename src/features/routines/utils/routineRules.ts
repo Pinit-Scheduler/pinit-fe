@@ -115,6 +115,24 @@ export const toRoutineInput = (draft: RoutineDraft): RoutineInput => ({
   remindAtStart: draft.remindAtStart,
 })
 
+/**
+ * 저장하거나 다시 읽어 받은 항목에 화면의 기존 key를 돌려준다. 내용이 같으면 그 key를, 없으면 같은 종류의 남은 key를
+ * 순서대로 쓴다. key가 이어져야 저장할 때마다 모든 항목이 새로 그려지며 새로 나타나는 것처럼 보이지 않는다.
+ */
+export const reuseDraftKeys = <D extends RoutineDraft>(next: D[], previous: readonly RoutineDraft[]): D[] => {
+  const signature = (draft: RoutineDraft) => JSON.stringify(toRoutineInput(draft))
+  const unused = [...previous]
+  const take = (match: (candidate: RoutineDraft) => boolean) => {
+    const index = unused.findIndex(match)
+    return index < 0 ? null : unused.splice(index, 1)[0].key
+  }
+  const exact = next.map((draft) => take((candidate) => signature(candidate) === signature(draft)))
+  return next.map((draft, index) => ({
+    ...draft,
+    key: exact[index] ?? take((candidate) => candidate.kind === draft.kind) ?? draft.key,
+  }))
+}
+
 type Occurrence = { day: DayOfWeek; start: number; end: number }
 
 const occurrencesOf = (draft: RoutineDraft): Occurrence[] => {

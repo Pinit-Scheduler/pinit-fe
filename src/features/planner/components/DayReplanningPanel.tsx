@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import dayjs from 'dayjs'
+import { usePresence } from '@shared/motion/usePresence'
 import { useSpaces } from '@features/spaces/store'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import useDayReplan from '../hooks/useDayReplan'
 import type { ReplanScope } from '../hooks/useDayReplan'
 import { isReplanExpired, replanReasonLabel, validateReplanDelay } from '../utils/replanning'
@@ -17,11 +19,21 @@ const DayReplanningContent = ({ date, zoneId, onApplied, disabled = false, scope
     return () => window.clearInterval(timer)
   }, [])
   const isToday = dayjs(now).tz(zoneId).format('YYYY-MM-DD') === date
+  // The preview fades out where it was (a new delay, a new preview, an applied change) instead of
+  // vanishing. While it leaves it keeps the selection it had, and ignores input.
+  const shownPreview = useMemo(
+    () => (replan.preview ? { preview: replan.preview, selectedIds: replan.selectedIds } : null),
+    [replan.preview, replan.selectedIds],
+  )
+  const previewPresence = usePresence(shownPreview)
+  const leaving = previewPresence.closing
+  const preview = previewPresence.value?.preview ?? null
+  const shownSelectedIds = previewPresence.value?.selectedIds ?? replan.selectedIds
   const expired = replan.preview ? isReplanExpired(replan.preview.plannedAt, now) : false
   const busy = replan.phase !== 'idle'
   const delayError = validateReplanDelay(replan.delay)
   const selectedCount = replan.selectedIds.length
-  const format = (instant: string) => dayjs(instant).tz(replan.preview?.zoneId ?? zoneId).format('HH:mm')
+  const format = (instant: string) => dayjs(instant).tz(preview?.zoneId ?? zoneId).format('HH:mm')
   const range = (start: string, end: string) => `${format(start)}–${format(end)}`
 
   return (
@@ -56,19 +68,20 @@ const DayReplanningContent = ({ date, zoneId, onApplied, disabled = false, scope
       {replan.accessDenied && <p className="day-replan__error" role="status">스페이스 접근 권한을 다시 확인해 주세요. <button type="button" onClick={onReloadSpace}>스페이스 다시 불러오기</button></p>}
       {replan.appliedCount !== null && <p className="day-replan__success" role="status">{replan.appliedCount}개 일정의 시간을 변경했어요. 일정 목록에서 확인할 수 있어요.</p>}
 
-      {replan.preview && (
-        <div className="day-replan__preview">
+      {previewPresence.mounted && preview && (
+        <div className="day-replan__preview" data-state={leaving ? 'closing' : undefined}
+          inert={leaving || undefined} aria-hidden={leaving || undefined}>
           <div className="day-replan__summary">
             <h3>변경 전후</h3>
-            <span>{replan.preview.changes.length}개 이동 제안</span>
+            <span>{preview.changes.length}개 이동 제안</span>
           </div>
           <p className="day-replan__hint">체크한 일정만 옮겨요. 선택하지 않은 일정은 원래 시간에 남아서 충돌하거나 선행 순서가 맞지 않으면 전체 적용이 거절될 수 있어요.</p>
-          {replan.preview.changes.length === 0 ? <p className="day-replan__empty">지금 옮길 수 있는 일정이 없어요. 아래 유지·배치 불가 사유를 확인해 주세요.</p> : (
+          {preview.changes.length === 0 ? <p className="day-replan__empty">지금 옮길 수 있는 일정이 없어요. 아래 유지·배치 불가 사유를 확인해 주세요.</p> : (
             <ul className="day-replan__changes">
-              {replan.preview.changes.map((change) => (
-                <li key={change.scheduleId}>
+              {preview.changes.map((change, index) => (
+                <li key={change.scheduleId} style={{ '--replan-stagger': Math.min(index, 6) } as CSSProperties}>
                   <label className="day-replan__change">
-                    <input type="checkbox" checked={replan.selectedIds.includes(change.scheduleId)}
+                    <input type="checkbox" checked={shownSelectedIds.includes(change.scheduleId)}
                       onChange={(event) => replan.toggle(change.scheduleId, event.target.checked)} disabled={busy || disabled} />
                     <div className="day-replan__change-content">
                       <span className="day-replan__title">{change.title}</span>
@@ -84,21 +97,21 @@ const DayReplanningContent = ({ date, zoneId, onApplied, disabled = false, scope
               ))}
             </ul>
           )}
-          {replan.preview.unplaced.length > 0 && (
+          {preview.unplaced.length > 0 && (
             <div className="day-replan__reasons">
-              <h3>배치하지 못한 일정 · {replan.preview.unplaced.length}개</h3>
+              <h3>배치하지 못한 일정 · {preview.unplaced.length}개</h3>
               <p className="day-replan__hint">적용해도 이 일정은 원래 시간에 남아요.</p>
-              <ul>{replan.preview.unplaced.map((item) => <li key={item.scheduleId}><strong>{item.title}</strong><span>{replanReasonLabel(item.reason)}</span></li>)}</ul>
+              <ul>{preview.unplaced.map((item) => <li key={item.scheduleId}><strong>{item.title}</strong><span>{replanReasonLabel(item.reason)}</span></li>)}</ul>
             </div>
           )}
-          {replan.preview.protectedSchedules.length > 0 && (
+          {preview.protectedSchedules.length > 0 && (
             <details className="day-replan__reasons">
-              <summary>유지하는 일정 · {replan.preview.protectedSchedules.length}개</summary>
-              <ul>{replan.preview.protectedSchedules.map((item) => <li key={item.scheduleId}><strong>{item.title}</strong><span>{range(item.start, item.end)} · {replanReasonLabel(item.reason)}</span></li>)}</ul>
+              <summary>유지하는 일정 · {preview.protectedSchedules.length}개</summary>
+              <ul>{preview.protectedSchedules.map((item) => <li key={item.scheduleId}><strong>{item.title}</strong><span>{range(item.start, item.end)} · {replanReasonLabel(item.reason)}</span></li>)}</ul>
             </details>
           )}
-          {expired && <p className="day-replan__error" role="status">미리보기가 15분 지나 만료됐어요. 새 미리보기를 받아 주세요.</p>}
-          {replan.preview.changes.length > 0 && (
+          {expired && !leaving && <p className="day-replan__error" role="status">미리보기가 15분 지나 만료됐어요. 새 미리보기를 받아 주세요.</p>}
+          {preview.changes.length > 0 && (
             <div className="day-replan__apply">
               <span aria-live="polite">{selectedCount}개 선택</span>
               <button type="button" className="day-replan__primary"
@@ -120,8 +133,8 @@ const DayReplanningPanel = (props: Props) => {
   const project = workspace.selectedProject
   const reload = () => {
     setScopeError(null)
-    void workspace.reload().then(() => setScopeRefresh((value) => value + 1)).catch(() => {
-      setScopeError('스페이스를 불러오지 못했어요. 다시 시도해 주세요.')
+    void workspace.reload().then(() => setScopeRefresh((value) => value + 1)).catch((error) => {
+      setScopeError(getRequestFailureMessage(error, '스페이스를 불러오지 못했어요.'))
     })
   }
   const unavailable = workspace.loading || Boolean(workspace.error) || !space || space.deleted ||

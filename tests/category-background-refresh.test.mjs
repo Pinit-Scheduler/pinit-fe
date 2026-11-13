@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const load = (path, dependencies) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
@@ -41,14 +42,17 @@ const load = (path, dependencies) => {
         return { moveResultMessage: () => null }
       if (name === '@features/spaces/EditConflictDialog')
         return { default: () => null }
+      if (name === '@shared/motion/usePresence')
+        return {
+          usePresence: (value) => ({ mounted: !!value, closing: false, value: value || undefined }),
+        }
       if (name === '@features/spaces/MyInputDisclosure')
         return { default: () => null }
       if (name === '@features/spaces/conflicts')
         return { changedInput: () => [], isEditConflict: () => false }
       if (name === '@constants/schedules' && !(name in dependencies))
         return { scheduleTypeLabel: {} }
-      assert.ok(name in dependencies, `Unexpected dependency ${name}`)
-      return dependencies[name]
+      return requireFrom(dependencies)(name)
     },
   })
   return module.exports
@@ -62,16 +66,18 @@ test('a loaded actor-specific category snapshot survives background fetch failur
     scheduleAssignments: { 9: 7 },
   }
   const store = load('../src/features/categories/store.ts', {
+    '@shared/utils/sameData': load('../src/shared/utils/sameData.ts'),
     react: { useEffect() {}, useSyncExternalStore: (_subscribe, get) => get() },
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': {
       httpClient: async () => {
-        if (fail) throw new Error('refresh failed')
+        if (fail) throw apiError('refresh failed', 500)
         return snapshot
       },
     },
     '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
     '@shared/utils/events': {
+      onDataChanged: () => () => {},
       onTaskChanged: () => () => {},
       onScheduleChanged: () => () => {},
     },

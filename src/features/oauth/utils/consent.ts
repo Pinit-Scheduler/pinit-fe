@@ -1,3 +1,5 @@
+import { readFailureMessage } from '@shared/api/errorMessage'
+
 export const READ_SCOPE = 'mcp:read'
 export const WRITE_SCOPE = 'mcp:write'
 export const DELETE_SCOPE = 'mcp:delete'
@@ -148,38 +150,28 @@ const readStatus = (error: unknown) => {
   return typeof status === 'number' ? status : undefined
 }
 
-const readMessage = (error: unknown) => {
-  const message =
-    error && typeof error === 'object'
-      ? (error as { message?: unknown }).message
-      : undefined
-  return typeof message === 'string' && message.trim() ? message : undefined
-}
-
 export const EXPIRED_REQUEST_MESSAGE =
-  '연결 요청이 만료됐거나 찾을 수 없어요. AI 클라이언트에서 연결을 다시 시작해주세요.'
+  '연결 요청이 만료됐거나 찾을 수 없어요. AI 클라이언트에서 연결을 다시 시작해 주세요.'
 
-// ApiError(status 0 = fetch 실패)를 import 없이 구조로 판별한다.
+/**
+ * 상태 코드는 화면 흐름(kind)만 정한다. 서버가 문구를 보냈으면 그 문구를 쓰고, 없을 때만 아래 문장을 쓴다.
+ * ApiError(status 0 = fetch 실패)를 import 없이 구조로 판별한다.
+ */
 export const toConsentError = (error: unknown): ConsentError => {
   const status = readStatus(error)
-  if (status === 404 || status === 410)
-    return { kind: 'expired', message: EXPIRED_REQUEST_MESSAGE }
-  if (status === 401)
-    return {
-      kind: 'unauthorized',
-      message: '로그인이 만료됐어요. 다시 로그인한 뒤 이어서 진행해주세요.',
-    }
-  if (status === 0) {
-    return {
-      kind: 'network',
-      message:
-        '서버에 연결하지 못했어요. 네트워크 상태를 확인한 뒤 다시 시도해주세요.',
-    }
-  }
-  return {
-    kind: 'unknown',
-    message:
-      readMessage(error) ??
-      '요청을 처리하지 못했어요. 잠시 후 다시 시도해주세요.',
-  }
+  const kind: ConsentErrorKind =
+    status === 404 || status === 410
+      ? 'expired'
+      : status === 401
+        ? 'unauthorized'
+        : status === 0
+          ? 'network'
+          : 'unknown'
+  const fallback = {
+    expired: EXPIRED_REQUEST_MESSAGE,
+    unauthorized: '로그인이 만료됐어요. 다시 로그인한 뒤 이어서 진행해 주세요.',
+    network: '서버에 연결하지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+    unknown: '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.',
+  }[kind]
+  return { kind, message: readFailureMessage(error) ?? fallback }
 }

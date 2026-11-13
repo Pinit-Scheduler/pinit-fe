@@ -7,7 +7,7 @@
   align-items: center;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn 180ms ease;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 .task-detail-modal__content {
@@ -19,7 +19,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: modalSlideUp 220ms ease;
+  animation: modalSlideUp var(--motion-enter) var(--motion-ease) both;
 }
 
 .task-detail-modal__header {
@@ -48,7 +48,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .task-detail-modal__close:hover {
@@ -108,6 +110,59 @@
   background-color: var(--c-sky-100);
   color: var(--c-sky-500);
   border-color: var(--c-sky-200);
+  transition:
+    background-color var(--motion-base) var(--motion-ease),
+    border-color var(--motion-base) var(--motion-ease),
+    color var(--motion-base) var(--motion-ease);
+}
+
+.task-detail-modal__badge--state[data-done] {
+  background-color: var(--c-green-50);
+  color: var(--c-green-700);
+  border-color: var(--c-green-200);
+}
+
+/* Title with its completion check. The strike (.motion-strike) runs across the title. */
+.task-detail-modal__title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.task-detail-modal__check {
+  --check-size: 26px;
+  margin-top: 4px;
+}
+
+.task-detail-modal__section .task-detail-modal__title {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  transition: color var(--motion-base) var(--motion-ease);
+}
+
+.task-detail-modal__section .task-detail-modal__title.is-completed {
+  color: var(--c-slate-400);
+}
+
+/* A refresh that failed while the task is on screen: the content stays, the message shows. */
+.task-detail-modal__notice {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--c-red-50);
+  color: var(--c-red-700);
+  font-size: 14px;
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
+/* Sections the modal waited for rise in one after another (useArrival). A task already in the
+   cache shows at once: the surface's own entrance is enough. */
+.task-detail-modal__body[data-arrive] > .task-detail-modal__section,
+.task-detail-modal__body[data-arrive] > .task-detail-modal__actions {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease)
+    calc(var(--arrive-index, 0) * var(--motion-stagger-section)) backwards;
 }
 
 .task-detail-modal__actions {
@@ -129,7 +184,10 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -149,13 +207,13 @@
   box-shadow: none;
 }
 
+/* Hover is a surface step; a press settles the button a touch. Nothing lifts. */
 .task-detail-modal__action-btn:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  background-color: var(--c-slate-200);
 }
 
 .task-detail-modal__action-btn:not(:disabled):active {
-  transform: translateY(0);
+  transform: scale(var(--motion-press-scale));
 }
 
 .task-detail-modal__action-btn--edit {
@@ -163,14 +221,26 @@
   color: var(--c-indigo-700);
 }
 
+.task-detail-modal__action-btn--edit:not(:disabled):hover {
+  background-color: var(--c-indigo-200);
+}
+
 .task-detail-modal__action-btn--primary {
   background-color: var(--c-green-500);
   color: #fff;
 }
 
+.task-detail-modal__action-btn--primary:not(:disabled):hover {
+  background-color: var(--c-green-600);
+}
+
 .task-detail-modal__action-btn--delete {
   background-color: var(--c-red-100);
   color: var(--c-red-700);
+}
+
+.task-detail-modal__action-btn--delete:not(:disabled):hover {
+  background-color: var(--c-red-200);
 }
 
 .task-detail-modal__loading {
@@ -179,22 +249,26 @@
   color: var(--c-slate-500);
 }
 
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
+/* Like StatusPanel: a quick read shows nothing, a slow one fades the line in. */
+.task-detail-modal__loading--wait {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease)
+    var(--motion-status-delay) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .task-detail-modal__body[data-arrive] > .task-detail-modal__section,
+  .task-detail-modal__body[data-arrive] > .task-detail-modal__actions {
+    animation-name: motion-fade-in;
+    animation-delay: 0ms;
+    --motion-keep-animation: var(--motion-base);
   }
-  to {
-    opacity: 1;
+  .task-detail-modal__loading--wait,
+  .task-detail-modal__notice {
+    --motion-keep-animation: var(--motion-base);
+  }
+  .task-detail-modal__section .task-detail-modal__title,
+  .task-detail-modal__badge--state {
+    --motion-keep-transition: var(--motion-base);
   }
 }
 
-@keyframes modalSlideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}

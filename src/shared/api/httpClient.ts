@@ -111,7 +111,7 @@ export const httpClient = async <T>(
     if (!refreshed || !sameActor(refreshed)) {
       if (getAccessToken() === accessToken) setAuthTokens({ accessToken: null })
       throw new ApiError(
-        '로그인이 필요합니다. 다시 로그인해 주세요.',
+        '로그인이 필요해요. 다시 로그인해 주세요.',
         401,
         null,
         logUrl,

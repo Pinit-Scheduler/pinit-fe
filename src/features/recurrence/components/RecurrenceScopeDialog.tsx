@@ -7,6 +7,8 @@ import {
   type ReactNode,
 } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { usePresence } from '@shared/motion'
 import {
   scopeOptions,
   scopeQuestion,
@@ -65,8 +67,11 @@ export const useRecurrenceScope = (): {
       }),
     [],
   )
-  const previewKey = `${pending?.id}:${selected}:${attempt}`
-  const loading = Boolean(pending && previewState.key !== previewKey)
+  // 닫힐 때도 마지막 요청을 그대로 보여 주며 사라진다(usePresence + Modal closing).
+  const presence = usePresence(pending)
+  const shown = presence.value
+  const previewKey = `${shown?.id}:${selected}:${attempt}`
+  const loading = Boolean(shown && previewState.key !== previewKey)
   const impact = previewState.key === previewKey ? previewState.impact : ''
   const error = previewState.key === previewKey ? previewState.error : null
   useEffect(
@@ -95,10 +100,7 @@ export const useRecurrenceScope = (): {
           setPreviewState({
             key: previewKey,
             impact: '',
-            error:
-              reason instanceof Error
-                ? reason.message
-                : '변경 범위를 확인하지 못했어요.',
+            error: getRequestFailureMessage(reason, '변경 범위를 확인하지 못했어요.'),
           })
       })
     return () => {
@@ -110,26 +112,27 @@ export const useRecurrenceScope = (): {
     pendingRef.current = null
     setPending(null)
   }
-  const dialog = pending ? (
+  const dialog = presence.mounted && shown ? (
     <Modal
       backdropClassName="recurrence-scope__backdrop"
       className="recurrence-scope__sheet"
       onClose={() => finish(null)}
       labelledBy={titleId}
+      closing={presence.closing}
     >
       <h2 id={titleId} className="recurrence-scope__title">
-        반복 {pending.action === 'edit' ? '수정' : '삭제'}
+        반복 {shown.action === 'edit' ? '수정' : '삭제'}
       </h2>
       <p className="recurrence-scope__subtitle">
-        {scopeQuestion(pending.action, pending.title)}
+        {scopeQuestion(shown.action, shown.title)}
       </p>
       <fieldset className="recurrence-scope__options">
         <legend>적용 범위</legend>
-        {scopeOptions(pending.action)
+        {scopeOptions(shown.action)
           .filter(
             (option) =>
-              !pending.options.scopes ||
-              pending.options.scopes.includes(option.scope),
+              !shown.options.scopes ||
+              shown.options.scopes.includes(option.scope),
           )
           .map((option) => (
             <label key={option.scope} className="recurrence-scope__option">
@@ -182,7 +185,7 @@ export const useRecurrenceScope = (): {
           disabled={loading || Boolean(error) || !impact}
           onClick={() => finish(selected)}
         >
-          이 범위로 {pending.action === 'edit' ? '저장' : '삭제'}
+          이 범위로 {shown.action === 'edit' ? '저장' : '삭제'}
         </button>
       </div>
     </Modal>

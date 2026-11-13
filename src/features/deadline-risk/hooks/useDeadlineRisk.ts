@@ -1,63 +1,36 @@
-import { useEffect, useState } from 'react'
-import { onScheduleChanged, onTaskChanged } from '@shared/utils/events'
+import { useCallback } from 'react'
+import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import { fetchDeadlineRisk } from '../api/deadlineRisk'
 import type { DeadlineRiskDays, DeadlineRiskResponse } from '../types/deadlineRisk'
 
-type Result = {
-  key: string
-  forecast: DeadlineRiskResponse | null
-  error: string | null
-  isLoading: boolean
-}
+export const deadlineRiskKey = (days: DeadlineRiskDays, zoneId: string) =>
+  `deadline-risk/${days}@${zoneId}`
 
+/**
+ * Personal deadline forecast for a range.
+ * - A refresh (task/schedule change, window focus, "다시 조회") keeps the forecast on screen.
+ * - Another range or zone never shows this one's forecast.
+ * - A failed read hides the forecast: an outdated capacity estimate is never shown as current.
+ */
 export default function useDeadlineRisk(days: DeadlineRiskDays, zoneId: string) {
-  const [revision, setRevision] = useState(0)
-  const key = `${days}/${zoneId}/${revision}`
-  const [result, setResult] = useState<Result | null>(null)
-  const refresh = () => setRevision((previous) => previous + 1)
-
-  useEffect(() => {
-    const invalidate = () => setRevision((previous) => previous + 1)
-    const offTask = onTaskChanged(invalidate)
-    const offSchedule = onScheduleChanged(invalidate)
-    window.addEventListener('focus', invalidate)
-    return () => {
-      offTask()
-      offSchedule()
-      window.removeEventListener('focus', invalidate)
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    const controller = new AbortController()
-    const load = async () => {
-      setResult({ key, forecast: null, error: null, isLoading: true })
-      try {
-        const forecast = await fetchDeadlineRisk(days, controller.signal)
-        if (!cancelled) setResult({ key, forecast, error: null, isLoading: false })
-      } catch {
-        if (!cancelled) setResult({
-          key,
-          forecast: null,
-          error: '마감 위험 예보를 불러오지 못했어요. 연결을 확인한 뒤 다시 조회해 주세요.',
-          isLoading: false,
-        })
-      }
-    }
-    void load()
-    return () => {
-      cancelled = true
-      controller.abort()
-    }
-  }, [key, days])
-
-  // Hide the old range/zone immediately, before the next effect starts.
-  const current = result?.key === key ? result : null
+  const fetcher = useCallback(
+    (signal: AbortSignal) => fetchDeadlineRisk(days, signal),
+    [days],
+  )
+  const query = useRevalidatingQuery<DeadlineRiskResponse>(deadlineRiskKey(days, zoneId), fetcher, {
+    invalidateOn: ['task', 'schedule'],
+    group: 'deadline-risk/',
+    refetchOnFocus: true,
+    errorMessage: '마감 위험 예보를 불러오지 못했어요.',
+  })
+  const forecast = query.error ? null : (query.data ?? null)
   return {
-    forecast: current?.forecast ?? null,
-    error: current?.error ?? null,
-    isLoading: current?.isLoading ?? true,
-    refresh,
+    forecast,
+    error: query.error,
+    /** No forecast to show and a read is running: the only time to say it is calculating. */
+    isLoading: forecast === null && (query.isInitialLoading || query.isFetching),
+    /** A read is running behind the forecast on screen. */
+    isRefreshing: forecast !== null && query.isFetching,
+    refresh: query.refetch,
   }
 }

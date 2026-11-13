@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { fetchMcpActivity } from '@features/oauth/api/oauth'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import type { McpActivity } from '@features/oauth/types/oauth'
 
 export const MCP_ACTIVITY_PAGE_SIZE = 20
@@ -17,8 +18,7 @@ type UseMcpActivityReturn = {
   refetch: () => void
 }
 
-const toMessage = (error: unknown) =>
-  error instanceof Error && error.message ? error.message : 'AI 사용 이력을 불러오지 못했어요.'
+const toMessage = (error: unknown) => getRequestFailureMessage(error, 'AI 사용 이력을 불러오지 못했어요.')
 
 /**
  * AI 사용 이력 첫 페이지와 "더 보기". 필터를 바꾸거나 다시 읽으면 목록과 커서를 비우고 첫 페이지부터 읽으며,

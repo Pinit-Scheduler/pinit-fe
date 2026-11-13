@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { errorMessage } from './support/errors.mjs'
 
 const createHarness = ({ recurring = false } = {}) => {
   const assigned = [],
@@ -58,6 +59,7 @@ const createHarness = ({ recurring = false } = {}) => {
     '@contexts/ToastContext': {
       useToast: () => ({ addToast: (...args) => toasts.push(args) }),
     },
+    '@shared/api/errorMessage': errorMessage,
     '@contexts/TimePreferencesContext': {
       useTimePreferences: () => ({ offsetMinutes: 540 }),
     },
@@ -156,6 +158,10 @@ const createHarness = ({ recurring = false } = {}) => {
         return { moveResultMessage: () => null }
       if (name === '@features/spaces/EditConflictDialog')
         return { default: () => null }
+      if (name === '@shared/motion/usePresence')
+        return {
+          usePresence: (value) => ({ mounted: !!value, closing: false, value: value || undefined }),
+        }
       if (name === '@features/spaces/MyInputDisclosure')
         return { default: () => null }
       if (name === '@features/spaces/conflicts')

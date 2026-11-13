@@ -18,7 +18,7 @@ export type ScheduleViewStateValue = {
 export const ScheduleViewStateContext = createContext<ScheduleViewStateValue | null>(null)
 
 export const ScheduleViewStateProvider = ({ children }: { children: ReactNode }) => {
-  const { offsetMinutes } = useTimePreferences()
+  const { offsetMinutes, zoneId } = useTimePreferences()
   const today = useMemo(() => getTodayWithOffset(offsetMinutes), [offsetMinutes])
   const toDateKeyWithOffset = useCallback(
     (date: dayjs.Dayjs) => date.utcOffset(offsetMinutes).format('YYYY-MM-DD'),
@@ -30,6 +30,15 @@ export const ScheduleViewStateProvider = ({ children }: { children: ReactNode })
   )
   const [currentWeekStart, setCurrentWeekStart] = useState(() => getWeekStart(today))
   const [selectedDate, setSelectedDate] = useState(today)
+  // A new display zone moves the day boundaries: go back to today in that zone, in this same
+  // render, so no page ever pairs the new zone with a date picked in the old one.
+  const zoneKey = `${zoneId}@${offsetMinutes}`
+  const [shownZoneKey, setShownZoneKey] = useState(zoneKey)
+  if (shownZoneKey !== zoneKey) {
+    setShownZoneKey(zoneKey)
+    setSelectedDate(today)
+    setCurrentWeekStart(getWeekStart(today))
+  }
 
   const goToWeek = useCallback(
     (offset: number) => {

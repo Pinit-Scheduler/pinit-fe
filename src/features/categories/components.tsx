@@ -3,6 +3,7 @@ import { useSpaces } from '@features/spaces/store'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { useEffect, useId, useState } from 'react'
 import Modal from '@shared/components/common/Modal'
+import { usePresence } from '@shared/motion'
 import { useCategories, type CategoryFilterValue } from './store'
 import './categories.css'
 
@@ -119,18 +120,28 @@ export function CategoryPicker({
           </button>
         </>
       )}
-      {managing && <CategoryManager onClose={() => setManaging(false)} />}
+      <CategoryManager open={managing} onClose={() => setManaging(false)} />
     </fieldset>
   )
 }
-export function CategoryManager({ onClose }: { onClose: () => void }) {
+/** Stays mounted through its exit: pass `open` instead of mounting it conditionally. */
+export function CategoryManager({
+  open = true,
+  onClose,
+}: {
+  open?: boolean
+  onClose: () => void
+}) {
   const title = useId()
+  const presence = usePresence(open)
+  if (!presence.mounted) return null
   return (
     <Modal
       labelledBy={title}
       backdropClassName="category-manager-backdrop"
       className="category-manager"
       onClose={onClose}
+      closing={presence.closing}
     >
       <header>
         <h2 id={title}>프로젝트 관리</h2>

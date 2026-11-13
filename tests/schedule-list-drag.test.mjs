@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 import dayjs from 'dayjs'
+import { apiError, errorMessage } from './support/errors.mjs'
 
 const hooks = () => {
   const slots = []
@@ -54,86 +55,189 @@ const deferred = () => {
   const promise = new Promise((yes, no) => { resolve = yes; reject = no })
   return { promise, resolve, reject }
 }
+const loadModule = (file, deps, globals = {}) => {
+  const { outputText } = ts.transpileModule(readFileSync(new URL(file, import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  })
+  const module = { exports: {} }
+  vm.runInNewContext(outputText, {
+    module, exports: module.exports, Error, AbortController, queueMicrotask, setTimeout, clearTimeout, Date,
+    ...globals,
+    require(name) { assert.ok(name in deps, name); return deps[name] },
+  })
+  return module.exports
+}
 const row = (id, date = '2026-11-04') => ({ id, title: `schedule ${id}`, date: { dateTime: `${date}T09:00:00`, zoneId: 'Asia/Seoul' } })
 const ids = (result) => Array.from(result.schedules, (s) => s.id)
-const settle = async () => { await Promise.resolve(); await Promise.resolve() }
+const settle = async () => { for (let i = 0; i < 5; i++) await Promise.resolve() }
+// Change events are coalesced to the end of the task, so let a timer pass after a dispatch.
+const afterEvents = () => new Promise((resolve) => setTimeout(resolve, 5))
+
+// useScheduleList now runs on useRevalidatingQuery: these tests load the real query hook, store and
+// events, and only fake React's scheduling. They replace the old "a refetch shows nothing" rule:
+// a refetch keeps this day's rows on screen, and the rule that a pre-edit read must not land stays.
 const listHarness = () => {
-  const h = hooks(), requests = []
-  let notify
-  const useList = load('../src/features/schedules/hooks/useScheduleList.ts', {
-    react: h.react,
+  const slots = []
+  let cursor = 0
+  const pending = []
+  const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]))
+  const memo = (fn, deps) => {
+    const i = cursor++, old = slots[i]
+    if (!old || !same(old.deps, deps)) slots[i] = { deps, value: fn() }
+    return slots[i].value
+  }
+  const subscriptions = new Map()
+  const react = {
+    useRef(initial) {
+      const i = cursor++
+      if (!(i in slots)) slots[i] = { current: initial }
+      return slots[i]
+    },
+    useCallback: (fn, deps) => memo(() => fn, deps),
+    useEffect(fn, deps) {
+      const i = cursor++, old = slots[i]
+      if (old && deps && same(old.deps, deps)) return
+      slots[i] = { deps }
+      pending.push(() => { old?.cleanup?.(); slots[i].cleanup = fn() })
+    },
+    useSyncExternalStore(subscribe, getSnapshot) {
+      if (!subscriptions.has(subscribe)) {
+        subscriptions.forEach((off) => off())
+        subscriptions.clear()
+        subscriptions.set(subscribe, subscribe(() => {}))
+      }
+      return getSnapshot()
+    },
+  }
+  const window = new EventTarget()
+  const events = loadModule('../src/shared/utils/events.ts', {}, { window, CustomEvent })
+  const { createQueryStore } = loadModule('../src/shared/utils/queryStore.ts', {})
+  const store = createQueryStore()
+  const query = loadModule('../src/shared/hooks/useRevalidatingQuery.ts', {
+    '@shared/api/errorMessage': errorMessage,
+    react,
+    '@shared/api/authTokens': { getAccessToken: () => 'token', getTokenSubject: () => 'member-1' },
+    '@shared/utils/events': events,
+    '@shared/utils/queryStore': { queryStore: store },
+  }, { window })
+  const requests = []
+  const scope = { selectedSpaceId: null, selectedProjectId: null }
+  const useList = loadModule('../src/features/schedules/hooks/useScheduleList.ts', {
     '@shared/utils/datetime': {
       toDateKey: (date) => dayjs(date.dateTime ?? date).format('YYYY-MM-DD'),
       toApiDateTimeWithZone: (date) => ({ dateTime: date.format('YYYY-MM-DDTHH:mm:ss'), zoneId: 'Asia/Seoul' }),
     },
     '../api/schedules': { fetchSchedules: (date) => {
-      const response = deferred(); requests.push({ ...response, date }); return response.promise
+      const response = deferred(); requests.push({ ...response, day: date.dateTime.slice(0, 10) }); return response.promise
     } },
-    '@shared/utils/events': { onScheduleChanged: (fn) => { notify = fn; return () => { notify = null } } },
-  })
-  return { requests, emit: (event) => notify(event), flush: h.flush,
-    render(date, flush = true) { h.begin(); const result = useList(dayjs(date)); if (flush) h.flush(); return result },
+    '@shared/hooks/useRevalidatingQuery': query,
+    '@shared/api/errorMessage': errorMessage,
+    '@features/spaces/store': { useSpaces: () => scope },
+  }).default
+  return {
+    requests, scope, events,
+    /** The latest read for a day. */
+    last: (day) => requests.filter((request) => request.day === day).at(-1),
+    async render(date) {
+      cursor = 0
+      const result = useList(dayjs(date))
+      while (pending.length) pending.shift()()
+      await settle()
+      return result
+    },
+    /** One render as React would paint it, before effects or microtasks run. */
+    renderNow(date) { cursor = 0; return useList(dayjs(date)) },
   }
 }
 
-test('a newly selected date never renders the previous date rows before effects run', async () => {
+test('a newly selected date never renders the previous date rows, even before effects run', async () => {
   const h = listHarness()
-  h.render('2026-11-04'); h.requests[0].resolve([row(1)]); await settle()
-  assert.deepEqual(ids(h.render('2026-11-04')), [1])
-  const switched = h.render('2026-11-05', false)
+  await h.render('2026-11-04'); h.last('2026-11-04').resolve([row(1)]); await settle()
+  assert.deepEqual(ids(await h.render('2026-11-04')), [1])
+  const switched = h.renderNow('2026-11-05')
   assert.deepEqual(ids(switched), [])
   assert.equal(switched.isLoading, true)
-  h.flush(); h.requests[1].reject(new Error('offline')); await settle()
-  const failed = h.render('2026-11-05')
+  assert.equal(switched.data, undefined)
+  // 응답이 오지 않은 실패: httpClient는 네트워크 오류를 status 0인 ApiError로 던진다.
+  await h.render('2026-11-05'); h.last('2026-11-05').reject(apiError('offline', 0)); await settle()
+  const failed = await h.render('2026-11-05')
   assert.deepEqual(ids(failed), [])
-  assert.equal(failed.error, 'offline')
+  assert.equal(failed.isLoading, false, 'a failed first load is an error, not a spinner')
+  assert.equal(failed.error, '일정을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
 })
 
-test('rapid date changes ignore out-of-order successful and failed responses', async () => {
+test('rapid date changes never mix days, whatever order the responses arrive in', async () => {
   const h = listHarness()
-  h.render('2026-11-04'); h.render('2026-11-05'); h.render('2026-11-06')
-  h.requests[2].resolve([row(3, '2026-11-06')]); await settle()
-  h.requests[1].resolve([row(2, '2026-11-05')]); h.requests[0].reject(new Error('late error')); await settle()
-  const result = h.render('2026-11-06')
+  await h.render('2026-11-04'); await h.render('2026-11-05'); await h.render('2026-11-06')
+  h.last('2026-11-06').resolve([row(3, '2026-11-06')]); await settle()
+  h.last('2026-11-05').resolve([row(2, '2026-11-05')]); h.last('2026-11-04').reject(new Error('late error')); await settle()
+  const result = await h.render('2026-11-06')
   assert.deepEqual(ids(result), [3]); assert.equal(result.error, null)
+  // Leaving a day before its first load finished abandoned that load. Going back starts over
+  // with a loading state, never with another day's rows.
+  const back = await h.render('2026-11-05')
+  assert.deepEqual(ids(back), []); assert.equal(back.isLoading, true)
 })
 
-test('a date edit invalidates both cached days and rejects a pre-edit read before effect cleanup', async () => {
+test('a schedule change keeps the day on screen while it refreshes and drops a pre-edit read', async () => {
   const h = listHarness()
-  h.render('2026-11-05'); h.requests[0].resolve([row(2, '2026-11-05')]); await settle()
-  h.render('2026-11-04'); h.requests[1].resolve([row(1)]); await settle()
-  h.render('2026-11-05'); h.requests[2].resolve([row(2, '2026-11-05')]); await settle()
-  h.render('2026-11-04') // cached old day, background read is still pending
-  h.emit({ schedule: row(1, '2026-11-05'), reason: 'updated' }) // legacy emitter may lack previousDateKey
-  h.requests[3].resolve([row(1)]); await settle() // arrives before React can clean up the old effect
-  assert.deepEqual(ids(h.render('2026-11-04')), [])
-  h.requests[4].resolve([]); await settle()
-  assert.deepEqual(ids(h.render('2026-11-04')), [])
-  assert.deepEqual(ids(h.render('2026-11-05', false)), []) // stale destination snapshot was invalidated too
-  h.flush(); h.requests[5].resolve([row(2, '2026-11-05'), row(1, '2026-11-05')]); await settle()
-  assert.deepEqual(ids(h.render('2026-11-05')), [2, 1])
+  await h.render('2026-11-05'); h.last('2026-11-05').resolve([row(2, '2026-11-05')]); await settle()
+  await h.render('2026-11-04'); h.last('2026-11-04').resolve([row(1)]); await settle()
+  const cached = await h.render('2026-11-04') // revisit: cached rows at once, background read pending
+  assert.deepEqual(ids(cached), [1])
+  const preEdit = h.last('2026-11-04')
+  h.events.dispatchScheduleChanged({ schedule: row(1, '2026-11-05'), reason: 'updated' }) // may lack previousDateKey
+  await afterEvents()
+  preEdit.resolve([row(1), row(99)]); await settle() // started before the edit: must not land
+  const refreshing = await h.render('2026-11-04')
+  assert.deepEqual(ids(refreshing), [1], 'the rows stay; nothing blanks and the pre-edit read is dropped')
+  assert.equal(refreshing.isLoading, false)
+  assert.equal(refreshing.isRefreshing, true)
+  assert.notEqual(h.last('2026-11-04'), preEdit, 'the change started a fresh read')
+  h.last('2026-11-04').resolve([]); await settle()
+  assert.deepEqual(ids(await h.render('2026-11-04')), [])
+  // The destination day was cached too. It went stale and reads again when it is shown.
+  await h.render('2026-11-05')
+  const destination = h.renderNow('2026-11-05')
+  assert.deepEqual(ids(destination), [2]); assert.equal(destination.isRefreshing, true)
+  h.last('2026-11-05').resolve([row(2, '2026-11-05'), row(1, '2026-11-05')]); await settle()
+  assert.deepEqual(ids(await h.render('2026-11-05')), [2, 1])
 })
 
-test('payload-free changes and repeated same-tick refreshes cannot retain stale data', async () => {
+test('several changes in one task refetch once, and refetch() forces a fresh read', async () => {
   const h = listHarness()
-  h.render('2026-11-04'); h.requests[0].resolve([row(1)]); await settle()
-  h.render('2026-11-04')
-  h.emit({ reason: 'restore' }); h.emit({ reason: 'recurrence' })
-  const pending = h.render('2026-11-04')
-  assert.equal(pending.isLoading, true); assert.deepEqual(ids(pending), [])
-  h.requests[1].resolve([row(2)]); await settle()
-  h.render('2026-11-04').refetch(); h.render('2026-11-04')
-  assert.equal(h.requests.length, 3)
-  h.requests[2].resolve([]); await settle()
-  assert.deepEqual(ids(h.render('2026-11-04')), [])
+  await h.render('2026-11-04'); h.last('2026-11-04').resolve([row(1)]); await settle()
+  const before = h.requests.length
+  h.events.dispatchScheduleChanged({ reason: 'restore' }); h.events.dispatchScheduleChanged({ reason: 'recurrence' })
+  await afterEvents()
+  const pending = await h.render('2026-11-04')
+  assert.equal(h.requests.length, before + 1, 'payload-free changes in one task read once')
+  assert.deepEqual(ids(pending), [1]); assert.equal(pending.isRefreshing, true)
+  h.last('2026-11-04').resolve([row(2)]); await settle()
+  const loaded = await h.render('2026-11-04')
+  assert.deepEqual(ids(loaded), [2])
+  loaded.refetch(); await settle()
+  assert.equal(h.requests.length, before + 2)
+  h.last('2026-11-04').resolve([]); await settle()
+  assert.deepEqual(ids(await h.render('2026-11-04')), [])
+})
+
+test('another space is another key: its day never shows the previous space rows', async () => {
+  const h = listHarness()
+  await h.render('2026-11-04'); h.last('2026-11-04').resolve([row(1)]); await settle()
+  h.scope.selectedSpaceId = 7
+  const other = h.renderNow('2026-11-04')
+  assert.deepEqual(ids(other), []); assert.equal(other.isLoading, true)
 })
 
 const dragHarness = () => {
   const h = hooks(), moves = [], captures = new Set(), captureLog = []
   let refreshed = 0
   const scroller = { overflowY: 'auto', scrollTop: 0, parentElement: null }
+  const style = new Map()
   const element = {
     overflowY: 'visible', scrollTop: 0, parentElement: scroller,
+    style: { setProperty: (name, value) => style.set(name, value), removeProperty: (name) => style.delete(name) },
     getBoundingClientRect: () => ({ left: 260, right: 1054, width: 794 }),
     setPointerCapture(id) { captures.add(id); captureLog.push(['capture', id]) },
     hasPointerCapture: (id) => captures.has(id),
@@ -147,7 +251,7 @@ const dragHarness = () => {
     clientX: x, clientY: y, currentTarget: element, target: { closest: () => null },
     preventDefault() { this.prevented = true }, stopPropagation() { this.stopped = true }, ...extra,
   })
-  return { moves, captures, captureLog, event, scroller,
+  return { moves, captures, captureLog, event, scroller, style,
     get refreshed() { return refreshed },
     render(extra = {}) { h.begin(); const result = useDrag({ containerRef: { current: element }, hasItems: true,
       onMove: (...args) => moves.push(args), onRefresh: () => refreshed++, resetKey: '2026-11-04', ...extra }); h.flush(); return result },
@@ -217,4 +321,14 @@ test('touch refresh checks the actual page scroller after the grid layout migrat
   h.scroller.scrollTop = 0
   actions.onTouchStart({ touches: [{ clientY: 100 }] }); actions.onTouchMove({ touches: [{ clientY: 200 }] }); actions.onTouchEnd()
   assert.equal(h.refreshed, 1)
+})
+
+test('a dragged card leans toward the pointer, capped, and settles back when released', () => {
+  const h = dragHarness(), handlers = h.render().getItemHandlers(row(1))
+  handlers.onPointerDown(h.event(450, 300)); handlers.onPointerMove(h.event(400, 302))
+  assert.equal(h.style.get('--schedule-drag-x'), `${Math.round(-50 * 0.35)}px`)
+  handlers.onPointerMove(h.event(100, 302))
+  assert.equal(h.style.get('--schedule-drag-x'), '-48px', 'the lean is capped')
+  handlers.onPointerUp(h.event(450, 302))
+  assert.equal(h.style.has('--schedule-drag-x'), false, 'released cards ease back to their place')
 })

@@ -2,6 +2,7 @@ import { moveResultMessage } from '@features/spaces/moveResult'
 import EditConflictDialog from '@features/spaces/EditConflictDialog'
 import type { ConflictState } from '@features/spaces/EditConflictDialog'
 import MyInputDisclosure from '@features/spaces/MyInputDisclosure'
+import { usePresence } from '@shared/motion/usePresence'
 import {
   changedInput,
   isEditConflict,
@@ -22,6 +23,7 @@ import {
 import type { Task } from '../types/task'
 import { useTaskCache } from '@contexts/TaskCacheContext'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { dispatchTaskChanged } from '@shared/utils/events'
 import {
   formatIsoDurationLabel,
@@ -66,6 +68,8 @@ const TaskEditPage = () => {
   const { addToast } = useToast()
   const recurrenceScope = useRecurrenceScope()
   const [conflict, setConflict] = useState<ConflictState | null>(null)
+  // Keeps the conflict dialog mounted, with its last rows, while it fades out.
+  const conflictPresence = usePresence(conflict)
   const [keptInput, setKeptInput] = useState<InputRow[] | null>(null)
   const [formKey, setFormKey] = useState(0)
   const reportConflict = (values: TaskFormValues) => {
@@ -136,7 +140,10 @@ const TaskEditPage = () => {
       } catch (err) {
         if (!mounted) return
         setError(
-          err instanceof Error ? err.message : '작업을 불러오지 못했습니다.',
+          getRequestFailureMessage(
+            err,
+            '작업을 불러오지 못했어요.',
+          ),
         )
       } finally {
         if (mounted) setIsLoading(false)
@@ -206,9 +213,10 @@ const TaskEditPage = () => {
         return
       }
       addToast(
-        err instanceof Error
-          ? err.message
-          : '반복 작업을 바꾸지 못했어요. 입력한 내용은 유지됩니다.',
+        getRequestFailureMessage(
+          err,
+          '반복 작업을 바꾸지 못했어요.',
+        ),
         'error',
       )
     }
@@ -310,9 +318,10 @@ const TaskEditPage = () => {
         return
       }
       addToast(
-        err instanceof Error
-          ? err.message
-          : '작업을 수정하지 못했습니다. 입력한 내용은 유지됩니다.',
+        getRequestFailureMessage(
+          err,
+          '작업을 수정하지 못했어요.',
+        ),
         'error',
       )
     }
@@ -339,13 +348,15 @@ const TaskEditPage = () => {
       </header>
       <div className="task-page__content">
         {isLoading || (categoryLoading && !categoryLoaded) ? (
-          <div className="task-page__placeholder">
+          <div
+            className="task-page__placeholder task-page__placeholder--loading"
+            role="status"
+          >
             <p>작업 정보를 불러오는 중...</p>
           </div>
         ) : error || (categoryLoadError && !categoryLoaded) || !task ? (
           <div className="task-page__placeholder">
-            <p>작업 정보를 불러오지 못했습니다.</p>
-            <p>{error ?? categoryLoadError}</p>
+            <p>{error ?? categoryLoadError ?? '작업을 불러오지 못했어요.'}</p>
             <button
               type="button"
               onClick={() => void reloadCategories().catch(() => {})}
@@ -354,11 +365,11 @@ const TaskEditPage = () => {
             </button>
           </div>
         ) : (
-          <>
+          <div className="task-page__arrive">
             {categoryLoadError && (
               <div role="alert">
                 <p>
-                  프로젝트를 새로 확인하지 못했어요.작성 중인 내용은 유지됩니다.
+                  {categoryLoadError} 작성 중인 내용은 유지돼요.
                 </p>
                 <button
                   type="button"
@@ -409,16 +420,17 @@ const TaskEditPage = () => {
                 return `${label} · ${task.expectedDuration ? '직접 입력' : '난이도 기준'}`
               })()}
             />
-          </>
+          </div>
         )}
       </div>
       {recurrenceScope.dialog}
-      {conflict && (
+      {conflictPresence.mounted && conflictPresence.value && (
         <EditConflictDialog
           noun="작업"
-          rows={conflict.rows}
-          loading={conflict.loading}
-          loadError={conflict.loadError}
+          rows={conflictPresence.value.rows}
+          loading={conflictPresence.value.loading}
+          loadError={conflictPresence.value.loadError}
+          closing={conflictPresence.closing}
           onLoadLatest={() => void loadLatest()}
           onClose={() => setConflict(null)}
           onBackToList={() => complete('/app/tasks')}

@@ -378,6 +378,10 @@
   text-align: left;
   cursor: pointer;
 }
+.space-affiliation__summary-mark {
+  display: inline-flex;
+  flex: none;
+}
 .space-affiliation__summary-text {
   flex: 1;
   min-width: 0;
@@ -526,14 +530,16 @@ button:disabled {
   .space-dialog,
   .space-option {
     scroll-behavior: auto;
-    transition: none;
   }
 }
 .space-realtime-status {
   position: fixed;
   bottom: calc(var(--workspace-player-height, 0px) + 68px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* Centered without a transform, so the entrance can own transform. */
+  left: 0;
+  right: 0;
+  width: fit-content;
+  margin-inline: auto;
   max-width: min(90vw, 560px);
   padding: 10px 16px;
   background: #fff5da;
@@ -730,4 +736,120 @@ button:disabled {
   color: var(--workspace-muted);
   font-size: 13px;
   line-height: 1.5;
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion. Tokens and shared keyframes come from shared/styles/motion.css */
+/* (docs/motion/README.md). Only transform, opacity and colors move.   */
+/* ------------------------------------------------------------------ */
+
+/* Hover and selection: a quick surface and color change. Press: a small settle. */
+.space-switcher,
+.space-option,
+.space-icon-button,
+.space-projects-nav > button,
+.space-projects-nav > a,
+.space-option-projects > button,
+.space-affiliation__summary {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+.space-text-button {
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+@media (hover: hover) {
+  .space-option:hover:not([aria-pressed='true']),
+  .space-projects-nav > button:hover:not([aria-pressed='true']),
+  .space-projects-nav > a:hover,
+  .space-option-projects > button:hover:not([aria-pressed='true']),
+  .space-icon-button:hover {
+    background: color-mix(in srgb, var(--workspace-line) 60%, transparent);
+  }
+}
+:is(
+  .space-switcher,
+  .space-option,
+  .space-projects-nav > button,
+  .space-option-projects > button
+):active:not(:disabled) {
+  transform: scale(var(--motion-press-scale));
+}
+
+/* The chosen space's projects open under it in the mobile sheet. */
+.space-option-projects {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
+/* The purpose behind the context bar opens with a short fade. */
+.space-context details[open] > p {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+/* Inline confirmations and errors arrive instead of popping. */
+.space-copied,
+.spaces-page > .workspace-inline-error {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+.space-dialog .space-error {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+/*
+ * The realtime notice waits a moment before it rises in, so a reconnect that succeeds at once
+ * never flashes it. Once it has appeared it fades out on reconnect (WorkspaceRealtime keeps it
+ * mounted through the exit with usePresence); inside the wait it unmounts at once.
+ */
+.space-realtime-status {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease)
+    calc(var(--motion-status-delay) * 4) both;
+}
+.space-realtime-status[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+}
+
+/* Invitation page: the card rises once; its content fades in when the invitation is read. */
+.space-invite-card {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+.space-invite-card > :not(.workspace-brand) {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+.space-invite-card > .space-invite-card__loading {
+  animation-delay: var(--motion-status-delay);
+}
+
+/* Narrow screens: space dialogs are bottom sheets, so they slide up and back down. */
+@media (max-width: 760px) {
+  .space-dialog[data-motion-surface='panel'] {
+    animation: motion-sheet-in var(--motion-enter) var(--motion-ease) both;
+  }
+  .space-dialog[data-motion-surface='panel'][data-state='closing'] {
+    animation: motion-sheet-out var(--motion-exit) var(--motion-ease-exit) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Fades stay, travel goes. */
+  .space-dialog[data-motion-surface='panel'] {
+    animation-name: motion-fade-in;
+  }
+  .space-dialog[data-motion-surface='panel'][data-state='closing'] {
+    animation-name: motion-fade-out;
+  }
+  .space-invite-card,
+  .space-invite-card > :not(.workspace-brand),
+  .space-option-projects,
+  .space-copied,
+  .spaces-page > .workspace-inline-error,
+  .space-realtime-status {
+    animation-name: motion-fade-in;
+    --motion-keep-animation: var(--motion-base);
+  }
+  .space-realtime-status[data-state='closing'] {
+    animation-name: motion-fade-out;
+    --motion-keep-animation: var(--motion-exit);
+  }
 }

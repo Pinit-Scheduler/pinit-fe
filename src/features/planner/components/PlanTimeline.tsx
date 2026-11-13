@@ -1,4 +1,9 @@
 import dayjs from 'dayjs'
+import type { CSSProperties } from 'react'
+import {
+  presenceProps,
+  useListPresence,
+} from '@shared/motion/useListPresence'
 import './PlanTimeline.css'
 
 export type PlanTimelineItem = {
@@ -21,6 +26,8 @@ type PlanTimelineProps = {
   windowStartMs: number
   windowEndMs: number
   onSelectBlock?: (key: string) => void
+  /** 다른 조건(날짜·범위·스페이스)의 계획으로 바뀌면 바꾼다. 그때는 항목이 하나씩 나타나지 않는다 */
+  resetKey?: unknown
 }
 
 const PX_PER_MINUTE = 0.75
@@ -33,7 +40,13 @@ const toZoned = (ms: number, zoneId: string) => dayjs(ms).tz(zoneId)
  * 하루 계획 타임라인. 왼쪽 줄은 이미 있는 일정, 오른쪽 줄은 제안 블록이고, 생활 시간은 그 뒤의 띠다.
  * 배치를 계산하지 않고, 받은 구간을 그대로 그린다.
  */
-const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock }: PlanTimelineProps) => {
+const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock, resetKey }: PlanTimelineProps) => {
+  // 새로 생긴 일정·블록은 제자리에 나타나고, 빠진 것은 제자리에서 사라진다.
+  const lanes = useListPresence(
+    items.filter((item) => item.kind !== 'routine'),
+    (item) => item.key,
+    { resetKey },
+  )
   const starts = [windowStartMs, ...items.map((item) => item.startMs)]
   const ends = [windowEndMs, ...items.map((item) => item.endMs)]
   const rangeStart = toZoned(Math.min(...starts), zoneId).startOf('hour').valueOf()
@@ -86,7 +99,7 @@ const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock
               </div>
             )
           })}
-        {items.filter((item) => item.kind !== 'routine').map((item) => {
+        {lanes.map(({ key, item, phase }) => {
           const top = toPx(item.startMs)
           const itemHeight = Math.max(MIN_ITEM_HEIGHT, toPx(item.endMs) - top)
           const className = [
@@ -98,30 +111,41 @@ const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock
             .filter(Boolean)
             .join(' ')
           const label = `${item.title} ${formatTime(item.startMs)}–${formatTime(item.endMs)}`
-          if (item.kind === 'block' && onSelectBlock) {
-            return (
-              <button
-                key={item.key}
-                type="button"
-                className={className}
-                style={{ top, height: itemHeight }}
-                onClick={() => onSelectBlock(item.key)}
-                title={label}
-                aria-label={label}
-              >
-                <span className="plan-timeline__item-title">{item.title}</span>
-                <span className="plan-timeline__item-time">
-                  {formatTime(item.startMs)}–{formatTime(item.endMs)}
-                </span>
-              </button>
-            )
-          }
-          return (
-            <div key={item.key} className={className} style={{ top, height: itemHeight }} title={label}>
+          const content = (
+            <>
               <span className="plan-timeline__item-title">{item.title}</span>
               <span className="plan-timeline__item-time">
                 {formatTime(item.startMs)}–{formatTime(item.endMs)}
               </span>
+            </>
+          )
+          // The slot carries the position as a transform, so a block whose start changes glides there.
+          const slotStyle = {
+            transform: `translateY(${top}px)`,
+            height: itemHeight,
+          } as CSSProperties
+          return (
+            <div
+              key={key}
+              className={`plan-timeline__slot plan-timeline__slot--${item.kind}`}
+              style={slotStyle}
+            >
+              {item.kind === 'block' && onSelectBlock ? (
+                <button
+                  type="button"
+                  className={className}
+                  onClick={() => onSelectBlock(item.key)}
+                  title={label}
+                  aria-label={label}
+                  {...presenceProps(phase)}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div className={className} title={label} {...presenceProps(phase)}>
+                  {content}
+                </div>
+              )}
             </div>
           )
         })}

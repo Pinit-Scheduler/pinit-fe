@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { signup } from '../api/auth'
 import { requestEmailCode } from '../api/email'
 import {
@@ -14,10 +14,12 @@ import {
 } from '../utils/accountRules'
 import { describeEmailAuthError } from '../utils/emailAuthErrors'
 import { firstErrorField } from '../utils/formErrors'
+import { FORGOT_PASSWORD_PATH } from '../utils/authPaths'
 import { EmailCodeInput, EmailCodeRequestField } from '../components/EmailCodeFields'
 import { standaloneFocusProps, useAuthPageScroll } from '../hooks/useAuthPageLayout'
 import useEmailCode from '../hooks/useEmailCode'
 import { useToast } from '@contexts/ToastContext'
+import AuthMessage from '../components/AuthMessage'
 import './LoginPage.css'
 
 type SignupFormState = {
@@ -101,7 +103,7 @@ const SignupPage = () => {
     if (passwordError) nextErrors.password = passwordError
     if (!values.confirmPassword) nextErrors.confirmPassword = '비밀번호를 다시 입력해 주세요.'
     if (values.password && values.confirmPassword && values.password !== values.confirmPassword) {
-      nextErrors.confirmPassword = '비밀번호가 일치하지 않습니다.'
+      nextErrors.confirmPassword = '비밀번호가 서로 달라요.'
     }
     if (nicknameError) nextErrors.nickname = nicknameError
     if (emailError) nextErrors.email = emailError
@@ -123,7 +125,7 @@ const SignupPage = () => {
         email: normalizeEmail(values.email),
         code: values.code,
       })
-      addToast('회원가입이 완료되었습니다. 로그인해 주세요.', 'success')
+      addToast('회원가입을 마쳤어요. 로그인해 주세요.', 'success')
       navigate('/login', { replace: true })
     } catch (error) {
       const failure = describeEmailAuthError(error, 'submit')
@@ -148,8 +150,7 @@ const SignupPage = () => {
     'aria-describedby': errors[field] ? errorId(field) : undefined,
   })
 
-  const fieldError = (field: SignupField) =>
-    errors[field] ? <small id={errorId(field)}>{errors[field]}</small> : null
+  const fieldError = (field: SignupField) => <AuthMessage id={errorId(field)} message={errors[field]} />
 
   return (
     <div className="login">
@@ -248,6 +249,12 @@ const SignupPage = () => {
             isSending={emailCode.isSending}
             onRequestCode={handleRequestCode}
             disabled={isSubmitting}
+            hint={
+              <>
+                이미 가입한 이메일이면 코드가 가지 않아요. 비밀번호를 잊었다면{' '}
+                <Link to={FORGOT_PASSWORD_PATH}>비밀번호 찾기</Link>를 이용해 주세요.
+              </>
+            }
           />
 
           <EmailCodeInput
@@ -258,14 +265,15 @@ const SignupPage = () => {
             disabled={isSubmitting}
           />
 
-          {errors.form && (
-            <p className="signup__form-error" role="alert">
-              {errors.form}
-            </p>
-          )}
+          <AuthMessage as="p" className="signup__form-error" role="alert" message={errors.form} />
 
           <div className="login__actions signup__actions">
-            <button type="submit" className="login__btn login__btn--primary" disabled={isSubmitting}>
+            <button
+              type="submit"
+              className="login__btn login__btn--primary"
+              disabled={isSubmitting}
+              aria-busy={isSubmitting || undefined}
+            >
               {isSubmitting ? '가입 중...' : '회원가입'}
             </button>
             <button

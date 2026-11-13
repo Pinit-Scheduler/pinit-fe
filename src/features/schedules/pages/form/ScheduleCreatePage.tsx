@@ -1,6 +1,7 @@
 import { useLocation } from 'react-router-dom'
 import { useMemo } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
+import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
 import ScheduleForm from '../../components/ScheduleForm'
 import {
   getDisplayZoneId,
@@ -25,6 +26,7 @@ import {
   type RuleDraft,
 } from '@features/recurrence/utils/recurrenceRules'
 import { ApiError } from '@shared/api/httpClient'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 
 type LocationState = {
   initialDateKey?: string
@@ -36,18 +38,24 @@ const ScheduleCreatePage = () => {
   const { addToast } = useToast()
   const { offsetMinutes } = useTimePreferences()
   const { initialDateKey } = (location.state as LocationState | null) ?? {}
+  const affiliation = useCreateAffiliation()
 
   const initialValues = useMemo(() => {
     void offsetMinutes
-    if (!initialDateKey) return undefined
-    const now = getTodayWithOffset()
-    const targetDate = toDisplayDayjs(initialDateKey)
-    if (!targetDate.isValid()) return undefined
-    const start = targetDate.hour(now.hour()).minute(0).second(0)
+    const date = (() => {
+      if (!initialDateKey) return undefined
+      const now = getTodayWithOffset()
+      const targetDate = toDisplayDayjs(initialDateKey)
+      if (!targetDate.isValid()) return undefined
+      return targetDate.hour(now.hour()).minute(0).second(0).toDate()
+    })()
+    if (date === undefined && affiliation.spaceId === undefined)
+      return undefined
     return {
-      date: start.toDate(),
+      ...(date === undefined ? {} : { date }),
+      ...affiliation,
     }
-  }, [initialDateKey, offsetMinutes])
+  }, [initialDateKey, offsetMinutes, affiliation])
 
   const handleClose = () => complete('/app/schedules')
   const handleSubmit = async (
@@ -85,7 +93,13 @@ const ScheduleCreatePage = () => {
       }
     } catch (error) {
       console.error('일정 저장 실패:', error)
-      addToast('일정 저장에 실패했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          error,
+          '일정을 저장하지 못했어요.',
+        ),
+        'error',
+      )
       throw error
     }
   }
@@ -119,9 +133,14 @@ const ScheduleCreatePage = () => {
         zoneId: getDisplayZoneId(),
       }
       const created = await createRecurrence(payload)
-      if (!created.id) throw new Error('반복 일정 ID를 확인하지 못했어요.')
       dispatchScheduleChanged({ reason: 'recurrence' })
-      addToast('반복 일정을 만들었어요.', 'success')
+      // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
+      if (!created.id)
+        addToast(
+          '반복 일정을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          'info',
+        )
+      else addToast('반복 일정을 만들었어요.', 'success')
       handleClose()
     } catch (error) {
       console.error('반복 일정 저장 실패:', error)
@@ -131,9 +150,10 @@ const ScheduleCreatePage = () => {
           : []
       addToast(
         fieldErrors[0] ??
-          (error instanceof ApiError && error.status === 409
-            ? '진행 중인 반복이 너무 많아요.'
-            : '반복 일정을 만들지 못했어요.'),
+          getRequestFailureMessage(
+            error,
+            '반복 일정을 만들지 못했어요.',
+          ),
         'error',
       )
       throw error

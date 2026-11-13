@@ -111,7 +111,7 @@ const OAuthConsentPage = () => {
       })
       if (!isNavigableRedirectUri(redirectUri)) {
         setDecisionError(
-          '앱으로 돌아갈 주소가 올바르지 않아요. AI 클라이언트에서 연결을 다시 시작해주세요.',
+          '앱으로 돌아갈 주소가 올바르지 않아요. AI 클라이언트에서 연결을 다시 시작해 주세요.',
         )
         setPhase('ready')
         return
@@ -160,7 +160,7 @@ const OAuthConsentPage = () => {
         <div className="consent__state" role="alert">
           <h1>연결 요청을 열 수 없어요</h1>
           <p>
-            연결 요청 정보가 없어요. AI 클라이언트에서 연결을 다시 시작해주세요.
+            연결 요청 정보가 없어요. AI 클라이언트에서 연결을 다시 시작해 주세요.
           </p>
         </div>
       )
@@ -168,7 +168,7 @@ const OAuthConsentPage = () => {
 
     if (phase === 'loading') {
       return (
-        <div className="consent__state" role="status">
+        <div className="consent__state consent__state--loading" role="status">
           <h1>연결 요청을 확인하는 중...</h1>
         </div>
       )
@@ -211,7 +211,7 @@ const OAuthConsentPage = () => {
           <h1>{request.clientName}(으)로 돌아가는 중...</h1>
           <p>
             <strong>{request.redirectHost}</strong>(으)로 이동하고 있어요.
-            이동하지 않으면 이 창을 닫고 AI 클라이언트를 확인해주세요.
+            이동하지 않으면 이 창을 닫고 AI 클라이언트를 확인해 주세요.
           </p>
         </div>
       )
@@ -233,7 +233,7 @@ const OAuthConsentPage = () => {
       )
 
     return (
-      <>
+      <div className="consent__body">
         <p className="consent__eyebrow">AI 앱 연결 요청</p>
         <h1 className="consent__title">
           <span className="consent__client">{request.clientName}</span>이(가) 내
@@ -354,7 +354,7 @@ const OAuthConsentPage = () => {
             {isBusy ? '처리 중...' : '허용'}
           </button>
         </div>
-      </>
+      </div>
     )
   }
 

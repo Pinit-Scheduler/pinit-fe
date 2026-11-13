@@ -6,19 +6,18 @@ import ts from 'typescript'
 import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const load = (path, dependencies = {}, globals = {}) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
+    fileName: path,
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   })
   const module = { exports: {} }
   vm.runInNewContext(outputText, {
     module, exports: module.exports, Intl, Date, AbortController,
-    require(name) {
-      assert.ok(name in dependencies, `Unexpected dependency: ${name}`)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -40,8 +39,16 @@ const personalSpaces = {
   spaces: [{ id: -7, personal: true }, { id: 42, personal: false }],
   selectSpace() {},
 }
+// Rows render as present and numbers show their value; the motion primitives have their own tests.
+const motion = {
+  useListPresence: (items, getKey) => (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+  presenceProps: () => ({}),
+  useTweenedNumber: (value) => value,
+  useArrival: () => false,
+}
 const Item = load('../src/features/deadline-risk/components/DeadlineRiskItem.tsx', {
   'react/jsx-runtime': jsxRuntime,
+  '@shared/motion': motion,
   'react-router-dom': { Link, useLocation: () => ({ pathname: '/app/deadline-risk' }) },
   '@shared/utils/isoDuration': duration,
   '../utils/deadlineRiskView': view,
@@ -54,6 +61,7 @@ test('page announces personal-space-only tasks and schedules before forecast loa
     'react-router-dom': { useNavigate: () => () => {} },
     '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
     '@features/spaces/store': { useSpaces: () => personalSpaces },
+    '@shared/motion': motion,
     '../components/DeadlineRiskItem': { default: Item },
     '../hooks/useDeadlineRisk': { default: () => ({ forecast: null, error: null, isLoading: true, refresh() {} }) },
     '../utils/deadlineRiskView': view,
@@ -74,6 +82,7 @@ test('personal plan and empty-task actions switch team/project view only on clic
     'react-router-dom': { useNavigate: () => (path) => actions.push(['navigate', path]) },
     '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
     '@features/spaces/store': { useSpaces: () => spaces },
+    '@shared/motion': motion,
     '../components/DeadlineRiskItem': { default: Item },
     '../hooks/useDeadlineRisk': { default: () => ({
       forecast: { ...baseItem, generatedAt: '2026-11-09T00:00:00Z', horizonEnd: '2026-11-15T15:00:00Z', zoneId: 'Asia/Seoul', items: [], assumptions: [], limitations: [] },
@@ -108,7 +117,8 @@ test('missing personal space during snapshot loading or failure disables every p
         'react-router-dom': { useNavigate: () => (path) => actions.push(['navigate', path]) },
         '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
         '@features/spaces/store': { useSpaces: () => ({ ...personalSpaces, spaces: [], loading: error === null, error, selectSpace: (id) => actions.push(['select', id]), reload: async () => {} }) },
-        '../components/DeadlineRiskItem': { default: Item },
+        '@shared/motion': motion,
+    '../components/DeadlineRiskItem': { default: Item },
         '../hooks/useDeadlineRisk': { default: () => ({
           forecast: { generatedAt: '2026-11-09T00:00:00Z', horizonEnd: '2026-11-15T15:00:00Z', zoneId: 'Asia/Seoul', items, assumptions: [], limitations: [] },
           error: null, isLoading: false, refresh() {},
@@ -151,6 +161,7 @@ test('workspace context labels personal forecast instead of the selected team pu
     'react-dom': { createPortal: (node) => node },
     './SpaceMark': { default: () => null },
     '@shared/hooks/useMediaQuery': { default: () => false },
+    '@shared/motion': { usePresence: (value) => ({ mounted: Boolean(value), closing: false, value }) },
     './scope': load('../src/features/spaces/scope.ts'),
     './spaces.css': {},
   })
@@ -229,84 +240,177 @@ const deferred = () => {
   return { promise, resolve, reject }
 }
 
+const microtasks = async () => { for (let i = 0; i < 6; i++) await Promise.resolve() }
+const coalesced = () => new Promise((resolve) => setTimeout(resolve, 5))
+
+// Runs the hook on the real useRevalidatingQuery and query store with a minimal hook runtime.
 const hookHarness = () => {
-  const states = [], effects = [], pendingEffects = [], requests = [], changed = {}
-  let index = 0
+  const slots = [], pending = [], requests = []
+  let cursor = 0
+  const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]))
+  const memo = (fn, deps) => {
+    const i = cursor++
+    if (!slots[i] || !same(slots[i].deps, deps)) slots[i] = { deps, value: fn() }
+    return slots[i].value
+  }
+  let subscription = null
+  const react = {
+    useRef: (initial) => { const i = cursor++; if (!(i in slots)) slots[i] = { current: initial }; return slots[i] },
+    useCallback: (fn, deps) => memo(() => fn, deps),
+    useEffect: (fn, deps) => {
+      const i = cursor++
+      const old = slots[i]
+      if (old && deps && same(old.deps, deps)) return
+      slots[i] = { deps }
+      pending.push(() => { old?.cleanup?.(); slots[i].cleanup = fn() })
+    },
+    useSyncExternalStore: (subscribe, getSnapshot) => {
+      if (subscription?.subscribe !== subscribe) {
+        subscription?.off()
+        subscription = { subscribe, off: subscribe(() => {}) }
+      }
+      return getSnapshot()
+    },
+  }
   const window = new EventTarget()
+  const globals = { window, CustomEvent, queueMicrotask, setTimeout, clearTimeout, Error }
+  const events = load('../src/shared/utils/events.ts', {}, globals)
+  const { createQueryStore } = load('../src/shared/utils/queryStore.ts', {}, globals)
+  const store = createQueryStore()
+  const query = load('../src/shared/hooks/useRevalidatingQuery.ts', {
+    react,
+    '@shared/api/authTokens': { getAccessToken: () => 'token', getTokenSubject: () => 'member-1' },
+    '@shared/utils/events': events,
+    '@shared/utils/queryStore': { queryStore: store },
+  }, globals)
   const hook = load('../src/features/deadline-risk/hooks/useDeadlineRisk.ts', {
-    react: {
-      useState(initial) {
-        const slot = index++
-        if (!(slot in states)) states[slot] = typeof initial === 'function' ? initial() : initial
-        return [states[slot], (next) => { states[slot] = typeof next === 'function' ? next(states[slot]) : next }]
-      },
-      useEffect(effect, deps) {
-        const slot = index++
-        if (!effects[slot] || deps.some((dep, at) => dep !== effects[slot].deps[at])) {
-          pendingEffects.push(() => {
-            effects[slot]?.cleanup?.()
-            effects[slot] = { deps, cleanup: effect() }
-          })
-        }
-      },
-    },
-    '@shared/utils/events': {
-      onTaskChanged: (handler) => { changed.task = handler; return () => { delete changed.task } },
-      onScheduleChanged: (handler) => { changed.schedule = handler; return () => { delete changed.schedule } },
-    },
+    react,
+    '@shared/hooks/useRevalidatingQuery': query,
     '../api/deadlineRisk': { fetchDeadlineRisk: (days, signal) => {
       const request = { days, signal, ...deferred() }; requests.push(request); return request.promise
     } },
-  }, { window }).default
+  }, globals).default
   return {
-    requests, changed, window,
-    render(days = 7, zone = 'Asia/Seoul') {
-      index = 0
-      const result = hook(days, zone)
-      while (pendingEffects.length) pendingEffects.shift()()
-      return result
+    requests, events, window,
+    // Render, run effects, let the store start its request, then read the settled result.
+    async render(days = 7, zone = 'Asia/Seoul') {
+      cursor = 0
+      hook(days, zone)
+      while (pending.length) pending.shift()()
+      await microtasks()
+      cursor = 0
+      return hook(days, zone)
     },
-    unmount() { effects.forEach((effect) => effect?.cleanup?.()) },
+    unmount() {
+      slots.forEach((slot) => slot?.cleanup?.())
+      subscription?.off()
+    },
   }
 }
-const settle = async () => { await Promise.resolve(); await Promise.resolve() }
 
 test('range changes immediately hide old results and late responses cannot replace newer forecast', async () => {
   const h = hookHarness()
-  assert.equal(h.render().isLoading, true)
+  assert.equal((await h.render()).isLoading, true)
   const first = h.requests[0]
-  assert.equal(h.render(14).forecast, null)
-  assert.equal(first.signal.aborted, true)
+  const switched = await h.render(14)
+  assert.equal(switched.forecast, null, 'the 14-day range never shows the 7-day forecast')
+  assert.equal(switched.isLoading, true)
   h.requests[1].resolve({ days: 14, items: [] })
-  await settle()
-  assert.equal(h.render(14).forecast.days, 14)
+  await microtasks()
+  assert.equal((await h.render(14)).forecast.days, 14)
   first.resolve({ days: 7, items: [baseItem] })
-  await settle()
-  assert.equal(h.render(14).forecast.days, 14)
-  assert.equal(h.render(14, 'UTC').forecast, null, 'zone change hides old capacity immediately')
+  await microtasks()
+  assert.equal((await h.render(14)).forecast.days, 14)
+  assert.equal((await h.render(14, 'UTC')).forecast, null, 'zone change hides old capacity immediately')
   h.unmount()
 })
 
-test('refresh failures discard old forecast; task/schedule/focus invalidation reloads and unmount aborts', async () => {
+test('refresh keeps the forecast on screen; task/schedule/focus changes refresh it in place', async () => {
   const h = hookHarness()
-  h.render()
+  await h.render()
   h.requests[0].resolve({ days: 7, items: [baseItem] })
-  await settle()
-  h.render().refresh()
-  assert.equal(h.render().forecast, null)
-  h.requests[1].reject(new Error('offline'))
-  await settle()
-  assert.match(h.render().error, /연결을 확인/)
-  assert.equal(h.render().forecast, null)
-  h.changed.task()
-  h.render()
-  h.changed.schedule()
-  h.render()
+  await microtasks()
+  const loaded = await h.render()
+  assert.equal(loaded.forecast.items.length, 1)
+
+  loaded.refresh()
+  const refreshing = await h.render()
+  assert.equal(h.requests.length, 2)
+  assert.equal(refreshing.forecast.items.length, 1, 'refresh keeps the forecast mounted')
+  assert.equal(refreshing.isLoading, false, 'no calculating line while a forecast is on screen')
+  assert.equal(refreshing.isRefreshing, true)
+  h.requests[1].resolve({ days: 7, items: [] })
+  await microtasks()
+  assert.equal((await h.render()).forecast.items.length, 0)
+
+  h.events.dispatchTaskChanged({ taskId: 41, reason: 'update' })
+  h.events.dispatchScheduleChanged({ reason: 'created' })
+  await coalesced()
+  const changed = await h.render()
+  assert.equal(h.requests.length, 3, 'a task and a schedule change in the same task refetch once')
+  assert.equal(changed.forecast.items.length, 0)
+  assert.equal(changed.isRefreshing, true)
+  h.requests[2].resolve({ days: 7, items: [baseItem] })
+  await microtasks()
+
   h.window.dispatchEvent(new Event('focus'))
-  h.render()
-  assert.equal(h.requests.length, 5)
+  const focused = await h.render()
+  assert.equal(h.requests.length, 4, 'window focus revalidates')
+  assert.equal(focused.forecast.items.length, 1)
   h.unmount()
-  assert.ok(h.requests.every((request) => request.signal.aborted))
-  assert.equal(h.changed.task, undefined)
-  assert.equal(h.changed.schedule, undefined)
+})
+
+test('a failed read hides the old forecast and says why', async () => {
+  const h = hookHarness()
+  await h.render()
+  h.requests[0].resolve({ days: 7, items: [baseItem] })
+  await microtasks()
+  ;(await h.render()).refresh()
+  await h.render()
+  h.requests[1].reject(new Error('offline'))
+  await microtasks()
+  const failed = await h.render()
+  assert.equal(failed.error, '마감 위험 예보를 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.')
+  assert.equal(failed.forecast, null, 'an outdated capacity estimate is never shown after a failure')
+  assert.equal(failed.isLoading, false)
+  failed.refresh()
+  const retrying = await h.render()
+  assert.equal(retrying.isLoading, true, 'a retry says it is calculating again')
+  h.requests[2].reject(apiError('예보 계산이 잠시 중단됐어요.', 503))
+  await microtasks()
+  assert.equal((await h.render()).error, '예보 계산이 잠시 중단됐어요.', 'the server message is shown as is')
+  ;(await h.render()).refresh()
+  await h.render()
+  h.requests[3].resolve({ days: 7, items: [] })
+  await microtasks()
+  const recovered = await h.render()
+  assert.equal(recovered.error, null)
+  assert.equal(recovered.forecast.items.length, 0)
+  h.unmount()
+})
+
+test('a refreshing forecast stays on screen, marked busy, with each row in its presence phase', () => {
+  const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
+    react: { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect },
+    'react/jsx-runtime': jsxRuntime,
+    'react-router-dom': { useNavigate: () => () => {} },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ zoneId: 'Asia/Seoul' }) },
+    '@features/spaces/store': { useSpaces: () => personalSpaces },
+    '@shared/motion': {
+      ...motion,
+      useListPresence: (items, getKey) => (items ?? []).map((item) => ({ key: String(getKey(item)), item, phase: 'enter' })),
+      presenceProps: (phase) => ({ 'data-presence': phase }),
+    },
+    '../components/DeadlineRiskItem': { default: Item },
+    '../hooks/useDeadlineRisk': { default: () => ({
+      forecast: { generatedAt: '2026-11-09T00:00:00Z', horizonEnd: '2026-11-15T15:00:00Z', zoneId: 'Asia/Seoul', items: [baseItem], assumptions: [], limitations: [] },
+      error: null, isLoading: false, isRefreshing: true, refresh() {},
+    }) },
+    '../utils/deadlineRiskView': view,
+    './DeadlineRiskPage.css': {},
+  }).default
+  const html = renderToStaticMarkup(React.createElement(Page))
+  assert.match(html, /<section class="deadline-risk"[^>]*aria-busy="true"/)
+  assert.match(html, /<li class="deadline-risk__item[^"]*" data-presence="enter">/)
+  assert.match(html, /금요일 제출/)
 })

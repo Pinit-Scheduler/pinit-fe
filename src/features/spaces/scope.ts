@@ -26,15 +26,61 @@ export function projectSelectionTarget(pathname: string): string | null {
   return routeScope(pathname) === 'selected' ? null : '/app/tasks'
 }
 
-export function createSpaceIdFor(
+/** 나의 스페이스 id. 아직 모르면(불러오는 중의 0 포함) 없다. */
+function personalSpaceId(defaultSpaceId: number | null): number | undefined {
+  return defaultSpaceId === null ||
+    !Number.isFinite(defaultSpaceId) ||
+    defaultSpaceId === 0
+    ? undefined
+    : defaultSpaceId
+}
+
+export type CreateAffiliation = { spaceId?: number; categoryId?: number }
+
+/**
+ * Where a new task or schedule starts, from the screen the create form was opened over.
+ * - Today (its buttons, or `?from=today`): the personal space, as before.
+ * - A list that shows the selected space (tasks, schedules, map, plan, recurrences):
+ *   the selected space and, when one is chosen, its project.
+ *   A completed or deleted project, or one from another space, is not a default.
+ * - Anywhere else, or no screen behind the form: nothing, so the form falls back
+ *   to the selected space and no project.
+ * The person can change all of it in the form.
+ */
+export function createAffiliationFor(
+  from: { pathname: string } | null | undefined,
   search: string,
-  defaultSpaceId: number | null,
-): number | undefined {
-  if (new URLSearchParams(search).get('from') !== 'today') return undefined
-  if (defaultSpaceId === null || !Number.isFinite(defaultSpaceId)) {
-    return undefined
+  workspace: {
+    defaultSpaceId: number | null
+    selectedSpaceId: number | null
+    selectedProjectId: number | null
+    projects: {
+      id: number
+      spaceId: number
+      completed: boolean
+      deleted?: boolean
+    }[]
+  },
+): CreateAffiliation {
+  const today =
+    new URLSearchParams(search).get('from') === 'today' ||
+    (from ? listPath(from.pathname) === '/app/today' : false)
+  if (today) {
+    const spaceId = personalSpaceId(workspace.defaultSpaceId)
+    return spaceId === undefined ? {} : { spaceId }
   }
-  return defaultSpaceId === 0 ? undefined : defaultSpaceId
+  if (!from || routeScope(from.pathname) !== 'selected') return {}
+  const { selectedSpaceId: spaceId, selectedProjectId: projectId } = workspace
+  if (spaceId === null || projectId === null) return {}
+  const project = workspace.projects.find((item) => item.id === projectId)
+  if (
+    !project ||
+    project.spaceId !== spaceId ||
+    project.deleted ||
+    project.completed
+  )
+    return {}
+  return { spaceId, categoryId: projectId }
 }
 
 export function scopeCrumb(

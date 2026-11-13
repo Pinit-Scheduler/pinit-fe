@@ -1,19 +1,27 @@
 import { Link, useLocation } from 'react-router-dom'
+import { useTweenedNumber } from '@shared/motion'
 import { formatMinutesLabel } from '@shared/utils/isoDuration'
 import type { DeadlineRiskItem as RiskItem } from '../types/deadlineRisk'
 import { forecastTimeLabel, riskExplanation, riskStatusLabel } from '../utils/deadlineRiskView'
 
-export default function DeadlineRiskItem({ item, zoneId, canOpenPlan, onOpenPlan }: {
+/** Minutes that glide to a refreshed forecast's value instead of jumping. */
+function Minutes({ value }: { value: number }) {
+  return <>{formatMinutesLabel(Math.round(useTweenedNumber(value)))}</>
+}
+
+export default function DeadlineRiskItem({ item, zoneId, canOpenPlan, onOpenPlan, presence }: {
   item: RiskItem
   zoneId: string
   canOpenPlan: boolean
   onOpenPlan: () => void
+  /** presenceProps(phase) from the page's useListPresence. */
+  presence?: Record<string, unknown>
 }) {
   const location = useLocation()
   const taskLinkState = { backgroundLocation: location }
   const unknown = item.status === 'UNKNOWN'
   return (
-    <li className={`deadline-risk__item deadline-risk__item--${item.status.toLowerCase()}`}>
+    <li className={`deadline-risk__item deadline-risk__item--${item.status.toLowerCase()}`} {...presence}>
       <div className="deadline-risk__item-heading">
         <h2><Link to={`/app/tasks/${item.taskId}`} state={taskLinkState}>{item.title}</Link></h2>
         <span className="deadline-risk__status">{riskStatusLabel(item.status)}</span>
@@ -26,9 +34,9 @@ export default function DeadlineRiskItem({ item, zoneId, canOpenPlan, onOpenPlan
         <p className="deadline-risk__hint">필요 시간과 확보 시간은 확인이 끝날 때까지 표시하지 않아요.</p>
       ) : (
         <dl className="deadline-risk__minutes">
-          <div><dt>필요한 시간</dt><dd>{formatMinutesLabel(item.requiredMinutes)}</dd></div>
-          <div><dt>사용 가능 시간(상한)</dt><dd>{formatMinutesLabel(item.availableMinutes)}</dd></div>
-          <div><dt>부족한 시간</dt><dd>{formatMinutesLabel(item.shortageMinutes)}</dd></div>
+          <div><dt>필요한 시간</dt><dd><Minutes value={item.requiredMinutes} /></dd></div>
+          <div><dt>사용 가능 시간(상한)</dt><dd><Minutes value={item.availableMinutes} /></dd></div>
+          <div><dt>부족한 시간</dt><dd><Minutes value={item.shortageMinutes} /></dd></div>
         </dl>
       )}
       {!unknown ? <p className="deadline-risk__hint">사용 가능 시간은 상한이에요. 합계가 충분해도 연속 시간이나 선행 순서를 맞추지 못할 수 있어요.</p> : null}

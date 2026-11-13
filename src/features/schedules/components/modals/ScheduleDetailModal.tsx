@@ -8,6 +8,7 @@ import useScheduleDetail from '../../hooks/useScheduleDetail'
 import { deleteSchedule } from '../../api/schedules'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { formatDateTimeWithZone } from '@shared/utils/datetime'
 import { formatDurationLabel } from '@shared/utils/duration'
 import { formatIsoDurationLabel } from '@shared/utils/isoDuration'
@@ -81,7 +82,13 @@ const ScheduleDetailModal = ({
           }
         } catch (error) {
           console.error('반복 삭제 실패:', error)
-          addToast('반복 일정을 지우지 못했어요.', 'error')
+          addToast(
+            getRequestFailureMessage(
+              error,
+              '반복 일정을 지우지 못했어요.',
+            ),
+            'error',
+          )
         }
         return
       }
@@ -99,6 +106,9 @@ const ScheduleDetailModal = ({
         if (activeScheduleId === schedule.id) {
           setActiveSchedule(null)
         }
+        // The list behind the surface drops the row (it fades out) and the week, month and
+        // overdue views refresh, without the caller having to pass onRefresh.
+        dispatchScheduleChanged({ scheduleId: schedule.id, reason: 'deleted' })
         onClose()
         offerScheduleUndo(schedule.id, onRefresh)
         if (onRefresh) {
@@ -106,11 +116,19 @@ const ScheduleDetailModal = ({
         }
       } catch (error) {
         console.error(`❌ Delete failed:`, error)
-        addToast('일정 삭제에 실패했습니다.', 'error')
+        addToast(
+          getRequestFailureMessage(
+            error,
+            '일정을 삭제하지 못했어요.',
+          ),
+          'error',
+        )
       }
     }
   }
 
+  // The cached copy from the list or the mini player opens the detail at once, so this loading
+  // line only shows for a schedule this session has never seen.
   if (isLoading) {
     return (
       <Modal
@@ -127,7 +145,9 @@ const ScheduleDetailModal = ({
     )
   }
 
-  if (error || !schedule) {
+  // A failed refresh keeps the schedule on screen (the error shows inline below); only a schedule
+  // that could not be loaded at all, or is gone, shows this.
+  if (!schedule) {
     return (
       <Modal
         embedded={embedded}
@@ -136,10 +156,9 @@ const ScheduleDetailModal = ({
         onClose={onClose}
         ariaLabel="일정 상세"
       >
-        <p className="schedule-detail-modal__loading">
-          일정 정보를 불러오지 못했어요.
+        <p className="schedule-detail-modal__description">
+          {error ?? '일정을 불러오지 못했어요.'}
         </p>
-        <p className="schedule-detail-modal__description">{error}</p>
         <button
           type="button"
           className="schedule-detail-modal__action-btn schedule-detail-modal__action-btn--delete"
@@ -182,6 +201,11 @@ const ScheduleDetailModal = ({
       </header>
 
       <div className="schedule-detail-modal__body">
+        {error && (
+          <p className="schedule-detail-modal__refresh-error" role="alert">
+            {error}
+          </p>
+        )}
         <section className="schedule-detail-modal__section">
           <h2>{schedule.title}</h2>
           <p className="schedule-detail-modal__description">

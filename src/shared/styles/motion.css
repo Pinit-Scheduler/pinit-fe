@@ -1,0 +1,274 @@
+/*
+ * Pinit motion. Read docs/motion/README.md before adding motion anywhere.
+ *
+ * Character: steady, precise, quietly satisfying. Motion is short and decelerating,
+ * never bouncy or looping, and every movement explains a change.
+ * Animate only transform, opacity, color, background, border and stroke.
+ */
+
+:root {
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --motion-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-enter: 240ms;
+  --motion-exit: 160ms;
+  --motion-distance: 8px;
+  /* A pressed control shrinks to this; the small one is for icon buttons and compact tiles. */
+  --motion-press-scale: 0.98;
+  --motion-press-scale-small: 0.94;
+  /* Delay between items that arrive together: rows in a list, or a few page sections. */
+  --motion-stagger: 24ms;
+  --motion-stagger-section: 40ms;
+  /* A highlight on a row that changed. */
+  --motion-flash: 1200ms;
+  /* The strike line starts after the completion check. */
+  --motion-strike-delay: 80ms;
+  /* Loading indicators stay invisible this long, so quick loads show nothing at all. */
+  --motion-status-delay: 150ms;
+}
+
+/* ------------------------------------------------------------------ */
+/* Keyframes. Defined once here; feature CSS must not redefine them.   */
+/* ------------------------------------------------------------------ */
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes motion-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Enter: rise into place from just below. */
+@keyframes motion-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance));
+  }
+}
+
+/* Exit: settle half the distance down while fading. */
+@keyframes motion-rise-out {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) / 2));
+  }
+}
+
+/* Toasts and menus that hang from the top edge. */
+@keyframes motion-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) * -1));
+  }
+}
+
+/* Mobile sheets slide the full panel height. */
+@keyframes motion-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes motion-sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+
+/* Modal panels rise twice the distance. */
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-distance) * 2));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Surfaces: Modal and RouteSurface set these data attributes.         */
+/* ------------------------------------------------------------------ */
+
+[data-motion-surface='backdrop'] {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+[data-motion-surface='panel'] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+[data-motion-surface='backdrop'][data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+[data-motion-surface='panel'][data-state='closing'] {
+  animation: motion-rise-out var(--motion-exit) var(--motion-ease-exit) both;
+}
+
+@media (max-width: 899px) {
+  [data-motion-surface='panel'][data-motion-sheet] {
+    animation: motion-sheet-in var(--motion-enter) var(--motion-ease) both;
+  }
+  [data-motion-surface='panel'][data-motion-sheet][data-state='closing'] {
+    animation: motion-sheet-out var(--motion-exit) var(--motion-ease-exit) both;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Keyed list presence (useListPresence + presenceProps).              */
+/* ------------------------------------------------------------------ */
+
+[data-presence='enter'] {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+[data-presence='exit'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* Strike line drawn left to right on completion.                     */
+/* Put .motion-strike on an inline element that wraps the text; the   */
+/* line follows wrapped lines because it is the inline's background.  */
+/* ------------------------------------------------------------------ */
+
+.motion-strike {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: 0 58%;
+  background-size: 0% 1.5px;
+  transition:
+    background-size var(--motion-fast) var(--motion-ease-exit),
+    color var(--motion-base) var(--motion-ease);
+}
+.motion-strike[data-done='true'] {
+  background-size: 100% 1.5px;
+  transition:
+    background-size var(--motion-enter) var(--motion-ease) var(--motion-strike-delay),
+    color var(--motion-base) var(--motion-ease) var(--motion-strike-delay);
+}
+@media (forced-colors: active) {
+  .motion-strike[data-done='true'] {
+    text-decoration: line-through;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Tab change: only the content area crossfades; the shell stays.     */
+/* AppShell names .app-shell__content; fixed chrome gets its own name */
+/* so the content snapshot never paints over it.                      */
+/* ------------------------------------------------------------------ */
+
+.app-shell__content {
+  view-transition-name: app-content;
+}
+.bottom-tab {
+  view-transition-name: app-bottom-tab;
+}
+.mini-player-wrapper {
+  view-transition-name: app-mini-player;
+}
+.toast-container {
+  view-transition-name: app-toasts;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-group(app-content) {
+  animation: none;
+}
+::view-transition-old(app-content) {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+}
+::view-transition-new(app-content) {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+::view-transition-group(app-bottom-tab),
+::view-transition-group(app-mini-player),
+::view-transition-group(app-toasts) {
+  animation: none;
+}
+::view-transition-old(app-bottom-tab),
+::view-transition-new(app-bottom-tab),
+::view-transition-old(app-mini-player),
+::view-transition-new(app-mini-player),
+::view-transition-old(app-toasts),
+::view-transition-new(app-toasts) {
+  animation-duration: var(--motion-fast);
+}
+
+/* ------------------------------------------------------------------ */
+/* Reduced motion. Travel and press scale go to 0, and every animation */
+/* and transition is cut to 0.01ms. An element whose fade stays sets   */
+/* --motion-keep-animation or --motion-keep-transition to the duration */
+/* it keeps. Every element resets both, so children are still cut even */
+/* where @property (inherits: false) is not supported.                 */
+/* ------------------------------------------------------------------ */
+
+@property --motion-keep-animation {
+  syntax: '<time>';
+  inherits: false;
+  initial-value: 0.01ms;
+}
+@property --motion-keep-transition {
+  syntax: '<time>';
+  inherits: false;
+  initial-value: 0.01ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-distance: 0px;
+    --motion-press-scale: 1;
+    --motion-press-scale-small: 1;
+  }
+  *,
+  *::before,
+  *::after {
+    --motion-keep-animation: 0.01ms;
+    --motion-keep-transition: 0.01ms;
+    animation-duration: var(--motion-keep-animation, 0.01ms) !important;
+    transition-duration: var(--motion-keep-transition, 0.01ms) !important;
+    scroll-behavior: auto !important;
+  }
+
+  [data-motion-surface],
+  [data-presence],
+  .toast,
+  .status-panel {
+    --motion-keep-animation: var(--motion-base);
+  }
+  [data-motion-surface][data-state='closing'],
+  [data-presence='exit'],
+  .toast[data-state='closing'] {
+    --motion-keep-animation: var(--motion-exit);
+  }
+  /* The line appears at once; only its color fades. */
+  .motion-strike,
+  .motion-strike[data-done='true'] {
+    transition-property: color;
+    --motion-keep-transition: var(--motion-base);
+  }
+  .motion-strike[data-done='true'] {
+    background-size: 100% 1.5px;
+  }
+  ::view-transition-new(app-content) {
+    animation-name: motion-fade-in;
+  }
+}
+
+/*
+ * The sheet keyframes travel the full panel height, not --motion-distance, so the kept
+ * durations above would bring the slide back. Under reduced motion a sheet only fades.
+ */
+@media (prefers-reduced-motion: reduce) and (max-width: 899px) {
+  [data-motion-surface='panel'][data-motion-sheet] {
+    animation-name: motion-fade-in;
+  }
+  [data-motion-surface='panel'][data-motion-sheet][data-state='closing'] {
+    animation-name: motion-fade-out;
+  }
+}

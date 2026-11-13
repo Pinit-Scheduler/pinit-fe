@@ -3,10 +3,12 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { buildAuthorizeUrl, login, type AuthProvider } from '../api/auth'
 import { clearLogoutMarker } from '@shared/api/authTokens'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
 import { standaloneFocusProps, useAuthPageScroll } from '../hooks/useAuthPageLayout'
 import { FORGOT_PASSWORD_PATH } from '../utils/authPaths'
+import AuthMessage from '../components/AuthMessage'
 import './LoginPage.css'
 
 const LoginPage = () => {
@@ -41,7 +43,7 @@ const LoginPage = () => {
       addToast('로그인에 성공했어요.', 'success')
       navigateAfterLogin(response)
     } catch (error) {
-      const message = error instanceof Error ? error.message : '로그인에 실패했습니다.'
+      const message = getRequestFailureMessage(error, '로그인하지 못했어요.')
       setErrors({ form: message })
       addToast(message, 'error')
     } finally {
@@ -89,8 +91,9 @@ const LoginPage = () => {
               autoComplete="username"
               {...standaloneFocusProps}
               disabled={isSubmitting || !!activeProvider}
+              aria-invalid={errors.username ? true : undefined}
             />
-            {errors.username && <small>{errors.username}</small>}
+            <AuthMessage message={errors.username} />
           </label>
 
           <label className="login__field">
@@ -103,11 +106,12 @@ const LoginPage = () => {
               autoComplete="current-password"
               {...standaloneFocusProps}
               disabled={isSubmitting || !!activeProvider}
+              aria-invalid={errors.password ? true : undefined}
             />
-            {errors.password && <small>{errors.password}</small>}
+            <AuthMessage message={errors.password} />
           </label>
 
-          {errors.form && <p className="login__form-error">{errors.form}</p>}
+          <AuthMessage as="p" className="login__form-error" message={errors.form} />
 
           <p className="login__links">
             <Link to={FORGOT_PASSWORD_PATH}>비밀번호를 잊으셨나요? 비밀번호 찾기</Link>
@@ -118,6 +122,7 @@ const LoginPage = () => {
               type="submit"
               className="login__btn login__btn--primary"
               disabled={isSubmitting || !!activeProvider}
+              aria-busy={isSubmitting || undefined}
             >
               {isSubmitting ? '로그인 중...' : '로그인'}
             </button>
@@ -144,6 +149,7 @@ const LoginPage = () => {
             className="login__btn login__btn--naver"
             onClick={() => handleProviderLogin('naver')}
             disabled={!!activeProvider}
+            aria-busy={activeProvider === 'naver' || undefined}
           >
             <span className="login__icon">N</span>
             {activeProvider === 'naver' ? '네이버로 이동 중...' : '네이버로 계속하기'}

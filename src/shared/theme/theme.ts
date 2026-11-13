@@ -11,8 +11,9 @@ export const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: 'dark', label: '어둡게' },
 ]
 
-// 모바일 주소창 색. 밝은 테마는 원래 브랜드 남색, 어두운 테마는 theme.css의 --c-page다.
-const THEME_COLOR = { light: '#0b1b42', dark: '#0b1220' } as const
+// 모바일 주소창 색. 밝은 테마는 원래 브랜드 남색, 어두운 테마는 워크스페이스 배경(workspacePalette.css의 --workspace-bg)이다.
+// index.html의 인라인 스크립트와 같은 값을 쓴다.
+export const THEME_COLOR = { light: '#0b1b42', dark: '#151c2a' } as const
 
 type ThemeStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 

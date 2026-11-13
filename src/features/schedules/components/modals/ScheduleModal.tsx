@@ -6,6 +6,10 @@ import { createSchedule, updateSchedule } from '../../api/schedules'
 import { toApiDateTimeWithZone, toDateFromApi } from '@shared/utils/datetime'
 import type { ScheduleFormValues, ScheduleResponse } from '../../types/schedule'
 import { useToast } from '@contexts/ToastContext'
+import {
+  ClientGuardError,
+  getRequestFailureMessage,
+} from '@shared/api/errorMessage'
 import { dispatchScheduleChanged } from '@shared/utils/events'
 import './ScheduleModal.css'
 
@@ -13,6 +17,8 @@ type ScheduleModalProps = {
   mode: 'create' | 'edit'
   schedule?: ScheduleResponse | null
   onClose: () => void
+  /** The caller keeps the modal mounted through its exit (usePresence) and passes closing. */
+  closing?: boolean
 }
 
 /**
@@ -22,7 +28,7 @@ type ScheduleModalProps = {
  * @param onClose - 모달 닫기 콜백
  * @constructor
  */
-const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
+const ScheduleModal = ({ mode, schedule, onClose, closing = false }: ScheduleModalProps) => {
   const titleId = useId()
   const { addToast } = useToast()
 
@@ -46,7 +52,7 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
       } else if (schedule) {
         result = await updateSchedule(schedule.id, payload)
       } else {
-        throw new Error('수정할 일정이 없습니다.')
+        throw new ClientGuardError('수정할 일정을 찾지 못했어요. 일정을 다시 연 뒤 수정해 주세요.')
       }
       if (result) {
         dispatchScheduleChanged({ schedule: result, reason: mode === 'create' ? 'created' : 'updated' })
@@ -54,7 +60,13 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
       onClose()
     } catch (error) {
       console.error('일정 저장 실패:', error)
-      addToast('일정 저장에 실패했습니다.', 'error')
+      addToast(
+        getRequestFailureMessage(
+          error,
+          '일정을 저장하지 못했어요.',
+        ),
+        'error',
+      )
       throw error
       // 에러 발생 시에도 모달을 닫으려면 onClose() 호출
       // onClose()
@@ -71,7 +83,7 @@ const ScheduleModal = ({ mode, schedule, onClose }: ScheduleModalProps) => {
     : undefined
 
   return (
-    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} labelledBy={titleId}>
+    <Modal backdropClassName="schedule-modal__backdrop" className="schedule-modal__content" onClose={onClose} labelledBy={titleId} closing={closing} sheet>
       <header className="schedule-modal__header">
         <h1 id={titleId}>{mode === 'create' ? '일정 추가' : '일정 수정'}</h1>
         <button

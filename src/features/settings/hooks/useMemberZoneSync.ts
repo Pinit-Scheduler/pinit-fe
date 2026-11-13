@@ -1,10 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { fetchProfileSettings } from '../api/profileSettings'
+import { currentAccountScope, primeQuery } from '@shared/hooks/useRevalidatingQuery'
+import { memberStore, PROFILE_SETTINGS_KEY } from './memberStore'
 
 /**
  * 앱 화면(AppShell)이 열릴 때 회원 시간대를 한 번 읽어 표시 시간대로 쓴다(ADR-0028). 다른 기기에서 바꾼 시간대도 여기서 따라간다.
  * 로그아웃하면 AppShell이 내려가므로 다음 로그인 때 다시 읽는다. 실패하면 마지막으로 저장한 시간대를 계속 쓴다.
+ * 읽은 값은 설정 화면 캐시가 비어 있을 때만 넣는다. 시간대가 달라 앱이 다시 그려져도 설정 화면이 "불러오는 중"으로 비지 않고,
+ * 설정 화면이 먼저 읽었거나 그사이 저장한 값은 늦게 온 이 응답이 덮지 않는다. 응답 전에 계정이 바뀌었으면 응답을 버린다.
  */
 export const useMemberZoneSync = () => {
   const { zoneId, applyZone } = useTimePreferences()
@@ -13,8 +17,11 @@ export const useMemberZoneSync = () => {
   useEffect(() => {
     if (didSync.current) return
     didSync.current = true
+    const account = currentAccountScope()
     fetchProfileSettings()
       .then((settings) => {
+        if (currentAccountScope() !== account) return
+        if (settings) primeQuery(PROFILE_SETTINGS_KEY, settings, memberStore)
         if (settings?.zoneId && settings.zoneId !== zoneId) applyZone(settings.zoneId)
       })
       .catch((error) => {

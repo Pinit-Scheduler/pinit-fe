@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 function load(path, dependencies = {}, globals = {}) {
@@ -30,10 +31,7 @@ function load(path, dependencies = {}, globals = {}) {
     setTimeout,
     clearTimeout,
     console: { error() {} },
-    require: (name) => {
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -737,6 +735,7 @@ function spacesStoreHarness(respond) {
     {
       react: {
         useEffect() {},
+        useMemo: (compute) => compute(),
         useState: (initial) => [initial, () => {}],
         useSyncExternalStore: (_subscribe, get) => get(),
       },
@@ -747,11 +746,13 @@ function spacesStoreHarness(respond) {
       '@shared/utils/events': {
         dispatchTaskChanged() {},
         dispatchScheduleChanged() {},
+        onDataChanged: () => () => {},
         onTaskChanged: () => () => {},
         onScheduleChanged: () => () => {},
       },
       './metadata': registry,
       './api': { fetchWorkspace: () => respond(member) },
+      '@shared/utils/sameData': load('shared/utils/sameData.ts'),
     },
     {
       sessionStorage: {
@@ -973,6 +974,8 @@ test('Workspace realtime handles deleted, purged and moved-out Task/Schedule eve
         './store': { useSpaces: () => ({ spaces: [{ id: 22 }], memberId: 4 }), workspaceChanged() {} },
         './realtime': { subscribeToWorkspace: (_signal, listener) => { changed = listener; return Promise.resolve() } },
         './metadata': registry,
+        '@shared/utils/events': { takeLocalEcho: () => false },
+        '@shared/motion/usePresence': { usePresence: () => ({ mounted: false, closing: false }) },
       }).default
       Component()
       changed({ spaceId: 22, resourceId: 1, resourceType, action })
@@ -1020,7 +1023,8 @@ test('Schedule edit snapshot survives realtime events with its original version;
         if (response instanceof Error) throw response
         return response
       } },
-      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: cacheSchedule }) },
+      '@contexts/ScheduleCacheContext': { useScheduleCache: () => ({ setSchedule: cacheSchedule, schedulesById: {} }) },
+      '@features/spaces/metadata': metadata(),
     }, { window }).default
     const render = () => { cursor = 0; return useDetail('8', { refreshOnChange }) }
     render()
@@ -1044,11 +1048,15 @@ test('Schedule edit snapshot survives realtime events with its original version;
       verify()
       await settle()
       assert.equal(render().schedule.version, 7, 'outage must preserve draft')
-      response = Object.assign(new Error('not accessible'), { status: 404 })
+      response = Object.assign(new Error('이 일정을 볼 수 있는 권한이 없어요.'), { status: 404 })
       verify()
       await settle()
       assert.equal(render().schedule, null, 'server-confirmed lost access must stop editing')
-      assert.match(render().error, /접근 권한/)
+      assert.equal(render().error, '이 일정을 볼 수 있는 권한이 없어요.', 'the server message is shown as sent')
+      response = Object.assign(new Error(''), { status: 404 })
+      verify()
+      await settle()
+      assert.match(render().error, /접근 권한이 바뀌었어요/, 'without a server message the screen says what happened')
     } else {
       await settle()
       assert.equal(render().schedule.version, 11)
@@ -1070,6 +1078,11 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/spaces/SpacePath': { default: () => null },
     '@features/spaces/conflicts': { isEditConflict: () => false },
     '@shared/components/common/Modal': {},
+    '@shared/components/motion/CompletionCheck': { default: () => null },
+    '@shared/motion': { useArrival: () => false },
+    '../utils/taskDetailRefresh': {
+      detailRefreshNeeded: () => ({ refetch: false, ownToggles: 0 }),
+    },
     '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({}) },
     '../api/tasks': { createScheduleFromTask: async (...args) => calls.push(args) },
     '@shared/utils/priorityStyles': {},
@@ -1247,45 +1260,147 @@ test('Server-confirmed lost membership evicts task/schedule/series metadata and 
   assert.equal(registry.getMetadata('task', 1).version, 100)
 })
 
-test('SSE reconnect resumes at Last-Event-ID in the current subscription and still refreshes views', async () => {
+const sseStream = (text) =>
+  new Response(
+    new ReadableStream({
+      start(stream) {
+        stream.enqueue(new TextEncoder().encode(text))
+        stream.close()
+      },
+    }),
+    { headers: { 'content-type': 'text/event-stream' } },
+  )
+const readyFrame = (id) =>
+  `${id === undefined ? '' : `id: ${id}\n`}event: ready\ndata: {"spaceId":null,"resourceType":"SPACE","resourceId":null,"version":0,"action":"READY"}\n\n`
+const changedFrame = (id, version = 2) =>
+  `${id === undefined ? '' : `id: ${id}\n`}event: changed\ndata: {"spaceId":22,"resourceType":"TASK","resourceId":1,"version":${version},"action":"UPDATED"}\n\n`
+
+test('SSE reconnect resumes at Last-Event-ID and refreshes views exactly once per connect', async () => {
   const controller = new AbortController(),
     calls = [],
-    events = []
-  let resyncs = 0
+    log = []
   const api = realtimeHarness({
     respond: async (url, init) => {
       calls.push({ url, init })
+      log.push('connect')
       const id = calls.length === 1 ? 40 : 41
-      return new Response(
-        new ReadableStream({
-          start(stream) {
-            stream.enqueue(
-              new TextEncoder().encode(
-                `id: ${id}\nevent: changed\ndata: {"spaceId":22,"resourceType":"TASK","resourceId":1,"version":${id},"action":"UPDATED"}\n\n`,
-              ),
-            )
-            stream.close()
-          },
-        }),
-        { headers: { 'content-type': 'text/event-stream' } },
-      )
+      return sseStream(changedFrame(id, id))
     },
   })
   await api.subscribeToWorkspace(
     controller.signal,
     (event) => {
       if (!event) {
-        resyncs++
+        log.push('refresh')
         return
       }
-      events.push(event.version)
-      if (events.length === 2) controller.abort()
+      log.push(event.version)
+      if (event.version === 41) controller.abort()
     },
     () => {},
   )
   assert.equal(calls.length, 2)
   assert.equal(calls[0].init.headers['Last-Event-ID'], undefined)
   assert.equal(calls[1].init.headers['Last-Event-ID'], '40')
-  assert.deepEqual(events, [40, 41])
-  assert.equal(resyncs, 2)
+  assert.deepEqual(log, ['connect', 'refresh', 40, 'connect', 'refresh', 41])
+})
+test('SSE first connect refreshes views exactly once after the stream opens', async () => {
+  // A fresh connection starts at the latest change, so changes committed between the views'
+  // first reads and the connect are not replayed. One refresh after the connect covers them.
+  const controller = new AbortController(),
+    log = []
+  const api = realtimeHarness({
+    respond: async () => {
+      log.push('connect')
+      return sseStream(readyFrame(7) + changedFrame(8))
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      log.push(event ? 'event' : 'refresh')
+      if (event) controller.abort()
+    },
+    (connected) => {
+      if (connected) log.push('open')
+    },
+  )
+  assert.deepEqual(log, ['connect', 'open', 'refresh', 'event'])
+})
+test('SSE stores the ready frame id and sends it as Last-Event-ID on reconnect', async () => {
+  const controller = new AbortController(),
+    calls = []
+  let refreshes = 0
+  const api = realtimeHarness({
+    respond: async (_url, init) => {
+      calls.push(init)
+      if (calls.length === 2) {
+        controller.abort()
+        throw new Error('aborted')
+      }
+      return sseStream(readyFrame(57))
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      if (!event) refreshes++
+    },
+    () => {},
+  )
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].headers['Last-Event-ID'], undefined)
+  assert.equal(calls[1].headers['Last-Event-ID'], '57')
+  assert.equal(refreshes, 1, 'the ready frame itself is not a change')
+})
+test('SSE ignores non-numeric event ids so Last-Event-ID stays a number', async () => {
+  const controller = new AbortController(),
+    calls = [],
+    events = []
+  const api = realtimeHarness({
+    respond: async (_url, init) => {
+      calls.push(init)
+      if (calls.length === 1) return sseStream(readyFrame('ready-1'))
+      if (calls.length === 2)
+        return sseStream(readyFrame(12) + changedFrame('abc', 3) + changedFrame(' 13', 4) + changedFrame('-1', 5))
+      controller.abort()
+      throw new Error('aborted')
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      if (event) events.push(event.version)
+    },
+    () => {},
+  )
+  assert.equal(calls.length, 3)
+  assert.equal(calls[1].headers['Last-Event-ID'], undefined, 'a non-numeric ready id is not kept')
+  assert.equal(calls[2].headers['Last-Event-ID'], '12', 'later non-numeric ids keep the last numeric one')
+  assert.deepEqual(events, [3, 4, 5], 'the changes themselves are still delivered')
+})
+test('SSE refreshes only after a response is ok, never on a failed attempt', async () => {
+  // The server fixes its cursor before it answers, so a refresh before an ok response could
+  // still miss a change committed before the cursor is fixed.
+  const controller = new AbortController(),
+    log = []
+  let attempts = 0
+  const api = realtimeHarness({
+    respond: async () => {
+      attempts++
+      log.push('connect')
+      if (attempts === 1) return new Response('busy', { status: 503 })
+      if (attempts === 2) return sseStream(readyFrame(5))
+      controller.abort()
+      throw new Error('aborted')
+    },
+  })
+  await api.subscribeToWorkspace(
+    controller.signal,
+    (event) => {
+      if (!event) log.push('refresh')
+    },
+    (connected) => log.push(connected ? 'open' : 'closed'),
+  )
+  assert.deepEqual(log, ['connect', 'closed', 'connect', 'open', 'refresh', 'closed', 'connect'])
 })

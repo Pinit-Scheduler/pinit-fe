@@ -1,5 +1,6 @@
 import { buildApiUrl } from '@shared/api/config'
 import { httpClient } from '@shared/api/httpClient'
+import { ClientGuardError } from '@shared/api/errorMessage'
 import { getSelectedScope } from '@features/spaces/store'
 import {
   getMetadata,
@@ -81,7 +82,7 @@ export async function fetchRecurrence(id: number) {
   try {
     const series = normalize(await httpClient<View>(url(`/${id}`)), true, revision)
     if (isResourceUnavailable('series', id, series))
-      throw new Error('반복 접근 권한이 변경됐습니다. 목록에서 다시 확인해 주세요.')
+      throw new ClientGuardError('반복 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.')
     return series
   } catch (error) {
     handleResourceReadError('series', id, error, revision)
@@ -104,7 +105,7 @@ export async function updateRecurrence(
   const version = await versionOf(id, expectedVersion)
   const revision = getResourceRevision()
   if (version === undefined)
-    throw new Error('반복을 다시 열어 최신 버전을 확인해 주세요.')
+    throw new ClientGuardError('반복을 다시 열어 최신 버전을 확인해 주세요.')
   const view = await httpClient<
     View & { impact: RecurrenceEditResponse['impact'] }
   >(url(`/${id}?dryRun=${dryRun}`), {
@@ -135,7 +136,7 @@ export async function deleteRecurrence(
 ) {
   const version = await versionOf(id, expectedVersion)
   if (version === undefined)
-    throw new Error('반복을 다시 열어 최신 버전을 확인해 주세요.')
+    throw new ClientGuardError('반복을 다시 열어 최신 버전을 확인해 주세요.')
   const query = new URLSearchParams({
     scope,
     dryRun: String(dryRun),

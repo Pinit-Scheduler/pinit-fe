@@ -15,6 +15,8 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* 비밀번호 변경·탈퇴 양식을 열면 제목 줄 아래에서 살짝 올라온다. */
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 
 .account__field {
@@ -89,6 +91,16 @@
   border-radius: 12px;
   font-weight: 800;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+:is(.account__primary-btn, .account__secondary-btn, .account__danger-outline-btn):not(:disabled):active {
+  transform: scale(var(--motion-press-scale));
 }
 
 .account__primary-btn {

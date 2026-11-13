@@ -27,10 +27,37 @@ export type ScheduleCacheValue = {
 
 const ScheduleCacheContext = createContext<ScheduleCacheValue | null>(null)
 
+/** Two copies of one schedule whose fields hold the same values (one level deep). */
+const sameRevision = (a: ScheduleResponse, b: ScheduleResponse) => {
+  if (a === b) return true
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
+  for (const key of keys) {
+    const left = (a as Record<string, unknown>)[key]
+    const right = (b as Record<string, unknown>)[key]
+    if (Object.is(left, right)) continue
+    if (
+      typeof left !== 'object' ||
+      typeof right !== 'object' ||
+      left === null ||
+      right === null ||
+      JSON.stringify(left) !== JSON.stringify(right)
+    )
+      return false
+  }
+  return true
+}
+
 export const ScheduleCacheProvider = ({
   children,
+  resetKey,
 }: {
   children: ReactNode
+  /**
+   * Changing this empties the cache in place, in the same render. The running schedule is kept:
+   * it is one self-describing record (its time carries its own zone), and dropping it would
+   * make the mini player slide out and back in.
+   */
+  resetKey?: string
 }) => {
   const [schedulesById, setSchedulesById] = useState<
     Record<number, ScheduleResponse>
@@ -96,6 +123,9 @@ export const ScheduleCacheProvider = ({
         current.version > schedule.version
       )
         return prev
+      // The same revision read twice (a list read after the detail, say) changes nothing.
+      // Keep the map so every consumer of the cache skips a render.
+      if (current && sameRevision(current, schedule)) return prev
       return { ...prev, [schedule.id]: schedule }
     })
   }, [])
@@ -124,6 +154,16 @@ export const ScheduleCacheProvider = ({
     if (scheduleId !== null && isResourceUnavailable('schedule', scheduleId)) return
     setActiveScheduleId(scheduleId)
   }, [])
+
+  const [shownResetKey, setShownResetKey] = useState(resetKey)
+  if (shownResetKey !== resetKey) {
+    setShownResetKey(resetKey)
+    setSchedulesById((previous) =>
+      activeScheduleId !== null && previous[activeScheduleId]
+        ? { [activeScheduleId]: previous[activeScheduleId] }
+        : {},
+    )
+  }
 
   const value = useMemo(
     () => ({

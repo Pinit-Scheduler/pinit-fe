@@ -1,9 +1,11 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import {
   dispatchScheduleChanged,
   dispatchTaskChanged,
 } from '@shared/utils/events'
+import { sameData } from '@shared/utils/sameData'
 import { clearWorkspaceMetadata, syncAccessibleSpaces } from './metadata'
 import { fetchWorkspace } from './api'
 import type { WorkspaceSnapshot } from './types'
@@ -37,6 +39,9 @@ let generation = 0
 let pending: Promise<void> | null = null
 let invalidated = false
 let selectionVersion = 0
+// When the last snapshot arrived. Window focus reloads at most once per FOCUS_RELOAD_MS after it.
+let loadedAt = 0
+export const FOCUS_RELOAD_MS = 15_000
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((listener) => listener())
 const subject = () => {
@@ -54,9 +59,24 @@ function readSelection(member: string): number | null {
     return null
   }
 }
+const workspaceOf = (value: WorkspaceSnapshot): WorkspaceSnapshot => ({
+  memberId: value.memberId,
+  nickname: value.nickname,
+  defaultSpaceId: value.defaultSpaceId,
+  spaces: value.spaces,
+  projects: value.projects,
+  taskAssignments: value.taskAssignments,
+  scheduleAssignments: value.scheduleAssignments,
+})
 export function selectSpace(spaceId: number, projectId: number | null = null) {
   if (actor !== subject()) resetSpaces()
   selectionVersion++
+  // Choosing what is already chosen changes nothing: no re-render, no refetch of every list.
+  if (
+    state.selectedSpaceId === spaceId &&
+    state.selectedProjectId === projectId
+  )
+    return
   // A selection is a local view preference; membership and visible records are server facts.
   state = { ...state, selectedSpaceId: spaceId, selectedProjectId: projectId }
   if (actor) {
@@ -71,6 +91,7 @@ export function selectSpace(spaceId: number, projectId: number | null = null) {
   dispatchScheduleChanged({ reason: 'space-scope' })
 }
 export function selectProject(projectId: number | null) {
+  if (state.selectedProjectId === projectId) return
   state = { ...state, selectedProjectId: projectId }
   emit()
   dispatchTaskChanged({ reason: 'space-scope' })
@@ -80,6 +101,7 @@ export function resetSpaces() {
   generation++
   clearWorkspaceMetadata()
   invalidated = false
+  loadedAt = 0
   actor = subject()
   pending = null
   state = {
@@ -147,6 +169,16 @@ export function reloadSpaces(): Promise<void> {
       const changedScope =
         selection !== state.selectedSpaceId ||
         projectId !== state.selectedProjectId
+      loadedAt = Date.now()
+      // A reload that brings back what is already on screen (focus, a realtime echo) emits
+      // nothing, so no consumer re-renders and nothing on screen moves.
+      if (
+        !changedScope &&
+        !state.loading &&
+        state.error === null &&
+        sameData(workspaceOf(state), workspaceOf(snapshot))
+      )
+        return
       state = {
         ...snapshot,
         loading: false,
@@ -167,9 +199,7 @@ export function reloadSpaces(): Promise<void> {
           ...state,
           loading: false,
           error:
-            error instanceof Error
-              ? error.message
-              : '스페이스를 불러오지 못했어요.',
+            getRequestFailureMessage(error, '스페이스를 불러오지 못했어요.'),
         }
         emit()
       }
@@ -188,17 +218,22 @@ export function reloadSpaces(): Promise<void> {
   return request
 }
 export function useSpaces() {
-  const snapshot = useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    () => state,
-  )
+  const snapshot = useSyncExternalStore(subscribe, getState)
   useEffect(() => {
     if (actor !== subject() || (state.loading && !pending))
       void reloadSpaces().catch(() => {})
   }, [])
+  // One object per snapshot, so a parent re-render does not hand consumers a new value.
+  return useMemo(() => spacesView(snapshot), [snapshot])
+}
+const subscribe = (listener: () => void) => {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+const getState = () => state
+function spacesView(snapshot: State) {
   return {
     ...snapshot,
     selectedSpace:
@@ -220,6 +255,18 @@ export function useWorkspaceEvents() {
     const invalidate = () => {
       void reloadSpaces().catch(() => {})
     }
+    // Focus is a hint, not a change: reload at most once per FOCUS_RELOAD_MS after the last
+    // snapshot, unless the last load failed or has not finished.
+    const focus = () => {
+      if (
+        !state.loading &&
+        state.error === null &&
+        actor === subject() &&
+        Date.now() - loadedAt < FOCUS_RELOAD_MS
+      )
+        return
+      invalidate()
+    }
     const auth = () => {
       if (actor !== subject()) {
         resetSpaces()
@@ -228,11 +275,11 @@ export function useWorkspaceEvents() {
     }
     window.addEventListener('auth:changed', auth)
     window.addEventListener('storage', auth)
-    window.addEventListener('focus', invalidate)
+    window.addEventListener('focus', focus)
     return () => {
       window.removeEventListener('auth:changed', auth)
       window.removeEventListener('storage', auth)
-      window.removeEventListener('focus', invalidate)
+      window.removeEventListener('focus', focus)
     }
   }, [])
 }

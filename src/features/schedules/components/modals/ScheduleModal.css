@@ -7,7 +7,7 @@
   align-items: flex-end;
   padding: 16px;
   z-index: var(--z-modal-backdrop);
-  animation: modalFadeIn 180ms ease;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
 }
 
 @media (min-width: 768px) {
@@ -26,7 +26,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: modalSlideUp 220ms ease;
+  animation: modalSlideUp var(--motion-enter) var(--motion-ease) both;
 }
 
 @media (min-width: 768px) {
@@ -62,7 +62,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .schedule-modal__close:hover {
@@ -76,22 +78,3 @@
   flex: 1;
 }
 
-@keyframes modalFadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes modalSlideUp {
-  from {
-    transform: translateY(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
-}

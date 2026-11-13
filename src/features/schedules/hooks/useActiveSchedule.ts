@@ -3,7 +3,6 @@ import { fetchScheduleDetail } from '../api/schedules'
 import { fetchActiveScheduleId } from '@features/auth/api/member'
 import type { ScheduleSummary } from '../types/schedule'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
-import { dispatchTaskChanged } from '@shared/utils/events'
 
 const useActiveSchedule = (): ScheduleSummary | null => {
   const [active, setActive] = useState<ScheduleSummary | null>(null)
@@ -42,10 +41,9 @@ const useActiveSchedule = (): ScheduleSummary | null => {
             duration: detail.duration,
           })
           setSchedule(detail)
+          // Loading the active schedule changes no task. setSchedule already updates the cache,
+          // so no task:changed here: it made every list refetch on each focus or tab return.
           setActiveSchedule(activeId)
-          if (detail.taskId != null) {
-            dispatchTaskChanged(detail.taskId, 'active-schedule-loaded')
-          }
         }
       } catch (error) {
         console.error('Failed to load active schedule:', error)

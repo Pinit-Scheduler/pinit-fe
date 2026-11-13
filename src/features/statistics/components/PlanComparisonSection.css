@@ -23,25 +23,28 @@
   gap: 14px;
   font-size: 14px;
 }
-.plan-comparison__rows > div > div {
+.plan-comparison__track {
   height: 12px;
   background: var(--c-slate-100);
   border-radius: 5px;
   overflow: hidden;
 }
-.plan-comparison__rows i {
+/* 막대는 트랙 너비 그대로이고 transform으로 왼쪽에서 밀려 들어온다. 모서리가 늘어나지 않는다. */
+.plan-comparison__bar {
   display: block;
+  width: 100%;
   height: 100%;
   background: var(--c-blue-600);
   border-radius: 5px;
 }
-.plan-comparison__rows i.is-planned {
+.plan-comparison__bar.is-planned {
   background: var(--c-blue-200);
 }
 .plan-comparison__rows strong {
   text-align: right;
   font-size: 15px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 .plan-comparison > small {
   font-size: 13px;
@@ -72,13 +75,36 @@
   font-weight: 400;
   font-size: 11px;
   color: var(--c-slate-500);
+  font-variant-numeric: tabular-nums;
 }
-.plan-daily-bars i {
-  display: block;
-  max-width: 22px;
+/* 값 라벨은 막대 꼭대기를 따라 내려온다(--hidden은 막대가 트랙 밖으로 밀린 비율). */
+.plan-daily-bars__value {
+  transform: translateY(calc(var(--hidden, 0) * 130px));
+  transition:
+    transform var(--motion-enter) var(--motion-ease) calc(var(--i, 0) * var(--motion-stagger)),
+    opacity var(--motion-base) var(--motion-ease);
+}
+[data-pending] .plan-daily-bars__value {
+  transition:
+    transform var(--motion-enter) var(--motion-ease),
+    opacity var(--motion-fast) var(--motion-ease-exit);
+}
+.plan-daily-bars__track {
+  display: flex;
+  justify-content: center;
   width: 100%;
+  max-width: 22px;
+  height: 130px;
+  overflow: hidden;
+  border-radius: 4px 4px 0 0;
+}
+.plan-daily-bars__bar {
+  display: block;
+  width: 100%;
+  height: 100%;
   background: var(--c-blue-400);
   border-radius: 4px 4px 0 0;
+  transform: translateY(calc(var(--hidden, 0) * 100%));
 }
 .plan-daily-bars span {
   font-size: 12px;

@@ -11,7 +11,7 @@
   line-height: 1.5;
   font-weight: 400;
   color: var(--c-slate-900);
-  background-color: var(--c-page);
+  background-color: var(--c-app-canvas);
   --z-topbar: 10;
   --z-mini-player: 90;
   --z-bottom-tab: 100;
@@ -41,8 +41,26 @@ body,
   overscroll-behavior: none;
 }
 
+/*
+ * The canvas behind every page is the workspace background (workspacePalette.css --workspace-bg),
+ * the same colour index.html paints before any CSS arrives. A frame where nothing inside
+ * .workspace-theme is painted (AuthGuard, the loading screen) then shows no colour jump.
+ * Public pages (landing, login, consent, invitation) paint their own full-height background.
+ */
+:root {
+  --c-app-canvas: #f4f6fa;
+}
+:root[data-theme='dark'] {
+  --c-app-canvas: #151c2a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --c-app-canvas: #151c2a;
+  }
+}
+
 body {
-  background-color: var(--c-page-outer);
+  background-color: var(--c-app-canvas);
 }
 
 a,
@@ -92,14 +110,17 @@ button:disabled {
   cursor: default;
   opacity: 0.45;
 }
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+/* Read by screen readers, not shown. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 [role='dialog']:focus {

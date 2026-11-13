@@ -3,8 +3,12 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { apiError, requireFrom } from './support/errors.mjs'
 
 const jsx = (type, props, key) => ({ type, props, key })
+/** 서버가 400으로 거절한 저장. */
+const serverRejection = (message) => apiError(message, 400)
+
 const load = (path, dependencies) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
@@ -43,14 +47,17 @@ const load = (path, dependencies) => {
         return { moveResultMessage: () => null }
       if (name === '@features/spaces/EditConflictDialog')
         return { default: () => null }
+      if (name === '@shared/motion/usePresence')
+        return {
+          usePresence: (value) => ({ mounted: !!value, closing: false, value: value || undefined }),
+        }
       if (name === '@features/spaces/MyInputDisclosure')
         return { default: () => null }
       if (name === '@features/spaces/conflicts')
         return { changedInput: () => [], isEditConflict: () => false }
       if (name === '@constants/schedules' && !(name in dependencies))
         return { scheduleTypeLabel: {} }
-      assert.ok(name in dependencies, `Unexpected dependency ${name}`)
-      return dependencies[name]
+      return requireFrom(dependencies)(name)
     },
   })
   return module.exports
@@ -160,6 +167,12 @@ for (const kind of ['task', 'schedule']) {
       '@shared/utils/taskEstimate': { DIFFICULTY_ESTIMATE_MINUTES: { 2: 30 } },
       './TaskForm.css': {},
       './modals/TaskDependencyModal': { default: () => null },
+      // Dependency chips animate through list presence; the form logic does not depend on it.
+      '@shared/motion': {
+        useListPresence: (items, getKey) =>
+          items.map((item) => ({ key: String(getKey(item)), item, phase: 'present' })),
+        presenceProps: () => ({}),
+      },
       dayjs: { default: () => day },
       './ScheduleForm.css': {},
       '../hooks/useScheduleForm': {
@@ -309,7 +322,7 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     '../components/TaskForm': { default: TaskForm },
     '../api/tasks': {
       updateTask: async (id, payload) => {
-        if (failContent) throw new Error('content failed')
+        if (failContent) throw serverRejection('content failed')
         saved.push([id, payload])
         return { ...task, ...payload }
       },
@@ -336,7 +349,7 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     },
     '@features/recurrence/utils/seriesMutations': {
       confirmAndUpdateSeries: async (...args) => {
-        if (failContent) throw new Error('content failed')
+        if (failContent) throw serverRejection('content failed')
         seriesUpdated.push(args)
         return 'updated'
       },
@@ -443,6 +456,7 @@ test('a committed series category write stays successful when its follow-up refr
     scheduleAssignments: { 9: 7 },
   }
   const store = load('../src/features/categories/store.ts', {
+    '@shared/utils/sameData': load('../src/shared/utils/sameData.ts'),
     react: { useEffect() {}, useSyncExternalStore: (_subscribe, get) => get() },
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': {
@@ -465,12 +479,13 @@ test('a committed series category write stays successful when its follow-up refr
             allowedActions: {},
           }
         }
-        if (fail) throw new Error('refresh failed')
+        if (fail) throw apiError('refresh failed', 500)
         return snapshot
       },
     },
     '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
     '@shared/utils/events': {
+      onDataChanged: () => () => {},
       onTaskChanged: () => () => {},
       onScheduleChanged: () => () => {},
     },

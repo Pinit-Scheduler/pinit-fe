@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { clearAuthTokens, markLoggedOut } from '@shared/api/authTokens'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { useToast } from '@contexts/ToastContext'
 import { logout as requestLogout } from '../api/auth'
 
@@ -24,11 +25,10 @@ const useLogout = (unsubscribePush: () => Promise<unknown>) => {
       await requestLogout()
       clearAuthTokens()
       markLoggedOut()
-      addToast('로그아웃되었습니다.', 'info')
+      addToast('로그아웃했어요.', 'info')
       navigate('/login', { replace: true })
     } catch (error) {
-      const message = error instanceof Error ? error.message : '로그아웃에 실패했어요.'
-      addToast(message, 'error')
+      addToast(getRequestFailureMessage(error, '로그아웃하지 못했어요.'), 'error')
     } finally {
       setIsLoggingOut(false)
     }

@@ -104,8 +104,7 @@ const OnboardingGuidePage = () => {
     return (
       <StatusPanel
         variant="error"
-        title="온보딩 안내를 불러오지 못했어요"
-        description={error ?? undefined}
+        title={error ?? '온보딩 안내를 불러오지 못했어요.'}
         action={
           <button type="button" className="onboarding-guide__retry" onClick={reload}>
             다시 시도

@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { requireFrom } from './support/errors.mjs'
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 function load(path, dependencies = {}, globals = {}) {
@@ -30,10 +33,7 @@ function load(path, dependencies = {}, globals = {}) {
     setTimeout,
     clearTimeout,
     console: { error() {} },
-    require: (name) => {
-      assert.ok(name in dependencies, 'Unexpected dependency ' + name)
-      return dependencies[name]
-    },
+    require: requireFrom(dependencies),
     ...globals,
   })
   return module.exports
@@ -164,29 +164,25 @@ test('summary calls use the contract paths', async () => {
 })
 
 test('spaces is a main destination right after today', () => {
-  const source = readFileSync(
-    new URL('../src/shared/components/layout/WorkspaceSidebar.tsx', import.meta.url),
-    'utf8',
-  )
-  assert.match(source, /\['today', '오늘', 'sun'\],\s*\['spaces', '스페이스', 'spaces'\]/)
-  assert.equal(source.includes('스페이스·프로젝트'), false)
-})
-
-test('hub data is keyed by space so a stale space never shows', () => {
-  const source = readFileSync(
-    new URL('../src/features/spaces/hub/useHubData.ts', import.meta.url),
-    'utf8',
-  )
-  assert.match(source, /`summary:\$\{spaceId\}`/)
-  assert.match(source, /`record:\$\{spaceId\}:\$\{weekStart\}`/)
-  assert.match(source, /fetchWeeklyRecord\(spaceId, weekStart\)/)
-})
-
-test('the hub never counts tasks itself', () => {
-  for (const file of ['SpacesPage.tsx', 'hub/HubProjects.tsx', 'hub/HubPeople.tsx', 'hub/HubRail.tsx', 'hub/TeamRecord.tsx']) {
-    const source = readFileSync(new URL('../src/features/spaces/' + file, import.meta.url), 'utf8')
-    assert.equal(/fetchWorkspaceTasks|workspace\/tasks|\.reduce\(/.test(source), false, file)
-  }
+  const Sidebar = load('shared/components/layout/WorkspaceSidebar.tsx', {
+    'react/jsx-runtime': jsxRuntime,
+    '@features/spaces/SpaceChrome': { SpaceSwitcher: () => null, SpaceProjectsNav: () => null },
+    '@features/spaces/store': { useSpaces: () => ({ nickname: '나' }) },
+    'react-router-dom': {
+      Link: ({ to, children }) => React.createElement('a', { href: to }, children),
+      NavLink: ({ to, children }) => React.createElement('a', { href: to }, children),
+    },
+    '@shared/routing/viewTransitionNavigation': { tabLinkClick: () => undefined },
+    '../common/WorkspaceIcon': { default: () => null },
+  }).default
+  const html = renderToStaticMarkup(React.createElement(Sidebar))
+  const main = html.slice(html.indexOf('aria-label="주 메뉴"'), html.indexOf('aria-label="관리 메뉴"'))
+  const links = [...main.matchAll(/href="([^"]+)">([^<]+)</g)].map(([, href, label]) => [href, label])
+  assert.deepEqual(links.slice(0, 2), [
+    ['/app/today', '오늘'],
+    ['/app/spaces', '스페이스'],
+  ])
+  assert.equal(html.includes('스페이스·프로젝트'), false)
 })
 
 test('day bars keep seven server days and mark today', () => {

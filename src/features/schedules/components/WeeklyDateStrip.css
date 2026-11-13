@@ -17,6 +17,15 @@
   background-color: transparent;
   cursor: pointer;
   color: var(--c-slate-600);
+  /* Picking a day moves the highlight with a short color change. */
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.weekly-date-strip__day:active {
+  transform: scale(var(--motion-press-scale-small));
 }
 
 .weekly-date-strip__day.is-selected {
@@ -32,6 +41,8 @@
 .weekly-date-strip__dot {
   font-size: 8px;
   color: transparent;
+  /* Dots fade in as the week loads and change color when a day's last schedule completes. */
+  transition: color var(--motion-base) var(--motion-ease);
 }
 
 .weekly-date-strip__day.has-schedule .weekly-date-strip__dot {

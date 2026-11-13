@@ -50,3 +50,37 @@ test('the day label says how many schedules are left', () => {
   assert.equal(grid.describeDay('10월 27일', { total: 3, completed: 1 }), '10월 27일, 일정 3개, 남은 일정 2개')
   assert.equal(grid.describeDay('10월 27일', { total: 2, completed: 2 }), '10월 27일, 일정 2개 모두 완료')
 })
+
+test('a failed count load shows the message it was given; dates stay selectable', async () => {
+  const React = (await import('react')).default
+  const jsxRuntime = await import('react/jsx-runtime')
+  const { renderToStaticMarkup } = await import('react-dom/server')
+  const { outputText } = ts.transpileModule(
+    readFileSync(new URL('../src/features/schedules/components/MonthCalendar.tsx', import.meta.url), 'utf8'),
+    { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } },
+  )
+  const module = { exports: {} }
+  const dependencies = {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+    '@shared/utils/datetime': { toDateKey: (day) => day.format('YYYY-MM-DD') },
+    '../utils/monthGrid': grid,
+    './MonthCalendar.css': {},
+  }
+  vm.runInNewContext(outputText, { module, exports: module.exports, Set, require: (name) => dependencies[name] })
+  const render = (error) =>
+    renderToStaticMarkup(
+      React.createElement(module.exports.default, {
+        month: dayjs('2026-11-01'),
+        selectedDate: dayjs('2026-11-10'),
+        todayKey: '2026-11-10',
+        summaryByDate: {},
+        isLoading: false,
+        error,
+        onSelectDate() {},
+        onChangeMonth() {},
+      }),
+    )
+  assert.match(render('스페이스 참여자만 볼 수 있어요.'), /role="alert">스페이스 참여자만 볼 수 있어요\. 날짜는 고를 수 있어요\.</)
+  assert.doesNotMatch(render(null), /role="alert"/)
+})

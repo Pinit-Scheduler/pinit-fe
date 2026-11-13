@@ -26,17 +26,6 @@
 .spaces-page:has(> .spaces-hub) {
   max-width: 1440px;
 }
-.hub-sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  border: 0;
-}
 .spaces-hub {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
@@ -430,7 +419,7 @@
 }
 .hub-unassigned {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 70px 74px 44px;
+  grid-template-columns: minmax(0, 1fr) 70px 74px auto;
   align-items: center;
   gap: 6px 14px;
   margin-top: 6px;
@@ -616,5 +605,191 @@
   }
   .hub-purpose__text {
     font-size: 24px;
+  }
+}
+
+/* 담당자 미정 배정(시안 hub-assign). 버튼은 미정 줄 끝, 좁으면 아래 줄로 내린다. */
+.hub-unassigned__assign {
+  justify-self: end;
+}
+@container hub-overview (max-width: 640px) {
+  .hub-unassigned .hub-unassigned__assign {
+    grid-column: 1 / -1;
+    justify-self: start;
+    min-height: 44px;
+  }
+}
+.hub-assign__lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--workspace-muted);
+}
+.hub-assign {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+}
+.hub-assign li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px auto;
+  gap: 8px 10px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--hub-row-line);
+}
+.hub-assign__task {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.hub-assign__task strong {
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.hub-assign__task small {
+  font-size: 12px;
+  color: var(--workspace-muted);
+  font-variant-numeric: tabular-nums;
+}
+.hub-assign__pick {
+  min-width: 0;
+}
+.hub-assign select {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--workspace-control-line);
+  border-radius: 9px;
+  background: var(--workspace-surface);
+  color: var(--workspace-ink);
+  font: inherit;
+  font-size: 13px;
+}
+.hub-assign li > button {
+  min-width: 76px;
+}
+.hub-assign__note {
+  grid-column: 1 / -1;
+}
+.hub-assign__more {
+  margin-top: 12px;
+}
+@media (max-width: 560px) {
+  .hub-assign li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .hub-assign__task {
+    grid-column: 1 / -1;
+  }
+  .hub-assign select,
+  .hub-assign button,
+  .hub-assign-dialog .hub-assign__more {
+    min-height: 44px;
+  }
+  .hub-assign select {
+    font-size: 16px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion. Tokens and shared keyframes come from shared/styles/motion.css */
+/* (docs/motion/README.md). Only transform, opacity and colors move.   */
+/* ------------------------------------------------------------------ */
+
+/* Rail: hover and selection change the surface quickly; a press settles slightly. */
+.hub-rail__item {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+.hub-rail__item strong {
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+.hub-rail__item:active {
+  transform: scale(var(--motion-press-scale));
+}
+.hub-back,
+.hub-menu summary,
+.hub-menu__list button {
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+/* Counts the server has not sent yet sit back; they come forward when they arrive. */
+.hub-rail__count,
+.hub-count {
+  transition: opacity var(--motion-base) var(--motion-ease);
+}
+.hub-rail__count[data-pending],
+.hub-count[data-pending] {
+  opacity: 0.45;
+}
+
+/* Row menu: drops from ⋯ on open, fades before it closes. */
+.hub-menu[open] > .hub-menu__list {
+  transform-origin: top right;
+  animation: motion-drop-in var(--motion-base) var(--motion-ease) both;
+}
+.hub-menu[data-state='closing'] > .hub-menu__list {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+  pointer-events: none;
+}
+
+/* Completing a project: the strike draws, the name mutes, then the row leaves for its list.
+ * The name's color fades on its .motion-strike span (motion.css). A color transition on the
+ * <strong> as well would restart the span's delayed transition on every frame and hold the
+ * mute back until after the row has left. */
+.hub-dots i,
+.hub-bar i {
+  transition: background-color var(--motion-base) var(--motion-ease);
+}
+
+/* Completed and deleted lists open with a short fade. */
+.hub-closed[open] > :not(summary) {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+/* Team record: the week's bars rise from the baseline when the record arrives. */
+.hub-record__body {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+.hub-day i {
+  transform-origin: bottom center;
+  animation: hub-day-rise var(--motion-enter) var(--motion-ease) backwards;
+  animation-delay: calc(var(--hub-day-index, 0) * var(--motion-stagger));
+}
+@keyframes hub-day-rise {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+/* Loading lines wait before they appear, like StatusPanel, so quick loads show nothing. */
+.hub-record__loading,
+.hub-assign__loading {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease)
+    var(--motion-status-delay) both;
+}
+
+/* Assigning: the assigned task tints and fades out of the list where it was. */
+.hub-assign li {
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+.hub-assign li[data-presence='exit'] {
+  background: var(--workspace-blue-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-day i {
+    animation: none;
+  }
+  .hub-menu[open] > .hub-menu__list,
+  .hub-menu[data-state='closing'] > .hub-menu__list {
+    --motion-keep-animation: var(--motion-fast);
   }
 }

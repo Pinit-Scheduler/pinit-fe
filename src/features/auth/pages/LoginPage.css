@@ -48,6 +48,13 @@
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
   backdrop-filter: blur(6px);
   z-index: 1;
+  /* The one entrance on these screens: the card rises in when the page opens. */
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
+}
+
+/* The callback usually finishes at once; its card only appears if the exchange is slow. */
+.login--callback .login__card {
+  animation-delay: calc(var(--motion-status-delay) * 2);
 }
 
 .login__brand {
@@ -169,23 +176,75 @@
   border: none;
   font-weight: 800;
   cursor: pointer;
-  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease);
 }
 
-.login__btn:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.02);
+/* Hover and press tint the button with its own text color; nothing lifts or grows. */
+.login__btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-color: currentColor;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.login__btn:hover:not(:disabled)::after {
+  opacity: 0.08;
+}
+
+.login__btn:active:not(:disabled) {
+  transform: scale(var(--motion-press-scale));
+}
+
+.login__btn:active:not(:disabled)::after {
+  opacity: 0.14;
+}
+
+.login__btn:focus-visible {
+  outline: 2px solid var(--c-sky-500);
+  outline-offset: 2px;
 }
 
 .login__btn:disabled {
   opacity: 0.78;
   cursor: not-allowed;
-  transform: none;
-  filter: none;
 }
 
-.login__btn:active {
-  transform: translateY(0);
+/* Waiting on the server: a hairline draws once under the label and holds near the end.
+ * Like any loading sign it waits --motion-status-delay, so a quick answer shows no line. */
+.login__btn[aria-busy='true'] {
+  cursor: progress;
+}
+
+.login__btn[aria-busy='true']::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 6px;
+  height: 2px;
+  border-radius: 1px;
+  background-color: currentColor;
+  opacity: 0.6;
+  transform-origin: left center;
+  transform: scaleX(0.92);
+  animation: login-pending 2400ms var(--motion-ease) var(--motion-status-delay) both;
+}
+
+@keyframes login-pending {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
 }
 
 .login__btn--naver {
@@ -253,6 +312,15 @@
   background: color-mix(in srgb, var(--c-slate-50) 80%, transparent);
   font-weight: 600;
   color: var(--c-slate-900);
+  /* Fields are not dimmed while a submit is pending: a quick failure would flash them. */
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease);
+}
+
+.login__field input[aria-invalid='true'],
+.signup__field input[aria-invalid='true'] {
+  border-color: var(--c-red-600);
 }
 
 .login__field input:focus,
@@ -330,6 +398,11 @@
   color: var(--c-slate-600);
 }
 
+.signup__hint a {
+  color: var(--c-sky-700);
+  font-weight: 700;
+}
+
 .signup__sent {
   display: flex;
   flex-direction: column;
@@ -355,6 +428,19 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Field and form messages (AuthMessage) drop out of the field and fade when cleared. */
+.auth-message {
+  animation: motion-drop-in var(--motion-base) var(--motion-ease) both;
+}
+
+.auth-message[data-state='closing'] {
+  animation: motion-fade-out var(--motion-exit) var(--motion-ease-exit) both;
+}
+
+.login__status-item--error {
+  animation: motion-rise-in var(--motion-enter) var(--motion-ease) both;
 }
 
 .login__divider {
@@ -389,5 +475,22 @@
 
   .login__description {
     font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The fades stay; the pending line appears whole instead of drawing. */
+  .login__card,
+  .auth-message,
+  .login__status-item--error {
+    --motion-keep-animation: var(--motion-base);
+  }
+  .auth-message[data-state='closing'] {
+    --motion-keep-animation: var(--motion-exit);
+  }
+  .login__btn[aria-busy='true']::before {
+    transform: scaleX(1);
+    animation-name: motion-fade-in;
+    --motion-keep-animation: var(--motion-base);
   }
 }

@@ -1,5 +1,3 @@
-import { DEFAULT_API_ERROR_MESSAGE } from '@shared/api/errorMessage'
-
 // 이메일 코드 요청·제출 실패를 화면 문구로 바꾼다(이메일 인증·비밀번호 찾기 설계 §7·§12).
 // 서버 문구가 있으면 그대로 쓰고, 없을 때만 상태 코드별 기본 문구를 쓴다.
 
@@ -35,12 +33,12 @@ const readStatus = (error: unknown): number | null => {
   return typeof status === 'number' ? status : null
 }
 
-// httpClient는 서버 문구가 없으면 기본 문구를 넣는다. 그 경우는 서버 문구가 없는 것으로 본다.
+// httpClient는 서버 문구가 없으면 빈 문구를 넣는다. 그 경우는 서버 문구가 없는 것으로 본다.
 const readServerMessage = (error: unknown): string | null => {
   const message = readField(error, 'message')
   if (typeof message !== 'string') return null
   const trimmed = message.trim()
-  return trimmed && trimmed !== DEFAULT_API_ERROR_MESSAGE ? trimmed : null
+  return trimmed || null
 }
 
 export const describeEmailAuthError = (error: unknown, stage: EmailAuthStage): EmailAuthFailure => {

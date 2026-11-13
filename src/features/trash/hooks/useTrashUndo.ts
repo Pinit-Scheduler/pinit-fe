@@ -1,11 +1,14 @@
 import { useCallback } from 'react'
 import { useToast } from '@contexts/ToastContext'
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import {
   dispatchScheduleChanged,
   dispatchTaskChanged,
 } from '@shared/utils/events'
 import { restoreSchedule, restoreTask } from '../api/trash'
 import { restoreTaskMessage } from '../utils/trashLabels'
+
+const TRASH_RETRY = '설정 → 휴지통에서'
 
 /** 되돌리기 버튼을 누를 시간. 일반 토스트(3초)보다 길다(ADR-0024 §13). */
 export const UNDO_TOAST_MS = 6000
@@ -38,7 +41,11 @@ export const useTrashUndo = () => {
               .catch((error) => {
                 console.error('작업 되돌리기 실패', error)
                 addToast(
-                  '작업을 되돌리지 못했어요. 설정 → 휴지통에서 다시 시도해 주세요.',
+                  getRequestFailureMessage(
+                    error,
+                    '작업을 되돌리지 못했어요.',
+                    { retryFrom: TRASH_RETRY },
+                  ),
                   'error',
                 )
               })
@@ -66,7 +73,11 @@ export const useTrashUndo = () => {
               .catch((error) => {
                 console.error('일정 되돌리기 실패', error)
                 addToast(
-                  '일정을 되돌리지 못했어요. 설정 → 휴지통에서 다시 시도해 주세요.',
+                  getRequestFailureMessage(
+                    error,
+                    '일정을 되돌리지 못했어요.',
+                    { retryFrom: TRASH_RETRY },
+                  ),
                   'error',
                 )
               })

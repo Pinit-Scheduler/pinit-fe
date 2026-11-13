@@ -32,7 +32,7 @@ const formErrors = loadModule('../src/features/auth/utils/formErrors.ts')
 const NOW = Date.parse('2026-11-09T00:00:00Z')
 
 // httpClient의 ApiError와 같은 모양. 화면 문구 결정은 status와 message만 본다.
-const apiError = (status, message = errorMessage.DEFAULT_API_ERROR_MESSAGE) =>
+const apiError = (status, message = '') =>
   Object.assign(new Error(message), { name: 'ApiError', status })
 
 test('email is trimmed and lower-cased before it is validated or sent', () => {

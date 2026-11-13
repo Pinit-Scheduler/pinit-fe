@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import { errorMessage } from './support/errors.mjs'
 
 const jwt = (generation = 0, subject = 'member-1', expired = false) =>
   'header.' +
@@ -117,9 +118,11 @@ const createHarness = (initialToken, respond) => {
       if (name === '@shared/api/httpClient')
         return load('shared/api/httpClient.ts')
       if (name === './httpClientHelpers') return { debugLog() {} }
-      if (name === './errorMessage') return load('shared/api/errorMessage.ts')
+      if (name === './errorMessage' || name === '@shared/api/errorMessage') return errorMessage
+      if (name === '@shared/utils/sameData') return load('shared/utils/sameData.ts')
       if (name === '@shared/utils/events')
         return {
+          onDataChanged: () => () => {},
           onTaskChanged: () => () => {},
           onScheduleChanged: () => () => {},
         }

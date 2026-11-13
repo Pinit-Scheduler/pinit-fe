@@ -29,8 +29,18 @@
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
 }
 
 .copyable-code__btn:hover {
   background-color: var(--c-slate-100);
+}
+
+.copyable-code__btn:not(:disabled):active {
+  transform: scale(var(--motion-press-scale));
 }

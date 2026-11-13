@@ -40,16 +40,18 @@ export default function SpaceTimeSection({
     <section className="report-section space-time" aria-labelledby="space-time-title">
       <div className="report-section__head">
         <h2 id="space-time-title">스페이스별 내 완료 시간</h2>
-        <p className="report-section__hint">
+        <p className="report-section__hint report-datum">
           {monthDay(start)}–{monthDay(dayBefore(end))}, 내가 실행해 완료한 일정의
           실제 실행 시간 기준
         </p>
       </div>
-      {rows.length ? (
-        <TimeBars rows={rows} />
-      ) : (
-        <p className="report-section__hint">이 기간에 내가 완료한 일정이 없어요.</p>
-      )}
+      <div className="report-datum">
+        {rows.length ? (
+          <TimeBars rows={rows} />
+        ) : (
+          <p className="report-section__hint">이 기간에 내가 완료한 일정이 없어요.</p>
+        )}
+      </div>
     </section>
   )
 }
