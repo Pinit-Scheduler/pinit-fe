@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { refreshAccessToken } from '../api/auth'
+import { refreshSession } from '@shared/api/authSession'
 import { fetchAccount } from '@features/settings/api/account'
 import { clearAuthTokens, getAccessToken, isAccessTokenExpired, isLoggedOut } from '@shared/api/authTokens'
 import { ApiError } from '@shared/api/httpClient'
@@ -9,6 +9,7 @@ import { resolveAuthEntry } from '../utils/authEntry'
 import { decideEmailGate, emailRequirement, isEmailRegistrationPath } from '../utils/emailRequirement'
 import { EMAIL_REGISTRATION_PATH } from '../utils/authPaths'
 import { currentTokenSubject } from '../utils/currentTokenSubject'
+import { RETRY_NOTICE_AFTER, startSessionRestore, transientMessage, type SessionRestore } from '../utils/sessionRestore'
 import useNavigateAfterLogin from '../hooks/useNavigateAfterLogin'
 import AuthBoot from './AuthBoot'
 
@@ -42,11 +43,15 @@ const AuthGuard = () => {
     navigate('/login', { replace: true })
   }, [navigate])
 
+  // Transient refresh failures in a row while there is no member yet (no answer about the session).
+  const [retry, setRetry] = useState<{ failures: number; message: string } | null>(null)
+  const restore = useRef<SessionRestore | null>(null)
+
   useEffect(() => {
     if (member) return
-    let isCancelled = false
+    let session: SessionRestore | null = null
 
-    const ensureAuth = async () => {
+    const ensureAuth = () => {
       const entry = readAuthEntry()
       if (entry === 'logged-out') {
         clearAuthTokens()
@@ -57,21 +62,30 @@ const AuthGuard = () => {
         setMember({ subject: currentTokenSubject() })
         return
       }
-      try {
-        await refreshAccessToken()
-        if (!isCancelled) setMember({ subject: currentTokenSubject() })
-      } catch (error) {
-        if (isCancelled) return
-        console.warn('⚠️ 인증 확인 실패, 로그인 페이지로 이동합니다:', error)
-        clearAuthTokens()
-        redirectToLogin()
-      }
+      // Only an answered 401/403 ends the session. Without an answer the boot screen stays and retries.
+      session = startSessionRestore(refreshSession, {
+        onRefreshed: () => {
+          setRetry(null)
+          setMember({ subject: currentTokenSubject() })
+        },
+        onUnauthorized: () => {
+          console.warn('⚠️ 로그인 세션이 끝나 로그인 페이지로 이동합니다.')
+          clearAuthTokens()
+          redirectToLogin()
+        },
+        onTransient: (failures, result) => {
+          console.warn('⚠️ 로그인 상태를 확인하지 못해 다시 시도합니다:', failures)
+          setRetry({ failures, message: transientMessage(result) })
+        },
+      })
+      restore.current = session
     }
 
     ensureAuth()
 
     return () => {
-      isCancelled = true
+      session?.stop()
+      if (restore.current === session) restore.current = null
     }
   }, [member, redirectToLogin])
 
@@ -85,6 +99,7 @@ const AuthGuard = () => {
       })
       .catch((error: unknown) => {
         if (isCancelled) return
+        // A refresh without an answer reaches here as a network error (status 0), never as this 401.
         if (error instanceof ApiError && error.status === 401) {
           clearAuthTokens()
           redirectToLogin()
@@ -115,7 +130,16 @@ const AuthGuard = () => {
     }
   }, [decision, location.pathname, location.search, navigate, navigateAfterLogin])
 
-  if (!member) return <AuthBoot />
+  if (!member) {
+    const retrying = !!retry && retry.failures >= RETRY_NOTICE_AFTER
+    return (
+      <AuthBoot
+        retrying={retrying}
+        message={retry?.message}
+        onRetry={() => restore.current?.retryNow()}
+      />
+    )
+  }
   if (decision !== 'render') return null
 
   return <Outlet />
