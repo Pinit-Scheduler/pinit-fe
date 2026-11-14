@@ -228,6 +228,7 @@ function realtimeHarness({
   respond,
   refresh = async () => 'new-token',
   current = () => 'old-token',
+  globals = {},
 } = {}) {
   return load(
     'features/spaces/realtime.ts',
@@ -241,7 +242,7 @@ function realtimeHarness({
       },
       '@shared/api/authSession': { refreshAccessTokenFromCookie: refresh },
     },
-    { fetch: respond },
+    { fetch: respond, ...globals },
   )
 }
 test('SSE parser handles CRLF split over chunks, heartbeat comments and multiline data', () => {
@@ -298,6 +299,49 @@ test('SSE refreshes Bearer authentication once and emits authenticated committed
   assert.equal(calls[1].headers.Authorization, 'Bearer new-token')
   assert.equal(events[0].version, 2)
   assert.equal(connections[0], true)
+})
+test('SSE reconnects with backoff when a refresh gets no answer, and stops when the session ended', async () => {
+  const controller = new AbortController(),
+    calls = [],
+    pauses = []
+  let refreshes = 0
+  const api = realtimeHarness({
+    respond: async (_url, init) => {
+      calls.push(init.headers.Authorization)
+      if (calls.length <= 2) return new Response('', { status: 401 })
+      controller.abort()
+      return new Response('', { status: 401 })
+    },
+    refresh: async () => {
+      refreshes += 1
+      if (refreshes === 1) throw Object.assign(new Error('Session refresh unavailable'), { name: 'RefreshUnavailableError' })
+      if (refreshes === 2) return 'new-token'
+      return null
+    },
+    globals: {
+      setTimeout: (fn, ms) => {
+        pauses.push(ms)
+        return setTimeout(fn, 0)
+      },
+    },
+  })
+  const connections = []
+  await api.subscribeToSpace(22, controller.signal, () => {}, (value) => connections.push(value))
+  assert.equal(refreshes, 2, 'the stream tried again after the unanswered refresh')
+  assert.deepEqual(pauses, [1000])
+  assert.deepEqual(connections, [false])
+  assert.deepEqual(calls, ['Bearer old-token', 'Bearer old-token', 'Bearer new-token'])
+
+  let ended = 0
+  const stopped = realtimeHarness({
+    respond: async () => new Response('', { status: 401 }),
+    refresh: async () => {
+      ended += 1
+      return null
+    },
+  })
+  await stopped.subscribeToSpace(22, new AbortController().signal, () => {}, () => {})
+  assert.equal(ended, 1, 'an ended session stops the stream without retrying')
 })
 test('SSE permission revocation invalidates once and does not reconnect or make anonymous requests', async () => {
   let calls = 0,
@@ -368,7 +412,7 @@ test('HTTP 409 emits no global notice from httpClient and never retries or overw
       },
       './httpClientHelpers': { debugLog: (...args) => logs.push(args) },
       './authSession': {
-        refreshAccessTokenFromCookie: async () => {
+        refreshSession: async () => {
           throw new Error('Unexpected refresh')
         },
       },

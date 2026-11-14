@@ -1,6 +1,7 @@
 import { handleMockRequest } from './handlers'
 import { mockWorkspaceRemote } from './workspace'
 import { setChangeDeliveryDelay, STREAM_POLL_MS } from './workspaceState'
+import { setMockRefreshFailure, type MockRefreshFailure } from './refreshCookie'
 
 let isInstalled = false
 
@@ -69,6 +70,11 @@ export const setupMockServer = () => {
           /* 이번 탭에만 적용한다 */
         }
         return latency
+      },
+      /** 세션 갱신이 응답 없이 실패하게 한다('network' | 'unavailable'). null이면 되돌린다. 새로고침해도 남는다. */
+      setRefreshFailure(failure: MockRefreshFailure | null) {
+        setMockRefreshFailure(failure)
+        return failure
       },
     },
   })

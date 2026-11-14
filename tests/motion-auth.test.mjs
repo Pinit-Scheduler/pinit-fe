@@ -7,6 +7,7 @@ import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { hookRunner } from './support/hooks.mjs'
+import { errorMessage } from './support/errors.mjs'
 
 const read = (path) => readFileSync(new URL('../' + path, import.meta.url), 'utf8')
 
@@ -64,7 +65,10 @@ const authGuard = (token, { emailRequired = null, pathname = '/app/today' } = {}
       useNavigate: () => () => {},
       useLocation: () => ({ pathname, search: '' }),
     },
-    '../api/auth': { refreshAccessToken: async () => {} },
+    '@shared/api/authSession': { refreshSession: async () => ({ kind: 'unauthorized' }) },
+    '../utils/sessionRestore': load('src/features/auth/utils/sessionRestore.ts', {
+      '@shared/api/errorMessage': errorMessage,
+    }),
     '@features/settings/api/account': { fetchAccount: async () => ({ emailRequired: false }) },
     '@shared/api/authTokens': {
       clearAuthTokens() {},
@@ -88,6 +92,15 @@ test('AuthGuard paints the page in its first frame for a valid token, and the bo
   const boot = html(authGuard(null))
   assert.match(boot, /<div class="workspace-theme auth-boot" role="status"/, 'the workspace background paints at once')
   assert.match(boot, /로그인 상태를 확인하는 중이에요/)
+})
+
+test('the boot state explains a retried check calmly and offers to try again', () => {
+  const retrying = html(AuthBoot, { retrying: true, onRetry() {} })
+  assert.match(retrying, /class="auth-boot__message">로그인 상태를 확인하지 못해 다시 연결하고 있어요.</)
+  assert.match(retrying, /<button type="button" class="auth-boot__button">다시 시도<\/button>/)
+  assert.doesNotMatch(retrying, /확인하는 중이에요/)
+  assert.match(html(AuthBoot, { retrying: true, message: '서버 점검 중이에요.' }), /auth-boot__message">서버 점검 중이에요.</)
+  assert.doesNotMatch(html(AuthBoot), /auth-boot__retry/)
 })
 
 test('the email registration check never blocks the first frame, and a known requirement leaves the page', () => {
@@ -147,8 +160,10 @@ const landingPage = (token) =>
     'react-router-dom': {
       Link: ({ to, children, className }) => React.createElement('a', { href: to, className }, children),
       Navigate: ({ to }) => React.createElement('meta', { 'data-navigate': to }),
+      useNavigate: () => () => {},
     },
-    '@shared/api/authTokens': { getAccessToken: () => token },
+    '@shared/api/authTokens': { getAccessToken: () => token, isLoggedOut: () => false },
+    '@shared/api/authSession': { refreshSession: async () => ({ kind: 'unauthorized' }) },
   }).default
 
 test('the landing page sends signed-in users to the app without painting the introduction', () => {

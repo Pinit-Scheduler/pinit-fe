@@ -1,6 +1,7 @@
-import { Link, Navigate } from 'react-router-dom'
-import { useState } from 'react'
-import { getAccessToken } from '@shared/api/authTokens'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { getAccessToken, isLoggedOut } from '@shared/api/authTokens'
+import { refreshSession } from '@shared/api/authSession'
 import './LandingPage.css'
 
 const slides = [
@@ -31,13 +32,38 @@ const slides = [
   },
 ]
 
+/** Entry pages a visitor reaches from here, where a session restored in the background still leads to the app. */
+const RESTORED_SESSION_ENTRY_PATHS = new Set(['/', '/login', '/signup'])
+
 const LandingPage = () => {
   const [currentSlide, setCurrentSlide] = useState(0)
   // 로그인한 사용자는 소개 화면을 한 프레임도 그리지 않고 바로 앱으로 보낸다.
   const [hasToken] = useState(() => !!getAccessToken())
+  const navigate = useNavigate()
   const goToSlide = (index: number) => setCurrentSlide(index)
   const goPrev = () => setCurrentSlide((prev) => Math.max(prev - 1, 0))
   const goNext = () => setCurrentSlide((prev) => Math.min(prev + 1, slides.length - 1))
+
+  // No stored access token does not mean no session: the refresh cookie may still be valid, and the
+  // installed app starts here (manifest start_url). Ask once in the background while the
+  // introduction shows. Only a restored session leaves the page.
+  useEffect(() => {
+    if (hasToken || isLoggedOut()) return
+    let left = false
+    refreshSession()
+      .then((result) => {
+        if (result.kind !== 'refreshed') return
+        // The shared refresh stores the token even after the visitor has moved on. If they went from
+        // here to the login or signup page, they are already signed in, so take them to the app
+        // instead of leaving the restored session behind a login form. Elsewhere, stay put.
+        if (left && !RESTORED_SESSION_ENTRY_PATHS.has(window.location.pathname)) return
+        navigate('/app/schedules', { replace: true })
+      })
+      .catch(() => {})
+    return () => {
+      left = true
+    }
+  }, [hasToken, navigate])
 
   if (hasToken) return <Navigate to="/app/schedules" replace />
 

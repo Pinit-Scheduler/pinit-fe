@@ -40,6 +40,7 @@ import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
 import { handleCalibration } from './calibration'
 import { handleEmailAuth, isMockEmailRequired, registerMockMemberEmail, verifyMockSignupEmail } from './emailAuth'
 import { handleStatisticsReport } from './statisticsReport'
+import { readMockRefreshCookie, readMockRefreshFailure, setMockRefreshCookie } from './refreshCookie'
 import {
   handleCategories,
   inheritMockTaskScheduleCategory,
@@ -123,6 +124,7 @@ const handleAuth = async (path: string, method: string, request: Request) => {
     )
     if (!user)
       return json({ message: '아이디 또는 비밀번호가 잘못되었습니다.' }, 401)
+    setMockRefreshCookie(user.id)
     return json({
       token: makeToken(user.id),
       refreshToken: 'mock-refresh',
@@ -157,11 +159,19 @@ const handleAuth = async (path: string, method: string, request: Request) => {
   }
 
   if (method === 'POST' && path === '/v0/logout') {
+    setMockRefreshCookie(null)
     return noContent(204)
   }
 
   if (method === 'POST' && path === '/v0/refresh') {
-    return json({ token: makeToken(1), refreshToken: 'mock-refresh' })
+    // __pinitMock.setRefreshFailure('network' | 'unavailable') replays a refresh without an answer.
+    const failure = readMockRefreshFailure()
+    if (failure === 'network') throw new TypeError('Failed to fetch')
+    if (failure === 'unavailable')
+      return new Response('<html>Bad Gateway</html>', { status: 502 })
+    const memberId = readMockRefreshCookie()
+    if (memberId === null) return noContent(401)
+    return json({ token: makeToken(memberId), refreshToken: 'mock-refresh' })
   }
 
   const socialLoginMatch = path.match(/^\/v0\/login\/oauth2\/code\/([^/]+)$/)
@@ -170,6 +180,7 @@ const handleAuth = async (path: string, method: string, request: Request) => {
     if (body?.error) {
       return json({ message: body.errorDescription || '소셜 로그인 실패' }, 400)
     }
+    setMockRefreshCookie(1)
     return json({ token: makeToken(1), refreshToken: 'mock-refresh' })
   }
 

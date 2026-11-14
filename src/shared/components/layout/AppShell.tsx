@@ -6,7 +6,8 @@ import BottomTabBar from './BottomTabBar'
 import { InstallBanner, OfflineBanner, UpdateBanner } from './AppBanners'
 import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
-import { refreshAccessToken } from '@features/auth/api/auth'
+import { refreshSession } from '@shared/api/authSession'
+import { startSessionRestore } from '@features/auth/utils/sessionRestore'
 import {
   clearAuthTokens,
   getAccessToken,
@@ -67,7 +68,6 @@ const AppShell = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const pathname = location.pathname
-  const didAttemptRefresh = useRef(false)
   const contentRef = useRef<HTMLElement>(null)
   const shownPath = useRef(pathname)
   useMemberZoneSync()
@@ -125,25 +125,23 @@ const AppShell = () => {
   }, [])
 
   useEffect(() => {
-    const ensureToken = async () => {
-      if (didAttemptRefresh.current) return
-      didAttemptRefresh.current = true
-      if (isLoggedOut()) {
-        clearAuthTokens()
-        navigate('/login', { replace: true })
-        return
-      }
-      const accessToken = getAccessToken()
-      if (accessToken) return
-      try {
-        await refreshAccessToken()
-      } catch (error) {
-        console.warn('⚠️ 자동 토큰 재발급 실패:', error)
-        clearAuthTokens()
-        navigate('/login', { replace: true })
-      }
+    if (isLoggedOut()) {
+      clearAuthTokens()
+      navigate('/login', { replace: true })
+      return
     }
-    ensureToken()
+    if (getAccessToken()) return
+    // Only an answered 401/403 ends the session. Without an answer the page stays and the
+    // refresh is retried in the background (AuthGuard shows the retry state before this mounts).
+    const session = startSessionRestore(refreshSession, {
+      onRefreshed: () => {},
+      onUnauthorized: () => {
+        console.warn('⚠️ 로그인 세션이 끝나 로그인 페이지로 이동합니다.')
+        clearAuthTokens()
+        navigate('/login', { replace: true })
+      },
+    })
+    return () => session.stop()
   }, [navigate])
 
   const title = getPageTitle(pathname)

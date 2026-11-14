@@ -57,10 +57,40 @@
   }
 }
 
+/* Repeated failures without an answer: a calm note under the mark, and a way to try now. */
+.auth-boot__retry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 320px;
+  text-align: center;
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+
+.auth-boot__message {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--workspace-muted);
+}
+
+.auth-boot__button {
+  min-height: 40px;
+  padding: 9px 15px;
+  border: 1px solid var(--workspace-control-line);
+  border-radius: 8px;
+  background-color: var(--workspace-surface);
+  color: var(--workspace-ink);
+  font-size: 14px;
+  cursor: pointer;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  /* Opacity only: the mark and line fade in, the line does not draw. */
+  /* Opacity only: the mark, line and retry note fade in, the line does not draw. */
   .auth-boot__mark,
-  .auth-boot__line {
+  .auth-boot__line,
+  .auth-boot__retry {
     --motion-keep-animation: var(--motion-base);
   }
   .auth-boot__line::after {
