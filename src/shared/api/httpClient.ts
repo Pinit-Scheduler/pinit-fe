@@ -20,6 +20,12 @@ export class ApiError extends Error {
   status: number
   data: unknown
   url: string
+  /**
+   * Only with status 0 when the request was stopped by a session refresh the server did answer
+   * (5xx, 429, another failure): that answer's HTTP status. The message is then the server's wording
+   * from that answer, or empty when it carried none, and readFailureMessage treats it as a server response.
+   */
+  responseStatus?: number
 
   constructor(message: string, status: number, data: unknown, url: string) {
     super(message)
@@ -102,9 +108,19 @@ export const httpClient = async <T>(
     })
   }
 
-  // The refresh got no answer about the session, so the stored token stays and callers see a network failure.
-  const refreshUnavailable = (result: RefreshResult) =>
-    new ApiError('네트워크 오류', 0, result, logUrl)
+  // The refresh got no answer about the session, so the stored token stays and callers see a network
+  // failure (status 0). When the server did answer the refresh, its wording is kept, as for any response.
+  const refreshUnavailable = (result: RefreshResult) => {
+    const answered = result.kind === 'transient' && result.status >= 400
+    const error = new ApiError(
+      answered ? getApiErrorMessage(result.data) : '네트워크 오류',
+      0,
+      result,
+      logUrl,
+    )
+    if (answered) error.responseStatus = result.status
+    return error
+  }
 
   const ensureValidAccessToken = async () => {
     if (!accessToken) return null

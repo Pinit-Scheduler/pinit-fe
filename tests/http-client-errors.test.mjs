@@ -107,6 +107,11 @@ test('only a response or a client guard supplies wording that is shown as is', (
   assert.equal(readFailureMessage(apiError(' 서버 문구 ', 500)), '서버 문구')
   assert.equal(readFailureMessage(new ClientGuardError('  일정을 다시 열어 최신 상태를 확인해 주세요. ')), '일정을 다시 열어 최신 상태를 확인해 주세요.')
   assert.equal(readFailureMessage(apiError('Failed to fetch', 0)), undefined)
+  assert.equal(
+    readFailureMessage(Object.assign(apiError(' 점검 중이에요. ', 0), { responseStatus: 503 })),
+    '점검 중이에요.',
+    'a status-0 error stopped by an answered refresh keeps the server wording',
+  )
   assert.equal(readFailureMessage(new Error('internal')), undefined)
   assert.equal(readFailureMessage(apiError('  ', 400)), undefined)
   assert.equal(readFailureMessage(undefined), undefined)
@@ -258,13 +263,49 @@ test('a transient preflight refresh keeps the stored token and fails as a networ
   await assert.rejects(httpClient('/schedules'), (error) => {
     assert.equal(error.name, 'ApiError')
     assert.equal(error.status, 0)
-    assert.equal(errorMessage.readFailureMessage(error), undefined, 'no server wording is shown for it')
+    assert.equal(errorMessage.readFailureMessage(error), undefined, 'the 502 page carries no wording')
+    assert.equal(error.responseStatus, 502)
+    assert.equal(
+      errorMessage.getRequestFailureMessage(error, ACTION),
+      `${ACTION} 잠시 후 다시 시도해 주세요.`,
+      'the server answered, so the hint is to retry later rather than to check the connection',
+    )
     return true
   })
   assert.equal(state.refreshCalls, 1)
   assert.equal(state.fetches.length, 0, 'the protected request is not sent without a token')
   assert.equal(state.cleared, 0)
   assert.equal(state.accessToken, 'expired-jwt')
+})
+
+test('a transient refresh answered with a server message keeps the token and shows that message', async () => {
+  const { httpClient, state } = createAnonymousHarness({
+    responses: [],
+    refresh: { kind: 'transient', status: 429, data: { message: '요청이 많아요. 잠시 후 다시 시도해 주세요.' } },
+  })
+  await assert.rejects(httpClient('/schedules'), (error) => {
+    assert.equal(error.status, 0, 'still a network-type failure, never a logout')
+    assert.equal(error.responseStatus, 429)
+    assert.equal(errorMessage.readFailureMessage(error), '요청이 많아요. 잠시 후 다시 시도해 주세요.')
+    assert.equal(errorMessage.getRequestFailureMessage(error, ACTION), '요청이 많아요. 잠시 후 다시 시도해 주세요.')
+    return true
+  })
+  assert.equal(state.cleared, 0)
+  assert.equal(state.accessToken, 'expired-jwt')
+})
+
+test('a transient refresh without any answer keeps the connection hint', async () => {
+  const { httpClient } = createAnonymousHarness({
+    responses: [],
+    refresh: { kind: 'transient', status: 0, data: new TypeError('Failed to fetch') },
+  })
+  await assert.rejects(httpClient('/schedules'), (error) => {
+    assert.equal(error.status, 0)
+    assert.equal(error.responseStatus, undefined)
+    assert.equal(errorMessage.readFailureMessage(error), undefined)
+    assert.equal(errorMessage.getRequestFailureMessage(error, ACTION), `${ACTION} 인터넷 연결을 확인한 뒤 다시 시도해 주세요.`)
+    return true
+  })
 })
 
 test('an unauthorized preflight refresh clears the stored token and asks to log in', async () => {

@@ -31,12 +31,15 @@ export class ClientGuardError extends Error {
 }
 
 const isServerResponse = (error: unknown) => {
-  const status = error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined
-  return typeof status === 'number' && status >= 400
+  if (!error || typeof error !== 'object') return false
+  const { status, responseStatus } = error as { status?: unknown; responseStatus?: unknown }
+  // responseStatus: a status-0 ApiError stopped by a session refresh the server answered (see ApiError).
+  return [status, responseStatus].some((value) => typeof value === 'number' && value >= 400)
 }
 
 /**
- * 화면에 그대로 보여 줄 실패 문구. 서버가 응답한 실패(HTTP 상태가 400 이상인 ApiError)의 문구와
+ * 화면에 그대로 보여 줄 실패 문구. 서버가 응답한 실패(HTTP 상태가 400 이상인 ApiError, 또는 서버가 답한
+ * 세션 갱신 실패로 멈춘 status 0의 ApiError(responseStatus))의 문구와
  * ClientGuardError의 안내 문구가 해당한다. 오류 문구는 백엔드가 정하므로 서버 문구를 상태 코드로 거르지 않는다.
  * 네트워크 오류(status 0)의 브라우저 영문 문구나 예상하지 못한 예외의 문구는 돌려주지 않는다.
  * httpClient가 이 모듈을 가져오므로 ApiError를 import하지 않고 status 필드로 판별한다.
