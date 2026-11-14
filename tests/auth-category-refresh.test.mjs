@@ -37,7 +37,7 @@ const flush = async () => {
 // Keep the actual HTTP client, cookie refresh coordinator, token events and category
 // store together. Only browser storage, network responses and React scheduling are
 // replaced; earlier separate module mocks could not detect the auth event cycle.
-const createHarness = (initialToken, respond) => {
+const createHarness = (initialToken, respond, timers = { setTimeout, clearTimeout }) => {
   const values = new Map(
     initialToken ? [['pinit.accessToken', initialToken]] : [],
   )
@@ -138,6 +138,9 @@ const createHarness = (initialToken, respond) => {
         Event,
         atob,
         queueMicrotask,
+        AbortController,
+        setTimeout: timers.setTimeout,
+        clearTimeout: timers.clearTimeout,
         fetch: async (url, init = {}) => {
           calls.push({
             path: new URL(url).pathname,
@@ -471,4 +474,61 @@ test('a token removed elsewhere while a transient refresh waits counts as an end
   h.tokens.clearAuthTokens()
   gate.resolve()
   assert.equal((await pending).kind, 'unauthorized')
+})
+
+test('a refresh that never answers is aborted after the timeout and reported as transient', async () => {
+  const expired = jwt(0, 'member-1', true)
+  const scheduled = []
+  const timers = {
+    setTimeout: (callback, ms) => {
+      scheduled.push({ callback, ms, cleared: false })
+      return scheduled.length - 1
+    },
+    clearTimeout: (id) => {
+      if (scheduled[id]) scheduled[id].cleared = true
+    },
+  }
+  let signal
+  const h = createHarness(
+    expired,
+    (url, init) => {
+      signal = init.signal
+      // A stalled connection: no response until the request is aborted.
+      return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(init.signal.reason)))
+    },
+    timers,
+  )
+  const pending = h.session.refreshSession()
+  await flush()
+  assert.equal(scheduled.length, 1)
+  assert.equal(scheduled[0].ms, h.session.REFRESH_TIMEOUT_MS)
+  assert.ok(h.session.REFRESH_TIMEOUT_MS >= 10_000 && h.session.REFRESH_TIMEOUT_MS <= 15_000)
+  scheduled[0].callback()
+  const result = await pending
+  assert.equal(signal.aborted, true)
+  assert.equal(result.kind, 'transient')
+  assert.equal(result.status, 0)
+  assert.equal(h.tokens.getAccessToken(), expired, 'a timed-out refresh keeps the token')
+  // The next caller asks again instead of reusing the aborted attempt.
+  assert.equal(h.calls.length, 1)
+  void h.session.refreshSession()
+  await flush()
+  assert.equal(h.calls.length, 2)
+})
+
+test('an answered refresh clears its timeout', async () => {
+  const scheduled = []
+  const timers = {
+    setTimeout: (callback, ms) => {
+      scheduled.push({ callback, ms, cleared: false })
+      return scheduled.length - 1
+    },
+    clearTimeout: (id) => {
+      if (scheduled[id]) scheduled[id].cleared = true
+    },
+  }
+  const h = createHarness(jwt(0, 'member-1', true), async () => Response.json({ token: jwt(1) }), timers)
+  assert.equal((await h.session.refreshSession()).kind, 'refreshed')
+  assert.equal(scheduled.length, 1)
+  assert.equal(scheduled[0].cleared, true)
 })

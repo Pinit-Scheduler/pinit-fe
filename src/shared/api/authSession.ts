@@ -8,6 +8,7 @@ import { getAccessToken, isAccessTokenExpired, isLoggedOut, setAuthTokens } from
  *   this device, or the stored token was removed while the refresh was waiting.
  * - transient: nothing says the session ended. The request failed without a response (status 0),
  *   or the server answered something else (5xx, 429, another status, or a success without a token).
+ *   A request unanswered after REFRESH_TIMEOUT_MS is aborted and also reported with status 0.
  *   The stored token stays and the caller retries later. `data` is the response body or the thrown error.
  */
 export type RefreshResult =
@@ -40,19 +41,36 @@ type RefreshAnswer =
   | { kind: 'unauthorized' }
   | { kind: 'transient'; status: number; data: unknown }
 
+/**
+ * A refresh still unanswered after this long is aborted and counts as transient (status 0), so a
+ * stalled connection cannot hold the boot screen and its retries indefinitely. /v0/refresh only
+ * returns a new access token and sets no cookie, so aborting it loses nothing.
+ */
+export const REFRESH_TIMEOUT_MS = 15_000
+
 const requestRefresh = async (): Promise<RefreshAnswer> => {
-  let response: Response
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS)
   try {
-    response = await fetch(buildAuthUrl('/refresh'), { method: 'POST', credentials: 'include' })
-  } catch (error) {
-    return { kind: 'transient', status: 0, data: error }
+    let response: Response
+    try {
+      response = await fetch(buildAuthUrl('/refresh'), {
+        method: 'POST',
+        credentials: 'include',
+        signal: controller.signal,
+      })
+    } catch (error) {
+      return { kind: 'transient', status: 0, data: error }
+    }
+    if (response.status === 401 || response.status === 403) return { kind: 'unauthorized' }
+    const data = await readBody(response)
+    if (!response.ok) return { kind: 'transient', status: response.status, data }
+    const token = data && typeof data === 'object' ? (data as { token?: unknown }).token : undefined
+    if (typeof token === 'string' && token.length > 0) return { kind: 'token', token }
+    return { kind: 'transient', status: response.status, data }
+  } finally {
+    clearTimeout(timer)
   }
-  if (response.status === 401 || response.status === 403) return { kind: 'unauthorized' }
-  const data = await readBody(response)
-  if (!response.ok) return { kind: 'transient', status: response.status, data }
-  const token = data && typeof data === 'object' ? (data as { token?: unknown }).token : undefined
-  if (typeof token === 'string' && token.length > 0) return { kind: 'token', token }
-  return { kind: 'transient', status: response.status, data }
 }
 
 export const refreshSession = (): Promise<RefreshResult> => {
