@@ -32,6 +32,9 @@ const slides = [
   },
 ]
 
+/** Entry pages a visitor reaches from here, where a session restored in the background still leads to the app. */
+const RESTORED_SESSION_ENTRY_PATHS = new Set(['/', '/login', '/signup'])
+
 const LandingPage = () => {
   const [currentSlide, setCurrentSlide] = useState(0)
   // 로그인한 사용자는 소개 화면을 한 프레임도 그리지 않고 바로 앱으로 보낸다.
@@ -46,14 +49,19 @@ const LandingPage = () => {
   // introduction shows. Only a restored session leaves the page.
   useEffect(() => {
     if (hasToken || isLoggedOut()) return
-    let cancelled = false
+    let left = false
     refreshSession()
       .then((result) => {
-        if (!cancelled && result.kind === 'refreshed') navigate('/app/schedules', { replace: true })
+        if (result.kind !== 'refreshed') return
+        // The shared refresh stores the token even after the visitor has moved on. If they went from
+        // here to the login or signup page, they are already signed in, so take them to the app
+        // instead of leaving the restored session behind a login form. Elsewhere, stay put.
+        if (left && !RESTORED_SESSION_ENTRY_PATHS.has(window.location.pathname)) return
+        navigate('/app/schedules', { replace: true })
       })
       .catch(() => {})
     return () => {
-      cancelled = true
+      left = true
     }
   }, [hasToken, navigate])
 

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
-import { hookRunner, settle } from './support/hooks.mjs'
+import { deferred, hookRunner, settle } from './support/hooks.mjs'
 import { errorMessage } from './support/errors.mjs'
 
 const load = (path, dependencies = {}, globals = {}) => {
@@ -284,7 +284,8 @@ test('the account check logs out only on a 401, not on a network-type failure', 
 
 const Navigate = () => null
 
-const landing = ({ token = null, loggedOut = false, refresh = async () => ({ kind: 'unauthorized' }) }) => {
+const landing = ({ token = null, loggedOut = false, refresh = async () => ({ kind: 'unauthorized' }), pathname = '/' }) => {
+  const window = { location: { pathname } }
   const runner = hookRunner()
   const state = { navigations: [], refreshCalls: 0 }
   const navigate = (to, options) => state.navigations.push(plain([to, options]))
@@ -303,8 +304,8 @@ const landing = ({ token = null, loggedOut = false, refresh = async () => ({ kin
         return refresh()
       },
     },
-  }).default
-  return { state, render: () => runner.render(() => Page()) }
+  }, { window }).default
+  return { state, window, render: () => runner.render(() => Page()), unmount: () => runner.unmount() }
 }
 
 test('the landing page shows at once and moves to the app when the refresh cookie restores a session', async () => {
@@ -337,4 +338,45 @@ test('the landing page does not ask after a logout, and a stored token goes stra
   assert.equal(first.props.to, '/app/schedules')
   await settle()
   assert.equal(signedIn.state.refreshCalls, 0)
+})
+
+const deferredRefresh = () => {
+  const gate = deferred()
+  return { refresh: () => gate.promise, resolve: gate.resolve }
+}
+
+test('a session restored after the visitor moved on to login or signup still leads to the app', async () => {
+  for (const path of ['/login', '/signup']) {
+    const gate = deferredRefresh()
+    const page = landing({ refresh: gate.refresh })
+    page.render()
+    await settle()
+    page.unmount()
+    page.window.location.pathname = path
+    gate.resolve({ kind: 'refreshed', token: 'fresh-1' })
+    await settle()
+    assert.deepEqual(page.state.navigations, [['/app/schedules', { replace: true }]], path)
+  }
+})
+
+test('a session restored after the visitor moved elsewhere does not move them, nor does a failed one', async () => {
+  const elsewhere = deferredRefresh()
+  const page = landing({ refresh: elsewhere.refresh })
+  page.render()
+  await settle()
+  page.unmount()
+  page.window.location.pathname = '/forgot-password'
+  elsewhere.resolve({ kind: 'refreshed', token: 'fresh-1' })
+  await settle()
+  assert.deepEqual(page.state.navigations, [])
+
+  const failed = deferredRefresh()
+  const onLogin = landing({ refresh: failed.refresh })
+  onLogin.render()
+  await settle()
+  onLogin.unmount()
+  onLogin.window.location.pathname = '/login'
+  failed.resolve(transient())
+  await settle()
+  assert.deepEqual(onLogin.state.navigations, [])
 })
