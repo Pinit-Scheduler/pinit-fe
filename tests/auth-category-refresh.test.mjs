@@ -387,3 +387,88 @@ test('late refresh and rejected requests cannot overwrite or retry with a differ
   assert.equal(h.tokens.getAccessToken(), otherMember)
   assert.equal(h.calls.filter((c) => c.path.endsWith('/tasks')).length, 1)
 })
+
+// Only an answered 401/403 ends the session. Everything else is transient and keeps the token.
+for (const [name, respond, expected] of [
+  ['401', () => new Response(null, { status: 401 }), { kind: 'unauthorized' }],
+  ['403', () => new Response(null, { status: 403 }), { kind: 'unauthorized' }],
+  ['network error', () => { throw new TypeError('Failed to fetch') }, { kind: 'transient', status: 0 }],
+  ['500', () => Response.json({ message: '잠시 후 다시 시도해 주세요.' }, { status: 500 }), { kind: 'transient', status: 500 }],
+  ['502 page', () => new Response('<html>Bad Gateway</html>', { status: 502 }), { kind: 'transient', status: 502 }],
+  ['429', () => new Response(null, { status: 429 }), { kind: 'transient', status: 429 }],
+  ['ok without a token', () => Response.json({}), { kind: 'transient', status: 200 }],
+  ['ok with a broken body', () => new Response('not json', { status: 200 }), { kind: 'transient', status: 200 }],
+]) {
+  test(`a ${name} refresh answer is ${expected.kind}`, async () => {
+    const expired = jwt(0, 'member-1', true)
+    const h = createHarness(expired, async (url) => {
+      assert.ok(url.endsWith('/refresh'))
+      return respond()
+    })
+    const result = await h.session.refreshSession()
+    assert.equal(result.kind, expected.kind)
+    if (expected.status !== undefined) assert.equal(result.status, expected.status)
+    assert.equal(h.tokens.getAccessToken(), expired, 'the refresh itself never removes the token')
+    if (expected.kind === 'transient')
+      await assert.rejects(h.session.refreshAccessTokenFromCookie(), { name: 'RefreshUnavailableError' })
+    else assert.equal(await h.session.refreshAccessTokenFromCookie(), null)
+  })
+}
+
+test('a successful refresh stores and returns the new token', async () => {
+  const fresh = jwt(1)
+  const h = createHarness(jwt(0, 'member-1', true), async () => Response.json({ token: fresh }))
+  assert.deepEqual({ ...(await h.session.refreshSession()) }, { kind: 'refreshed', token: fresh })
+  assert.equal(h.tokens.getAccessToken(), fresh)
+})
+
+test('an unauthorized answer is remembered briefly, a transient one is asked again at once', async () => {
+  let answer = () => new Response(null, { status: 401 })
+  const h = createHarness(jwt(0, 'member-1', true), async () => answer())
+  assert.equal((await h.session.refreshSession()).kind, 'unauthorized')
+  assert.equal((await h.session.refreshSession()).kind, 'unauthorized')
+  assert.equal(h.calls.length, 1, 'the cached 401 is reused within a second')
+
+  const t = createHarness(jwt(0, 'member-1', true), async () => answer())
+  answer = () => new Response(null, { status: 503 })
+  assert.equal((await t.session.refreshSession()).kind, 'transient')
+  answer = () => Response.json({ token: jwt(1) })
+  assert.equal((await t.session.refreshSession()).kind, 'refreshed', 'a transient failure is never cached as a logout')
+  assert.equal(t.calls.length, 2)
+})
+
+test('concurrent callers share one transient refresh and the HTTP requests fail as network errors', async () => {
+  const gate = deferred(),
+    expired = jwt(0, 'member-1', true)
+  const h = createHarness(expired, async (url) => {
+    if (url.endsWith('/refresh')) {
+      await gate.promise
+      return new Response('<html>Bad Gateway</html>', { status: 502 })
+    }
+    return Response.json({ ok: true })
+  })
+  const requests = Array.from({ length: 5 }, () => h.client.httpClient('/tasks'))
+  const startup = h.session.refreshSession()
+  await flush()
+  gate.resolve()
+  const results = await Promise.allSettled(requests)
+  assert.ok(results.every((r) => r.status === 'rejected' && r.reason.status === 0))
+  assert.equal((await startup).kind, 'transient')
+  assert.equal(h.calls.filter((c) => c.path.endsWith('/refresh')).length, 1)
+  assert.equal(h.calls.filter((c) => c.path.endsWith('/tasks')).length, 0)
+  assert.equal(h.tokens.getAccessToken(), expired)
+  assert.equal(h.authStates.includes(null), false)
+})
+
+test('a token removed elsewhere while a transient refresh waits counts as an ended session', async () => {
+  const gate = deferred()
+  const h = createHarness(jwt(0, 'member-1', true), async () => {
+    await gate.promise
+    return new Response(null, { status: 503 })
+  })
+  const pending = h.session.refreshSession()
+  await flush()
+  h.tokens.clearAuthTokens()
+  gate.resolve()
+  assert.equal((await pending).kind, 'unauthorized')
+})

@@ -74,6 +74,8 @@ async function subscribeToEvents(
   }
   while (!signal.aborted && sameMember()) {
     try {
+      // A refresh that ends the session (null) stops the stream. One without an answer rejects
+      // (RefreshUnavailableError), so the catch below reconnects with the usual backoff.
       let token = getAccessToken()
       if (token && isAccessTokenExpired(token))
         token = await refreshAccessTokenFromCookie()

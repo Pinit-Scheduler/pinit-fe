@@ -33,7 +33,7 @@ const createClient = (response) => loadModule('../src/shared/api/httpClient.ts',
   },
   './authTokens': { getAccessToken: () => null, isAccessTokenExpired: () => false, setAuthTokens: () => {} },
   './httpClientHelpers': { debugLog: () => {} },
-  './authSession': { refreshAccessTokenFromCookie: async () => null },
+  './authSession': { refreshSession: async () => ({ kind: 'unauthorized' }) },
   './errorMessage': errorMessage,
 }, { fetch: async () => response })
 
@@ -96,7 +96,7 @@ test('a network failure shows the screen sentence with a connection hint instead
     './config': { API_BASE_URL: 'https://api.example.test/v2', buildUrl: (base, path) => `${base}${path}` },
     './authTokens': { getAccessToken: () => null, isAccessTokenExpired: () => false, setAuthTokens: () => {} },
     './httpClientHelpers': { debugLog: () => {} },
-    './authSession': { refreshAccessTokenFromCookie: async () => null },
+    './authSession': { refreshSession: async () => ({ kind: 'unauthorized' }) },
     './errorMessage': errorMessage,
   }, { fetch: async () => { throw new TypeError('Failed to fetch') } })
   assert.equal(await failureMessage(client), `${ACTION} 인터넷 연결을 확인한 뒤 다시 시도해 주세요.`)
@@ -151,7 +151,7 @@ test('sensitive responses stay out of debug logs and are not sent as fetch optio
     './httpClientHelpers': {
       debugLog: (...args) => logs.push(JSON.stringify(args)),
     },
-    './authSession': { refreshAccessTokenFromCookie: async () => null },
+    './authSession': { refreshSession: async () => ({ kind: 'unauthorized' }) },
     './errorMessage': errorMessage,
   }, {
     fetch: async (_url, init) => {
@@ -175,7 +175,12 @@ test('sensitive responses stay out of debug logs and are not sent as fetch optio
 })
 
 // 공개 인증 요청(로그인·가입·코드 받기·비밀번호 재설정)은 남아 있는 토큰 상태에 묶이면 안 된다.
-const createAnonymousHarness = ({ accessToken = 'expired-jwt', responses }) => {
+const createAnonymousHarness = ({
+  accessToken = 'expired-jwt',
+  responses,
+  expired = true,
+  refresh = { kind: 'unauthorized' },
+}) => {
   const state = { accessToken, refreshCalls: 0, cleared: 0, fetches: [], logs: [] }
   const queue = [...responses]
   const { httpClient } = loadModule('../src/shared/api/httpClient.ts', {
@@ -188,7 +193,7 @@ const createAnonymousHarness = ({ accessToken = 'expired-jwt', responses }) => {
     './authTokens': {
       getAccessToken: () => state.accessToken,
       getTokenSubject: () => 'member-1',
-      isAccessTokenExpired: () => true,
+      isAccessTokenExpired: () => expired,
       setAuthTokens: ({ accessToken: next }) => {
         state.cleared += 1
         state.accessToken = next
@@ -196,9 +201,10 @@ const createAnonymousHarness = ({ accessToken = 'expired-jwt', responses }) => {
     },
     './httpClientHelpers': { debugLog: (...args) => state.logs.push(JSON.stringify(args)) },
     './authSession': {
-      refreshAccessTokenFromCookie: async () => {
+      refreshSession: async () => {
         state.refreshCalls += 1
-        return null
+        if (refresh.kind === 'refreshed') state.accessToken = refresh.token
+        return refresh
       },
     },
     './errorMessage': loadModule('../src/shared/api/errorMessage.ts'),
@@ -242,6 +248,63 @@ test('authenticated requests still refresh an expired token first', async () => 
   await assert.rejects(httpClient('/schedules'), { status: 401 })
   assert.equal(state.refreshCalls, 1)
   assert.equal(state.fetches.length, 0)
+})
+
+// 세션이 끝났다는 답(401/403)만 저장된 토큰을 지운다. 답이 없으면 토큰을 두고 네트워크 오류로 알린다.
+const transientRefresh = { kind: 'transient', status: 502, data: '<html>Bad Gateway</html>' }
+
+test('a transient preflight refresh keeps the stored token and fails as a network error', async () => {
+  const { httpClient, state } = createAnonymousHarness({ responses: [], refresh: transientRefresh })
+  await assert.rejects(httpClient('/schedules'), (error) => {
+    assert.equal(error.name, 'ApiError')
+    assert.equal(error.status, 0)
+    assert.equal(errorMessage.readFailureMessage(error), undefined, 'no server wording is shown for it')
+    return true
+  })
+  assert.equal(state.refreshCalls, 1)
+  assert.equal(state.fetches.length, 0, 'the protected request is not sent without a token')
+  assert.equal(state.cleared, 0)
+  assert.equal(state.accessToken, 'expired-jwt')
+})
+
+test('an unauthorized preflight refresh clears the stored token and asks to log in', async () => {
+  const { httpClient, state } = createAnonymousHarness({ responses: [] })
+  await assert.rejects(httpClient('/schedules'), { status: 401, message: '로그인이 필요해요. 다시 로그인해 주세요.' })
+  assert.equal(state.accessToken, null)
+})
+
+test('a transient refresh after a server 401 keeps the token and fails as a network error', async () => {
+  const { httpClient, state } = createAnonymousHarness({
+    expired: false,
+    refresh: { kind: 'transient', status: 0, data: new TypeError('Failed to fetch') },
+    responses: [() => Response.json({ message: 'expired' }, { status: 401 })],
+  })
+  await assert.rejects(httpClient('/schedules'), { name: 'ApiError', status: 0 })
+  assert.equal(state.refreshCalls, 1)
+  assert.equal(state.fetches.length, 1, 'no retry without a new token')
+  assert.equal(state.cleared, 0)
+  assert.equal(state.accessToken, 'expired-jwt')
+})
+
+test('an unauthorized refresh after a server 401 clears the token and fails with a 401', async () => {
+  const { httpClient, state } = createAnonymousHarness({
+    expired: false,
+    responses: [() => Response.json({ message: 'expired' }, { status: 401 })],
+  })
+  await assert.rejects(httpClient('/schedules'), { name: 'ApiError', status: 401 })
+  assert.equal(state.refreshCalls, 1)
+  assert.equal(state.accessToken, null)
+})
+
+test('a refreshed token after a server 401 retries the request once', async () => {
+  const { httpClient, state } = createAnonymousHarness({
+    expired: false,
+    refresh: { kind: 'refreshed', token: 'fresh-jwt' },
+    responses: [() => new Response(null, { status: 401 }), () => Response.json({ ok: true })],
+  })
+  assert.deepEqual({ ...(await httpClient('/schedules')) }, { ok: true })
+  assert.equal(state.fetches.length, 2)
+  assert.equal(state.fetches[1].init.headers.Authorization, 'Bearer fresh-jwt')
 })
 
 for (const path of ['/password-reset', '/email-codes', '/me/email-codes', '/me/email']) {

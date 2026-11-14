@@ -6,7 +6,7 @@ import {
   setAuthTokens,
 } from './authTokens'
 import { debugLog } from './httpClientHelpers'
-import { refreshAccessTokenFromCookie } from './authSession'
+import { refreshSession, type RefreshResult } from './authSession'
 import { getApiErrorMessage } from './errorMessage'
 
 // 앱 시작 시 설정 확인
@@ -102,12 +102,18 @@ export const httpClient = async <T>(
     })
   }
 
+  // The refresh got no answer about the session, so the stored token stays and callers see a network failure.
+  const refreshUnavailable = (result: RefreshResult) =>
+    new ApiError('네트워크 오류', 0, result, logUrl)
+
   const ensureValidAccessToken = async () => {
     if (!accessToken) return null
     if (!isAccessTokenExpired(accessToken)) return accessToken
     debugLog('⌛ Access token expired, refreshing via cookie')
     refreshAttempted = true
-    const refreshed = await refreshAccessTokenFromCookie()
+    const result = await refreshSession()
+    if (result.kind === 'transient') throw refreshUnavailable(result)
+    const refreshed = result.kind === 'refreshed' ? result.token : null
     if (!refreshed || !sameActor(refreshed)) {
       if (getAccessToken() === accessToken) setAuthTokens({ accessToken: null })
       throw new ApiError(
@@ -149,8 +155,12 @@ export const httpClient = async <T>(
         if (sameActor(current)) refreshed = current
       } else if (!refreshAttempted && current === accessToken) {
         refreshAttempted = true
-        refreshed = await refreshAccessTokenFromCookie()
-        if (refreshed && !sameActor(refreshed)) refreshed = null
+        const result = await refreshSession()
+        if (result.kind === 'transient') {
+          await response.body?.cancel().catch(() => {})
+          throw refreshUnavailable(result)
+        }
+        if (result.kind === 'refreshed' && sameActor(result.token)) refreshed = result.token
       }
       if (refreshed) {
         accessToken = refreshed
