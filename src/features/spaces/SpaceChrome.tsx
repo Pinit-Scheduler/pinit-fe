@@ -6,6 +6,7 @@ import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import useMediaQuery from '@shared/hooks/useMediaQuery'
 import { usePresence } from '@shared/motion'
 import { useSpaces } from './store'
+import ProjectHead from './ProjectHead'
 import SpaceMark from './SpaceMark'
 import {
   projectSelectionTarget,
@@ -284,17 +285,23 @@ export function SpaceContextBar() {
             <span aria-hidden>⌄</span>
           </summary>
           <p>{selectedSpace.purpose}</p>
-          {selectedProject?.outcome && (
-            <p>목적에 기여할 성과 · {selectedProject.outcome}</p>
-          )}
         </details>
       )}
-      {!today && !trash && !deadlineRisk && !statistics && selectedProject && (
-        <span className="space-context__project">
-          {selectedProject.name}
-          {selectedProject.completed ? ' · 완료' : ''}
-        </span>
-      )}
+      {/* 프로젝트를 고르면 그 프로젝트의 성과와 진행이 화면 맨 위에 온다. */}
+      {!today &&
+        !trash &&
+        !deadlineRisk &&
+        !statistics &&
+        selectedSpace &&
+        selectedProject &&
+        selectedProject.spaceId === selectedSpace.id && (
+          // 프로젝트마다 새로 세워, 쓰던 편집 칸과 펼침이 다른 프로젝트로 넘어가지 않는다.
+          <ProjectHead
+            key={selectedProject.id}
+            space={selectedSpace}
+            project={selectedProject}
+          />
+        )}
     </section>
   )
 }

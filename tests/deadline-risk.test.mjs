@@ -160,6 +160,7 @@ test('workspace context labels personal forecast instead of the selected team pu
     './store': { useSpaces: () => ({ ...personalSpaces, selectedSpace: { name: '선택한 팀', purpose: '팀 목적' }, selectedProject: { name: '팀 프로젝트', outcome: '팀 성과' } }) },
     'react-dom': { createPortal: (node) => node },
     './SpaceMark': { default: () => null },
+    './ProjectHead': { default: () => React.createElement('i', { 'data-project-head': '' }) },
     '@shared/hooks/useMediaQuery': { default: () => false },
     '@shared/motion': { usePresence: (value) => ({ mounted: Boolean(value), closing: false, value }) },
     './scope': load('../src/features/spaces/scope.ts'),
@@ -171,6 +172,7 @@ test('workspace context labels personal forecast instead of the selected team pu
   assert.ok(switcher.includes('선택한 팀'), 'space switcher stays available without silently changing selection')
   assert.ok(!html.includes('팀 목적'))
   assert.ok(!html.includes('팀 프로젝트'))
+  assert.ok(!html.includes('data-project-head'), 'the selected project head stays off the personal forecast')
 })
 
 test('5 required hours versus 2 available hours shows 3 hours shortage and predecessor actions', () => {

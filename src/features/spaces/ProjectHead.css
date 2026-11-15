@@ -1,0 +1,127 @@
+/* 프로젝트 머리. 성과 한 문장이 주인공이고 나머지는 조용히 둔다. 상자나 배경을 두르지 않는다. */
+.project-head {
+  flex-basis: 100%;
+  min-width: 0;
+  /* 위는 어느 탭에서나 같은 프로젝트, 아래는 그 탭의 내용이라 선 하나로 나눈다. */
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--workspace-line);
+  color: var(--workspace-ink);
+}
+.project-head__label {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 13px;
+}
+.project-head__label strong {
+  font-weight: 600;
+}
+.project-head__label > span {
+  color: var(--workspace-muted);
+  font-size: 12px;
+}
+.project-head__label .space-text-button {
+  margin-left: auto;
+  padding: 0;
+}
+.project-head__outcome {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-width: 30em;
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+.project-head__outcome.is-open {
+  display: block;
+  overflow: visible;
+}
+.project-head__more {
+  padding: 4px 0 0;
+}
+.project-head__empty {
+  margin: 6px 0 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--workspace-muted);
+}
+.project-head__empty .space-text-button {
+  padding: 0;
+  font-size: 15px;
+}
+.project-head__progress {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  min-height: 20px;
+  margin-top: 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--workspace-muted);
+}
+.project-head__progress .hub-dots {
+  max-width: none;
+  justify-content: flex-start;
+}
+.project-head__progress .hub-bar {
+  width: 150px;
+}
+.project-head__due {
+  white-space: nowrap;
+}
+.project-head__load-error {
+  color: var(--space-danger, #a7334a);
+}
+.project-head__load-error .space-text-button {
+  padding: 0;
+  font-size: 13px;
+}
+.project-head__editor {
+  display: grid;
+  gap: 10px;
+  max-width: 44em;
+  margin-top: 8px;
+}
+.project-head__editor textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 72px;
+  max-height: 38dvh;
+  padding: 11px 12px;
+  border: 1px solid var(--workspace-control-line);
+  border-radius: 9px;
+  background: var(--workspace-surface);
+  color: var(--workspace-ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.project-head__editor-actions {
+  display: flex;
+  gap: 8px;
+}
+.project-head__editor .space-error {
+  margin: 0;
+}
+.project-head :is(.space-text-button, textarea):focus-visible {
+  outline: 2px solid var(--workspace-blue);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .project-head__outcome {
+    font-size: 20px;
+  }
+  .project-head {
+    padding-bottom: 14px;
+  }
+}
