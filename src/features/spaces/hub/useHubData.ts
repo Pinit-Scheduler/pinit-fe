@@ -29,6 +29,23 @@ const view = <T,>(query: {
 const HUB_EVENTS = ['task', 'schedule'] as const
 
 /**
+ * 한 스페이스의 요약(ADR-0030 §4). 허브와 프로젝트 머리가 같은 key를 써서 한 번 받은 숫자를 함께 본다.
+ */
+export function useSpaceSummary(spaceId: number | null): HubQuery<SpaceSummary> {
+  return view(
+    useRevalidatingQuery<SpaceSummary>(
+      spaceId === null ? null : `spaces/hub/summary:${spaceId}`,
+      (signal) => fetchSpaceSummary(spaceId as number, signal),
+      {
+        invalidateOn: HUB_EVENTS,
+        group: 'spaces/hub/',
+        errorMessage: '이 스페이스의 작업 수를 불러오지 못했어요.',
+      },
+    ),
+  )
+}
+
+/**
  * 허브의 세 조회. key에 스페이스를 넣어 다른 스페이스의 응답이 잠깐이라도 보이지 않게 한다.
  * 작업·일정 변경 이벤트(실시간 changed·멤버십 변경 포함)에 다시 조회한다. 다시 조회하는 동안에는
  * 지금 숫자를 그대로 두고, 한 번 본 스페이스로 돌아오면 마지막 숫자가 바로 보인다.
@@ -47,15 +64,7 @@ export default function useHubData(
       errorMessage: '스페이스별 남은 작업 수를 불러오지 못했어요.',
     },
   )
-  const summary = useRevalidatingQuery<SpaceSummary>(
-    spaceId === null ? null : `spaces/hub/summary:${spaceId}`,
-    (signal) => fetchSpaceSummary(spaceId as number, signal),
-    {
-      invalidateOn: HUB_EVENTS,
-      group: 'spaces/hub/',
-      errorMessage: '이 스페이스의 작업 수를 불러오지 못했어요.',
-    },
-  )
+  const summary = useSpaceSummary(spaceId)
   const record = useRevalidatingQuery<WeeklyRecord>(
     spaceId === null || !withRecord
       ? null
@@ -68,5 +77,5 @@ export default function useHubData(
       errorMessage: '팀 기록을 불러오지 못했어요.',
     },
   )
-  return { summaries: view(summaries), summary: view(summary), record: view(record) }
+  return { summaries: view(summaries), summary, record: view(record) }
 }
