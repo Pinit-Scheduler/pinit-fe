@@ -119,6 +119,17 @@ test('the project head leads with the outcome and shows the server counts under 
   assert.doesNotMatch(html, /완료한 프로젝트/)
 })
 
+test('the outcome shows whole with the line breaks as written, with nothing to expand', () => {
+  const written = '11월 28일 배포\n· 릴리즈 노트 공개\n\n' + '긴 문장 '.repeat(120)
+  const html = head({ project: project({ outcome: written }) }, loaded({ counts: counts(0, 0, 1, 0), nearestDueDate: null }))
+  assert.ok(html.includes(`<p class="project-head__outcome">${written}</p>`), 'the text is rendered untouched')
+  assert.doesNotMatch(html, /전체 보기|접기/)
+  const css = readFileSync(new URL('../src/features/spaces/ProjectHead.css', import.meta.url), 'utf8')
+  const rule = /\.project-head__outcome \{[^}]*\}/.exec(css)[0]
+  assert.match(rule, /white-space: pre-line/, 'line breaks are kept on screen')
+  assert.doesNotMatch(css, /line-clamp/, 'no line is cut off')
+})
+
 test('a completed project says so and keeps its outcome', () => {
   const html = head(
     { project: project({ completed: true }) },
@@ -178,36 +189,83 @@ test('the progress line never invents numbers: none yet, none at all, or the loa
 // ---------------------------------------------------------------------------
 
 const element = (type, props, key) => ({ type, props, key: key ?? null })
-const editor = (api, calls, close) => {
+const settled = () => new Promise((resolve) => setImmediate(resolve))
+const editor = (api, calls, close, shown = project()) => {
   const runtime = hookRuntime()
+  let ids = 0
   const { OutcomeEditor } = loadHead({
-    react: { ...runtime.react, useId: () => 'outcome-error', useLayoutEffect() {} },
+    react: { ...runtime.react, useId: () => `outcome-${ids++ % 2}`, useLayoutEffect() {} },
     jsx: { jsx: element, jsxs: element },
     api,
     calls,
   })
-  const render = () => runtime.render(OutcomeEditor, { project: project(), close })
+  const render = () => runtime.render(OutcomeEditor, { project: shown, close })
   const find = (tree, type) => findElement(tree, (node) => node.type === type)
-  return { render, find }
+  const type = (value) => find(render(), 'textarea').props.onChange({ target: { value } })
+  const submit = async () => {
+    find(render(), 'form').props.onSubmit({ preventDefault() {} })
+    await settled()
+  }
+  const key = (event) =>
+    find(render(), 'textarea').props.onKeyDown({ nativeEvent: {}, preventDefault() {}, ...event })
+  const saveButton = () => findElement(render(), (node) => node.props?.type === 'submit')
+  return { render, find, type, submit, key, saveButton }
 }
 
-test('saving sends what was typed with the version it was read at, then refreshes the workspace', async () => {
+test('saving sends what was typed, line breaks included, with the version it was read at', async () => {
   const calls = {}
   const sent = []
   let closed = 0
-  const { render, find } = editor(
-    { updateProject: async (...args) => sent.push(args) },
-    calls,
-    () => closed++,
-  )
-  find(render(), 'textarea').props.onChange({ target: { value: '11월 28일 배포와 릴리즈 노트' } })
-  await find(render(), 'form').props.onSubmit({ preventDefault() {} })
+  const edit = editor({ updateProject: async (...args) => sent.push(args) }, calls, () => closed++)
+  assert.equal(edit.saveButton().props.disabled, true, 'nothing to save until the text changes')
+  edit.type('11월 28일 배포\n· 릴리즈 노트 공개\n\n· 접근성 점검')
+  assert.equal(edit.saveButton().props.disabled, false)
+  await edit.submit()
   assert.deepEqual(JSON.parse(JSON.stringify(sent)), [
-    [88, { outcome: '11월 28일 배포와 릴리즈 노트', expectedVersion: 4 }],
+    [88, { outcome: '11월 28일 배포\n· 릴리즈 노트 공개\n\n· 접근성 점검', expectedVersion: 4 }],
   ])
   assert.deepEqual(calls.toasts, [['저장했어요.', 'success']])
   assert.equal(calls.changed, 1)
   assert.equal(closed, 1)
+})
+
+test('Enter stays a line break: only Ctrl or ⌘ with Enter saves, and Escape closes without saving', async () => {
+  const sent = []
+  let closed = 0
+  const edit = editor({ updateProject: async (...args) => sent.push(args) }, {}, () => closed++)
+  edit.type('첫 줄')
+  edit.key({ key: 'Enter' })
+  await settled()
+  assert.equal(sent.length, 0, 'a plain Enter is left to the textarea')
+  edit.key({ key: 'Enter', ctrlKey: true, nativeEvent: { isComposing: true } })
+  edit.key({ key: 'Escape', nativeEvent: { isComposing: true } })
+  await settled()
+  assert.deepEqual([sent.length, closed], [0, 0], 'keys that finish a Korean composition do nothing else')
+  edit.key({ key: 'Enter', metaKey: true })
+  await settled()
+  assert.equal(sent.length, 1)
+  assert.equal(closed, 1)
+
+  const cancelled = editor({ updateProject: async (...args) => sent.push(args) }, {}, () => closed++)
+  cancelled.type('버릴 문장')
+  cancelled.key({ key: 'Escape' })
+  await settled()
+  assert.deepEqual([sent.length, closed], [1, 2])
+})
+
+test('saving unchanged text just closes, and the letters left show only near the limit', async () => {
+  const sent = []
+  let closed = 0
+  const edit = editor({ updateProject: async (...args) => sent.push(args) }, {}, () => closed++)
+  edit.key({ key: 'Enter', ctrlKey: true })
+  await settled()
+  assert.deepEqual([sent.length, closed], [0, 1])
+
+  const count = (tree) => findElement(tree, (node) => node.props?.className === 'project-head__editor-count')
+  assert.equal(count(edit.render()), null)
+  edit.type('가'.repeat(950))
+  assert.equal(count(edit.render()).props.children.join(''), '50자 남음')
+  assert.equal(edit.find(edit.render(), 'textarea').props.maxLength, 1000)
 })
 
 test('an edit conflict closes the editor for the shared notice; any other failure keeps the text', async () => {
@@ -222,7 +280,8 @@ test('an edit conflict closes the editor for the shared notice; any other failur
     conflictCalls,
     () => closed++,
   )
-  await conflicted.find(conflicted.render(), 'form').props.onSubmit({ preventDefault() {} })
+  conflicted.type('다른 사람과 겹친 수정')
+  await conflicted.submit()
   assert.equal(conflictCalls.conflicts, 1)
   assert.equal(closed, 1)
   assert.equal(conflictCalls.changed, undefined, 'the conflict notice reloads, not this editor')
@@ -238,11 +297,11 @@ test('an edit conflict closes the editor for the shared notice; any other failur
     failedCalls,
     () => closed++,
   )
-  failed.find(failed.render(), 'textarea').props.onChange({ target: { value: '지우면 안 되는 문장' } })
-  await failed.find(failed.render(), 'form').props.onSubmit({ preventDefault() {} })
+  failed.type('지우면 안 되는 문장\n둘째 줄')
+  await failed.submit()
   const tree = failed.render()
   assert.equal(closed, 1, 'still open')
-  assert.equal(failed.find(tree, 'textarea').props.value, '지우면 안 되는 문장')
+  assert.equal(failed.find(tree, 'textarea').props.value, '지우면 안 되는 문장\n둘째 줄')
   const alert = findElement(tree, (node) => node.props?.role === 'alert')
   assert.equal(
     String(alert.props.children),

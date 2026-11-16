@@ -13,13 +13,24 @@ import './hub/hub.css'
 import './ProjectHead.css'
 
 const OUTCOME_MAX = 1000
+/** 남은 글자 수는 한도에 가까워졌을 때만 보인다. */
+const OUTCOME_COUNT_FROM = 100
 
 const monthDay = (date: string): string => {
   const [, month, day] = date.split('-')
   return `${Number(month)}/${Number(day)}`
 }
 
-/** 성과를 그 자리에서 적고 고친다. 저장 규칙과 충돌 판단은 서버가 한다. */
+/** ⌘ 또는 Ctrl. 저장 단축키 안내에만 쓴다. */
+const saveKey = () =>
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+    ? '⌘'
+    : 'Ctrl'
+
+/**
+ * 성과를 그 자리에서 적고 고친다. 보이는 성과와 같은 글씨로 써서 저장한 뒤의 모양을 쓰면서 본다.
+ * 줄바꿈은 적은 그대로 저장한다. 저장 규칙과 충돌 판단은 서버가 한다.
+ */
 export function OutcomeEditor({
   project,
   close,
@@ -28,14 +39,36 @@ export function OutcomeEditor({
   close: () => void
 }) {
   const errorId = useId()
+  const hintId = useId()
   const { addToast } = useToast()
-  const [text, setText] = useState(project.outcome ?? '')
+  const saved = project.outcome ?? ''
+  const [text, setText] = useState(saved)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const lock = useRef(false)
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault()
+  const field = useRef<HTMLTextAreaElement>(null)
+  // 칸은 적은 줄 수만큼 자란다. 줄을 바꿀 때마다 스크롤하지 않고 전체를 본다.
+  useLayoutEffect(() => {
+    const node = field.current
+    if (!node) return
+    node.style.height = 'auto'
+    node.style.height = `${node.scrollHeight}px`
+  }, [text])
+  // 고칠 때는 이어 쓰는 일이 많아 커서를 끝에 둔다.
+  useLayoutEffect(() => {
+    const node = field.current
+    if (!node) return
+    node.focus()
+    node.setSelectionRange(node.value.length, node.value.length)
+  }, [])
+  const changed = text !== saved
+  const left = OUTCOME_MAX - text.length
+  const save = async () => {
     if (lock.current) return
+    if (!changed) {
+      close()
+      return
+    }
     lock.current = true
     setBusy(true)
     setError(null)
@@ -59,30 +92,51 @@ export function OutcomeEditor({
     }
   }
   return (
-    <form className="project-head__editor" onSubmit={submit}>
+    <form
+      className="project-head__editor"
+      aria-busy={busy || undefined}
+      onSubmit={(event) => {
+        event.preventDefault()
+        void save()
+      }}
+    >
       <textarea
-        autoFocus
-        rows={2}
+        ref={field}
+        rows={1}
         maxLength={OUTCOME_MAX}
         value={text}
         disabled={busy}
         aria-label={`${project.name}의 성과`}
         aria-invalid={error !== null}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={error ? `${errorId} ${hintId}` : hintId}
         placeholder="이 프로젝트를 마쳤을 때 남을 성과를 적어보세요."
         onChange={(event) => setText(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === 'Escape' && !busy) close()
+          // 한글 조합 중의 키는 글자를 확정하는 데 쓰인다.
+          if (busy || event.nativeEvent.isComposing) return
+          if (event.key === 'Escape') close()
+          else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault()
+            void save()
+          }
         }}
       />
-      <div className="project-head__editor-actions">
-        <button
-          className="workspace-button workspace-button--primary"
-          type="submit"
-          disabled={busy}
-        >
-          {busy ? '저장 중…' : '저장'}
-        </button>
+      {error && (
+        <p id={errorId} role="alert" className="project-head__editor-error">
+          {error}
+        </p>
+      )}
+      <div className="project-head__editor-bar">
+        <p id={hintId} className="project-head__editor-hint">
+          <span>Enter로 줄을 바꿔요.</span>{' '}
+          <span className="project-head__editor-keys">
+            <kbd>{saveKey()}</kbd>
+            <kbd>Enter</kbd>로 저장해요.
+          </span>
+        </p>
+        {left <= OUTCOME_COUNT_FROM && (
+          <span className="project-head__editor-count">{left}자 남음</span>
+        )}
         <button
           className="workspace-button"
           type="button"
@@ -91,50 +145,15 @@ export function OutcomeEditor({
         >
           취소
         </button>
-      </div>
-      {error && (
-        <p id={errorId} role="alert" className="space-error">
-          {error}
-        </p>
-      )}
-    </form>
-  )
-}
-
-/** 긴 성과는 두 줄까지만 보이고, 넘칠 때만 펼치는 버튼을 둔다. */
-function Outcome({ text }: { text: string }) {
-  const node = useRef<HTMLParagraphElement>(null)
-  const [open, setOpen] = useState(false)
-  const [clipped, setClipped] = useState(false)
-  useLayoutEffect(() => {
-    const target = node.current
-    if (!target || open) return
-    const measure = () =>
-      setClipped(target.scrollHeight > target.clientHeight + 1)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(target)
-    return () => observer.disconnect()
-  }, [text, open])
-  return (
-    <>
-      <p
-        ref={node}
-        className={`project-head__outcome${open ? ' is-open' : ''}`}
-      >
-        {text}
-      </p>
-      {(clipped || open) && (
         <button
-          type="button"
-          className="space-text-button project-head__more"
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
+          className="workspace-button workspace-button--primary"
+          type="submit"
+          disabled={busy || !changed}
         >
-          {open ? '접기' : '성과 전체 보기'}
+          {busy ? '저장 중…' : '저장'}
         </button>
-      )}
-    </>
+      </div>
+    </form>
   )
 }
 
@@ -183,7 +202,8 @@ export default function ProjectHead({
       {editing ? (
         <OutcomeEditor project={project} close={() => setEditing(false)} />
       ) : project.outcome ? (
-        <Outcome text={project.outcome} />
+        // 적은 줄바꿈 그대로, 접지 않고 전부 보인다.
+        <p className="project-head__outcome">{project.outcome}</p>
       ) : (
         <p className="project-head__empty">
           이 프로젝트를 마쳤을 때 남을 성과를 아직 적지 않았어요.{' '}
