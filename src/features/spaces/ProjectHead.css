@@ -26,25 +26,16 @@
   padding: 0;
 }
 .project-head__outcome {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
   max-width: 30em;
   margin: 4px 0 0;
   font-size: 24px;
   font-weight: 400;
   line-height: 1.4;
   letter-spacing: -0.025em;
+  /* 적은 줄바꿈을 그대로, 접지 않고 전부 보인다. */
+  white-space: pre-line;
   word-break: keep-all;
   overflow-wrap: anywhere;
-}
-.project-head__outcome.is-open {
-  display: block;
-  overflow: visible;
-}
-.project-head__more {
-  padding: 4px 0 0;
 }
 .project-head__empty {
   margin: 6px 0 0;
@@ -84,42 +75,115 @@
   padding: 0;
   font-size: 13px;
 }
+/* 성과를 고치는 칸. 보이는 성과와 같은 글씨로 쓰고, 아래 띠에 안내와 동작을 둔다. */
 .project-head__editor {
-  display: grid;
-  gap: 10px;
   max-width: 44em;
   margin-top: 8px;
+  border: 1px solid var(--workspace-control-line);
+  border-radius: 12px;
+  background: var(--workspace-surface);
+  overflow: hidden;
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+.project-head__editor:focus-within {
+  border-color: var(--workspace-blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--workspace-blue) 16%, transparent);
 }
 .project-head__editor textarea {
+  display: block;
   width: 100%;
   box-sizing: border-box;
-  min-height: 72px;
-  max-height: 38dvh;
-  padding: 11px 12px;
-  border: 1px solid var(--workspace-control-line);
-  border-radius: 9px;
-  background: var(--workspace-surface);
+  max-height: 46dvh;
+  padding: 14px 16px 12px;
+  border: 0;
+  background: transparent;
   color: var(--workspace-ink);
   font: inherit;
-  font-size: 16px;
-  line-height: 1.6;
-  resize: vertical;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: -0.025em;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  resize: none;
+  outline: none;
 }
-.project-head__editor-actions {
-  display: flex;
-  gap: 8px;
+.project-head__editor textarea::placeholder {
+  color: color-mix(in srgb, var(--workspace-muted) 70%, var(--workspace-surface));
 }
-.project-head__editor .space-error {
+.project-head__editor-error {
   margin: 0;
+  padding: 0 16px 10px;
+  color: var(--c-red-600, #b13443);
+  font-size: 13px;
+  line-height: 1.6;
 }
-.project-head :is(.space-text-button, textarea):focus-visible {
+.project-head__editor-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 8px 8px 16px;
+  border-top: 1px solid var(--hub-row-line);
+  background: color-mix(in srgb, var(--workspace-bg) 55%, var(--workspace-surface));
+}
+.project-head__editor-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--workspace-muted);
+}
+.project-head__editor-hint kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-right: 1px;
+  padding: 0 5px;
+  border: 1px solid var(--workspace-line);
+  border-radius: 5px;
+  background: var(--workspace-surface);
+  font: inherit;
+  font-size: 11px;
+  text-align: center;
+}
+.project-head__editor-hint kbd + kbd {
+  margin-left: 2px;
+}
+.project-head__editor-count {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--workspace-muted);
+}
+.project-head__editor-bar .workspace-button {
+  min-height: 34px;
+  padding: 6px 14px;
+}
+.project-head__editor-bar .workspace-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.project-head .space-text-button:focus-visible {
   outline: 2px solid var(--workspace-blue);
   outline-offset: 2px;
 }
 
+/* 손가락으로 쓰는 화면에는 단축키가 없다. */
+@media (hover: none) {
+  .project-head__editor-keys {
+    display: none;
+  }
+}
 @media (max-width: 760px) {
-  .project-head__outcome {
+  .project-head__outcome,
+  .project-head__editor textarea {
     font-size: 20px;
+  }
+  .project-head__editor-bar .workspace-button {
+    min-height: 40px;
   }
   .project-head {
     padding-bottom: 14px;
