@@ -17,6 +17,8 @@ export type PlanTimelineItem = {
   selected?: boolean
   /** 블록: 승인 전 확인할 문제가 있는지 */
   hasIssue?: boolean
+  /** 일정: 완료했는지. 완료한 일정은 자리를 차지하지 않아 제안 블록이 같은 시간에 놓일 수 있다 */
+  done?: boolean
 }
 
 type PlanTimelineProps = {
@@ -107,10 +109,11 @@ const PlanTimeline = ({ zoneId, items, windowStartMs, windowEndMs, onSelectBlock
             `plan-timeline__item--${item.kind}`,
             item.kind === 'block' && !item.selected ? 'is-unselected' : '',
             item.hasIssue ? 'has-issue' : '',
+            item.kind === 'schedule' && item.done ? 'is-done' : '',
           ]
             .filter(Boolean)
             .join(' ')
-          const label = `${item.title} ${formatTime(item.startMs)}–${formatTime(item.endMs)}`
+          const label = `${item.title}${item.done ? ' (완료)' : ''} ${formatTime(item.startMs)}–${formatTime(item.endMs)}`
           const content = (
             <>
               <span className="plan-timeline__item-title">{item.title}</span>

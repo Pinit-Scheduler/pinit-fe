@@ -509,3 +509,9 @@ test('a replaced replanning preview stays for its exit, inert and hidden from as
   // The leaving preview keeps the selection it had instead of unchecking mid-fade.
   assert.match(leaving, /<input type="checkbox" checked=""/)
 })
+
+test('completed schedules are not selection obstacles', () => {
+  assert.equal(planData.blocksPlacement({ state: 'COMPLETED' }), false)
+  for (const state of ['NOT_STARTED', 'IN_PROGRESS', 'SUSPENDED'])
+    assert.equal(planData.blocksPlacement({ state }), true)
+})

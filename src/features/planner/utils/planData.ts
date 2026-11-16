@@ -30,3 +30,11 @@ export const withCreatedSchedules = <S extends { id: number }>(
   const extra = created.schedules.filter((schedule) => !known.has(schedule.id))
   return extra.length === 0 ? (schedules as S[]) : [...schedules, ...extra]
 }
+
+/**
+ * Whether an existing schedule keeps its planned time from new blocks. A completed schedule does not
+ * (BE ADR-0034): the server proposes into its planned span and accepts a block there, so the page must
+ * not report an overlap with it.
+ */
+export const blocksPlacement = (schedule: { state: string }): boolean =>
+  schedule.state !== 'COMPLETED'

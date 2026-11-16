@@ -82,7 +82,7 @@ import type {
   RoutineSpan,
   SelectionObstacle,
 } from '../utils/planMapping'
-import { withCreatedSchedules } from '../utils/planData'
+import { blocksPlacement, withCreatedSchedules } from '../utils/planData'
 import { movedSuggestions, staggerIndex } from '../utils/planMotion'
 import './PlanPage.css'
 
@@ -433,6 +433,8 @@ const PlanPage = () => {
       knownSchedules.flatMap((schedule) => {
         // 진행 중 일정의 점유(지금 + 남은 시간)는 서버만 정확히 안다. 승인할 때 서버가 검사한다.
         if (schedule.state === 'IN_PROGRESS') return []
+        // 완료한 일정은 계획 시간이 남아 있어도 자리를 차지하지 않는다. 서버도 그 자리에 제안하고 승인한다.
+        if (!blocksPlacement(schedule)) return []
         const span = scheduleSpan(schedule)
         return span ? [{ title: schedule.title, ...span }] : []
       }),
@@ -704,6 +706,7 @@ const PlanPage = () => {
               key: `schedule-${schedule.id}`,
               kind: 'schedule' as const,
               title: schedule.title,
+              done: !blocksPlacement(schedule),
               ...span,
             },
           ]

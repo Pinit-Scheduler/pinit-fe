@@ -109,6 +109,17 @@
   color: var(--c-slate-700);
 }
 
+/* 완료한 일정: 자리를 차지하지 않으므로 제안 블록과 같은 시간에 놓일 수 있다 */
+.plan-timeline__item--schedule.is-done {
+  background: var(--c-slate-50);
+  border-style: dashed;
+  color: var(--c-slate-500);
+}
+
+.plan-timeline__item--schedule.is-done .plan-timeline__item-title {
+  text-decoration: line-through;
+}
+
 .plan-timeline__item--block {
   background: var(--c-blue-100);
   border: 1px solid var(--c-blue-600);
