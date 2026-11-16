@@ -395,3 +395,57 @@ test('mock router supports dependency edits and paused-active schedule lifecycle
   await api('/schedules/2/suspend', 'POST')
   assert.equal(db.activeScheduleId, 2)
 })
+
+test('mock planner keeps a completed schedule out of the way but an unstarted one in it', async () => {
+  const load = loadModules(),
+    { handleMockRequest } = load('src/mocks/handlers.ts'),
+    db = load('src/mocks/db.ts')
+  const api = (route, method = 'GET', body) =>
+    handleMockRequest(
+      new Request(`http://mock.test/v2${route}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token(1)}`,
+          'Content-Type': 'application/json',
+        },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      }),
+    )
+  const date = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10)
+  const plan = async () =>
+    (await api(`/plans?date=${date}&zoneId=Asia/Seoul&horizonDays=30`)).json()
+  const before = await plan()
+  assert.ok(before.blocks.length > 0, 'the fixture has something to plan')
+
+  const allDay = {
+    id: 9901,
+    ownerId: 1,
+    title: '하루 종일',
+    description: '',
+    date: { dateTime: `${date}T00:00:00`, zoneId: 'Asia/Seoul' },
+    scheduleType: 'QUICK_TASK',
+    state: 'COMPLETED',
+    duration: '00:00:00',
+    plannedDuration: 'PT24H',
+  }
+  db.mockSchedules.push(allDay)
+  const withCompleted = await plan()
+  assert.deepEqual(
+    withCompleted.blocks.map((block) => [block.taskId, block.start.dateTime]),
+    before.blocks.map((block) => [block.taskId, block.start.dateTime]),
+  )
+  const first = withCompleted.blocks[0]
+  assert.equal(
+    (
+      await api('/plans/apply', 'POST', {
+        date,
+        zoneId: 'Asia/Seoul',
+        blocks: [{ taskId: first.taskId, startTime: first.start.dateTime }],
+      })
+    ).status,
+    201,
+  )
+
+  allDay.state = 'NOT_STARTED'
+  assert.equal((await plan()).blocks.length, 0)
+})

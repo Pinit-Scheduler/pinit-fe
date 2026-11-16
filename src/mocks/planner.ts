@@ -27,6 +27,7 @@ import {
   nextScheduleId,
   replaceMockRoutines,
 } from './db'
+import { blocksPlacement } from '../features/planner/utils/planData'
 import { inheritMockTaskScheduleCategory } from './categories'
 
 dayjs.extend(utc)
@@ -261,8 +262,9 @@ export const handlePlans = async (
       return span.end > wake.valueOf() && span.start < windowEnd
     })
     const occurrences = routineOccurrences(date, zoneId)
+    // 완료한 일정은 자리를 차지하지 않는다. 하루 목표(existingTaskWork)에는 그대로 센다.
     const occupied = [
-      ...daySchedules.map(scheduleSpan),
+      ...daySchedules.filter(blocksPlacement).map(scheduleSpan),
       ...occurrences.map(({ start, end }) => ({ start, end })),
     ]
     const existingTaskWork = daySchedules
@@ -454,7 +456,7 @@ export const handlePlans = async (
       const end = start + effectiveExpectedMinutes(task) * 60000
       if (start < Date.now())
         reject('STARTS_IN_PAST', `starts at ${block.startTime}, before now`)
-      mockSchedules.forEach((schedule) => {
+      mockSchedules.filter(blocksPlacement).forEach((schedule) => {
         const span = scheduleSpan(schedule)
         if (start < span.end && span.start < end) {
           reject(
