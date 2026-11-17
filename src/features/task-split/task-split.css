@@ -20,3 +20,79 @@
   font-size: 13px;
   line-height: 1.7;
 }
+
+/* 작업 카드·상세에 붙는 표시 */
+.split-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  background: var(--c-slate-100);
+  color: var(--c-slate-600);
+  cursor: pointer;
+}
+.split-chip:hover {
+  background: var(--c-slate-200);
+}
+.split-chip svg {
+  width: 14px;
+  height: 14px;
+}
+/* 다른 참여자의 잠금은 누를 수 없다. */
+span.split-chip {
+  cursor: default;
+}
+span.split-chip:hover {
+  background: var(--c-slate-100);
+}
+/* 준비된 제안만 파랗게: 열어 봐야 하는 것이다. */
+.split-chip[data-status='READY'] {
+  background: var(--c-blue-50);
+  color: var(--c-blue-700);
+  font-weight: 600;
+}
+.split-chip[data-status='READY']:hover {
+  background: var(--c-blue-100);
+}
+.split-lock {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--c-slate-100);
+  color: var(--c-slate-600);
+  font-size: 13px;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.split-lock p {
+  margin: 0;
+}
+.split-lock strong {
+  display: block;
+  font-size: 14px;
+  color: var(--c-slate-800);
+}
+/* 작업 상세의 쪼개기 줄. 다른 동작 버튼 아래에 한 줄을 통째로 쓴다. */
+.split-offer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.split-offer .workspace-button {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.split-offer p {
+  flex: 1 1 220px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-slate-500);
+}

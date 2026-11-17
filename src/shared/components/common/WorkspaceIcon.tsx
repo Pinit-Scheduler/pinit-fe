@@ -1,5 +1,6 @@
 import type { SVGProps } from 'react'
 const paths = {
+  split: 'M12 3v6m0 0-6 5v7m6-12 6 5v7',
   sun: 'M12 3v2m0 14v2M3 12h2m14 0h2M5.6 5.6 7 7m10 10 1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
   calendar:
     'M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm2-3v6m10-6v6M4 10h16M8 14h2m4 0h2m-8 3h2',

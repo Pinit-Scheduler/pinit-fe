@@ -1146,6 +1146,16 @@ test('Task schedule assignment still writes the captured identity/version when d
     '@features/spaces/store': { useSpaces: () => ({ spaces: [], projects: [] }) },
     '@features/spaces/UnavailableNote': { default: () => null },
     '@features/spaces/unavailable': { adminNames: () => [], unavailableLines: () => [] },
+    'react-router-dom': { useNavigate: () => () => {} },
+    '@features/task-split/api/splitErrors': { isLockedBySplit: () => false },
+    '@features/task-split/components/SplitLockActions': { default: () => null },
+    '@features/task-split/components/SplitLockNotice': { default: () => null },
+    '@features/task-split/components/SplitOffer': { default: () => null },
+    '@features/task-split/hooks/useSplitCommands': { useSplitCommands: () => ({}) },
+    '@features/task-split/hooks/useSplitSummary': { useSplitSummary: () => ({ summary: null }) },
+    '@features/task-split/splitStartStore': { requestSplitStart() {} },
+    '@features/task-split/utils/splitEntry': { splitEntryOf: () => ({ kind: 'none' }) },
+    '@features/task-split/utils/splitPaths': { PROPOSAL_SCREEN_READY: false, splitProposalPath: () => '' },
   }).default
   const find = (node) => {
     if (!node || typeof node !== 'object') return null
