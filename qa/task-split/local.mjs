@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -35,29 +36,57 @@ const server = await createServer({
 await server.listen()
 
 const errors = []
+/**
+ * 일부러 거부시킨 만들기(`failNextApply`)의 응답은 앱의 HTTP 도우미가 console.error로 남긴다. 그 창 안에서 만들기 경로의
+ * 오류 기록만 기대한 것으로 따로 세고, 그 밖의 console error는 모두 실패로 본다.
+ */
+let expectingRejection = null
+const expectedRejections = []
 const counters = {}
 
 /**
  * 한 단계를 걷고 캡처한다. 캡처 이름은 `{viewport}-{두 자리 번호}-{name}.png`이고 번호는 뷰포트마다 1부터 센다.
- * 모바일에서는 가로로 넘치지 않는지도 본다. B단계가 이 도우미로 뒤 흐름을 잇는다.
+ * 두 뷰포트 모두 페이지가 가로로 넘치지 않는지 본다(지도 상자 안의 스크롤은 페이지 너비에 들지 않는다).
+ * `dark: true`면 같은 화면을 어두운 테마로도 찍는다(`{…}-dark.png`).
  */
-const step = async (page, viewport, name, run) => {
-  await run()
-  // 열리고 닫히는 움직임이 끝난 뒤에 찍는다. 도는 표시처럼 끝없는 움직임은 기다리지 않는다.
-  await page.waitForFunction(() =>
+const step = async (page, viewport, name, run, { dark = false } = {}) => {
+  try {
+    await run()
+  } catch (error) {
+    // 실패한 화면을 남긴다(캡처 폴더가 아니라 QA_FAILED_DIR 또는 운영체제 임시 폴더).
+    const failed = path.join(process.env.QA_FAILED_DIR ?? os.tmpdir(), `${viewport}-${name}-failed.png`)
+    await page.screenshot({ path: failed }).catch(() => {})
+    console.log(`failed ${viewport} ${name} (화면: ${failed})`)
+    throw error
+  }
+  await settle(page)
+  counters[viewport] = (counters[viewport] ?? 0) + 1
+  const number = String(counters[viewport]).padStart(2, '0')
+  const width = await page.evaluate(() => document.documentElement.scrollWidth)
+  assert.ok(width <= viewports[viewport].width, `${name}: 가로로 넘친다(${width}px)`)
+  const file = `${viewport}-${number}-${name}`
+  await page.screenshot({ path: path.join(output, `${file}.png`) })
+  if (dark) {
+    // 테마는 src/shared/theme/theme.ts처럼 html의 data-theme으로 바꾼다. 이 탭에서만 바꾸고 저장하지 않는다.
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'dark'
+    })
+    await settle(page)
+    await page.screenshot({ path: path.join(output, `${file}-dark.png`) })
+    await page.evaluate(() => {
+      delete document.documentElement.dataset.theme
+    })
+  }
+  console.log(`ok ${viewport} ${number} ${name}`)
+}
+
+/** 열리고 닫히는 움직임이 끝날 때까지 기다린다. 도는 표시처럼 끝없는 움직임은 기다리지 않는다. */
+const settle = (page) =>
+  page.waitForFunction(() =>
     document
       .getAnimations()
       .every((animation) => animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity),
   )
-  counters[viewport] = (counters[viewport] ?? 0) + 1
-  const number = String(counters[viewport]).padStart(2, '0')
-  if (viewport === 'mobile') {
-    const width = await page.evaluate(() => document.documentElement.scrollWidth)
-    assert.ok(width <= viewports.mobile.width, `${name}: 가로로 넘친다(${width}px)`)
-  }
-  await page.screenshot({ path: path.join(output, `${viewport}-${number}-${name}.png`) })
-  console.log(`ok ${viewport} ${number} ${name}`)
-}
 
 /** 화면에 보이는 문구. 여러 군데에 있으면 보이는 것 하나면 된다. */
 const visible = (scope, text) => scope.getByText(text, { exact: false }).filter({ visible: true }).first().waitFor()
@@ -206,14 +235,619 @@ const walk = async (page, viewport) => {
   })
 }
 
+// ---------------------------------------------------------------------------
+// B단계: 알림함, 제안 화면(다듬기·검사·만들기·되돌리기), 거부 화면, 읽음 재호출, 알림 설정
+// ---------------------------------------------------------------------------
+
+/** 리뷰가 브라우저에서 봐 달라고 한 것(지도, 조각 창, 층, 종, 긴 설명)의 측정값. 끝에 한꺼번에 찍는다. */
+const notes = []
+const note = (viewport, name, value) => {
+  const line = `${viewport} ${name}: ${JSON.stringify(value)}`
+  notes.push(line)
+  if (process.env.QA_VERBOSE) console.log(`note ${line}`)
+}
+
+const bell = (page) => page.locator('.split-topbar').filter({ visible: true }).first()
+const unreadOf = async (page) => {
+  const label = (await bell(page).getAttribute('aria-label')) ?? ''
+  return Number(label.match(/새 알림 (\d+)개/)?.[1] ?? 0)
+}
+const proposal = (page) => page.locator('.split-page--proposal')
+const mapNodes = (page) => page.locator('.split-map__node')
+const mapNode = (page, title) =>
+  mapNodes(page).filter({ has: page.getByRole('button', { name: title, exact: true }) })
+const pieceDialog = (page) => page.locator('.split-dialog--piece')
+const toolbar = (page) => page.locator('.split-toolbar')
+const summaryBar = (page) => page.locator('.split-apply')
+const applyButton = (page) => summaryBar(page).getByRole('button', { name: /^(만들기|만드는 중…)$/ })
+const toastAction = (page, text) =>
+  page.locator('.toast').filter({ hasText: text }).first().getByRole('button', { name: '되돌리기', exact: true })
+const droppedRow = (page, title) => page.locator('.split-dropped li').filter({ hasText: title })
+const topBack = (page) => page.getByRole('button', { name: '뒤로가기', exact: true }).filter({ visible: true }).first()
+const navLink = (page, name) => page.getByRole('link', { name, exact: true }).filter({ visible: true }).first()
+const mock = (page, run, arg) => page.evaluate(run, arg)
+/** `failNextApply(kind)`를 걸고 만들기를 누른다. 그 응답의 console 기록은 기대한 것으로 센다. */
+const applyRejected = async (page, kind, settled) => {
+  await mock(page, (value) => window.__pinitMock.split.failNextApply(value), kind)
+  expectingRejection = kind
+  try {
+    await applyButton(page).click()
+    await settled()
+  } finally {
+    expectingRejection = null
+  }
+}
+const activeElement = (page) =>
+  page.evaluate(() => {
+    const element = document.activeElement
+    if (!element || element === document.body) return 'body'
+    return `${element.tagName.toLowerCase()}${element.getAttribute('aria-label') ? `[${element.getAttribute('aria-label')}]` : ''} ${(element.textContent ?? '').trim().slice(0, 12)}`
+  })
+
+/** 지도의 모든 조각을 바로 보이고 이름을 센다. */
+const mapTitles = (page) => page.locator('.split-map__title').allInnerTexts()
+
+const openPiece = async (page, title) => {
+  await mapNode(page, title).getByRole('button', { name: title, exact: true }).click()
+  await pieceDialog(page).getByRole('heading', { name: '조각 내용' }).waitFor()
+}
+const closePiece = async (page) => {
+  await pieceDialog(page).getByRole('button', { name: '닫기', exact: true }).click()
+  await pieceDialog(page).waitFor({ state: 'detached' })
+}
+const startEditing = async (page) => {
+  await button(pieceDialog(page), '고치기').click()
+  await pieceDialog(page).getByRole('heading', { name: '조각 고치기' }).waitFor()
+}
+const titleInput = (page) => pieceDialog(page).locator('.split-form > label').first().locator('input')
+
+/** 한 요청의 처리를 끝낸다(`__pinitMock.split.finish`). fixture 이름이나 원본 제목으로 찾는다. */
+const finishRequest = (page, { fixture, title }, status) =>
+  mock(
+    page,
+    ({ fixture, title, status }) => {
+      const { fixtures, requests, finish } = window.__pinitMock.split
+      const taskId = fixture ? fixtures[fixture].taskId : undefined
+      const request = [...requests]
+        .reverse()
+        .find((item) => (taskId != null ? item.taskId === taskId : item.originalTitle === title))
+      finish(request.requestId, status)
+      return request.requestId
+    },
+    { fixture, title, status },
+  )
+
+/** 종의 aria-label이 바뀔 때마다 적는다. 늘었다가 다시 줄어드는 짧은 순간도 놓치지 않는다. */
+const watchBell = (page) =>
+  page.evaluate(() => {
+    const target = [...document.querySelectorAll('.split-topbar')].find((element) => element.offsetParent !== null)
+    const seen = [{ at: Date.now(), label: target.getAttribute('aria-label') }]
+    window.__bellSeen = seen
+    new MutationObserver(() => seen.push({ at: Date.now(), label: target.getAttribute('aria-label') })).observe(target, {
+      attributes: true,
+      attributeFilter: ['aria-label'],
+    })
+  })
+const bellSeen = (page) =>
+  page.evaluate(() =>
+    window.__bellSeen.map(({ at, label }) => ({ at, count: Number(label?.match(/새 알림 (\d+)개/)?.[1] ?? 0) })),
+  )
+
+const walkProposal = async (page, viewport) => {
+  const size = viewports[viewport]
+  let baseline = 0
+
+  await step(page, viewport, 'bell', async () => {
+    // 안 읽은 것: 온보딩 개편 설계의 준비 알림과 12번에서 준비된 사내 위키 이전 계획의 알림(1.5초 뒤 생기고, 종은 작업 변경
+    // 3초 뒤에 다시 읽는다). 실패 알림은 9번에서 보관함을 열 때 읽었다.
+    await page.waitForFunction(() =>
+      [...document.querySelectorAll('.split-topbar')].some((item) => item.offsetParent !== null && item.getAttribute('aria-label') === '알림, 새 알림 2개'),
+    )
+    const label = await bell(page).getAttribute('aria-label')
+    assert.match(label, /^알림, 새 알림/)
+    const badge = page.locator('.split-badge').filter({ visible: true }).first()
+    note(viewport, 'bell', {
+      label,
+      badge: await badge.innerText(),
+      badgeColors: await badge.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return { color: style.color, background: style.backgroundColor }
+      }),
+    })
+  })
+
+  await step(page, viewport, 'notice-panel', async () => {
+    await bell(page).click()
+    const panel = page.locator('.split-panel')
+    for (const text of ['쪼개기 제안이 준비됐어요', '온보딩 개편 설계', '쪼개기 보관함 열기']) await visible(panel, text)
+    await panel.getByRole('heading', { name: '알림', exact: true }).waitFor()
+    await settle(page)
+    const box = await panel.boundingBox()
+    const bellBox = await bell(page).boundingBox()
+    if (viewport === 'mobile') {
+      // 좁은 화면은 아래에서 올라온 시트다.
+      assert.ok(Math.abs(box.y + box.height - size.height) <= 1, `시트가 바닥에 붙지 않았다(${JSON.stringify(box)})`)
+      assert.ok(Math.abs(box.width - size.width) <= 1, `시트가 화면 너비가 아니다(${box.width})`)
+    } else {
+      // 넓은 화면은 종 아래에 붙는다.
+      assert.ok(box.y >= bellBox.y + bellBox.height - 1 && box.y <= bellBox.y + bellBox.height + 24, `패널이 종 아래가 아니다(${JSON.stringify({ box, bellBox })})`)
+    }
+    note(viewport, 'notice-panel', {
+      panel: box,
+      bell: bellBox,
+      background: await panel.evaluate((element) => getComputedStyle(element).backgroundColor),
+      scrollWidth: await page.evaluate(() => document.documentElement.scrollWidth),
+    })
+  })
+
+  await step(
+    page,
+    viewport,
+    'proposal-map',
+    async () => {
+      baseline = await unreadOf(page)
+      await page.locator('.split-panel .notice').filter({ hasText: '온보딩 개편 설계' }).click()
+      await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
+      await proposal(page).waitFor()
+      for (const text of ['쪼개기 제안', '온보딩 개편 설계', '조각 합계', '뺀 조각 2개']) await visible(proposal(page), text)
+      await mapNodes(page).nth(4).waitFor()
+      assert.equal(await mapNodes(page).count(), 5)
+      assert.match(await summaryBar(page).innerText(), /5개 ·/)
+      await applyButton(page).waitFor()
+      await page.waitForFunction(
+        (before) => {
+          const label = [...document.querySelectorAll('.split-topbar')].find((element) => element.offsetParent !== null)?.getAttribute('aria-label') ?? ''
+          return Number(label.match(/새 알림 (\d+)개/)?.[1] ?? 0) < before
+        },
+        baseline,
+      ).catch(async (error) => {
+        note(viewport, 'proposal-map bells', await page.locator('.split-topbar').evaluateAll((items) => items.map((item) => [item.getAttribute('aria-label'), item.offsetParent !== null])))
+        throw error
+      })
+      note(viewport, 'proposal-map unread', { before: baseline, after: await unreadOf(page) })
+      baseline = await unreadOf(page)
+      const box = page.locator('.split-map')
+      note(viewport, 'split-map', {
+        box: await box.evaluate((element) => ({ client: element.clientWidth, scroll: element.scrollWidth })),
+        edges: await page.locator('.split-map .tm-edges > path').count(),
+        times: await page.locator('.split-map__meta time').allInnerTexts(),
+      })
+    },
+    { dark: true },
+  )
+
+  await step(page, viewport, 'proposal-list', async () => {
+    await button(toolbar(page), '목록').click()
+    await page.locator('.split-stages').waitFor()
+    assert.deepEqual(await page.locator('.split-stage__label').allInnerTexts(), ['1', '2', '3', '4'])
+    assert.equal(await page.locator('.split-stages .split-piece').count(), 5)
+    await visible(proposal(page), '목적·진행 방법·완료 기준')
+    // 긴 설명을 펼쳐 본다(리뷰 (e)).
+    const card = page
+      .locator('.split-stages .split-piece')
+      .filter({ has: page.locator('.split-piece__head strong').getByText('개편안 스케치 3종', { exact: true }) })
+    await card.locator('summary').click()
+    const text = card.locator('.split-piece__desc p')
+    await text.waitFor()
+    await card.scrollIntoViewIfNeeded()
+    note(viewport, 'list long description', await text.evaluate((element) => ({
+      whiteSpace: getComputedStyle(element).whiteSpace,
+      overflows: element.scrollWidth > element.clientWidth,
+      lines: Math.round(element.getBoundingClientRect().height / parseFloat(getComputedStyle(element).lineHeight || '20')),
+    })))
+  })
+
+  await step(
+    page,
+    viewport,
+    'piece-read',
+    async () => {
+      await button(toolbar(page), '지도').click()
+      await mapNodes(page).nth(4).waitFor()
+      await openPiece(page, '개편안 스케치 3종')
+      const dialog = pieceDialog(page)
+      await visible(dialog, '이전 조각:')
+      await visible(dialog, '세 안의 화면 흐름과 장단점이 한 문서에 있다.')
+      await button(dialog, '빼기').waitFor()
+      await button(dialog, '고치기').waitFor()
+      assert.ok((await page.locator('.split-map .tm-edge--active').count()) > 0, '누른 조각의 선이 강조되지 않았다')
+      await settle(page)
+      const facts = await page.evaluate(() => {
+        const backdrop = document.querySelector('.split-dialog__backdrop')
+        const tab = document.querySelector('.bottom-tab')
+        const tabBox = tab && tab.offsetParent !== null ? tab.getBoundingClientRect() : null
+        const hit = tabBox ? document.elementFromPoint(tabBox.x + tabBox.width / 2, tabBox.y + tabBox.height / 2) : null
+        return {
+          backdropZ: getComputedStyle(backdrop).zIndex,
+          tabZ: tab ? getComputedStyle(tab).zIndex : null,
+          tabCovered: tabBox ? Boolean(hit?.closest('.split-dialog__backdrop')) : null,
+          description: getComputedStyle(document.querySelector('.split-dialog .split-piece__text')).whiteSpace,
+        }
+      })
+      if (viewport === 'mobile') {
+        assert.equal(facts.tabCovered, true, '창이 하단 탭을 덮지 않는다')
+        const box = await dialog.boundingBox()
+        assert.ok(Math.abs(box.y + box.height - size.height) <= 1, `시트가 바닥에 붙지 않았다(${JSON.stringify(box)})`)
+      }
+      note(viewport, 'piece-read', { ...facts, box: await dialog.boundingBox(), focus: await activeElement(page) })
+      // 창이 열린 동안 Tab은 창 안에서만 돈다(뒤의 "제안 버리기" 같은 확인 창을 여는 버튼에 닿지 않는다).
+      for (let index = 0; index < 8; index += 1) {
+        await page.keyboard.press('Tab')
+        assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('.split-dialog--piece'))), true, 'Tab이 창 밖으로 나갔다')
+      }
+    },
+    { dark: true },
+  )
+
+  if (viewport === 'desktop') {
+    // 600~899px: 가운데 카드가 아래에서 미끄러져 올라온다(리뷰 (b)). 다시 열어 움직임을 잰다.
+    await closePiece(page)
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await settle(page)
+    const frames = []
+    const watching = page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const seen = []
+          const started = performance.now()
+          const tick = () => {
+            const element = document.querySelector('.split-dialog--piece')
+            if (element) {
+              const box = element.getBoundingClientRect()
+              seen.push({ t: Math.round(performance.now() - started), y: Math.round(box.y), x: Math.round(box.x), w: Math.round(box.width) })
+            }
+            if (performance.now() - started < 600) requestAnimationFrame(tick)
+            else resolve(seen)
+          }
+          requestAnimationFrame(tick)
+        }),
+    )
+    await openPiece(page, '개편안 스케치 3종')
+    frames.push(...(await watching))
+    await settle(page)
+    await page.screenshot({ path: path.join(output, `${viewport}-17-piece-read-768.png`) })
+    note(viewport, 'piece-read 768', {
+      first: frames.find((frame) => frame.w > 0),
+      last: frames.at(-1),
+      box: await pieceDialog(page).boundingBox(),
+    })
+    await page.setViewportSize(size)
+    await settle(page)
+  }
+
+  await step(page, viewport, 'piece-refused', async () => {
+    await startEditing(page)
+    note(viewport, 'focus after read→edit', await activeElement(page))
+    await titleInput(page).fill('')
+    // 기다리는 동안의 표시를 보려고 응답을 늦춘다.
+    await mock(page, () => window.__pinitMock.setLatency(800))
+    await button(pieceDialog(page), '확인').click()
+    await button(pieceDialog(page), '확인하는 중…').waitFor()
+    const error = pieceDialog(page).locator('.split-form__error').filter({ hasText: '제목은 1~20자로 입력해 주세요.' })
+    await error.waitFor()
+    await mock(page, () => window.__pinitMock.setLatency(0))
+    assert.equal(
+      await error.evaluate((element) => element.parentElement?.querySelector('input') !== null && element.parentElement === element.closest('.split-form > label')),
+      true,
+      '제목 칸 아래가 아니다',
+    )
+    await pieceDialog(page).getByRole('heading', { name: '조각 고치기' }).waitFor()
+  })
+
+  await step(
+    page,
+    viewport,
+    'piece-edited',
+    async () => {
+      await titleInput(page).fill('개편안 스케치 3종')
+      await pieceDialog(page).locator('input[type=number]').fill('300')
+      await button(pieceDialog(page), '확인').click()
+      await pieceDialog(page).getByRole('heading', { name: '조각 내용' }).waitFor()
+      note(viewport, 'focus after edit→read', await activeElement(page))
+      await toast(page, '조각을 고쳤어요.')
+      await toastAction(page, '조각을 고쳤어요.').waitFor()
+      await visible(pieceDialog(page), '4시간 이상이에요.')
+      await summaryBar(page).getByText('4시간 이상 1개').waitFor()
+    },
+    { dark: true },
+  )
+
+  await step(page, viewport, 'term-help', async () => {
+    await startEditing(page)
+    const mark = pieceDialog(page).getByRole('button', { name: '이전 조각 설명', exact: true })
+    const help = mark.locator('xpath=..')
+    const tip = help.getByRole('tooltip')
+    const press = () => (viewport === 'mobile' ? mark.tap() : mark.click())
+    await press()
+    await tip.getByText('이전 조각이란?').waitFor({ state: 'visible' })
+    // Esc는 설명만 닫는다. 창은 그대로다.
+    await page.keyboard.press('Escape')
+    const afterEsc = await help.evaluate((element) => ({
+      open: element.hasAttribute('data-open'),
+      hover: element.matches(':hover'),
+      focusVisible: element.querySelector('.term-help__mark').matches(':focus-visible'),
+      focused: document.activeElement === element.querySelector('.term-help__mark'),
+      shown: getComputedStyle(element.querySelector('.term-help__tip')).visibility,
+    }))
+    note(viewport, 'term-help after Esc', afterEsc)
+    // 알려진 결함: Esc는 data-open만 지우고, 초점이 "?"에 남아 :focus-visible(과 :hover)로 설명이 계속 보인다.
+    // 창이 닫히지 않는 것만 단언하고, 설명이 남는지는 기록한다(보고서의 결함 목록).
+    await tip
+      .waitFor({ state: 'hidden', timeout: 2000 })
+      .catch(() => note(viewport, 'DEFECT term-help', 'Esc 뒤에도 설명이 보인다(초점이 "?"에 남는다)'))
+    assert.equal(await pieceDialog(page).count(), 1, 'Esc가 창까지 닫았다')
+    // 바깥을 누르면 닫힌다.
+    await press()
+    await tip.waitFor({ state: 'visible' })
+    const outside = pieceDialog(page).getByRole('heading', { name: '조각 고치기' })
+    await (viewport === 'mobile' ? outside.tap() : outside.click())
+    await tip.waitFor({ state: 'hidden' })
+    await press()
+    await tip.getByText('이전 조각이란?').waitFor({ state: 'visible' })
+    note(viewport, 'term-help tip', await tip.boundingBox())
+  })
+
+  await step(page, viewport, 'piece-removed', async () => {
+    await page.keyboard.press('Escape')
+    await closePiece(page)
+    await mapNode(page, '팀 리뷰 받기').getByRole('button', { name: '팀 리뷰 받기 빼기', exact: true }).click()
+    await toast(page, '"팀 리뷰 받기" 조각을 뺐어요.')
+    await visible(proposal(page), '뺀 조각 3개')
+    await visible(droppedRow(page, '팀 리뷰 받기'), '내가 뺌 ·')
+    await page.waitForFunction(() => document.querySelectorAll('.split-map__node').length === 4)
+    // 앞뒤 조각이 바로 이어진다: a→c, b→c, c→e.
+    assert.equal(await page.locator('.split-map .tm-edges > path').count(), 3)
+    await page.locator('.split-map').scrollIntoViewIfNeeded()
+  })
+
+  await step(page, viewport, 'via-excluded', async () => {
+    // 최종안 문서화는 마지막 조각이라 후보 가운데 순환이 생기는 것이 없다. 순환 표시는 개편안 스케치 3종의 후보에서 먼저 본다.
+    await openPiece(page, '개편안 스케치 3종')
+    await startEditing(page)
+    const blocked = pieceDialog(page).locator('.split-form__check').filter({ hasText: '순환이 생겨요' })
+    await blocked.first().waitFor()
+    assert.equal(await blocked.first().locator('input[type=checkbox]').isDisabled(), true)
+    await blocked.first().getByRole('button', { name: '순환 설명', exact: true }).waitFor()
+    note(viewport, 'cycle choices (개편안 스케치 3종)', await pieceDialog(page).locator('.split-form__check').allInnerTexts())
+    await blocked.first().scrollIntoViewIfNeeded()
+    await settle(page)
+    await page.screenshot({ path: path.join(output, `${viewport}-22-via-excluded-cycle.png`) })
+    await closePiece(page)
+
+    await openPiece(page, '최종안 문서화')
+    await startEditing(page)
+    const choice = pieceDialog(page).locator('.split-form__check').filter({ hasText: '개편안 스케치 3종' })
+    const box = choice.locator('input[type=checkbox]')
+    assert.equal(await box.isChecked(), true)
+    assert.equal(await box.isDisabled(), true)
+    await visible(choice, '뺀 조각을 거쳐 이어져 있어요')
+    note(viewport, 'via-excluded choices (최종안 문서화)', await pieceDialog(page).locator('.split-form__check').allInnerTexts())
+    await choice.scrollIntoViewIfNeeded()
+  })
+
+  await step(page, viewport, 'undo-toolbar', async () => {
+    await closePiece(page)
+    await button(toolbar(page), '되돌리기').click()
+    await visible(proposal(page), '뺀 조각 2개')
+    await page.waitForFunction(() => document.querySelectorAll('.split-map__node').length === 5)
+    await summaryBar(page).getByText('4시간 이상 1개').waitFor()
+    await button(toolbar(page), '처음 제안으로').click()
+    await summaryBar(page).getByText('4시간 이상 1개').waitFor({ state: 'detached' })
+    await visible(proposal(page), '뺀 조각 2개')
+    assert.equal(await page.getByText('4시간 이상', { exact: false }).filter({ visible: true }).count(), 0)
+    assert.equal(await button(toolbar(page), '처음 제안으로').isDisabled(), true)
+  })
+
+  await step(page, viewport, 'reinclude-warning', async () => {
+    await button(droppedRow(page, '온보딩 문구 초안'), '다시 넣기').click()
+    await toast(page, '"온보딩 문구 초안" 조각을 다시 넣었어요.')
+    await mapNode(page, '온보딩 문구 초안').waitFor()
+    await openPiece(page, '온보딩 문구 초안')
+    await visible(pieceDialog(page), '"온보딩 문구 다듬기" 작업과 겹칠 수 있어요.')
+  })
+
+  await step(page, viewport, 'empty-by-member', async () => {
+    await closePiece(page)
+    for (let left = await mapNodes(page).count(); left > 0; left -= 1) {
+      await mapNodes(page).first().locator('.split-map__remove').click()
+      await page.waitForFunction((count) => document.querySelectorAll('.split-map__node').length === count, left - 1)
+      await page.waitForFunction(() => !document.querySelector('.split-page--proposal[aria-busy]'))
+    }
+    await visible(proposal(page), '만들 조각이 없어요. 아래에서 조각을 다시 넣어 주세요.')
+    assert.equal(await applyButton(page).isDisabled(), true)
+  })
+  await button(toolbar(page), '처음 제안으로').click()
+  await page.waitForFunction(() => document.querySelectorAll('.split-map__node').length === 5)
+
+  await step(page, viewport, 'apply-unexpected', async () => {
+    await applyRejected(page, 'UNEXPECTED', () =>
+      toast(page, '만들지 못했어요. 아무것도 바뀌지 않았어요. 잠시 뒤 다시 시도해 주세요.'),
+    )
+    assert.match(page.url(), /\/app\/tasks\/splits\/\d+$/)
+    assert.equal(await mapNodes(page).count(), 5)
+    await applyButton(page).getByText('만들기').waitFor()
+  })
+
+  await step(page, viewport, 'apply-admin-only', async () => {
+    const notice = page.locator('.split-reject')
+    await applyRejected(page, 'ADMIN_ONLY', () => notice.getByText('만들지 못했어요. 이제 관리자만 할 수 있어요').waitFor())
+    // 부드럽게 올라오는 것이 끝난 뒤 보이는 자리에 있는지 본다.
+    await page.waitForFunction(() => {
+      const box = document.querySelector('.split-reject')?.getBoundingClientRect()
+      return box && box.top >= 0 && box.bottom <= window.innerHeight
+    })
+    assert.equal(await applyButton(page).isDisabled(), true)
+    assert.equal(await button(proposal(page), '제안 버리기').isDisabled(), false)
+  })
+
+  await step(page, viewport, 'discard-undo', async () => {
+    await button(proposal(page), '제안 버리기').click()
+    await visible(confirmDialog(page), '이미 쓴 횟수는 돌아오지 않아요.')
+    await button(confirmDialog(page), '제안 버리기').click()
+    await page.waitForURL(/\/app\/tasks\/splits$/)
+    await toast(page, '제안을 버렸어요.')
+    await toastAction(page, '제안을 버렸어요.').click()
+    await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
+    await mapNodes(page).nth(4).waitFor()
+    assert.deepEqual(
+      [...(await mapTitles(page))].sort(),
+      ['개편안 스케치 3종', '이탈 구간 데이터 뽑기', '최종안 문서화', '팀 리뷰 받기', '현재 온보딩 흐름 정리'].sort(),
+    )
+    assert.equal(await applyButton(page).isDisabled(), false)
+  })
+
+  await step(
+    page,
+    viewport,
+    'applied-map',
+    async () => {
+      await applyButton(page).click()
+      await page.waitForURL(/\/app\/task-map$/)
+      await toast(page, '조각 5개를 만들었어요.')
+      await toastAction(page, '조각 5개를 만들었어요.').waitFor()
+      const titles = ['현재 온보딩 흐름 정리', '이탈 구간 데이터 뽑기', '개편안 스케치 3종', '팀 리뷰 받기', '최종안 문서화']
+      // 작업 맵은 화면 밖 카드를 그리지 않는다. 다섯 조각이 지도에 있는지는 "작업으로 이동" 목록으로 보고,
+      // 가운데 조각으로 옮겨 앞뒤 선을 본다.
+      const jump = page.locator('.tm-task-jump select')
+      for (const title of titles)
+        await jump.locator('option').filter({ hasText: new RegExp(`^${title}$`) }).first().waitFor({ state: 'attached' })
+      await jump.selectOption({ label: '개편안 스케치 3종' })
+      await page.locator('.tm-node--selected').filter({ hasText: '개편안 스케치 3종' }).waitFor()
+      await page.locator('.tm-canvas-panel').scrollIntoViewIfNeeded()
+      await settle(page)
+      const shown = await page.locator('.tm-node').evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const box = node.getBoundingClientRect()
+          return `${node.querySelector('.tm-node-title')?.textContent?.trim()}@${Math.round(box.x)},${Math.round(box.y)} ${node.querySelector('.tm-readiness')?.textContent?.trim()}`
+        }),
+      )
+      note(viewport, 'applied-map nodes', shown.filter((line) => titles.some((title) => line.startsWith(title))))
+      // 앞서 만들기가 거부됐을 때의 오류 토스트가 아직 떠 있는지 적는다(오류 토스트는 닫을 때까지 남는다).
+      note(viewport, 'applied-map error toasts', await page.locator('.toast--error .toast__message').allInnerTexts())
+      note(viewport, 'applied-map active edges', await page.locator('.tm-edges path.tm-edge--active').count())
+      assert.equal(await page.locator('.tm-edges path.tm-edge--active').count(), 3, '가운데 조각의 앞뒤 선(앞 둘, 뒤 하나)이 아니다')
+    },
+    { dark: true },
+  )
+
+  await step(page, viewport, 'apply-undone', async () => {
+    await toastAction(page, '조각 5개를 만들었어요.').click()
+    await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
+    await mapNodes(page).nth(4).waitFor()
+    assert.equal(await mapNodes(page).count(), 5)
+    await navLink(page, '작업').click()
+    await switchSpace(page, '개인')
+    const card = page.locator('.workspace-task').filter({ hasText: '온보딩 개편 설계' })
+    await card.getByText('쪼개기 제안 준비됨').waitFor()
+    await card.scrollIntoViewIfNeeded()
+  })
+
+  await step(page, viewport, 'apply-expired', async () => {
+    // 26번의 오류 토스트는 닫을 때까지 남아 좁은 화면에서 상단 바를 가린다. 회원처럼 닫고 간다.
+    for (const dismiss of await page.locator('.toast--error .toast__dismiss').all()) await dismiss.click()
+    await openTask(page, '온보딩 개편 설계')
+    await button(detail(page), '제안 보기').click()
+    await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
+    await mapNodes(page).nth(4).waitFor()
+    await applyRejected(page, 'EXPIRED', () => visible(page.locator('main'), '보관 기간이 끝난 제안이에요'))
+    await page.locator('main').getByRole('link', { name: '원본 열어 다시 쪼개기', exact: true }).waitFor()
+    await page.locator('main').getByRole('link', { name: '보관함으로', exact: true }).waitFor()
+  })
+
+  await step(page, viewport, 'all-excluded', async () => {
+    await page.locator('main').getByRole('link', { name: '보관함으로', exact: true }).click()
+    await page.waitForURL(/\/app\/tasks\/splits$/)
+    await button(inboxRow(page, '릴리즈 회고 준비'), '제안 보기').click()
+    await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
+    await visible(proposal(page), '이미 끝낸 것 같아요. 아래 근거를 보고, 필요한 조각만 다시 넣어 주세요.')
+    await visible(proposal(page), '뺀 조각 3개')
+  })
+
+  await step(page, viewport, 'admin-only-open', async () => {
+    await topBack(page).click()
+    await page.waitForURL(/\/app\/tasks\/splits$/)
+    await button(inboxRow(page, '12월 발제문 쓰기'), '제안 보기').click()
+    await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
+    const notice = page.locator('.split-reject')
+    await notice.getByText('이제 관리자만 만들 수 있어요').waitFor()
+    const body = await notice.innerText()
+    assert.match(body, /관리자 \S+님에게/)
+    note(viewport, 'admin-only-open', body.split('\n').at(-1))
+    assert.equal(await applyButton(page).isDisabled(), true)
+  })
+
+  await step(page, viewport, 'late-notice', async () => {
+    await navLink(page, '작업').click()
+    await switchSpace(page, '개인')
+    await openTask(page, '여행 계획 세우기')
+    await button(detail(page), '쪼개기').click()
+    await button(confirmDialog(page), '쪼개기 맡기기').click()
+    await toast(page, '쪼개기를 맡겼어요. 준비되면 알려 드릴게요.')
+    await visible(detail(page), '쪼개는 중이에요')
+    const before = await unreadOf(page)
+    await watchBell(page)
+    const started = Date.now()
+    await finishRequest(page, { title: '여행 계획 세우기' }, 'READY')
+    await button(detail(page), '제안 보기').click()
+    await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
+    await mapNodes(page).first().waitFor()
+    await visible(proposal(page), '여행 계획 세우기')
+    // 알림은 1.5초 뒤에 생긴다. 종이 그것을 읽으면 제안 화면이 한 번 더 읽음으로 한다.
+    await page.waitForTimeout(Math.max(0, 5000 - (Date.now() - started)))
+    const seen = await bellSeen(page)
+    const counts = seen.map((entry) => ({ ms: entry.at - started, count: entry.count }))
+    note(viewport, 'late-notice bell', { before, counts })
+    assert.equal(await unreadOf(page), before, `5초 뒤 종 숫자가 ${before}이 아니다`)
+    assert.ok(counts.some((entry) => entry.count > before), '종 숫자가 늘지 않았다(늦게 생긴 알림을 읽지 못했다)')
+  })
+
+  await step(page, viewport, 'inbox-read', async () => {
+    const before = await unreadOf(page)
+    await watchBell(page)
+    const started = Date.now()
+    await finishRequest(page, { fixture: 'queued' }, 'FAILED')
+    await bell(page).click()
+    await button(page.locator('.split-panel'), '쪼개기 보관함 열기').click()
+    await page.waitForURL(/\/app\/tasks\/splits$/)
+    const row = inboxRow(page, '결제 모듈 이관')
+    await row.getByText('실패', { exact: true }).waitFor()
+    await page.waitForTimeout(Math.max(0, 5500 - (Date.now() - started)))
+    const counts = (await bellSeen(page)).map((entry) => ({ ms: entry.at - started, count: entry.count }))
+    note(viewport, 'inbox-read bell', { before, counts })
+    assert.equal(await unreadOf(page), before, '실패 알림이 종 숫자에 남았다')
+    await row.scrollIntoViewIfNeeded()
+  })
+
+  await step(page, viewport, 'settings', async () => {
+    await page.getByRole('button', { name: '설정', exact: true }).filter({ visible: true }).first().click()
+    await page.waitForURL(/\/app\/settings/)
+    const row = page.locator('.settings__row').filter({ hasText: '작업 쪼개기 알림' })
+    await row.getByText('쪼개기 제안이 준비되거나 실패하면 푸시로 알려 드려요. 꺼도 알림함에는 남아요.').waitFor()
+    const toggle = row.getByRole('button', { name: '작업 쪼개기 알림', exact: true })
+    assert.equal(await toggle.getAttribute('aria-pressed'), 'true')
+    await toggle.click()
+    await page.waitForFunction(
+      () => document.querySelector('button[aria-label="작업 쪼개기 알림"]')?.getAttribute('aria-pressed') === 'false',
+    )
+    await row.locator('.saved-mark[data-visible]').waitFor()
+    assert.equal(await page.locator('.toast--error, .toast[data-type="error"]').count(), 0)
+    await row.scrollIntoViewIfNeeded()
+  })
+}
+
 let browser
 try {
   await mkdir(output, { recursive: true })
   browser = await chromium.launch()
+  const only = process.env.QA_VIEWPORT
   for (const [viewport, size] of Object.entries(viewports)) {
+    if (only && only !== viewport) continue
     const context = await browser.newContext({
       viewport: size,
       deviceScaleFactor: 2,
+      // 좁은 화면은 손가락으로 누른다("?" 설명을 tap으로 연다).
+      hasTouch: viewport === 'mobile',
+      colorScheme: 'light',
       timezoneId: 'Asia/Seoul',
       serviceWorkers: 'block',
     })
@@ -221,12 +855,20 @@ try {
     const page = await context.newPage()
     page.on('pageerror', (error) => errors.push(`${viewport} pageerror: ${error.message}`))
     page.on('console', (message) => {
-      if (message.type() === 'error') errors.push(`${viewport} console: ${message.text()}`)
+      if (message.type() !== 'error') return
+      const text = message.text()
+      if (expectingRejection && /API Error/.test(text) && /\/v2\/task-splits\/\d+\/apply/.test(text))
+        expectedRejections.push(`${viewport} ${expectingRejection}: ${text}`)
+      else errors.push(`${viewport} console: ${text}`)
     })
     await login(page)
     await walk(page, viewport)
+    await walkProposal(page, viewport)
     await context.close()
   }
+  for (const line of notes) console.log(`note ${line}`)
+  for (const line of expectedRejections) console.log(`expected ${line}`)
+  assert.equal(expectedRejections.length, Object.keys(viewports).filter((name) => !process.env.QA_VIEWPORT || name === process.env.QA_VIEWPORT).length * 6, '일부러 거부시킨 만들기 세 번의 기록(각 두 줄)이 아니다')
   assert.deepEqual(errors, [], `브라우저 오류:\n${errors.join('\n')}`)
   console.log('task-split local check passed')
 } finally {
