@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
@@ -22,7 +22,11 @@ type PieceDialogProps = {
   busy: boolean
   onClose: () => void
   onRemove: () => void
-  /** 서버 검사를 받는다. 통과하면 null, 아니면 서버가 준 칸별 오류. */
+  /**
+   * 서버 검사를 받는다. 통과하면 null, 거부면 서버가 준 칸별 오류. reject하지 않는다: 검사 요청이 실패했거나 받지
+   * 않았으면(검사 중·만드는 중) `[]`이고, 이것은 칸 오류가 아닌 실패라 창은 고치기 단계에 그대로 남는다
+   * (실패는 부른 쪽이 토스트로 알린다).
+   */
   onSave: (next: SplitPiece) => Promise<SplitFieldError[] | null>
 }
 
@@ -41,7 +45,22 @@ export default function PieceDialog({
 }: PieceDialogProps) {
   const [editing, setEditing] = useState(startEditing)
   const [errors, setErrors] = useState<SplitFieldError[]>(startEditing ? info.errors : [])
+  // 읽기↔고치기를 바꾸면 누른 버튼이 사라져 초점이 body로 떨어진다. 바꾼 뒤 첫 칸(고치기)이나 제목(읽기)으로 옮긴다.
+  const headRef = useRef<HTMLHeadingElement>(null)
+  const switched = useRef(false)
+  useEffect(() => {
+    if (!switched.current) return
+    switched.current = false
+    const head = headRef.current
+    const field = editing
+      ? head
+          ?.closest('.split-dialog')
+          ?.querySelector<HTMLElement>('.split-form input, .split-form select, .split-form textarea')
+      : null
+    ;(field ?? head)?.focus()
+  }, [editing])
   const read = () => {
+    switched.current = true
     setEditing(false)
     setErrors([])
   }
@@ -55,7 +74,9 @@ export default function PieceDialog({
       onClose={busy ? undefined : onClose}
     >
       <header className="split-dialog__head">
-        <h2>{editing ? '조각 고치기' : '조각 내용'}</h2>
+        <h2 ref={headRef} tabIndex={-1}>
+          {editing ? '조각 고치기' : '조각 내용'}
+        </h2>
         <button type="button" aria-label="닫기" disabled={busy} onClick={onClose}>
           <WorkspaceIcon name="close" />
         </button>
@@ -69,10 +90,13 @@ export default function PieceDialog({
           busy={busy}
           onCancel={read}
           onSubmit={(next) => {
-            void onSave(next).then((failed) => {
-              if (failed) setErrors(failed)
-              else read()
-            })
+            void onSave(next)
+              .then((failed) => {
+                if (failed) setErrors(failed)
+                else read()
+              })
+              // 계약상 reject하지 않지만, 혹시 던져도 고치던 내용을 그대로 둔다.
+              .catch(() => {})
           }}
         />
       ) : (
@@ -84,6 +108,7 @@ export default function PieceDialog({
           busy={busy}
           onRemove={onRemove}
           onEdit={() => {
+            switched.current = true
             setEditing(true)
             setErrors(info.errors)
           }}

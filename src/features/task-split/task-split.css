@@ -764,7 +764,8 @@ span.split-chip:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: calc(var(--z-modal-backdrop) + 6);
+  /* 기본 모달 층. 공용 확인 창(+1)이 이 창 위에 그려진다. */
+  z-index: var(--z-modal-backdrop);
   padding: 16px;
 }
 .split-dialog {
