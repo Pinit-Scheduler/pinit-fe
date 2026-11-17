@@ -311,6 +311,223 @@ span.split-chip:hover {
   height: 14px;
 }
 
+/* 조각 내용 창: 읽기 단계. 시간 · 난이도 · 마감은 작업 카드처럼 알약 없이 글자로 쓴다. */
+.split-piece {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 12px;
+  background: var(--c-surface);
+  min-width: 0;
+}
+.split-piece__body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+.split-piece__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.split-piece__head strong {
+  font-size: 16px;
+  color: var(--c-slate-800);
+  overflow-wrap: anywhere;
+}
+.split-piece__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-slate-500);
+  font-variant-numeric: tabular-nums;
+}
+.split-piece__meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* 가운뎃점은 앞 항목 뒤에 붙인다. 줄이 바뀌어도 줄 머리에 점이 오지 않는다. */
+.split-piece__meta > span:not(:last-child)::after {
+  content: '·';
+  color: var(--c-slate-500);
+}
+.split-piece__meta small {
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+.split-piece__meta > span[data-warn] {
+  color: var(--c-amber-700);
+}
+.split-piece__meta svg {
+  width: 14px;
+  height: 14px;
+}
+.split-piece__before,
+.split-piece__note,
+.split-piece__problem {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--c-slate-500);
+}
+.split-piece__note[data-warn] {
+  color: var(--c-amber-700);
+}
+.split-piece__problem {
+  color: var(--c-red-600);
+}
+.split-piece__text {
+  margin: 8px 0 0;
+  white-space: pre-line;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--c-slate-600);
+}
+.split-piece--plain {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.split-piece--plain .split-piece__head strong {
+  font-size: 18px;
+}
+
+/* 조각 내용 창: 고치기 단계 */
+.split-form {
+  display: grid;
+  gap: 12px;
+}
+.split-form label,
+.split-form legend {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+.split-form legend {
+  display: flex;
+  align-items: center;
+}
+.split-form input:not([type='checkbox']),
+.split-form select,
+.split-form textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--c-slate-300);
+  border-radius: 8px;
+  background: var(--c-surface);
+  color: var(--c-slate-800);
+  font: inherit;
+  font-size: 14px;
+}
+.split-form textarea {
+  line-height: 1.6;
+  resize: vertical;
+}
+.split-form__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.split-form fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.split-form .split-form__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--c-slate-600);
+}
+.split-form__check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--c-blue-600);
+}
+.split-form small {
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+.split-form .split-form__error {
+  color: var(--c-red-600);
+}
+
+/* 조각 내용 창. 테두리와 그림자는 하우스 모달(TaskScheduleModal) 값이다. 좁은 화면에서는 아래에서 올라오는 시트가 된다. */
+.split-dialog__backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: calc(var(--z-modal-backdrop) + 6);
+  padding: 16px;
+}
+.split-dialog {
+  width: min(480px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 16px;
+  background: var(--c-surface);
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.2);
+  color: var(--c-slate-600);
+  display: grid;
+  gap: 16px;
+}
+.split-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--c-slate-800);
+}
+.split-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.split-dialog--piece {
+  width: min(560px, 100%);
+}
+.split-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -4px -8px -4px 0;
+}
+.split-dialog__head h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-slate-500);
+}
+.split-dialog__head button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--c-slate-500);
+  cursor: pointer;
+}
+.split-dialog__head button:not(:disabled):hover {
+  background: var(--c-slate-100);
+}
+.split-dialog__head button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 @media (max-width: 899px) {
   .split-page__header h1 {
     font-size: 26px;
@@ -330,5 +547,22 @@ span.split-chip:hover {
   }
   .split-row__actions .workspace-button {
     flex: 1;
+  }
+  .split-form__row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .split-dialog__backdrop--sheet {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .split-dialog--piece {
+    width: 100%;
+    max-height: 86dvh;
+    padding: 16px;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+  .split-dialog__head {
+    margin: 0;
   }
 }
