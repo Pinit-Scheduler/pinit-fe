@@ -80,6 +80,7 @@ export const setup = () => {
   const { handleMockRequest } = load('src/mocks/handlers.ts')
   const workspace = load('src/mocks/workspace.ts')
   const split = load('src/mocks/taskSplit.ts')
+  const proposals = load('src/mocks/taskSplitProposal.ts')
   const state = load('src/mocks/workspaceState.ts')
   const call = (route, method = 'GET', body, init = {}) =>
     handleMockRequest(
@@ -100,5 +101,5 @@ export const setup = () => {
     const text = await response.text()
     return { status: response.status, body: text ? JSON.parse(text) : null }
   }
-  return { api, call, load, workspace, split, state }
+  return { api, call, load, workspace, split, proposals, state }
 }

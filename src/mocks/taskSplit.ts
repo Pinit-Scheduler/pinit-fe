@@ -35,6 +35,7 @@ dayjs.extend(timezone)
  * 응답 모양과 문구는 서버 `TaskSplitController`, `SplitErrorMessages`를 따르고, 규칙은 화면 확인에 필요한 만큼의 근사다.
  * `workspace.ts`를 부르지 않는다(그쪽이 이 모듈을 불러 작업 응답에 `split`을 싣는다).
  * 제안·적용 같은 다른 쪼개기 모크는 이 모듈의 도우미(`requestOf`, `itemOf`, `splitFailure`, fixture)를 불러 쓴다.
+ * 제안 상세·검사 경로는 `taskSplitProposal.ts`가 답한다(`handlers.ts`가 이 모듈보다 먼저 부른다).
  */
 
 const ZONE_ID = 'Asia/Seoul'
@@ -258,9 +259,23 @@ export const requestOf = (actor: number, requestId: number): MockSplitRequest | 
   return space && memberOf(space, actor) ? request : null
 }
 
+/**
+ * 제안 모크(`taskSplitProposal.ts`)가 불릴 때 채우는 연결. 이 모듈은 그 모듈을 import하지 않는다(그쪽이 이 모듈을 부른다).
+ * `countsOf`: 저장된 제안이 있으면 만들 조각·뺀 조각 수. `onReady`: `finishMockSplit`이 준비됨으로 만든 요청.
+ */
+type ProposalHooks = {
+  countsOf: (requestId: number) => { pieceCount: number; excludedCount: number } | null
+  onReady: (request: MockSplitRequest) => void
+}
+let proposalHooks: ProposalHooks | null = null
+export const registerMockSplitProposals = (hooks: ProposalHooks) => {
+  proposalHooks = hooks
+}
+
 export const itemOf = (request: MockSplitRequest): SplitRequestItem => {
   const status = displayStatusOf(request)
   const canApply = status === 'READY' ? canDeleteIn(request.memberId, request.spaceId) : null
+  const counts = proposalHooks?.countsOf(request.requestId) ?? null
   return {
     requestId: request.requestId,
     taskId: request.taskId,
@@ -271,8 +286,8 @@ export const itemOf = (request: MockSplitRequest): SplitRequestItem => {
     requestedAt: request.requestedAt,
     readyAt: request.readyAt,
     expiresAt: request.expiresAt,
-    pieceCount: request.pieceCount,
-    excludedCount: request.excludedCount,
+    pieceCount: counts ? counts.pieceCount : request.pieceCount,
+    excludedCount: counts ? counts.excludedCount : request.excludedCount,
     violationRemaining: request.violationRemaining,
     canApply,
     cannotApplyReason: canApply === false ? 'ADMIN_ONLY' : null,
@@ -318,7 +333,7 @@ export const onMockSplitSubmitted = (listener: (requestId: number) => void) => {
   submitted.add(listener)
 }
 
-/** 처리 중인 요청을 끝낸다. 실패와 위반 남음은 서버처럼 쓴 횟수를 돌려준다. */
+/** 처리 중인 요청을 끝낸다. 준비됨이면 제안도 함께 만든다. 실패와 위반 남음은 서버처럼 쓴 횟수를 돌려준다. */
 export const finishMockSplit = (
   requestId: number,
   outcome: 'READY' | 'READY_WITH_VIOLATION' | 'FAILED',
@@ -335,6 +350,7 @@ export const finishMockSplit = (
     request.pieceCount = 4
     request.excludedCount = 0
     request.violationRemaining = outcome === 'READY_WITH_VIOLATION'
+    proposalHooks?.onReady(request)
   }
   if (outcome !== 'READY') mockSplitSettings.used = Math.max(0, mockSplitSettings.used - 1)
   recordSplitChange(request)
@@ -514,7 +530,8 @@ const HOUR = 60
 const DAY = 24 * HOUR
 
 const fixtures: Fixture[] = [
-  { key: 'ready', title: '온보딩 개편 설계', expectedDuration: 'PT8H', spaceId: -1, projectId: null, due: 9,
+  // 준비됨 예시의 조각 마감(내일~6일 뒤)이 원본 마감 안에 들도록 원본 마감을 6일 뒤로 둔다.
+  { key: 'ready', title: '온보딩 개편 설계', expectedDuration: 'PT8H', spaceId: -1, projectId: null, due: 6,
     request: { status: 'READY', requestedAgoMinutes: 38, readyAt: ago(35), expiresAt: later(6 * DAY), pieceCount: 5, excludedCount: 2, violationRemaining: false } },
   { key: 'queued', title: '결제 모듈 이관', expectedDuration: 'PT5H', spaceId: -1, projectId: null, due: 8,
     request: { status: 'QUEUED', requestedAgoMinutes: 3 } },

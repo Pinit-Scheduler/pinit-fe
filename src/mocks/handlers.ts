@@ -35,6 +35,7 @@ import { effectiveExpectedMinutes, handlePlans } from './planner'
 import { formatIsoMinutes, toTaskResponse } from './taskResponse'
 import { handleWorkspace } from './workspace'
 import { handleTaskSplits } from './taskSplit'
+import { handleSplitProposalRoutes } from './taskSplitProposal'
 import { handleOnboarding } from './onboarding'
 import { handleRecurrences } from './recurrences'
 import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
@@ -859,7 +860,9 @@ export const handleMockRequest = async (
   const emailAuth = await handleEmailAuth(path, method, request)
   if (emailAuth) return emailAuth
 
-  // 작업 쪼개기 경로(ADR-0035). 작업 응답의 잠금도 이 모듈이 정한다.
+  // 작업 쪼개기 경로(ADR-0035). 제안 상세·검사를 먼저 보고, 나머지와 작업 응답의 잠금은 taskSplit이 정한다.
+  const splitProposals = await handleSplitProposalRoutes(path, method, request)
+  if (splitProposals) return splitProposals
   const taskSplits = await handleTaskSplits(path, method, request)
   if (taskSplits) return taskSplits
 

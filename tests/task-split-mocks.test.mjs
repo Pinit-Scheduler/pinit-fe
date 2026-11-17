@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { setup } from './support/mocks.mjs'
+import { loadModules, setup } from './support/mocks.mjs'
 
 // 개발용 목업이 쪼개기 요청(/v2/task-splits)과 작업 잠금을 서버(pinit-monolith TaskSplitController)처럼 답하는지 본다.
 test('요약과 보관함은 보이는 요청만 센다', async () => {
@@ -111,4 +111,167 @@ test('처리가 끝나면 준비됨이 되고 변경 신호가 남는다', async
   assert.equal(item.status, 'READY')
   assert.equal(typeof item.expiresAt, 'string')
   assert.ok(state.latestChangeId() > before)
+})
+
+// 제안 상세(S5)와 초안 검사(S6). 검사 규칙과 문구는 서버 `SplitDraftCheck`·`SplitErrorMessages`를 따른다.
+const check = loadModules()('src/mocks/taskSplitCheck.ts')
+const piece = (key, over = {}) => ({ key, title: key, description: '설명', minutes: 60, difficulty: 3, dueDate: '2026-11-20', after: [], selected: true, ...over })
+const run = (pieces, over = {}) => check.computeSplitCheck({ pieces, storedExclusions: {}, factors: { 3: 1, 5: 1.2 }, originalDueDate: '2026-11-25', today: '2026-11-17', adminOnly: false, ...over })
+const of = (result, key) => result.pieces.find((p) => p.key === key)
+test('보정 후 시간과 4시간 판정', () => {
+  const r = run([piece('a', { minutes: 236 }), piece('b', { minutes: 200, difficulty: 5 }), piece('c', { minutes: 61, difficulty: 5 })])
+  assert.equal(of(r, 'a').shownMinutes, 236)
+  assert.equal(of(r, 'a').over, false)
+  assert.equal(of(r, 'b').shownMinutes, 240)
+  assert.equal(of(r, 'b').over, true)
+  assert.equal(of(r, 'c').shownMinutes, 75)
+  assert.equal(r.overCount, 1)
+  assert.equal(r.totalMinutes, 236 + 240 + 75)
+})
+test('뺀 조각을 건너뛰어 잇고 후보에 알린다', () => {
+  const r = run([piece('a'), piece('x', { after: ['a'], selected: false }), piece('b', { after: ['x'] })])
+  assert.equal(JSON.stringify(of(r, 'b').before), '["a"]')
+  assert.equal(of(r, 'b').stage, 1)
+  assert.equal(of(r, 'x').stage, null)
+  assert.equal(of(r, 'b').orderChoices.find((c) => c.key === 'a').link, 'VIA_EXCLUDED')
+  const choice = of(r, 'a').orderChoices.find((c) => c.key === 'b')
+  assert.equal(choice.link, 'NONE')
+  assert.equal(choice.blocked, true)
+  assert.equal(r.selectedCount, 2)
+})
+test('마감 순서가 어긋나면 두 조각 모두에 오류가 붙고 만들 수 없다', () => {
+  const r = run([piece('a', { dueDate: '2026-11-22' }), piece('b', { after: ['a'], dueDate: '2026-11-20' })])
+  assert.equal(JSON.stringify(of(r, 'a').errors), '[{"field":"dueDate","message":"다음 조각 \\"b\\"(11/20)보다 늦어요."}]')
+  assert.equal(JSON.stringify(of(r, 'b').errors), '[{"field":"dueDate","message":"이전 조각 \\"a\\"(11/22)보다 빨라요."}]')
+  assert.equal(r.problemCount, 2)
+  assert.equal(r.canApply, false)
+  assert.equal(r.cannotApplyReason, 'HAS_PROBLEMS')
+})
+test('자기 마감에 오류가 있는 조각과의 마감 순서는 따지지 않는다', () => {
+  // 원본 마감(11/25)이 지난 뒤 a→b→c(11/23, 11/24, 11/25)에서 a만 원본 마감으로 고친 경우
+  const r = run([
+    piece('a', { dueDate: '2026-11-25' }),
+    piece('b', { after: ['a'], dueDate: '2026-11-24' }),
+    piece('c', { after: ['b'], dueDate: '2026-11-25' }),
+  ], { today: '2026-11-26', action: { type: 'CONFIRM', key: 'a' } })
+  assert.equal(JSON.stringify(of(r, 'a').errors), '[]')
+  assert.equal(JSON.stringify(of(r, 'b').errors), '[{"field":"dueDate","message":"원본 마감이 지나 모든 마감은 원본 마감이어야 해요."}]')
+  assert.equal(JSON.stringify(of(r, 'c').errors), '[]')
+  assert.equal(r.accepted, true)
+  const late = run([piece('a', { dueDate: '2026-11-30' }), piece('b', { after: ['a'], dueDate: '2026-11-20' })])
+  assert.equal(JSON.stringify(of(late, 'b').errors), '[]')
+})
+test('되풀이하는 제목은 20자에서 자르고 없는 제목은 비운다', () => {
+  const long = '가'.repeat(25)
+  const r = run([piece('a', { title: long }), piece('b', { after: ['a'], title: null }), piece('c')])
+  assert.equal(of(r, 'c').orderChoices.find((c) => c.key === 'a').title, `${'가'.repeat(20)}…`)
+  assert.equal(of(r, 'c').orderChoices.find((c) => c.key === 'b').title, '')
+  const ordered = run([piece('a', { title: long, dueDate: '2026-11-22' }), piece('b', { after: ['a'], title: null })])
+  assert.equal(of(ordered, 'b').errors.find((e) => e.field === 'dueDate').message, `이전 조각 "${'가'.repeat(20)}…"(11/22)보다 빨라요.`)
+  assert.equal(of(ordered, 'a').errors.find((e) => e.field === 'dueDate').message, '다음 조각 ""(11/20)보다 늦어요.')
+})
+test('순서 칸 오류는 뺀 조각에도 붙고 고칠 곳으로 센다', () => {
+  const r = run([piece('a'), piece('x', { selected: false, after: ['y'] }), piece('y', { selected: false, after: ['x'], title: '' })])
+  assert.equal(of(r, 'x').errors[0].field, 'after')
+  assert.equal(of(r, 'x').errors[0].message, '이전 조각을 따라가면 이 조각으로 돌아와요. 순서를 고쳐 주세요.')
+  assert.equal(of(r, 'y').errors.length, 1)
+  assert.equal(JSON.stringify(of(r, 'x').orderChoices), '[]')
+  assert.equal(r.problemCount, 2)
+  assert.equal(of(run([piece('a', { after: ['ghost'] })]), 'a').errors[0].message, '없는 조각은 이전 조각으로 고를 수 없어요.')
+})
+test('확인은 그 조각에 오류가 없을 때만 받아들이고, 빼기는 늘 받아들인다', () => {
+  assert.equal(run([piece('a', { title: '' })], { action: { type: 'CONFIRM', key: 'a' } }).accepted, false)
+  assert.equal(run([piece('a')], { action: { type: 'CONFIRM', key: 'a' } }).accepted, true)
+  assert.equal(run([piece('a', { selected: false })], { action: { type: 'EXCLUDE', key: 'a' } }).accepted, true)
+  assert.equal(run([piece('a')]).accepted, null)
+})
+test('만들 조각이 없는 이유와 겹침 경고', () => {
+  const stored = { storedExclusions: { a: { reason: 'DUPLICATES_OPEN', evidenceTaskId: 1, evidenceTitle: '온보딩 문구 다듬기' } } }
+  assert.equal(run([piece('a', { selected: false })], stored).emptyReason, 'ALL_EXCLUDED_BY_AI')
+  const mixed = run([piece('a', { selected: false }), piece('b', { selected: false })], stored)
+  assert.equal(mixed.emptyReason, 'ALL_REMOVED_BY_MEMBER')
+  assert.equal(mixed.cannotApplyReason, 'NOTHING_SELECTED')
+  assert.equal(of(run([piece('a')], stored), 'a').warnings[0].evidenceTitle, '온보딩 문구 다듬기')
+  assert.equal(of(run([piece('a')]), 'a').warnings.length, 0)
+  assert.equal(run([piece('a', { selected: false })], { adminOnly: true }).cannotApplyReason, 'ADMIN_ONLY')
+})
+test('오늘이 원본 마감을 지났으면 마감 한도는 둘 다 원본 마감이다', () => {
+  const r = run([piece('a')], { today: '2026-11-26' })
+  assert.equal(r.limits.dueMin, '2026-11-25')
+  assert.equal(r.limits.dueMax, '2026-11-25')
+  assert.equal(of(r, 'a').errors[0].message, '원본 마감이 지나 모든 마감은 원본 마감이어야 해요.')
+  assert.equal(of(run([piece('a', { title: '' })]), 'a').errors[0].message, '제목은 1~20자로 입력해 주세요.')
+})
+test('제안 상세는 준비됨일 때만 제안과 첫 검사 결과를 준다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  const ready = await api(`/v2/task-splits/${f.ready.requestId}`)
+  assert.equal(ready.body.request.status, 'READY')
+  assert.equal(ready.body.request.pieceCount, 5)
+  assert.equal(ready.body.request.excludedCount, 2)
+  assert.equal(ready.body.proposal.pieces.length, 7)
+  assert.equal(ready.body.proposal.factors['5'], 1.2)
+  assert.equal(ready.body.proposal.pieces.find((p) => p.key === 'x2').exclusion.reason, 'DUPLICATES_OPEN')
+  assert.equal(ready.body.proposal.pieces.find((p) => p.key === 'a').exclusion, null)
+  assert.equal(ready.body.check.selectedCount, 5)
+  assert.equal(ready.body.check.canApply, true)
+  assert.equal(ready.body.check.accepted, null)
+  const expired = await api(`/v2/task-splits/${f.expired.requestId}`)
+  assert.equal(expired.body.request.status, 'EXPIRED')
+  assert.equal(expired.body.proposal, null)
+  assert.equal((await api(`/v2/task-splits/${f.queued.requestId}`)).body.check, null)
+  assert.equal((await api(`/v2/task-splits/${f.otherReady.requestId}`)).status, 404)
+  assert.equal((await api(`/v2/task-splits/${f.adminOnly.requestId}`)).body.check.cannotApplyReason, 'ADMIN_ONLY')
+  assert.equal((await api(`/v2/task-splits/${f.allExcluded.requestId}`)).body.check.emptyReason, 'ALL_EXCLUDED_BY_AI')
+  assert.equal((await api(`/v2/task-splits/${f.violation.requestId}`)).body.check.overCount, 1)
+})
+test('검사는 저장하지 않고, 준비됨이 아니거나 조각이 다르면 거부한다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  const { proposal } = (await api(`/v2/task-splits/${f.ready.requestId}`)).body
+  const pieces = proposal.pieces.map(({ exclusion: _e, dueDateAdjusted: _d, ...p }) => (p.key === 'a' ? { ...p, selected: false } : p))
+  const checked = await api(`/v2/task-splits/${f.ready.requestId}/check`, 'POST', { pieces, action: { type: 'EXCLUDE', key: 'a' } })
+  assert.equal(checked.body.selectedCount, 4)
+  assert.equal(checked.body.accepted, true)
+  const back = pieces.map((p) => (p.key === 'x2' ? { ...p, selected: true } : p))
+  const warned = await api(`/v2/task-splits/${f.ready.requestId}/check`, 'POST', { pieces: back, action: { type: 'INCLUDE', key: 'x2' } })
+  assert.equal(warned.body.pieces.find((p) => p.key === 'x2').warnings[0].evidenceTitle, '온보딩 문구 다듬기')   // 저장된 근거로 정한다
+  assert.equal((await api(`/v2/task-splits/${f.ready.requestId}`)).body.check.selectedCount, 5)
+  const fewer = await api(`/v2/task-splits/${f.ready.requestId}/check`, 'POST', { pieces: pieces.slice(1) })
+  assert.equal(fewer.status, 422)
+  assert.equal(fewer.body.code, 'SPLIT_INVALID_PIECES')
+  const late = await api(`/v2/task-splits/${f.expired.requestId}/check`, 'POST', { pieces: [] })
+  assert.equal(late.status, 409)
+  assert.equal(late.body.split.currentStatus, 'EXPIRED')
+})
+test('검사 본문의 모양 오류는 서버처럼 422와 400으로 나뉜다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  const route = `/v2/task-splits/${f.ready.requestId}/check`
+  const { proposal } = (await api(`/v2/task-splits/${f.ready.requestId}`)).body
+  const pieces = proposal.pieces
+  const missing = await api(route, 'POST', {})
+  assert.equal(missing.status, 422)
+  assert.equal(missing.body.message, '조각 구성이 제안과 달라요. 제안을 다시 열어 확인해 주세요.')
+  assert.equal(missing.body.split, null)
+  assert.equal((await api(route, 'POST', { pieces: [...pieces, pieces[0]] })).status, 422)
+  const ghost = await api(route, 'POST', { pieces, action: { type: 'CONFIRM', key: 'ghost' } })
+  assert.equal(ghost.status, 400)
+  assert.equal(JSON.stringify(ghost.body), '{"code":"INVALID_REQUEST","message":"입력한 내용을 다시 확인해 주세요."}')
+  assert.equal((await api(route, 'POST', { pieces, action: { type: 'MOVE', key: 'a' } })).status, 400)
+  assert.equal((await api(route, 'POST', { pieces: pieces.map((p) => ({ ...p, selected: null })) })).status, 400)
+  assert.equal((await api(route, 'POST', { pieces: pieces.map((p) => ({ ...p, after: null })) })).status, 400)
+  assert.equal((await api('/v2/task-splits/999999/check', 'POST', { pieces })).status, 404)
+})
+test('처리가 끝나면 일반 제안이 함께 생기고 보관함의 조각 수가 제안을 따른다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  split.finishMockSplit(f.queued.requestId, 'READY')
+  const detail = (await api(`/v2/task-splits/${f.queued.requestId}`)).body
+  assert.equal(detail.proposal.pieces.length, 3)
+  assert.equal(detail.proposal.originalMinutes, 300)
+  assert.equal(detail.check.canApply, true)
+  const item = (await api('/v2/task-splits')).body.items.find((i) => i.requestId === f.queued.requestId)
+  assert.equal(item.pieceCount, 3)
+  assert.equal(item.excludedCount, 0)
 })
