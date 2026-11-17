@@ -11,7 +11,9 @@ export const CANCELLED_TOAST = '쪼개기 요청을 취소했어요.'
 export const DISCARDED_TOAST = '제안을 버렸어요.'
 
 export const agoLabel = (iso: string, now: number): string => {
-  const minutes = Math.max(1, Math.round((now - Date.parse(iso)) / 60000))
+  const at = Date.parse(iso)
+  if (Number.isNaN(at)) return ''
+  const minutes = Math.max(1, Math.round((now - at) / 60000))
   if (minutes < 60) return `${minutes}분 전`
   if (minutes < 1440) return `${Math.round(minutes / 60)}시간 전`
   return `${Math.round(minutes / 1440)}일 전`
@@ -97,8 +99,10 @@ export const inboxNote = (
 ): string => {
   switch (item.status) {
     case 'QUEUED':
-    case 'RUNNING':
-      return `${agoLabel(item.requestedAt, now)} 요청`
+    case 'RUNNING': {
+      const ago = agoLabel(item.requestedAt, now)
+      return ago ? `${ago} 요청` : ''
+    }
     case 'READY': {
       const parts: string[] = []
       if (item.pieceCount != null) parts.push(`조각 ${item.pieceCount}개`)

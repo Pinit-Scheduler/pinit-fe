@@ -101,6 +101,9 @@ test('지난 시간', () => {
   assert.equal(labels.agoLabel(at(59), now), '59분 전')
   assert.equal(labels.agoLabel(at(60 * 23), now), '23시간 전')
   assert.equal(labels.agoLabel(at(60 * 24 * 3), now), '3일 전')
+  assert.equal(labels.agoLabel('not-a-date', now), '')
+  assert.equal(labels.agoLabel('', now), '')
+  assert.equal(labels.inboxNote(item({ status: 'QUEUED', requestedAt: 'not-a-date' }), now, day), '')
 })
 
 test('버리기 확인 문구는 위반이 남은 제안에서 달라진다', () => {
