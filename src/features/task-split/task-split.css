@@ -223,6 +223,94 @@ span.split-chip:hover {
   margin-top: 8px;
 }
 
+/* 제안: 지도. 카드와 선은 작업 맵의 모양(tm-*)을 그대로 쓴다. */
+.split-map {
+  border: 1px solid var(--c-slate-200);
+  border-radius: 12px;
+  background: var(--c-page);
+  overflow-x: auto;
+}
+.split-map--empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--c-slate-500);
+}
+.split-map__canvas {
+  position: relative;
+  margin: 0 auto;
+}
+.split-map__node {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 1fr auto;
+  gap: 4px;
+  padding: 12px 8px 12px 12px;
+  cursor: pointer;
+}
+.split-map__node[data-problem] {
+  border-color: var(--c-red-400);
+}
+/* 초점은 제목 글자가 아니라 조각 카드 전체에 보인다. */
+.split-map__title:focus-visible {
+  outline: none;
+}
+.split-map__node:has(.split-map__title:focus-visible) {
+  outline: 2px solid var(--workspace-blue, var(--c-blue-600));
+  outline-offset: 2px;
+}
+.split-map__title {
+  align-self: start;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--c-slate-900);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.split-map__remove {
+  align-self: start;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--c-slate-500);
+  cursor: pointer;
+}
+.split-map__remove:not(:disabled):hover {
+  background: var(--c-slate-100);
+  color: var(--c-slate-800);
+}
+.split-map__meta {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+.split-map__meta time {
+  margin-left: auto;
+  padding-right: 4px;
+}
+.split-map__meta[data-warn] {
+  color: var(--c-amber-700);
+}
+.split-map__meta[data-warn] time {
+  color: var(--c-slate-500);
+}
+.split-map__remove svg,
+.split-map__meta svg {
+  width: 14px;
+  height: 14px;
+}
+
 @media (max-width: 899px) {
   .split-page__header h1 {
     font-size: 26px;
