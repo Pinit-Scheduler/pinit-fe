@@ -121,11 +121,32 @@ span.split-chip:hover {
   letter-spacing: -0.8px;
   overflow-wrap: anywhere;
 }
-.split-page__quota {
+.split-page__quota,
+.split-page__origin,
+.split-page__compare {
   color: var(--c-slate-500);
   font-size: 13px;
   line-height: 1.6;
   margin: 0;
+}
+.split-page__origin {
+  margin-top: 8px;
+}
+.split-page__compare strong {
+  color: var(--c-slate-800);
+  font-weight: 600;
+}
+
+/* 작은 버튼. 하우스 버튼(40)보다 한 단계 낮다. */
+.workspace-button.split-page__discard,
+.split-dropped .workspace-button {
+  min-height: 32px;
+  padding: 6px 12px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.workspace-button.split-page__discard {
+  color: var(--c-slate-500);
 }
 
 /* 작업 목록 머리의 보관함 입구 */
@@ -204,7 +225,8 @@ span.split-chip:hover {
     animation: none;
   }
 }
-.split-empty {
+.split-empty,
+.split-done {
   display: grid;
   justify-items: center;
   gap: 8px;
@@ -221,6 +243,85 @@ span.split-chip:hover {
 }
 .split-empty .workspace-button {
   margin-top: 8px;
+}
+.split-done h1 {
+  font-size: 18px;
+  color: var(--c-slate-800);
+  margin: 4px 0 0;
+}
+.split-done p {
+  margin: 0;
+  max-width: 420px;
+  line-height: 1.7;
+}
+.split-done__mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--c-blue-50);
+  color: var(--c-blue-600);
+}
+.split-done__mark--muted {
+  background: var(--c-slate-100);
+  color: var(--c-slate-500);
+}
+.split-done__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 제안: 보기 전환과 되돌리기 */
+.split-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.split-view {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 2px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 8px;
+  background: var(--c-surface);
+}
+.split-view button {
+  padding: 6px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--c-slate-500);
+  cursor: pointer;
+}
+.split-view button[aria-pressed='true'] {
+  background: var(--c-slate-100);
+  color: var(--c-slate-800);
+  font-weight: 600;
+}
+.split-view__busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+.split-view__undo {
+  padding: 6px 12px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 8px;
+  background: var(--c-surface);
+  color: var(--c-slate-600);
+  font-size: 13px;
+  cursor: pointer;
+}
+.split-view__undo:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* 제안: 지도. 카드와 선은 작업 맵의 모양(tm-*)을 그대로 쓴다. */
@@ -311,6 +412,61 @@ span.split-chip:hover {
   height: 14px;
 }
 
+/* 제안: 목록. 단계와 조각 */
+.split-stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.split-stage {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding-bottom: 16px;
+  position: relative;
+}
+.split-stage:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 13px;
+  top: 32px;
+  bottom: 4px;
+  width: 2px;
+  background: var(--c-slate-200);
+}
+.split-stage__label > span {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--c-slate-200);
+  background: var(--c-surface);
+  color: var(--c-slate-600);
+  font-size: 13px;
+  font-weight: 600;
+}
+.split-stage__pieces {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+/* 한 단계에 조각이 둘 이상이면 나란히 놓고, 왜 나란한지 한 줄로 알린다. */
+.split-stage__pieces:has(> :nth-child(2)) {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+.split-stage__pieces:has(> :nth-child(2))::before {
+  content: '순서 없이 할 수 있어요';
+  grid-column: 1 / -1;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+
 /* 조각 내용 창: 읽기 단계. 시간 · 난이도 · 마감은 작업 카드처럼 알약 없이 글자로 쓴다. */
 .split-piece {
   display: flex;
@@ -320,6 +476,9 @@ span.split-chip:hover {
   border-radius: 12px;
   background: var(--c-surface);
   min-width: 0;
+}
+.split-piece[data-problem] {
+  border-color: var(--c-red-400);
 }
 .split-piece__body {
   flex: 1;
@@ -337,6 +496,24 @@ span.split-chip:hover {
   font-size: 16px;
   color: var(--c-slate-800);
   overflow-wrap: anywhere;
+}
+.split-piece__tools {
+  display: inline-flex;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.split-piece__edit {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--c-blue-700);
+  cursor: pointer;
+}
+.split-piece__edit--quiet {
+  color: var(--c-slate-500);
+}
+.split-piece__edit:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 .split-piece__meta {
   display: flex;
@@ -383,6 +560,12 @@ span.split-chip:hover {
 .split-piece__problem {
   color: var(--c-red-600);
 }
+.split-piece__desc summary {
+  font-size: 13px;
+  color: var(--c-slate-500);
+  cursor: pointer;
+}
+.split-piece__desc p,
 .split-piece__text {
   margin: 8px 0 0;
   white-space: pre-line;
@@ -397,6 +580,116 @@ span.split-chip:hover {
 }
 .split-piece--plain .split-piece__head strong {
   font-size: 18px;
+}
+
+/* 뺀 조각. 바탕 상자 없이 화면 왼쪽 선에 맞춘다. */
+.split-dropped h2 {
+  font-size: 16px;
+  margin: 0;
+  color: var(--c-slate-800);
+}
+.split-dropped > p {
+  margin: 4px 0 12px;
+  font-size: 13px;
+  color: var(--c-slate-500);
+}
+.split-dropped ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.split-dropped li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 12px;
+  background: var(--c-surface);
+}
+.split-dropped li > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.split-dropped li strong {
+  font-size: 14px;
+  color: var(--c-slate-800);
+}
+.split-dropped li span {
+  font-size: 12px;
+  color: var(--c-slate-500);
+}
+
+/*
+ * 만들기 바. 하우스 스크롤 영역은 미니 플레이어 위로 넉넉한 여백(scroll-padding)을 두는데,
+ * 그 여백만큼 바가 떠 보이므로 24px 내려 플레이어 바로 위에 붙인다.
+ */
+.split-apply {
+  position: sticky;
+  bottom: -24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--c-slate-200);
+  border-radius: 12px;
+  background: var(--c-surface);
+  box-shadow: 0 6px 22px #203b6514;
+}
+.split-apply__summary {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--c-slate-500);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.split-apply__summary strong {
+  font-size: 16px;
+  color: var(--c-slate-800);
+}
+.split-apply__summary span[data-warn] {
+  color: var(--c-amber-700);
+}
+.split-apply .workspace-button {
+  min-width: 96px;
+  flex-shrink: 0;
+}
+.split-apply .workspace-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* 만들기가 거부됐을 때 */
+.split-reject {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--c-red-500) 45%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c-red-500) 10%, var(--c-surface));
+  color: var(--c-slate-600);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.split-reject > svg {
+  flex-shrink: 0;
+  color: var(--c-red-500);
+}
+.split-reject strong {
+  display: block;
+  font-size: 14px;
+  color: var(--c-slate-800);
+}
+.split-reject p {
+  margin: 4px 0 0;
 }
 
 /* 조각 내용 창: 고치기 단계 */
@@ -542,6 +835,9 @@ span.split-chip:hover {
   .split-inbox-link svg {
     display: none;
   }
+  .split-stage {
+    gap: 8px;
+  }
   .split-row__actions {
     width: 100%;
   }
@@ -550,6 +846,10 @@ span.split-chip:hover {
   }
   .split-form__row {
     grid-template-columns: 1fr 1fr;
+  }
+  /* 경고일 때만 덧붙인 말을 보인다. 잘린 글자를 두지 않는다. */
+  .split-apply__summary span:not([data-warn]) {
+    display: none;
   }
   .split-dialog__backdrop--sheet {
     align-items: flex-end;

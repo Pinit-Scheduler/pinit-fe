@@ -52,6 +52,7 @@ const getPageTitle = (pathname: string): string => {
     return '일정 상세'
   }
   if (pathname === '/app/tasks/splits') return '쪼개기 보관함'
+  if (pathname.startsWith('/app/tasks/splits/')) return '쪼개기 제안'
   if (pathname.startsWith('/app/tasks/')) {
     return '작업 상세'
   }
