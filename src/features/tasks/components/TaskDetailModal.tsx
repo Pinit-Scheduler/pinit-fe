@@ -462,15 +462,15 @@ const TaskDetailModal = ({
                     lock={splitLock}
                     proposalScreen={PROPOSAL_SCREEN_READY}
                     onOpen={() => {
-                      if (splitLock.requestId !== null)
+                      if (splitLock.requestId != null)
                         navigate(splitProposalPath(splitLock.requestId))
                     }}
                     onCancel={() => {
-                      if (splitLock.requestId !== null)
+                      if (splitLock.requestId != null)
                         void splitCommands.cancel(splitLock.requestId)
                     }}
                     onDiscard={() => {
-                      if (splitLock.requestId !== null)
+                      if (splitLock.requestId != null)
                         void splitCommands.discard({
                           requestId: splitLock.requestId,
                           status: 'READY',

@@ -71,3 +71,21 @@ test('쪼개기 버튼은 맡길 수 없으면 꺼지고 이유가 붙는다', (
   assert.doesNotMatch(off, /4시간 이상/)
   assert.equal(html(SplitOffer, { entry: { kind: 'none' }, admins: [] }), '')
 })
+test('다른 참여자의 잠금은 닉네임과 단계만 알리고 요청을 건드릴 길이 없다', () => {
+  const ready = html(SplitLockNotice, { lock: other })
+  assert.match(ready, /<div class="split-lock" role="status"><p><strong>김서연님이 쪼개기 제안을 받았어요\.<\/strong><\/p><\/div>/)
+  const processing = { ...other, stage: 'PROCESSING', requestId: 77 }
+  const notice = html(SplitLockNotice, { lock: processing })
+  assert.match(notice, /<strong>김서연님이 쪼개는 중이에요\.<\/strong>/)
+  assert.doesNotMatch(notice, /77|<button/)
+  assert.equal(html(SplitLockActions, { lock: processing, proposalScreen: true }), '')
+  assert.doesNotMatch(html(SplitChip, { entry: { kind: 'lock', lock: processing } }), /<button|77/)
+})
+test('카드 오류 줄은 잠긴 원본에 같은 요청을 다시 보내지 않는다', () => {
+  const offer = { kind: 'offer', recommended: true, enabled: true, blockedReasons: [] }
+  assert.equal(entries.cardRetryOf(offer, false), 'retry')
+  assert.equal(entries.cardRetryOf({ kind: 'none' }, false), 'retry')
+  assert.equal(entries.cardRetryOf({ kind: 'lock', lock: mine() }, false), null)
+  assert.equal(entries.cardRetryOf({ kind: 'lock', lock: mine() }, true), 'refresh')
+  assert.equal(entries.cardRetryOf(offer, true), 'refresh')
+})

@@ -39,3 +39,12 @@ export const blockedText = (reason: string, admins: string[]): string => {
       return '지금은 쪼갤 수 없어요.'
   }
 }
+
+/**
+ * 작업 카드 오류 줄의 버튼. 'retry'는 같은 요청을 다시 보내고, 'refresh'는 작업만 다시 읽는다.
+ * 잠긴 원본에 같은 요청을 다시 보내면 같은 이유로 거부되므로, 잠긴 동안에는 다시 보내기를 두지 않는다.
+ */
+export const cardRetryOf = (entry: SplitEntry, refreshOnly: boolean): 'retry' | 'refresh' | null => {
+  if (refreshOnly) return 'refresh'
+  return entry.kind === 'lock' ? null : 'retry'
+}

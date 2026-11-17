@@ -28,7 +28,7 @@ import { isLockedBySplit } from '@features/task-split/api/splitErrors'
 import SplitChip from '@features/task-split/components/SplitChip'
 import { useSplitSummary } from '@features/task-split/hooks/useSplitSummary'
 import { requestSplitStart } from '@features/task-split/splitStartStore'
-import { splitEntryOf } from '@features/task-split/utils/splitEntry'
+import { cardRetryOf, splitEntryOf } from '@features/task-split/utils/splitEntry'
 export default function WorkspaceTaskCard({
   task,
   onOpen,
@@ -53,6 +53,7 @@ export default function WorkspaceTaskCard({
   const lock = useRef(false)
   const { summary } = useSplitSummary()
   const entry = splitEntryOf(item.split, summary?.available ?? false)
+  const retry = cardRetryOf(entry, refreshOnly)
   const toggle = async () => {
     if (lock.current) return
     lock.current = true
@@ -96,7 +97,8 @@ export default function WorkspaceTaskCard({
           try {
             setTask(await fetchTaskDetail(item.id))
           } catch {
-            // 다시 읽지 못해도 서버 문구는 이미 보였다.
+            // 잠금 표시를 아직 못 받았다. 같은 요청을 다시 보내지 않고 작업만 다시 읽게 한다.
+            setRefreshOnly(true)
           }
       }
     } finally {
@@ -211,12 +213,16 @@ export default function WorkspaceTaskCard({
           role="alert"
         >
           <span>{error}</span>
-          <button
-            disabled={pending}
-            onClick={() => void (refreshOnly ? refreshDetail() : toggle())}
-          >
-            {refreshOnly ? '정보 다시 불러오기' : '다시 시도'}
-          </button>
+          {retry && (
+            <button
+              disabled={pending}
+              onClick={() =>
+                void (retry === 'refresh' ? refreshDetail() : toggle())
+              }
+            >
+              {retry === 'refresh' ? '정보 다시 불러오기' : '다시 시도'}
+            </button>
+          )}
         </div>
       )}
     </article>
