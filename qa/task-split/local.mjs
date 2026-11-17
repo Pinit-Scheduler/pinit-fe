@@ -7,7 +7,17 @@ import { fileURLToPath } from 'node:url'
 // 작업 쪼개기 화면 확인. 모든 응답은 개발 서버의 내장 mock(VITE_USE_MOCK_API)이 만든다. 실제 서버를 부르지 않는다.
 process.env.VITE_USE_MOCK_API = 'true'
 const { createServer } = await import('vite')
-const { chromium } = createRequire(import.meta.url)('playwright')
+// Playwright는 qa/plan-integration처럼 qa/browser/package.json에 고정한 것을 먼저 쓴다.
+// 그것이 설치돼 있지 않으면 이 환경이 이미 갖춘 playwright 모듈을 쓴다.
+const loadPlaywright = () => {
+  try {
+    return createRequire(new URL('../browser/package.json', import.meta.url))('playwright')
+  } catch (error) {
+    if (error?.code !== 'MODULE_NOT_FOUND') throw error
+    return createRequire(import.meta.url)('playwright')
+  }
+}
+const { chromium } = loadPlaywright()
 
 const origin = 'http://127.0.0.1:5197'
 const root = fileURLToPath(new URL('../../', import.meta.url))
@@ -185,6 +195,8 @@ const walk = async (page, viewport) => {
   await step(page, viewport, 'ready-signal', async () => {
     const row = inboxRow(page, '사내 위키 이전 계획')
     await row.getByText('쪼개는 중').waitFor()
+    // 바뀌는 줄이 화면에 들어오게 한다.
+    await row.scrollIntoViewIfNeeded()
     await page.evaluate(() => {
       const { fixtures, requests, finish } = window.__pinitMock.split
       const request = requests.find((item) => item.taskId === fixtures.free.taskId)
