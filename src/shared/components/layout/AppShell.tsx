@@ -23,6 +23,7 @@ import { useSpaces } from '@features/spaces/store'
 import { routeScope, scopeCrumb } from '@features/spaces/scope'
 import { prefersReducedMotion } from '@shared/motion/tokens'
 import { playRise } from '@shared/motion/playRise'
+import { backTarget } from '@shared/routing/backTarget'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
@@ -175,23 +176,14 @@ const AppShell = () => {
     isPlanPage ||
     isOnboardingGuide
 
-  // 딥링크로 열 수 있는 화면에서 앱 안에서 쌓인 history가 없으면 돌아갈 곳.
-  const backFallback = isOnboardingGuide
-    ? '/app/settings'
-    : pathname === '/app/tasks/splits'
-      ? '/app/tasks'
-      : null
-
   const handleBack = () => {
-    if (backFallback) {
-      const historyIndex = (window.history.state as { idx?: number } | null)
-        ?.idx
-      if (historyIndex === undefined || historyIndex <= 0) {
-        navigate(backFallback, { replace: true })
-        return
-      }
-    }
-    navigate(-1)
+    // 딥링크로 열어 앱 안에 돌아갈 history가 없으면 상위 화면으로 간다.
+    const target = backTarget(
+      pathname,
+      (window.history.state as { idx?: number } | null)?.idx,
+    )
+    if (target) navigate(target, { replace: true })
+    else navigate(-1)
   }
 
   return (
