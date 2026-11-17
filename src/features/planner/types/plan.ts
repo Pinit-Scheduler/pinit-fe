@@ -24,6 +24,7 @@ export type BlockRejectionReason =
   | 'OVERLAPS_SCHEDULE'
   | 'PREDECESSOR_ENDS_AFTER_START'
   | 'PREDECESSOR_NOT_SCHEDULED'
+  | 'TASK_LOCKED_BY_SPLIT'
 
 export type PlannedBlock = {
   expectedVersion?: number

@@ -33,6 +33,8 @@ export const unavailableText = (
       return '이미 일정에 넣은 작업이에요.'
     case 'RECURRING_TASK':
       return '반복 작업은 순서를 연결할 수 없어요.'
+    case 'SPLIT_IN_PROGRESS':
+      return '쪼개기 요청이 진행 중이라 할 수 없어요.'
     // 서버가 나중에 더한 코드도 여기로 온다.
     default:
       return '지금은 할 수 없어요.'

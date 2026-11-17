@@ -1,5 +1,6 @@
 import type { AllowedActions, UnavailableReasons } from '@features/spaces/types'
 import type { DateWithOffset, DateTimeWithZone } from '@shared/types/datetime'
+import type { TaskSplitInfo } from '@features/task-split/api/taskSplitInfo'
 import type { RecurrenceRef } from '@features/recurrence/types/recurrence'
 
 /** 회원 태그(ADR-0023 §2) */
@@ -79,6 +80,8 @@ export type Task = {
   missed?: boolean
   /** 붙은 태그, 이름순 */
   tags?: TaskTag[]
+  /** 쪼개기 상태(ADR-0035). 서버가 주지 않으면 없다 */
+  split?: TaskSplitInfo | null
 }
 
 export type TaskListResponse = {

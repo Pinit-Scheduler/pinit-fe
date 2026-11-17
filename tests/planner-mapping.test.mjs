@@ -82,7 +82,7 @@ test('every UnplacedReason and BlockRejection reason has a Korean label', () => 
   const unplaced = ['NO_FITTING_SLOT', 'DAILY_OBJECTIVE_EXCEEDED', 'PREDECESSOR_NOT_PLACED']
   const rejections = [
     'TASK_NOT_FOUND', 'TASK_COMPLETED', 'TASK_ALREADY_SCHEDULED', 'DUPLICATE_TASK', 'STARTS_IN_PAST',
-    'OVERLAPS_BLOCK', 'OVERLAPS_SCHEDULE', 'PREDECESSOR_ENDS_AFTER_START', 'PREDECESSOR_NOT_SCHEDULED',
+    'OVERLAPS_BLOCK', 'OVERLAPS_SCHEDULE', 'PREDECESSOR_ENDS_AFTER_START', 'PREDECESSOR_NOT_SCHEDULED', 'TASK_LOCKED_BY_SPLIT',
   ]
   assert.deepEqual(Object.keys(mapping.UNPLACED_REASON_LABEL).sort(), [...unplaced].sort())
   assert.deepEqual(Object.keys(mapping.BLOCK_REJECTION_LABEL).sort(), [...rejections].sort())
