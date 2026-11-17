@@ -44,6 +44,7 @@ const checked = (over = {}) => ({
 const harness = (api, { pieces = [piece('a'), piece('b')], busy = false } = {}, requestId = 31) => {
   const runner = hookRunner()
   const toasts = []
+  const dismissed = []
   const removed = []
   const selected = []
   const navigated = []
@@ -52,6 +53,7 @@ const harness = (api, { pieces = [piece('a'), piece('b')], busy = false } = {}, 
   const changes = []
   const screens = []
   const calls = { apply: [], undo: [] }
+  const toast = { addToast: (...shown) => toasts.push(shown), dismissToast: (id) => dismissed.push(id) }
   let draft = draftUtils.initDraft(pieces, checked())
   let reloads = 0
   const { useSplitApply } = load('../src/features/task-split/hooks/useSplitApply.ts', {
@@ -62,7 +64,8 @@ const harness = (api, { pieces = [piece('a'), piece('b')], busy = false } = {}, 
         navigateOptions.push(options)
       },
     },
-    '@contexts/ToastContext': { useToast: () => ({ addToast: (...toast) => toasts.push(toast) }) },
+    // addToast는 토스트 번호를 돌려준다(여기서는 몇 번째인지). 앱의 것처럼 렌더마다 같은 함수다.
+    '@contexts/ToastContext': { useToast: () => toast },
     '@contexts/TaskCacheContext': { useTaskCache: () => ({ removeTask: (id) => removed.push(id) }) },
     '@shared/utils/events': { dispatchTaskChanged: (detail) => changes.push(detail) },
     '@features/spaces/store': { selectSpace: (id) => selected.push(id) },
@@ -100,8 +103,9 @@ const harness = (api, { pieces = [piece('a'), piece('b')], busy = false } = {}, 
   })
   return {
     hook: () => runner.render(() => useSplitApply(requestId, proposal())),
+    unmount: runner.unmount,
     draft: () => draft,
-    toasts, removed, selected, navigated, navigateOptions, holds, changes, screens, calls,
+    toasts, dismissed, removed, selected, navigated, navigateOptions, holds, changes, screens, calls,
     get reloads() {
       return reloads
     },
@@ -212,7 +216,7 @@ test('요청이 아직 준비됨인데 거부되면 제안을 다시 읽게 한�
   assert.equal(h.toasts.length, 0)
 })
 
-test('응답이 오지 않으면 바뀌지 않았다고 말하지 않고 조각을 맡겨 둔 채 다시 읽는다', async () => {
+test('응답이 오지 않으면 바뀌지 않았다고 말하지 않고 고치던 조각으로 다시 읽는다', async () => {
   const h = harness({ applySplit: async () => { throw new Error('Failed to fetch') } })
   await h.hook().apply()
   assert.match(h.toasts[0][0], /^만들었는지 확인하지 못했어요\./)
@@ -220,7 +224,8 @@ test('응답이 오지 않으면 바뀌지 않았다고 말하지 않고 조각�
   assert.equal(h.reloads, 1)
   // 만들어졌을 수도 있으니 다른 화면도 다시 읽게 한다.
   assert.equal(JSON.stringify(h.changes), '[{"reason":"split-apply-unconfirmed"}]')
-  assert.equal(stash.takeDraft(31).length, 2)
+  // 고치던 조각은 제안 훅이 다시 읽으며 잇는다. 맡겨 두지 않아 같은 제안을 나중에 열 때 낡은 조각이 되살아나지 않는다.
+  assert.equal(stash.takeDraft(31), null)
 })
 
 test('성공 응답을 받은 뒤 계정 확인에서 막히면(401) 바뀌지 않았다고 말하지 않는다', async () => {
@@ -229,7 +234,7 @@ test('성공 응답을 받은 뒤 계정 확인에서 막히면(401) 바뀌지 �
   await h.hook().apply()
   assert.equal(h.toasts[0][0], '만들었는지 확인하지 못했어요. 계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.')
   assert.equal(h.reloads, 1)
-  assert.equal(stash.takeDraft(31).length, 2)
+  assert.equal(stash.takeDraft(31), null)
 })
 
 test('만드는 중이거나 검사 중이면 다시 보내지 않는다', async () => {
@@ -263,4 +268,50 @@ test('만드는 동안 제안의 조각 바꾸기를 잠그고 끝나면 푼다'
   release()
   await pending
   assert.equal(JSON.stringify(h.holds), '[true,false]')
+})
+
+test('거부 안내는 다음 만들기를 누를 때 닫혀 성공한 뒤에는 만들었다는 토스트만 남는다', async () => {
+  const answers = [async () => { throw apiError('순환', 409, { code: 'STATE_CONFLICT' }) }, async () => result]
+  const h = harness({ applySplit: () => answers.shift()() })
+  await h.hook().apply()
+  assert.equal(h.toasts[0][1], 'error')
+  h.hook()
+  assert.equal(h.dismissed.length, 0)
+  await h.hook().apply()
+  // 1번(거부 안내)은 닫혔고, 2번(만들었어요)은 닫지 않는다.
+  assert.equal(JSON.stringify(h.dismissed), '[1]')
+  assert.equal(h.toasts[1][0], '조각 2개를 만들었어요.')
+  h.unmount()
+  assert.equal(JSON.stringify(h.dismissed), '[1]')
+  stash.takeDraft(31)
+})
+test('화면을 떠나면 남아 있는 거부·미확인 안내를 닫는다', async () => {
+  const refused = harness({ applySplit: async () => { throw apiError('순환', 409, { code: 'STATE_CONFLICT' }) } })
+  await refused.hook().apply()
+  refused.unmount()
+  assert.equal(JSON.stringify(refused.dismissed), '[1]')
+  const unconfirmed = harness({ applySplit: async () => { throw new Error('Failed to fetch') } })
+  await unconfirmed.hook().apply()
+  unconfirmed.unmount()
+  assert.equal(JSON.stringify(unconfirmed.dismissed), '[1]')
+})
+test('게이트웨이 오류(5xx, 앱 코드 없음)는 처리했는지 모르니 미확인으로 다룬다', async () => {
+  for (const status of [502, 504]) {
+    const h = harness({ applySplit: async () => { throw apiError('', status, '<html>Bad Gateway</html>') } })
+    await h.hook().apply()
+    assert.equal(h.toasts[0][0], '만들었는지 확인하지 못했어요. 잠시 후 다시 시도해 주세요.', String(status))
+    assert.equal(h.reloads, 1)
+    assert.equal(JSON.stringify(h.changes), '[{"reason":"split-apply-unconfirmed"}]')
+  }
+  // 앱이 코드를 실어 답한 5xx는 거부다(되돌려졌다).
+  const answered = harness({ applySplit: async () => { throw apiError('서버 오류', 500, { code: 'INTERNAL_SERVER_ERROR', message: '서버 오류' }) } })
+  await answered.hook().apply()
+  assert.equal(answered.toasts[0][0], '만들지 못했어요. 아무것도 바뀌지 않았어요. 잠시 뒤 다시 시도해 주세요.')
+  assert.equal(answered.reloads, 0)
+})
+test('검사 결과 없이 조각 문제로 거부되면(키가 맞지 않음) 제안을 다시 읽는다', async () => {
+  const h = harness({ applySplit: async () => { throw apiError('제안을 다시 열어 확인해 주세요.', 422, { code: 'SPLIT_INVALID_PIECES', split: {} }) } })
+  await h.hook().apply()
+  assert.equal(h.screens.at(-1).kind, 'reload')
+  assert.equal(h.toasts.length, 0)
 })

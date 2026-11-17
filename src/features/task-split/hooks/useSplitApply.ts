@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useToast } from '@contexts/ToastContext'
 import { useTaskCache } from '@contexts/TaskCacheContext'
@@ -22,7 +22,7 @@ import type { SplitProposalState } from './useSplitProposal'
  * 응답이 오지 않았으면 그렇게 말하지 않고 실제 상태를 다시 읽는다.
  */
 export const useSplitApply = (requestId: number, proposal: SplitProposalState) => {
-  const { addToast } = useToast()
+  const { addToast, dismissToast } = useToast()
   const { removeTask } = useTaskCache()
   const navigate = useNavigate()
   const [applying, setApplyingState] = useState(false)
@@ -33,6 +33,15 @@ export const useSplitApply = (requestId: number, proposal: SplitProposalState) =
     applyingRef.current = next
     setApplyingState(next)
   }, [])
+  // 이 화면이 띄운 거부·미확인 안내(오류 토스트는 저절로 닫히지 않는다). 다음 만들기, 성공, 화면을 떠날 때 닫아
+  // 서버 상태와 다른 말이 남지 않게 한다.
+  const refusalRef = useRef<number | null>(null)
+  const closeRefusal = useCallback(() => {
+    if (refusalRef.current == null) return
+    dismissToast(refusalRef.current)
+    refusalRef.current = null
+  }, [dismissToast])
+  useEffect(() => closeRefusal, [closeRefusal])
 
   const { draft, busy, setScreen, setDraft, reload, hold } = proposal
 
@@ -53,6 +62,7 @@ export const useSplitApply = (requestId: number, proposal: SplitProposalState) =
 
   const apply = useCallback(async () => {
     if (applyingRef.current || busy || !draft) return
+    closeRefusal()
     setApplying(true)
     // 보낸 조각과 화면의 조각이 갈라지지 않게 만드는 동안 고치기를 잠근다.
     hold(true)
@@ -73,11 +83,10 @@ export const useSplitApply = (requestId: number, proposal: SplitProposalState) =
       if (rejection.kind === 'screen') setScreen(rejection.screen)
       else if (rejection.kind === 'admin-only') setAdminRefused(true)
       else if (rejection.kind === 'problems') setDraft(replaceCheck(draft, rejection.check))
-      else if (rejection.kind === 'toast') addToast(rejection.message, 'error')
+      else if (rejection.kind === 'toast') refusalRef.current = addToast(rejection.message, 'error')
       else {
-        // 만들어졌을 수도 있다. 고치던 조각을 잃지 않게 맡겨 두고 실제 상태를 다시 읽는다.
-        addToast(rejection.message, 'error')
-        stashDraft(requestId, draft.pieces)
+        // 만들어졌을 수도 있다. 실제 상태를 다시 읽는다. 아직 준비됨이면 제안 훅이 고치던 조각을 잇는다.
+        refusalRef.current = addToast(rejection.message, 'error')
         dispatchTaskChanged({ reason: 'split-apply-unconfirmed' })
         reload()
       }
@@ -87,7 +96,7 @@ export const useSplitApply = (requestId: number, proposal: SplitProposalState) =
     }
   }, [
     requestId, draft, busy, setScreen, setDraft, reload, hold, addToast, removeTask, navigate, undo,
-    setApplying,
+    setApplying, closeRefusal,
   ])
 
   return { applying, adminRefused, apply }

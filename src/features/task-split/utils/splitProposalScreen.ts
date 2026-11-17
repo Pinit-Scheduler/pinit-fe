@@ -62,13 +62,22 @@ export const screenOfError = (error: unknown): ProposalScreen =>
 const statusOf = (error: unknown) =>
   error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined
 
+const hasAppCode = (error: unknown) => {
+  const data = error && typeof error === 'object' ? (error as { data?: unknown }).data : undefined
+  return (
+    !!data && typeof data === 'object' && typeof (data as { code?: unknown }).code === 'string'
+  )
+}
+
 /**
- * 서버가 만들기를 거부했다고 알 수 있는 답. errorMessage의 isServerResponse와 달리 `responseStatus`(세션 갱신이
+ * 서버가 만들기를 거부했다고 알 수 있는 답: 4xx, 또는 앱이 코드를 실어 답한 5xx. 코드 없는 5xx(게이트웨이의
+ * 502·504 등)는 앱이 처리했는지 알 수 없다. errorMessage의 isServerResponse와 달리 `responseStatus`(세션 갱신이
  * 멈춘 status 0)를 보지 않는다: 그 갈래는 만들기를 보냈는지 가릴 수 없어 '확인하지 못했다'로 둔다.
  */
 const isServerAnswer = (error: unknown) => {
   const status = statusOf(error)
-  return typeof status === 'number' && status >= 400
+  if (typeof status !== 'number' || status < 400) return false
+  return status < 500 || hasAppCode(error)
 }
 
 const UNCONFIRMED = '만들었는지 확인하지 못했어요.'
@@ -87,13 +96,18 @@ export const applyRejectionOf = (error: unknown): ApplyRejection => {
   }
   if (split?.code === 'SPLIT_INVALID_PIECES') {
     const check = splitCheckOf(error)
-    if (check) return { kind: 'problems', check }
+    // 검사 결과가 없으면 보낸 조각의 키가 제안과 맞지 않는다. 다시 시도해도 같으니 제안을 다시 읽는다.
+    return check ? { kind: 'problems', check } : { kind: 'screen', screen: { kind: 'reload' } }
   }
   // 성공 응답을 받은 뒤 계정이 바뀐 것을 알아챈 401(httpClient의 assertCurrentActor, answeredStatus 2xx)은
   // 서버가 이미 만들었을 수 있다. 서버가 401로 답했거나 보내기 전에 막힌 401은 다른 거부와 같다.
   if (statusOf(error) === 401 && isAnsweredOk(error))
     return { kind: 'unknown', message: `${UNCONFIRMED} ${readFailureMessage(error) ?? '다시 시도해 주세요.'}` }
   if (isServerAnswer(error)) return { kind: 'toast', message: APPLY_REFUSED }
+  // 게이트웨이의 본문 문구는 앱의 말이 아니라 쓰지 않는다.
+  const status = statusOf(error)
+  if (typeof status === 'number' && status >= 500)
+    return { kind: 'unknown', message: `${UNCONFIRMED} 잠시 후 다시 시도해 주세요.` }
   return { kind: 'unknown', message: getRequestFailureMessage(error, UNCONFIRMED) }
 }
 

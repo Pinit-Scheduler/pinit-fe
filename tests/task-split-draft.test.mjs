@@ -171,10 +171,13 @@ test('만들기 거부의 갈래', () => {
   assert.equal(problems.check.problemCount, 2)
   const fixed = '만들지 못했어요. 아무것도 바뀌지 않았어요. 잠시 뒤 다시 시도해 주세요.'
   assert.equal(screen.applyRejectionOf(apiError('선후관계에 순환이 생겨 저장할 수 없어요.', 409, { code: 'STATE_CONFLICT' })).message, fixed)
-  assert.equal(screen.applyRejectionOf(apiError('조각 구성이 제안과 달라요.', 422, { code: 'SPLIT_INVALID_PIECES', split: {} })).message, fixed)
+  // 검사 결과 없는 조각 문제(키가 제안과 맞지 않음)는 다시 시도해도 같아 제안을 다시 읽는다.
+  assert.equal(screen.applyRejectionOf(apiError('조각 구성이 제안과 달라요.', 422, { code: 'SPLIT_INVALID_PIECES', split: {} })).screen.kind, 'reload')
   assert.equal(screen.applyRejectionOf(apiError('요청을 읽을 수 없어요.', 400, { code: 'INVALID_REQUEST' })).message, fixed)
   assert.equal(screen.applyRejectionOf(apiError('아무것도 고르지 않았어요.', 422, { code: 'SPLIT_NOTHING_SELECTED' })).message, fixed)
-  assert.equal(screen.applyRejectionOf(apiError('서버 오류', 500, null)).kind, 'toast')
+  // 앱 코드 없는 5xx(게이트웨이)는 처리했는지 알 수 없다. 앱이 코드를 실어 답한 5xx는 거부다.
+  assert.equal(screen.applyRejectionOf(apiError('서버 오류', 500, null)).kind, 'unknown')
+  assert.equal(screen.applyRejectionOf(apiError('서버 오류', 500, { code: 'INTERNAL_SERVER_ERROR' })).message, fixed)
   const lost = screen.applyRejectionOf(new Error('Failed to fetch'))
   assert.equal(lost.kind, 'unknown')
   assert.match(lost.message, /^만들었는지 확인하지 못했어요\./)
