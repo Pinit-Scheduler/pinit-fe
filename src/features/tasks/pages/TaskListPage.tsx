@@ -25,6 +25,7 @@ import {
 } from '@features/categories'
 import WorkspaceTaskCard from '../components/WorkspaceTaskCard'
 import TaskArchiveModal from '../components/modals/TaskArchiveModal'
+import SplitInboxLink from '@features/task-split/components/SplitInboxLink'
 import TaskFilterPanel from '../components/TaskFilterPanel'
 import {
   activeFilterCount,
@@ -299,6 +300,7 @@ export default function TaskListPage() {
           <h1 className="task-page__title">작업 목록</h1>
         </div>
         <div className="task-page__actions">
+          <SplitInboxLink />
           <button
             className="workspace-button"
             onClick={() => setArchiveOpen(true)}

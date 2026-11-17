@@ -241,6 +241,7 @@ const taskListPage = ({ query, taskAssignments = {}, category = 'all' }) => {
       },
       '../components/WorkspaceTaskCard': { default: ({ task }) => React.createElement('p', null, task.title) },
       '../components/modals/TaskArchiveModal': { default: (props) => (modals.push(['archive', props.open]), null) },
+      '@features/task-split/components/SplitInboxLink': { default: () => null },
       '../components/TaskFilterPanel': { default: () => null },
       '../utils/taskSearch': load('features/tasks/utils/taskSearch.ts'),
       '../utils/taskListRefresh': load('features/tasks/utils/taskListRefresh.ts'),
