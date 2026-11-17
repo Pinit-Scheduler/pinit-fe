@@ -1,0 +1,89 @@
+import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import type { SplitCheck, SplitDetail } from '../api/splitProposals'
+import { splitCheckOf, splitErrorOf } from '../api/splitErrors'
+
+/**
+ * 제안 화면이 무엇을 보여 줄지. `reload`는 요청이 아직 READY인데 검사·만들기가 거부됐다는 뜻이다
+ * (경쟁에서 졌거나 화면이 오래됐다). 화면은 제안을 다시 읽고, 키가 맞는 조각은 고치던 모습을 잇는다.
+ */
+export type ProposalScreen =
+  | { kind: 'ready'; detail: SplitDetail }
+  | { kind: 'to-inbox' }
+  | { kind: 'processed' }
+  | { kind: 'expired' }
+  | { kind: 'missing' }
+  | { kind: 'reload' }
+  | { kind: 'error'; message: string }
+
+export type ApplyRejection =
+  | { kind: 'screen'; screen: ProposalScreen }
+  | { kind: 'admin-only' }
+  | { kind: 'problems'; check: SplitCheck }
+  /** 서버가 답한 그 밖의 거부 */
+  | { kind: 'toast'; message: string }
+  /** 응답이 오지 않았다 */
+  | { kind: 'unknown'; message: string }
+
+const APPLY_REFUSED = '만들지 못했어요. 아무것도 바뀌지 않았어요. 잠시 뒤 다시 시도해 주세요.'
+
+/** 요청 상태가 정하는 화면. READY가 아닌 상태와 모르는 값만 다룬다. */
+const screenOfStatus = (status: string | null | undefined): ProposalScreen => {
+  if (status === 'QUEUED' || status === 'RUNNING' || status === 'FAILED') return { kind: 'to-inbox' }
+  if (status === 'EXPIRED') return { kind: 'expired' }
+  return { kind: 'processed' }
+}
+
+export const screenOfDetail = (detail: SplitDetail): ProposalScreen => {
+  if (detail.request.status === 'READY') {
+    return detail.proposal != null && detail.check != null
+      ? { kind: 'ready', detail }
+      : { kind: 'processed' }
+  }
+  return screenOfStatus(detail.request.status)
+}
+
+/** 화면을 바꾸는 거부(요청 없음·준비되지 않음)면 그 화면, 아니면 null. */
+const screenRejection = (error: unknown): ProposalScreen | null => {
+  const split = splitErrorOf(error)
+  if (split?.code === 'SPLIT_REQUEST_NOT_FOUND') return { kind: 'missing' }
+  if (split?.code === 'SPLIT_REQUEST_NOT_READY') {
+    const current = split.split.currentStatus
+    return current === 'READY' ? { kind: 'reload' } : screenOfStatus(current)
+  }
+  return null
+}
+
+export const screenOfError = (error: unknown): ProposalScreen =>
+  screenRejection(error) ?? {
+    kind: 'error',
+    message: getRequestFailureMessage(error, '제안을 불러오지 못했어요.'),
+  }
+
+const isServerAnswer = (error: unknown) => {
+  if (!error || typeof error !== 'object') return false
+  const { status } = error as { status?: unknown }
+  return typeof status === 'number' && status >= 400
+}
+
+export const applyRejectionOf = (error: unknown): ApplyRejection => {
+  const screen = screenRejection(error)
+  if (screen) return { kind: 'screen', screen }
+  const split = splitErrorOf(error)
+  if (split?.code === 'SPLIT_NOT_ELIGIBLE' && split.split.reasons?.includes('ADMIN_ONLY')) {
+    return { kind: 'admin-only' }
+  }
+  if (split?.code === 'SPLIT_INVALID_PIECES') {
+    const check = splitCheckOf(error)
+    if (check) return { kind: 'problems', check }
+  }
+  if (isServerAnswer(error)) return { kind: 'toast', message: APPLY_REFUSED }
+  return { kind: 'unknown', message: getRequestFailureMessage(error, '만들었는지 확인하지 못했어요.') }
+}
+
+export const checkFailureOf = (
+  error: unknown,
+): { kind: 'screen'; screen: ProposalScreen } | { kind: 'toast'; message: string } => {
+  const screen = screenRejection(error)
+  if (screen) return { kind: 'screen', screen }
+  return { kind: 'toast', message: getRequestFailureMessage(error, '조각을 확인하지 못했어요.') }
+}
