@@ -510,3 +510,66 @@ test('만들기 본문의 모양 오류는 검사와 같이 422와 400으로 나
   const late = pieces.map((p) => (p.key === 'a' ? { ...p, minutes: 600 } : p))   // 4시간 넘는 조각은 막지 않는다
   assert.equal((await api(route, 'POST', { pieces: late, action: { type: 'MOVE', key: 'ghost' } })).status, 200)
 })
+test('공간 접근은 남고 삭제 권한만 잃으면 만들기 되돌리기는 PERMISSION이다', async () => {
+  const { api, split, workspace, state } = setup()
+  const taskId = workspace.mockWorkspaceRemote.createTask('팀 위키 개편', { spaceId: 2, projectId: 21, assigneeId: 1, dueInDays: 9 }, 1).task.id
+  await api('/v2/task-splits/consent', 'PUT', { disclosureVersion: '1' })
+  const requestId = (await api('/v2/task-splits', 'POST', { taskId })).body.request.requestId
+  split.finishMockSplit(requestId, 'READY')
+  assert.equal((await api(`/v2/task-splits/${requestId}/apply`, 'POST', { pieces: await open(api, requestId) })).status, 200)
+  state.findSpace(2).members.find((m) => m.memberId === 1).role = 'MEMBER'
+  const refused = await api(`/v2/task-splits/${requestId}/undo-apply`, 'POST')
+  assert.equal(refused.status, 409)
+  assert.equal(refused.body.split.undoReason, 'PERMISSION')
+})
+test('만들기를 되돌리면 보관함과 요약의 수가 만들기 전으로 돌아온다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures.ready
+  const counts = async () => {
+    const inbox = (await api('/v2/task-splits')).body.items
+    return JSON.stringify({
+      archiveCount: (await api('/v2/task-splits/summary')).body.archiveCount,
+      ids: inbox.map((i) => i.requestId),
+      item: inbox.find((i) => i.requestId === f.requestId),
+    })
+  }
+  const before = await counts()
+  await api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces: await open(api, f.requestId) })
+  assert.notEqual(await counts(), before)
+  assert.equal((await api(`/v2/task-splits/${f.requestId}/undo-apply`, 'POST')).status, 200)
+  assert.equal(await counts(), before)
+})
+test('같은 시간을 다르게 적은 조각은 바뀐 조각이 아니다', async () => {
+  const { api, split, load } = setup()
+  const { mockTasks } = load('src/mocks/db.ts')
+  const f = split.mockSplitFixtures.ready
+  const applied = await api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces: await open(api, f.requestId) })
+  const c = mockTasks.find((t) => t.id === applied.body.created.find((p) => p.key === 'c').taskId)
+  assert.equal(c.expectedDuration, 'PT2H30M')
+  c.expectedDuration = 'PT150M'
+  assert.equal((await api(`/v2/task-splits/${f.requestId}/undo-apply`, 'POST')).status, 200)
+})
+test('만료 시각이 없는 요청의 되돌리기는 STATE다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  const request = (key) => split.mockSplitRequests.find((r) => r.requestId === f[key].requestId)
+  await api(`/v2/task-splits/${f.ready.requestId}/apply`, 'POST', { pieces: await open(api, f.ready.requestId) })
+  request('ready').expiresAt = null
+  assert.equal((await api(`/v2/task-splits/${f.ready.requestId}/undo-apply`, 'POST')).body.split.undoReason, 'STATE')
+  await api(`/v2/task-splits/${f.violation.requestId}/discard`, 'POST')
+  request('violation').expiresAt = null
+  assert.equal((await api(`/v2/task-splits/${f.violation.requestId}/undo-discard`, 'POST')).body.split.undoReason, 'STATE')
+})
+test('검사와 만들기는 같은 본문 판정을 쓴다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures.ready
+  const pieces = await open(api, f.requestId)
+  for (const action of ['check', 'apply']) {
+    const route = `/v2/task-splits/${f.requestId}/${action}`
+    assert.equal((await api(route, 'POST', {})).status, 422, action)
+    assert.equal((await api(route, 'POST', { pieces: null })).status, 422, action)
+    assert.equal((await api(route, 'POST', { pieces: [null, ...pieces.slice(1)] })).status, 422, action)
+    assert.equal((await api(route, 'POST', { pieces: pieces.map((p) => ({ ...p, selected: null })) })).status, 400, action)
+    assert.equal((await api(route, 'POST', { pieces: pieces.map((p) => ({ ...p, after: [1] })) })).status, 400, action)
+  }
+})

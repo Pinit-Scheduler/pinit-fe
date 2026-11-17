@@ -536,19 +536,30 @@ const readDraft = async (request: Request): Promise<DraftBody | null> => {
 
 const ACTION_TYPES = ['CONFIRM', 'EXCLUDE', 'INCLUDE']
 
-const check = (request: MockSplitRequest, body: DraftBody) => {
-  const status = itemOf(request).status
-  if (status !== 'READY')
-    return splitFailure('SPLIT_REQUEST_NOT_READY', MESSAGES.notReady, 409, { currentStatus: status })
+const notReady = (currentStatus: string) =>
+  splitFailure('SPLIT_REQUEST_NOT_READY', MESSAGES.notReady, 409, { currentStatus })
+
+/**
+ * 검사(S6)와 만들기(S7)가 함께 쓰는 본문 판정(서버 `SplitDraftService.prepare`). `pieces`가 없거나 null인 조각이 있거나
+ * 키 집합이 저장된 제안과 다르면 422 `SPLIT_INVALID_PIECES`, 그 밖의 모양 오류는 400 `INVALID_REQUEST`다.
+ */
+const draftPiecesOf = (request: MockSplitRequest, body: DraftBody): DraftPiece[] | Response => {
   const pieces = (body.pieces ?? null) as DraftPiece[] | null
   if (!pieces || !sameKeys(request, pieces))
     return splitFailure('SPLIT_INVALID_PIECES', MESSAGES.invalidPieces, 422)
-  // 키 집합 밖의 모양 오류는 400 INVALID_REQUEST(서버 `SplitDraftService.prepare`).
   for (const piece of pieces) {
     if (typeof piece.selected !== 'boolean') return invalidRequest()
     if (!Array.isArray(piece.after) || piece.after.some((key) => typeof key !== 'string'))
       return invalidRequest()
   }
+  return pieces
+}
+
+const check = (request: MockSplitRequest, body: DraftBody) => {
+  const status = itemOf(request).status
+  if (status !== 'READY') return notReady(status)
+  const pieces = draftPiecesOf(request, body)
+  if (pieces instanceof Response) return pieces
   let action: SplitDraftAction | undefined
   if (body.action) {
     const { type, key } = body.action
@@ -581,6 +592,12 @@ type AppliedRecord = {
 const appliedRecords = new Map<number, AppliedRecord>()
 
 /** 조각 지문(서버 `SplitFingerprint.ofPiece`, 담당자 제외): 제목, 설명, 마감 날짜·시간대, 예상 시간, 난이도, 중요도, 스페이스, 프로젝트. */
+/** `PT2H30M`·`PT150M`처럼 적은 모양이 달라도 같은 시간이면 같은 분이다. 읽을 수 없으면 null. */
+const durationMinutes = (value: string | null | undefined) => {
+  const match = value?.match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/)
+  if (!match) return null
+  return Number(match[1] ?? 0) * 60 + Number(match[2] ?? 0) + Number(match[3] ?? 0) / 60
+}
 const pieceDigest = (task: Task) => {
   const { spaceId, projectId } = placementOf('task', task.id)
   return JSON.stringify([
@@ -588,7 +605,7 @@ const pieceDigest = (task: Task) => {
     task.description ?? '',
     task.dueDate?.date ?? null,
     task.dueDate?.zoneId ?? null,
-    task.expectedDuration ?? null,
+    durationMinutes(task.expectedDuration),
     task.difficulty,
     task.importance,
     spaceId,
@@ -651,27 +668,10 @@ const reaches = (from: number, target: number) => {
 const liveNeighbors = (ids: number[] | undefined) =>
   [...new Set(ids ?? [])].map(findTask).filter((task): task is Task => Boolean(task))
 
-const notReady = (currentStatus: string) =>
-  splitFailure('SPLIT_REQUEST_NOT_READY', MESSAGES.notReady, 409, { currentStatus })
 const notEligible = (reasons: string[]) =>
   splitFailure('SPLIT_NOT_ELIGIBLE', MESSAGES.notEligible, 422, { reasons })
 const undoUnavailable = (undoReason: string, details?: { reasons: string[] }) =>
   splitFailure('SPLIT_UNDO_NOT_AVAILABLE', MESSAGES.undoNotAvailable, 409, { undoReason, ...details })
-
-/** 검사(S6)와 같은 본문 판정. 키 집합 문제는 422, 그 밖의 모양 오류는 400이다. 만들기는 `action`을 쓰지 않는다. */
-const applyPieces = (request: MockSplitRequest, body: DraftBody): DraftPiece[] | Response => {
-  const pieces = (body.pieces ?? null) as DraftPiece[] | null
-  if (!pieces || !sameKeys(request, pieces))
-    return splitFailure('SPLIT_INVALID_PIECES', MESSAGES.invalidPieces, 422)
-  for (const piece of pieces)
-    if (
-      typeof piece.selected !== 'boolean' ||
-      !Array.isArray(piece.after) ||
-      piece.after.some((key) => typeof key !== 'string')
-    )
-      return invalidRequest()
-  return pieces
-}
 
 /** 서버 `SplitApplyWriter.write`: 조각, 간선(조각 사이 → 선행 → 후행), 요청 전이, 원본 휴지통, 변경 기록 순서. */
 const writeApply = (actor: number, request: MockSplitRequest, original: Task, pieces: DraftPiece[], check: SplitCheck) => {
@@ -770,7 +770,8 @@ const apply = (actor: number, request: MockSplitRequest, body: DraftBody) => {
   if (planned === 'UNEXPECTED') return json({ code: 'STATE_CONFLICT', message: MESSAGES.cycle }, 409)
   const status = itemOf(request).status
   if (status !== 'READY') return notReady(status)
-  const pieces = applyPieces(request, body)
+  // 만들기는 `action`을 쓰지 않는다(서버 `SplitApplyService.apply`).
+  const pieces = draftPiecesOf(request, body)
   if (pieces instanceof Response) return pieces
   // 준비됨인 원본은 잠겨 있어 사라질 수 없다. 모크의 `__pinitMock.remote`처럼 잠금을 건너뛴 경우만 여기에 온다.
   const original = originalOf(request)
@@ -786,6 +787,7 @@ const apply = (actor: number, request: MockSplitRequest, body: DraftBody) => {
 }
 
 /**
+ * 적용됨 fixture의 휴지통 원본은 처음 쓸 때(첫 만들기 되돌리기) 만든다.
  * 적용됨 fixture는 원본·만든 기록 없이 시작한다. 처음 되돌릴 때 원본을 적용 때처럼 휴지통에 넣고 제안을 만든다.
  * 그때까지 화면에 없던 조각은 만들지 않는다(지울 조각이 없다).
  */
@@ -825,8 +827,9 @@ const materializeAppliedFixture = (request: MockSplitRequest): AppliedRecord | n
   return record
 }
 
+/** 만료 시각이 지났는가. 만료 시각이 없는 요청은 제안이 없던 요청이라 STATE로 거른다(여기서는 만료가 아니다). */
 const expiredNow = (request: MockSplitRequest) =>
-  request.expiresAt === null || Date.parse(request.expiresAt) <= Date.now()
+  request.expiresAt !== null && Date.parse(request.expiresAt) <= Date.now()
 
 /**
  * S10. 거부 이유의 순서: STATE → EXPIRED → ORIGINAL_MISSING → ORIGINAL_CHANGED → PERMISSION → PIECES_CHANGED.
@@ -837,7 +840,8 @@ const undoApply = (actor: number, request: MockSplitRequest) => {
     request.status === 'APPLIED'
       ? (appliedRecords.get(request.requestId) ?? materializeAppliedFixture(request))
       : null
-  if (!record || !proposalOf(request.requestId)) return undoUnavailable('STATE')
+  if (!record || request.expiresAt === null || !proposalOf(request.requestId))
+    return undoUnavailable('STATE')
   if (expiredNow(request)) return undoUnavailable('EXPIRED')
   const trashed = trashedTaskOf(request.taskId)
   if (!trashed || trashed.deletedAt !== record.trashedAt) return undoUnavailable('ORIGINAL_MISSING')
@@ -891,7 +895,12 @@ const undoApply = (actor: number, request: MockSplitRequest) => {
 
 /** S11. 거부 이유의 순서: STATE → EXPIRED → ORIGINAL_NOT_ELIGIBLE → ORIGINAL_CHANGED → OTHER_REQUEST_EXISTS. */
 const undoDiscard = (actor: number, request: MockSplitRequest) => {
-  if (request.status !== 'DISCARDED' || request.failureReason !== null || !proposalOf(request.requestId))
+  if (
+    request.status !== 'DISCARDED' ||
+    request.failureReason !== null ||
+    request.expiresAt === null ||
+    !proposalOf(request.requestId)
+  )
     return undoUnavailable('STATE')
   if (expiredNow(request)) return undoUnavailable('EXPIRED')
   const original = originalOf(request)
