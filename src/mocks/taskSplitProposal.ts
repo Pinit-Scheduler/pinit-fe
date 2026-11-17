@@ -380,6 +380,15 @@ const genericFor = (request: MockSplitRequest) => {
   return viewOf(request, genericPieces(request.originalTitle, minutes, task?.dueDate?.date ?? todayInSeoul()))
 }
 
+/** 위반이 남은 채 준비된 요청(`finish(…, 'READY_WITH_VIOLATION')`): 일반 제안의 둘째 조각이 보정 후 4시간 이상이다. */
+const violatingFor = (request: MockSplitRequest) => {
+  const view = genericFor(request)
+  const pieces = view.pieces.map((piece, index) =>
+    index === 1 ? { ...piece, minutes: 300, difficulty: 5 } : piece,
+  )
+  return { ...view, pieces }
+}
+
 /** 버림 fixture(버리기 되돌리기용): fixture의 조각 수와 같게 만들 조각 셋과 뺀 조각 하나. */
 const discardedPieces = (request: MockSplitRequest): PieceSeed[] => {
   const task = originalOf(request)
@@ -497,7 +506,7 @@ registerMockSplitProposals({
     }
   },
   onReady: (request) => {
-    setProposal(request.requestId, genericFor(request))
+    setProposal(request.requestId, request.violationRemaining ? violatingFor(request) : genericFor(request))
     rememberOriginalDigest(request)
   },
 })

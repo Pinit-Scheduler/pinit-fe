@@ -22,7 +22,7 @@ const UNKNOWN_DISCLOSURE = '안내 내용이 바뀌었어요. 화면을 새로 �
 
 /** 쪼개기 시작(동의 창, 확인 창, 접수)이 그려지고 처리되는 자리. 앱 셸에 한 번만 둔다. */
 const SplitStartHost = () => {
-  const { summary, refetch } = useSplitSummary()
+  const { summary, refetch, setSummary } = useSplitSummary()
   const { addToast } = useToast()
   const navigate = useNavigate()
   const [consentFor, setConsentFor] = useState<SplitStartTarget | null>(null)
@@ -69,30 +69,38 @@ const SplitStartHost = () => {
     }
   }
 
+  // 시작 하나가 요약을 다시 읽거나 확인 창을 띄우는 동안 들어온 시작은 버린다(두 번 눌러 알림이 둘 뜨지 않게).
+  const startingRef = useRef(false)
   const start = async (task: SplitStartTarget) => {
-    const { decision, fresh } = await decideStart(
-      task,
-      summary,
-      PROPOSAL_SCREEN_READY,
-      fetchSplitSummary,
-    )
-    // 다시 읽은 요약으로 입구와 보관함의 횟수도 맞춘다.
-    if (fresh) refetch()
-    switch (decision.kind) {
-      case 'goto':
-        navigate(decision.to)
-        return
-      case 'blocked':
-        addToast(decision.message, 'error')
-        return
-      case 'consent':
-        openConsent(task)
-        return
-      case 'confirm':
-        if (await askConfirm(decision.ask)) await submit(task)
-        return
-      default:
-        return
+    if (startingRef.current) return
+    startingRef.current = true
+    try {
+      const { decision, fresh } = await decideStart(
+        task,
+        summary,
+        PROPOSAL_SCREEN_READY,
+        fetchSplitSummary,
+      )
+      // 다시 읽은 요약으로 입구와 보관함의 횟수도 맞춘다. 방금 읽었으니 한 번 더 읽지 않고 캐시에 넣는다.
+      if (fresh) setSummary(fresh)
+      switch (decision.kind) {
+        case 'goto':
+          navigate(decision.to)
+          return
+        case 'blocked':
+          addToast(decision.message, 'error')
+          return
+        case 'consent':
+          openConsent(task)
+          return
+        case 'confirm':
+          if (await askConfirm(decision.ask)) await submit(task)
+          return
+        default:
+          return
+      }
+    } finally {
+      startingRef.current = false
     }
   }
 

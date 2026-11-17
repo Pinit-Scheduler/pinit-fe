@@ -140,7 +140,19 @@ test('요약을 읽지 못하면 summary는 null이고 오류를 알리지 않�
   const result = h.render()
   assert.equal(reads, 1)
   assert.equal(result.summary, null)
-  assert.deepEqual(Object.keys(result).sort(), ['refetch', 'summary'])
+  assert.deepEqual(Object.keys(result).sort(), ['refetch', 'setSummary', 'summary'])
+  h.unmount()
+})
+test('따로 읽은 요약은 setSummary로 캐시에 넣고 다시 읽지 않는다', async () => {
+  let reads = 0
+  const h = summaryHarness(async () => { reads++; return summary })
+  h.render()
+  await settle()
+  assert.equal(reads, 1)
+  h.render().setSummary({ ...summary, quota: { ...summary.quota, remaining: 1 } })
+  await settle()
+  assert.equal(h.render().summary.quota.remaining, 1)
+  assert.equal(reads, 1)
   h.unmount()
 })
 
@@ -213,4 +225,22 @@ test('같은 요청의 버리기·취소·되돌리기가 진행 중이면 다�
   assert.equal(await u.render().discard({ requestId: 31, status: 'READY', violationRemaining: false }), false)
   undoWait.resolve({ request: { requestId: 31, taskId: 7, status: 'READY' } }); await settle()
   assert.equal(u.render().pending.has(31), false)
+})
+test('버리기의 onStart는 진행 중이 아니어서 받아들인 호출에서만, 보내기 전에 불린다', async () => {
+  const wait = deferred()
+  const order = []
+  const h = harness({ api: { discardSplitRequest: (id) => { order.push('send'); h.calls.push(['discard', id]); return wait.promise } } })
+  const target = { requestId: 31, status: 'READY', violationRemaining: false }
+  const first = h.commands.discard(target, { onStart: () => order.push('start 1') })
+  await settle()
+  // 버튼이 꺼지기 전에 들어온 두 번째 호출은 막히고 onStart를 부르지 않는다(맡겨 둔 조각을 지우지 않게).
+  assert.equal(await h.render().discard(target, { onStart: () => order.push('start 2') }), false)
+  wait.resolve({ request: { requestId: 31, taskId: 7, status: 'DISCARDED' }, undoable: true })
+  assert.equal(await first, true)
+  assert.equal(JSON.stringify(order), '["start 1","send"]')
+  // 확인 창에서 그만둬도 onStart는 이미 불렸다(호출한 쪽이 false를 보고 정리한다).
+  const declined = harness({ answer: false })
+  let started = 0
+  assert.equal(await declined.commands.discard(target, { onStart: () => started++ }), false)
+  assert.equal(started, 1)
 })

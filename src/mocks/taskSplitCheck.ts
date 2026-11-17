@@ -38,7 +38,11 @@ const monthDay = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.sl
 /** 문구와 후보에 되풀이하는 제목. 없으면 빈 글, 제목 한도보다 길면 잘라 말줄임표를 붙인다. */
 const echoTitle = (title: unknown) => {
   const text = typeof title === 'string' ? title : ''
-  return text.length > TITLE_MAX ? `${text.slice(0, TITLE_MAX)}…` : text
+  if (text.length <= TITLE_MAX) return text
+  // 한도 자리가 서로게이트 쌍의 가운데면 그 글자 앞에서 자른다(서버 `SplitDraftCheck.echoTitle`).
+  const high = text.charCodeAt(TITLE_MAX - 1)
+  const end = high >= 0xd800 && high <= 0xdbff ? TITLE_MAX - 1 : TITLE_MAX
+  return `${text.slice(0, end)}…`
 }
 const dueAfterOriginal = (originalDue: string) => `원본 마감(${monthDay(originalDue)})보다 늦을 수 없어요.`
 const dueBeforePrevious = (title: unknown, due: string) =>
@@ -60,8 +64,22 @@ const validMinutes = (minutes: unknown): minutes is number =>
   Number.isInteger(minutes) && (minutes as number) >= MINUTES_MIN && (minutes as number) <= MINUTES_MAX
 const validDifficulty = (difficulty: unknown): difficulty is number =>
   DIFFICULTIES.includes(difficulty as number)
+/**
+ * Java `String.isBlank`(`Character.isWhitespace`): 줄 바꿈 없는 공백(U+00A0, U+2007, U+202F)과 BOM은 공백이 아니다.
+ * JS `trim()`은 둘 다 지우므로 쓰지 않는다.
+ */
+const isJavaWhitespace = (code: number) =>
+  (code >= 0x09 && code <= 0x0d) ||
+  (code >= 0x1c && code <= 0x20) ||
+  code === 0x1680 ||
+  (code >= 0x2000 && code <= 0x200a && code !== 0x2007) ||
+  code === 0x2028 ||
+  code === 0x2029 ||
+  code === 0x205f ||
+  code === 0x3000
+const isBlank = (text: string) => [...text].every((char) => isJavaWhitespace(char.charCodeAt(0)))
 const validText = (text: unknown, max: number) =>
-  typeof text === 'string' && text.trim().length > 0 && text.length <= max
+  typeof text === 'string' && !isBlank(text) && text.length <= max
 
 /** 계수가 정확히 1이면 그대로, 아니면 5분 단위로 올려 5분~24시간으로 자른다. 계수는 정수로 바꿔 곱한다. */
 const calibrated = (minutes: number, factor: number) => {

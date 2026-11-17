@@ -5,7 +5,7 @@ import {
   onMockSplitFinished,
 } from './taskSplit'
 
-/** 알림함 mock(ADR-0035 §14). 서버 알림함(Gate X6)이 생기기 전까지의 가정이다. */
+/** 알림함 mock(ADR-0035 §14). 모양과 문구는 서버 pinit-monolith `SplitNoticeController`·`SplitNoticeControllerAdvice`와 같다. */
 type MockNotice = {
   noticeId: string
   memberId: number
@@ -118,11 +118,60 @@ const viewOf = (notice: MockNotice) => ({
   readAt: notice.readAt,
 })
 
+const NOTICE_NOT_FOUND = '알림을 찾을 수 없어요.'
+const UNREADABLE_BODY = '요청을 처리하지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.'
+const TITLES: Record<number, string> = { 400: 'Bad Request', 404: 'Not Found' }
+
+/** 서버 `SplitNoticeControllerAdvice`: `ProblemDetail`(type은 about:blank라 빠진다)에 `message`, 없는 알림이면 `code`. */
+const problem = (status: number, message: string, instance: string, code?: string) =>
+  json(
+    {
+      detail: message,
+      instance,
+      status,
+      title: TITLES[status],
+      message,
+      ...(code ? { code } : {}),
+    },
+    status,
+  )
+
+/**
+ * 묶어 읽기(N4)의 본문. 서버는 `@RequestBody(required = false)`라 본문이 없거나 `null`이면 `{}`와 같고, 모르는 속성은
+ * 무시한다. JSON으로 읽을 수 없거나 객체가 아니거나 칸의 형이 틀리면 400, 본문이 있는데 JSON이 아니면 415(본문 없음)다.
+ */
+const readFilter = async (
+  request: Request,
+): Promise<{ kind?: string | null; requestId?: number | null } | Response> => {
+  const raw = await request.text()
+  if (!raw) return {}
+  const type = request.headers.get('Content-Type') ?? ''
+  if (!/^application\/(?:[\w.+-]+\+)?json\b/i.test(type)) return new Response(null, { status: 415 })
+  const unreadable = () => problem(400, UNREADABLE_BODY, new URL(request.url).pathname)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return unreadable()
+  }
+  if (parsed === null) return {}
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) return unreadable()
+  const { kind, requestId } = parsed as { kind?: unknown; requestId?: unknown }
+  // Jackson은 문자열 칸에 숫자·불리언을, 숫자 칸에 숫자 모양의 문자열을 받아 준다.
+  if (kind != null && typeof kind === 'object') return unreadable()
+  const id = typeof requestId === 'string' && /^-?\d+$/.test(requestId.trim()) ? Number(requestId) : requestId
+  if (id != null && (typeof id !== 'number' || !Number.isFinite(id))) return unreadable()
+  return {
+    kind: kind == null ? null : String(kind),
+    requestId: id == null ? null : Math.trunc(id as number),
+  }
+}
+
 const NOTICE_PATH = /^\/v2\/notifications\/notices(\/|$)/
 const PREFERENCES_PATH = '/v2/notifications/preferences'
 
 /**
- * 알림 설정 mock. 쪼개기 항목(`taskSplitEnabled`, ADR-0035 §14.4)은 서버(Gate X6)가 생기기 전까지의 가정이다.
+ * 알림 설정 mock. 쪼개기 항목(`taskSplitEnabled`, ADR-0035 §14.4)은 서버 `NotificationPreferenceRequest`와 같이
  * PUT은 본문 전체 교체지만 `taskSplitEnabled`가 null이거나 없으면 저장된 값을 둔다(그 항목을 모르는 화면의 저장).
  */
 let preferences = {
@@ -165,13 +214,8 @@ export const handleNotices = async (
   if (path === '/v2/notifications/notices/unread-count' && method === 'GET')
     return json({ unreadCount: unreadOf(actor) })
   if (path === '/v2/notifications/notices/read' && method === 'POST') {
-    const raw = await request.text()
-    let filter: { kind?: string; requestId?: number } = {}
-    try {
-      filter = raw ? JSON.parse(raw) : {}
-    } catch {
-      filter = {}
-    }
+    const filter = await readFilter(request)
+    if (filter instanceof Response) return filter
     const now = new Date().toISOString()
     for (const notice of mockNotices) {
       if (notice.memberId !== actor || notice.readAt != null) continue
@@ -186,18 +230,7 @@ export const handleNotices = async (
     const notice = mockNotices.find(
       (item) => item.noticeId === one[1] && item.memberId === actor,
     )
-    if (!notice)
-      return json(
-        {
-          type: 'about:blank',
-          title: 'Not Found',
-          status: 404,
-          detail: '알림을 찾을 수 없어요.',
-          message: '알림을 찾을 수 없어요.',
-          code: 'NOTICE_NOT_FOUND',
-        },
-        404,
-      )
+    if (!notice) return problem(404, NOTICE_NOT_FOUND, path, 'NOTICE_NOT_FOUND')
     if (notice.readAt == null) notice.readAt = new Date().toISOString()
     return new Response(null, { status: 204 })
   }

@@ -756,6 +756,8 @@ const walkProposal = async (page, viewport) => {
       const backTo = new URL(page.url()).pathname
       note(viewport, 'applied-map back', backTo)
       assert.ok(!/^\/app\/tasks\/splits\/\d+$/.test(backTo), `뒤로 가기가 제안 화면(${backTo})으로 갔다`)
+      // 제안 화면은 28번에서 보관함 토스트의 되돌리기로 열었다(보관함 위에 쌓임). 그 자리를 작업 맵이 바꿨으니 뒤는 보관함이다.
+      assert.equal(backTo, '/app/tasks/splits', `뒤로 가기가 보관함이 아니라 ${backTo}로 갔다`)
       await page.goForward()
       await page.waitForURL(/\/app\/task-map$/)
       await toastAction(page, '조각 5개를 만들었어요.').waitFor()

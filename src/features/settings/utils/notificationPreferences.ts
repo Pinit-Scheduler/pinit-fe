@@ -9,8 +9,8 @@ export type NotificationPreferences = {
   taskDeadlineTime: string
   zoneId: string
   /**
-   * 작업 쪼개기 푸시(ADR-0035 §14.4). 꺼도 알림함 기록은 남는다.
-   * 서버(Gate X6)가 아직 없어 이름은 가정이다. 이 항목을 모르는 서버의 응답에는 없을 수 있어 `taskSplitEnabledOf`로 읽는다.
+   * 작업 쪼개기 푸시(ADR-0035 §14.4). 꺼도 알림함 기록은 남는다. 서버 `NotificationPreferenceResponse`는 늘 싣고,
+   * PUT에서 null이거나 없으면 저장된 값을 둔다. 이 항목을 모르는 옛 서버의 응답에는 없을 수 있어 `taskSplitEnabledOf`로 읽는다.
    */
   taskSplitEnabled: boolean
 }

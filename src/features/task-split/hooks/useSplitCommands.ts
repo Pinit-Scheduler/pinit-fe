@@ -91,13 +91,16 @@ export const useSplitCommands = () => {
   /**
    * 준비된 제안은 확인 창 → 버리기, 실패 항목은 바로 버리기. 버렸거나 그사이 만료로 끝났으면 true.
    * 이미 다른 상태로 끝난 요청이었으면 알리지 않고 다시 읽게 하고 `onUnchanged`를 부른 뒤 false.
+   * `onStart`는 이 요청의 다른 일이 진행 중이 아니어서 이 호출을 받아들였을 때만, 확인 창보다 먼저 불린다.
+   * 진행 중이라 막힌 호출(false)은 `onStart`를 부르지 않는다.
    */
   const discard = useCallback(
     (
       target: DiscardTarget,
-      options?: { onUndone?: () => void; onUnchanged?: () => void },
+      options?: { onStart?: () => void; onUndone?: () => void; onUnchanged?: () => void },
     ) =>
       exclusive(target.requestId, async () => {
+        options?.onStart?.()
         const confirmed = target.status !== 'FAILED'
         if (confirmed) {
           const violationRemaining =

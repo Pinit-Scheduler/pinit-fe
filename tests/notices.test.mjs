@@ -77,6 +77,97 @@ test('처리가 끝나면 알림이 하나 생긴다', async () => {
   assert.equal(list.items[0].originalTitle, '결제 모듈 이관')
   assert.equal((await api('/v2/notifications/notices/read', 'POST', {})).body.unreadCount, 0)
 })
+// 서버(pinit-monolith `SplitNoticeController`·`SplitNoticeControllerAdvice`)가 N4 본문과 오류를 답하는 모양.
+const post = async (load, route, { body, contentType } = {}) => {
+  const { handleMockRequest } = load('src/mocks/handlers.ts')
+  const { token } = await import('./support/mocks.mjs')
+  const headers = { Authorization: `Bearer ${token(1)}` }
+  if (contentType) headers['Content-Type'] = contentType
+  const response = await handleMockRequest(
+    new Request(`http://localhost:8080${route}`, { method: 'POST', headers, ...(body === undefined ? {} : { body }) }),
+  )
+  const text = await response.text()
+  return { status: response.status, text, body: text ? JSON.parse(text) : null }
+}
+test('mock 묶어 읽기: 읽을 수 없는 JSON 본문은 400, JSON이 아닌 본문은 415, 본문이 없으면 모두 읽음', async () => {
+  const route = '/v2/notifications/notices/read'
+  for (const body of ['{', '{"requestId":"x"}', '[]']) {
+    const { load, api } = setup()
+    const refused = await post(load, route, { body, contentType: 'application/json' })
+    assert.equal(refused.status, 400, body)
+    assert.equal(
+      JSON.stringify(refused.body),
+      JSON.stringify({
+        detail: '요청을 처리하지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.',
+        instance: route,
+        status: 400,
+        title: 'Bad Request',
+        message: '요청을 처리하지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.',
+      }),
+      body,
+    )
+    assert.equal((await api('/v2/notifications/notices/unread-count')).body.unreadCount, 2, `${body}는 아무것도 바꾸지 않는다`)
+  }
+  {
+    const { load, api } = setup()
+    const plain = await post(load, route, { body: '{}', contentType: 'text/plain' })
+    assert.equal(plain.status, 415)
+    assert.equal(plain.text, '')
+    assert.equal((await api('/v2/notifications/notices/unread-count')).body.unreadCount, 2)
+  }
+  for (const [body, contentType] of [[undefined, undefined], ['', 'application/json'], ['null', 'application/json'], ['{"x":1}', 'application/json']]) {
+    const { load } = setup()
+    const read = await post(load, route, { body, contentType })
+    assert.equal(read.status, 200, String(body))
+    assert.equal(read.body.unreadCount, 0, `${body}는 {}와 같다`)
+  }
+  const { load } = setup()
+  const unknown = await post(load, route, { body: '{"kind":"SPLIT_SOMETHING"}', contentType: 'application/json' })
+  assert.equal(unknown.status, 200)
+  assert.equal(unknown.body.unreadCount, 2, '모르는 종류는 아무것도 바꾸지 않는다')
+})
+test('mock 알림 하나 읽기: 없는 알림의 404 본문은 ProblemDetail에 message와 code를 더한 것이다', async () => {
+  const { api } = setup()
+  const missing = await api('/v2/notifications/notices/nope/read', 'POST')
+  assert.equal(
+    JSON.stringify(missing.body),
+    JSON.stringify({
+      detail: '알림을 찾을 수 없어요.',
+      instance: '/v2/notifications/notices/nope/read',
+      status: 404,
+      title: 'Not Found',
+      message: '알림을 찾을 수 없어요.',
+      code: 'NOTICE_NOT_FOUND',
+    }),
+  )
+})
+test('mock 알림함: 목록은 최근 100건, 안 읽은 수는 전부', async () => {
+  const { load, api } = setup()
+  const notices = load('src/mocks/notices.ts')
+  for (let i = 0; i < 105; i++) notices.addMockNotice(1, 'SPLIT_READY', 10_000 + i, `작업 ${i}`)
+  const list = (await api('/v2/notifications/notices')).body
+  assert.equal(list.items.length, 100)
+  assert.equal(list.unreadCount, 107)
+  assert.equal((await api('/v2/notifications/notices/unread-count')).body.unreadCount, 107)
+})
+test('mock 알림함은 회원마다 따로다', async () => {
+  const { api } = setup()
+  const mine = (await api('/v2/notifications/notices')).body
+  const other = (await api('/v2/notifications/notices', 'GET', undefined, { as: 2 })).body
+  assert.equal(JSON.stringify(other), '{"unreadCount":0,"items":[]}')
+  const stranger = await api(`/v2/notifications/notices/${mine.items[0].noticeId}/read`, 'POST', undefined, { as: 2 })
+  assert.equal(stranger.status, 404)
+  assert.equal((await api('/v2/notifications/notices/read', 'POST', {}, { as: 2 })).body.unreadCount, 0)
+  assert.equal((await api('/v2/notifications/notices/unread-count')).body.unreadCount, 2)
+})
+test('mock 알림은 delayMs만큼 늦게 생긴다', async () => {
+  const { load, api, split } = setup()
+  load('src/mocks/notices.ts').mockNoticeSettings.delayMs = 20
+  split.finishMockSplit(split.mockSplitFixtures.queued.requestId, 'READY')
+  assert.equal((await api('/v2/notifications/notices/unread-count')).body.unreadCount, 2)
+  await new Promise((resolve) => setTimeout(resolve, 40))
+  assert.equal((await api('/v2/notifications/notices/unread-count')).body.unreadCount, 3)
+})
 test('mock 알림 설정은 쪼개기 항목을 싣고, 빠진 채 저장하면 그대로 둔다', async () => {
   const { api } = setup()
   const first = (await api('/v2/notifications/preferences')).body

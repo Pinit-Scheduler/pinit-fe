@@ -233,7 +233,8 @@ const targetReasonsOf = (actor: number, task: Task) => {
   const reasons: string[] = []
   if (isDone(task)) reasons.push('TASK_COMPLETED')
   if (task.recurrence) reasons.push('RECURRING_TASK')
-  if (mockSchedules.some((schedule) => schedule.taskId === task.id))
+  // 서버는 요청하는 회원 본인의 일정만 본다(`findAllByOwnerIdAndTaskIdIn(actor, …)`).
+  if (mockSchedules.some((schedule) => schedule.taskId === task.id && schedule.ownerId === actor))
     reasons.push('HAS_LINKED_SCHEDULE')
   if (!canDeleteIn(actor, placementOf('task', task.id).spaceId)) reasons.push('ADMIN_ONLY')
   return reasons
@@ -420,12 +421,6 @@ const submit = async (actor: number, request: Request) => {
           { requesterNickname: nicknameOf(active.memberId), lockStage: stage },
         )
   }
-  // 만료 시각이 지난 준비됨은 새 요청 전에 만료로 바꾼다(서버 `releaseExpiredOrReject`).
-  for (const stale of mockSplitRequests)
-    if (stale.taskId === task.id && stale.status === 'READY' && displayStatusOf(stale) === 'EXPIRED') {
-      stale.status = 'EXPIRED'
-      recordSplitChange(stale)
-    }
   if (mockSplitSettings.used >= mockSplitSettings.limit) {
     const quota = quotaOf()
     return splitFailure('SPLIT_QUOTA_EXCEEDED', MESSAGES.quotaExceeded, 429, {
@@ -433,6 +428,13 @@ const submit = async (actor: number, request: Request) => {
       quotaResetsAt: quota.resetsAt,
     })
   }
+  // 만료 시각이 지난 준비됨은 새 요청 전에 만료로 바꾼다(서버 `releaseExpiredOrReject`). 서버는 이것과 한도 차감이
+  // 한 트랜잭션이라 한도로 거부되면 함께 되돌아간다. mock은 한도를 먼저 본다.
+  for (const stale of mockSplitRequests)
+    if (stale.taskId === task.id && stale.status === 'READY' && displayStatusOf(stale) === 'EXPIRED') {
+      stale.status = 'EXPIRED'
+      recordSplitChange(stale)
+    }
   const created: MockSplitRequest = {
     requestId: nextRequestId(),
     memberId: actor,
@@ -550,7 +552,7 @@ const fixtures: Fixture[] = [
   { key: 'failed', title: '연말 회고 자료', expectedDuration: 'PT4H30M', spaceId: -1, projectId: null, due: 14,
     request: { status: 'FAILED', requestedAgoMinutes: 23 * HOUR, failureReason: 'PROVIDER_UNAVAILABLE' } },
   { key: 'expired', title: '분기 목표 초안', expectedDuration: 'PT5H', spaceId: -1, projectId: null, due: 11,
-    request: { status: 'READY', requestedAgoMinutes: 7 * DAY + HOUR + 5, readyAt: ago(7 * DAY + HOUR), expiresAt: ago(HOUR), pieceCount: 4, excludedCount: 0, violationRemaining: false } },
+    request: { status: 'READY', requestedAgoMinutes: 7 * DAY + HOUR + 5, readyAt: ago(7 * DAY + HOUR), expiresAt: ago(HOUR), pieceCount: 3, excludedCount: 0, violationRemaining: false } },
   { key: 'applied', title: '블로그 이전', expectedDuration: null, spaceId: -1, projectId: null, due: 6, removed: true,
     request: { status: 'APPLIED', requestedAgoMinutes: 3 * DAY, readyAt: ago(3 * DAY - 5), expiresAt: later(4 * DAY), pieceCount: 4, excludedCount: 0, violationRemaining: false } },
   { key: 'discarded', title: '사진 정리', expectedDuration: 'PT4H', spaceId: -1, projectId: null, due: 13,
@@ -558,13 +560,13 @@ const fixtures: Fixture[] = [
   { key: 'cancelled', title: '세금 서류 모으기', expectedDuration: 'PT4H', spaceId: -1, projectId: null, due: 15,
     request: { status: 'CANCELLED', requestedAgoMinutes: DAY + 2 * HOUR } },
   { key: 'adminOnly', title: '12월 발제문 쓰기', expectedDuration: 'PT5H', spaceId: 3, projectId: 31, due: 16,
-    request: { status: 'READY', requestedAgoMinutes: 5 * HOUR, readyAt: ago(5 * HOUR - 4), expiresAt: later(7 * DAY - 5 * HOUR), pieceCount: 4, excludedCount: 1, violationRemaining: false } },
+    request: { status: 'READY', requestedAgoMinutes: 5 * HOUR, readyAt: ago(5 * HOUR - 4), expiresAt: later(7 * DAY - 5 * HOUR), pieceCount: 3, excludedCount: 0, violationRemaining: false } },
   { key: 'allExcluded', title: '릴리즈 회고 준비', expectedDuration: 'PT4H', spaceId: -1, projectId: null, due: 9,
     request: { status: 'READY', requestedAgoMinutes: 7 * HOUR, readyAt: ago(7 * HOUR - 4), expiresAt: later(7 * DAY - 7 * HOUR), pieceCount: 0, excludedCount: 3, violationRemaining: false } },
   { key: 'otherProcessing', title: '결제 화면 리팩터링', expectedDuration: 'PT6H', spaceId: 2, projectId: 21, due: 10,
     request: { status: 'RUNNING', requestedAgoMinutes: 6, memberId: TEAMMATE } },
   { key: 'otherReady', title: '12월 로드맵 초안', expectedDuration: 'PT5H', spaceId: 2, projectId: 21, due: 12,
-    request: { status: 'READY', requestedAgoMinutes: 3 * HOUR, readyAt: ago(3 * HOUR - 4), expiresAt: later(7 * DAY - 3 * HOUR), pieceCount: 4, excludedCount: 0, violationRemaining: false, memberId: TEAMMATE } },
+    request: { status: 'READY', requestedAgoMinutes: 3 * HOUR, readyAt: ago(3 * HOUR - 4), expiresAt: later(7 * DAY - 3 * HOUR), pieceCount: 3, excludedCount: 0, violationRemaining: false, memberId: TEAMMATE } },
   { key: 'free', title: '사내 위키 이전 계획', expectedDuration: 'PT6H', spaceId: -1, projectId: null, due: 10 },
   { key: 'free2', title: '여행 계획 세우기', expectedDuration: 'PT5H', spaceId: -1, projectId: null, due: 13 },
   { key: 'linked', title: '이사 준비', expectedDuration: 'PT5H', spaceId: -1, projectId: null, due: 11, linkedScheduleInDays: 3 },

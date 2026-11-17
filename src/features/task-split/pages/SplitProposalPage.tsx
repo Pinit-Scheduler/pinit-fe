@@ -178,8 +178,9 @@ function SplitProposal({ requestId }: { requestId: number }) {
           className="workspace-button split-page__discard"
           disabled={applying || commandPending}
           onClick={() => {
-            // 되돌리면 고치던 조각으로 다시 열 수 있게 맡겨 둔다.
-            stashDraft(request.requestId, draft.pieces)
+            // 되돌리면 고치던 조각으로 다시 열 수 있게 맡겨 둔다. 앞선 버리기가 진행 중이라 막힌 호출은
+            // 맡기지도 지우지도 않는다(앞선 버리기의 되돌리기가 맡겨 둔 조각을 쓴다).
+            let stashed = false
             void commands
               .discard(
                 {
@@ -188,6 +189,10 @@ function SplitProposal({ requestId }: { requestId: number }) {
                   violationRemaining: proposal.violationRemaining,
                 },
                 {
+                  onStart: () => {
+                    stashDraft(request.requestId, draft.pieces)
+                    stashed = true
+                  },
                   onUndone: () => navigate(splitProposalPath(request.requestId)),
                   // 이미 다른 상태로 끝난 요청이었다. 낡은 제안을 두지 않고 다시 읽는다.
                   onUnchanged: state.reload,
@@ -196,7 +201,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
               .then((done) => {
                 // 기록에서 바꾼다. 뒤로 가기로 버린 제안을 다시 열어 맡긴 조각을 써 버리지 않게 한다.
                 if (done) navigate(SPLIT_INBOX_PATH, { replace: true })
-                else takeDraft(request.requestId)
+                else if (stashed) takeDraft(request.requestId)
               })
           }}
         >

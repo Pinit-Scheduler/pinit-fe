@@ -2,7 +2,7 @@
 
 2026-11-17 기능 변경 문서다. 큰 작업(예상 4시간 이상)을 AI에게 맡겨 작은 조각으로 나누는 기능의 화면 전체를 설명한다. **A단계**(긴 설명, 잠긴 원본 표시, 공용 확인 창, 동의·확인·접수, 보관함에서 취소·버리기)와 **B단계**(제안 화면의 지도·목록, 조각 다듬기와 서버 검사, 만들기와 거부, 만들기·버리기 되돌리기, 알림 종·알림함과 읽음, 알림 설정의 쪼개기 항목)다. 계획은 `pinit-docs/docs/superpowers/plans/2026-11-17-task-split-x7-fe-a.md`와 `…-x7-fe-b.md`다.
 
-이 문서는 pinit-fe 기준 커밋 `42ce608` 위의 구현(A단계 `fba5371`~`656ac17`, B단계 `f443a78`~`86fe228`, 이 문서와 브라우저 기록을 더한 커밋)과 그 위에서 한 **mock 서버에서의** 확인을 기록한다. 실제 서버와 연결한 확인, 운영 배포는 하지 않았다. B단계가 부르는 S5~S7은 BE X4 계획의 모양, S10·S11과 알림(N1~N4·NP)은 ADR-0035의 가정이며 서버 코드와의 대조는 다음 과업(BE 계약 대조)이 한다. 운영 서버의 접수 스위치가 꺼져 있는 동안에는 `summary.available`이 false라 쪼개기 입구가 보이지 않는다.
+이 문서는 pinit-fe 기준 커밋 `42ce608` 위의 구현(A단계 `fba5371`~`656ac17`, B단계 `f443a78`~`86fe228`, 이 문서와 브라우저 기록을 더한 커밋)과 그 위에서 한 **mock 서버에서의** 확인을 기록한다. 실제 서버와 연결한 확인, 운영 배포는 하지 않았다. REST 계약은 pinit-monolith `claude/sweet-sagan-gfwn0u`@`1298b8d`의 서버 코드와 줄마다 대조했다(아래 "서버와 대조한 기록"). 대조는 코드를 읽어서 했고 실제 서버에 연결해 부르지는 않았다. 운영 서버의 접수 스위치가 꺼져 있는 동안에는 `summary.available`이 false라 쪼개기 입구가 보이지 않는다.
 
 - 화면 기준: `pinit-docs/docs/projects/task-split/ui-design.md`, 시안 `Pinit-Scheduler/pinit-ui-design@265ec9c9af530c58e82b1558d4495c8a65a79720`(`src/features/task-split/`). 둘이 다르면 ui-design.md가 기준이다.
 - API 기준: `pinit-monolith`의 ADR-0035(`docs/modular-monolith-migration/adr/0035-llm-task-split.md`) §8·§9·§13·§14, X2 구현 코드, S5~S7은 BE X4 계획(`pinit-docs/docs/superpowers/plans/2026-11-17-task-split-x4-proposal-apply.md`).
@@ -93,34 +93,99 @@
 
 ## REST 계약
 
-FE가 부르는 모든 엔드포인트다. S1~S4·S8·S9·T1·T2·P1의 출처는 X2 실제 코드다(`T/` = `pinit-monolith/modules/task/src/main/java/me/gg/pinit/pinittask/`). 오류 본문은 `{code, message, resourceType, resourceId, latestVersion, split}`이고 `split`의 해당 없는 필드는 null이다(`T/interfaces/workspace/WorkspaceControllerAdvice.java`, `T/domain/split/exception/SplitErrorDetails.java`). 시각은 ISO-8601 instant, 날짜는 `YYYY-MM-DD`다. null인 필드가 빠진 채 와도 같게 다룬다(`== null`). S5~S7·S10·S11과 N1~N4·NP·푸시 줄은 **가정**이다(S5~S7은 BE X4 계획, 나머지는 ADR-0035). 서버 코드와의 대조는 BE 계약 대조 과업이 한다. Notification API의 오류 본문은 `ProblemDetail` + `message` + `code`다.
+FE가 부르는 모든 엔드포인트다. 출처 칸은 대조한 서버 커밋과 파일이다(`T/` = `pinit-monolith/modules/task/src/main/java/me/gg/pinit/pinittask/`, `N/` = `pinit-monolith/modules/notification/src/main/java/me/pinitnotification/`). 오류 본문은 `{code, message, resourceType, resourceId, latestVersion, split}`이고 `split`의 해당 없는 필드는 null이다(`T/interfaces/workspace/WorkspaceControllerAdvice.java`, `T/domain/split/exception/SplitErrorDetails.java`). 시각은 ISO-8601 instant, 날짜는 `YYYY-MM-DD`다. 서버는 null인 필드를 빼지 않고 `null`로 싣는다(Jackson 기본값, `application.yml`의 `use-jackson2-defaults: true`, 응답 record에 `@JsonInclude` 없음). 그래도 화면은 빠진 채 와도 같게 다룬다(`== null`). 알림의 시각은 마이크로초까지 올 수 있다(`2026-11-17T03:04:07.123456Z`). Notification API의 오류 본문은 `ProblemDetail`(`detail, instance, status, title`. `type`은 about:blank라 빠진다) + `message`이고, 없는 알림(404)에만 `code`가 있다.
 
 | # | 메서드·경로 | 요청 | 성공 응답 | 다루는 오류(code, 상태, `split`에 실린 것) | 출처 |
 |---|---|---|---|---|---|
-| S1 | `GET /v2/task-splits/summary` | - | 200 `{available, consent: {currentVersion, consented, provider}, quota: {limit, used, remaining, resetsAt}, archiveCount}` | 어떤 실패든 입구를 숨긴다(토스트 없음) | `T/interfaces/workspace/TaskSplitController.java` `summary`, `T/application/split/SplitSummaryService.java` |
-| S2 | `PUT /v2/task-splits/consent` | `{disclosureVersion}` | 200 `{disclosureVersion, consentedAt}` | `SPLIT_CONSENT_OUTDATED` 409 (`currentDisclosureVersion`) | `TaskSplitController.consent`, `T/application/split/SplitConsentService.java` |
-| S3 | `POST /v2/task-splits` | `{taskId}` | 201 `{request: SplitRequestItem, quota}` | `SPLIT_UNAVAILABLE` 503, `SPLIT_CONSENT_REQUIRED` 409 (`currentDisclosureVersion`), `SPLIT_TARGET_NOT_FOUND` 404, `SPLIT_NOT_ELIGIBLE` 422 (`reasons`), `SPLIT_ALREADY_IN_PROGRESS` 409 (본인: `requestId` / 다른 참여자: `requesterNickname`, `lockStage`), `SPLIT_QUOTA_EXCEEDED` 429 (`quotaLimit`, `quotaResetsAt`) | `TaskSplitController.submit`, `T/application/split/SplitIntakeService.java`, `T/domain/split/exception/TaskSplitException.java` |
-| S4 | `GET /v2/task-splits` | - | 200 `{quota, items: SplitRequestItem[]}`. 최근 것부터. `QUEUED`·`RUNNING`·`READY`(만료 전)·`FAILED`만 | 일반 실패 | `TaskSplitController.list`, `T/application/split/SplitInboxService.java` |
-| S8 | `POST /v2/task-splits/{requestId}/cancel` | - | 200 `{request}`. 이미 끝난 요청이면 바꾸지 않고 200 | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_REQUEST_STATE_CHANGED` 409 (`currentStatus`) | `TaskSplitController.cancel`, `T/application/split/SplitRequestCommandService.java` |
-| S9 | `POST /v2/task-splits/{requestId}/discard` | - | 200 `{request, undoable}`. `undoable`은 준비된 제안을 버렸을 때만 true | S8과 같다 | `TaskSplitController.discard`, `SplitRequestCommandService.SplitDiscardResult` |
-| T1 | `GET /v2/workspace/tasks`, `GET /v2/workspace/tasks/{id}` | 기존 | 기존 응답 + `split: {recommended, canRequest, cannotRequestReasons, lock}`. `lock`은 null 또는 `{stage: 'PROCESSING' \| 'PROPOSAL_READY', mine, requestId, requestStatus, requesterNickname}`. 잠긴 원본의 `allowedActions`(edit·assign·move·delete·complete·reopen·schedule·editDependencies)는 false, 이유는 `SPLIT_IN_PROGRESS` | - | `T/interfaces/workspace/WorkspaceResourceController.java:36` `TaskResponse.split`, `T/application/split/SplitTaskView.java`, `SplitLockView.java`, `T/application/workspace/WorkspaceResourceService.java:251-257` |
-| T2 | 기존 작업 명령(수정, 완료·재개, 삭제, 일정 배정 등) | 기존 | 기존 | `TASK_LOCKED_BY_SPLIT` 409 (본인: `requestId`, `lockStage` / 다른 참여자: `requesterNickname`, `lockStage`) | `T/domain/split/exception/TaskLockedBySplitException.java` |
-| S5 | `GET /v2/task-splits/{requestId}` | - | 200 `{request: SplitRequestItem, proposal, check}`. 준비됨이 아니면 `proposal`·`check`는 null(또는 없음). 만료 시각이 지난 준비됨은 `request.status`가 `EXPIRED`. `factors`는 `{"1": 1.0, …}` | `SPLIT_REQUEST_NOT_FOUND` 404 | X4 계획 Task 5, ADR §8.2·§8.3(가정) |
-| S6 | `POST /v2/task-splits/{requestId}/check` | `{pieces: DraftPiece[], action?: {type: 'CONFIRM' \| 'EXCLUDE' \| 'INCLUDE', key}}`. 조각마다 여덟 칸(`key, title, description, minutes, difficulty, dueDate, after, selected`)만 보낸다 | 200 `SplitCheck`. 저장하지 않는다 | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_REQUEST_NOT_READY` 409 (`currentStatus`), `SPLIT_INVALID_PIECES` 422(`check` 없음), `INVALID_REQUEST` 400 | X4 계획 Task 2~4, ADR §8.3·§9(가정) |
-| S7 | `POST /v2/task-splits/{requestId}/apply` | `{pieces: DraftPiece[]}`(뺀 조각 포함 전체) | 200 `{request, created: {key, taskId}[], createdEdges, notInherited: {taskId, direction, reason}[], trashedTaskId}` | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_REQUEST_NOT_READY` 409 (`currentStatus`), `SPLIT_NOT_ELIGIBLE` 422 (`reasons`, 남는 것은 `ADMIN_ONLY`), `SPLIT_INVALID_PIECES` 422 (값·마감 문제일 때 `check`), `SPLIT_NOTHING_SELECTED` 422, `STATE_CONFLICT` 409, `INVALID_REQUEST` 400 | X4 계획 Task 8, ADR §9·§12(가정) |
-| S10 | `POST /v2/task-splits/{requestId}/undo-apply` | - | 200 `{request, restoredTaskId, restoredEdgeCount, notRestored: {taskId, direction}[]}` | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_UNDO_NOT_AVAILABLE` 409 (`undoReason`, `reasons`) | ADR §8.2·§9·§13(가정) |
-| S11 | `POST /v2/task-splits/{requestId}/undo-discard` | - | 200 `{request}` | S10과 같다 | ADR §8.2·§9·§13(가정) |
-| N1 | `GET /v2/notifications/notices` | - | 200 `{unreadCount, items: Notice[]}`. 최근 것부터 많아야 100건 | 일반 실패(패널 안 문구) | ADR §14.3(가정) |
-| N2 | `GET /v2/notifications/notices/unread-count` | - | 200 `{unreadCount}` | 어떤 실패든 숫자를 숨긴다 | ADR §14.3(가정) |
-| N3 | `POST /v2/notifications/notices/{noticeId}/read` | - | 204 | `NOTICE_NOT_FOUND` 404(무시하고 이동) | ADR §14.3·§9(가정) |
-| N4 | `POST /v2/notifications/notices/read` | `{kind?, requestId?}`: `{}` 모두 읽음, `{kind: 'SPLIT_READY', requestId}` 제안을 열 때, `{kind: 'SPLIT_FAILED'}` 보관함을 열 때 | 200 `{unreadCount}` | 화면 호출은 어떤 실패든 무시. `모두 읽음` 실패는 토스트 `알림을 읽음으로 하지 못했어요.` | ADR §14.3(가정) |
-| NP | `GET`·`PUT /v2/notifications/preferences` | 기존 필드 + `taskSplitEnabled`(PUT에서 null이면 저장된 값을 둔다) | 기존 필드 + `taskSplitEnabled` | 기존과 같다 | ADR §14.4(가정) |
-| 푸시 | 서버가 보내는 `url` | - | 준비됨 `/app/tasks/splits/{requestId}`, 실패 `/app/tasks/splits`. FE 경로가 바뀌면 서버 상수도 바뀐다 | - | ADR §14.4(가정) |
-| P1 | 하루 계획 승인 | 기존 | 기존 | 블록 거부 사유 `TASK_LOCKED_BY_SPLIT` | `T/domain/planning/model/BlockRejectionReason.java`, `T/domain/planning/exception/PlanningErrorMessages.java:54` |
+| S1 | `GET /v2/task-splits/summary` | - | 200 `{available, consent: {currentVersion, consented, provider}, quota: {limit, used, remaining, resetsAt}, archiveCount}` | 어떤 실패든 입구를 숨긴다(토스트 없음) | 확인: pinit-monolith@1298b8d `T/interfaces/workspace/TaskSplitController.java` `summary`, `T/application/split/SplitSummaryService.java` |
+| S2 | `PUT /v2/task-splits/consent` | `{disclosureVersion}` | 200 `{disclosureVersion, consentedAt}` | `SPLIT_CONSENT_OUTDATED` 409 (`currentDisclosureVersion`) | 확인: pinit-monolith@1298b8d `TaskSplitController.consent`, `T/application/split/SplitConsentService.java` |
+| S3 | `POST /v2/task-splits` | `{taskId}` | 201 `{request: SplitRequestItem, quota}` | `SPLIT_UNAVAILABLE` 503, `SPLIT_CONSENT_REQUIRED` 409 (`currentDisclosureVersion`), `SPLIT_TARGET_NOT_FOUND` 404, `SPLIT_NOT_ELIGIBLE` 422 (`reasons`), `SPLIT_ALREADY_IN_PROGRESS` 409 (본인: `requestId` / 다른 참여자: `requesterNickname`, `lockStage`), `SPLIT_QUOTA_EXCEEDED` 429 (`quotaLimit`, `quotaResetsAt`) | 확인: pinit-monolith@1298b8d `TaskSplitController.submit`, `T/application/split/SplitIntakeService.java`, `T/domain/split/exception/TaskSplitException.java` |
+| S4 | `GET /v2/task-splits` | - | 200 `{quota, items: SplitRequestItem[]}`. 최근 것부터. `QUEUED`·`RUNNING`·`READY`(만료 전)·`FAILED`만 | 일반 실패 | 확인: pinit-monolith@1298b8d `TaskSplitController.list`, `T/application/split/SplitInboxService.java`, `SplitRequestItemView.java` |
+| S8 | `POST /v2/task-splits/{requestId}/cancel` | - | 200 `{request}`. 이미 끝난 요청이면 바꾸지 않고 200 | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_REQUEST_STATE_CHANGED` 409 (`currentStatus`) | 확인: pinit-monolith@1298b8d `TaskSplitController.cancel`, `T/application/split/SplitRequestCommandService.java`, `T/interfaces/workspace/dto/TaskSplitDtos.java` |
+| S9 | `POST /v2/task-splits/{requestId}/discard` | - | 200 `{request, undoable}`. `undoable`은 준비된 제안을 버렸을 때만 true | S8과 같다 | 확인: pinit-monolith@1298b8d `TaskSplitController.discard`, `SplitRequestCommandService.SplitDiscardResult` |
+| T1 | `GET /v2/workspace/tasks`, `GET /v2/workspace/tasks/{id}` | 기존 | 기존 응답 + `split: {recommended, canRequest, cannotRequestReasons, lock}`. `lock`은 null 또는 `{stage: 'PROCESSING' \| 'PROPOSAL_READY', mine, requestId, requestStatus, requesterNickname}`. 잠긴 원본의 `allowedActions`(edit·assign·move·delete·complete·reopen·schedule·editDependencies)는 false, 이유는 `SPLIT_IN_PROGRESS` | - | 확인: pinit-monolith@1298b8d `T/application/split/SplitTaskView.java`, `SplitLockView.java`, `T/application/workspace/WorkspaceResourceService.java:243-258`(이유 순서는 `ActionReasons`: 처음 막힌 조건의 이유 하나) |
+| T2 | 기존 작업 명령(수정, 완료·재개, 삭제, 일정 배정 등) | 기존 | 기존 | `TASK_LOCKED_BY_SPLIT` 409 (본인: `requestId`, `lockStage` / 다른 참여자: `requesterNickname`, `lockStage`) | 확인: pinit-monolith@1298b8d `T/domain/split/exception/TaskLockedBySplitException.java`, `SplitErrorMessages.java` |
+| S5 | `GET /v2/task-splits/{requestId}` | - | 200 `{request: SplitRequestItem, proposal, check}`. 준비됨이 아니면 `proposal`·`check`는 null. 만료 시각이 지난 준비됨은 `request.status`가 `EXPIRED`. `factors`는 `{"1": 1.0, …}` | `SPLIT_REQUEST_NOT_FOUND` 404 | 확인: pinit-monolith@1298b8d `TaskSplitController.detail`, `T/application/split/SplitProposalService.java`, `SplitProposalView.java` |
+| S6 | `POST /v2/task-splits/{requestId}/check` | `{pieces: DraftPiece[], action?: {type: 'CONFIRM' \| 'EXCLUDE' \| 'INCLUDE', key}}`. 조각마다 여덟 칸(`key, title, description, minutes, difficulty, dueDate, after, selected`)만 보낸다 | 200 `SplitCheck`. 저장하지 않는다 | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_REQUEST_NOT_READY` 409 (`currentStatus`), `SPLIT_INVALID_PIECES` 422(`check` 없음), `INVALID_REQUEST` 400 | 확인: pinit-monolith@1298b8d `TaskSplitController.check`, `T/application/split/SplitDraftInput.java`, `SplitDraftService.java`, `T/domain/split/model/SplitCheckResult.java`, `SplitDraftCheck.java` |
+| S7 | `POST /v2/task-splits/{requestId}/apply` | `{pieces: DraftPiece[]}`(뺀 조각 포함 전체) | 200 `{request, created: {key, taskId}[], createdEdges, notInherited: {taskId, direction, reason}[], trashedTaskId}` | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_REQUEST_NOT_READY` 409 (`currentStatus`), `SPLIT_NOT_ELIGIBLE` 422 (`reasons`, 남는 것은 `ADMIN_ONLY`), `SPLIT_INVALID_PIECES` 422 (값·마감 문제일 때 `check`), `SPLIT_NOTHING_SELECTED` 422, `STATE_CONFLICT` 409, `INVALID_REQUEST` 400 | 확인: pinit-monolith@1298b8d `TaskSplitController.apply`, `T/application/split/SplitApplyService.java`, `SplitApplyWriter.java`, `T/domain/split/model/InheritancePlan.java` |
+| S10 | `POST /v2/task-splits/{requestId}/undo-apply` | - | 200 `{request, restoredTaskId, restoredEdgeCount, notRestored: {taskId, direction}[]}` | `SPLIT_REQUEST_NOT_FOUND` 404, `SPLIT_UNDO_NOT_AVAILABLE` 409 (`undoReason`, `reasons`) | 확인: pinit-monolith@1298b8d `TaskSplitController.undoApply`, `T/application/split/SplitUndoApplyService.java`, `SplitUndoApplyWriter.java` |
+| S11 | `POST /v2/task-splits/{requestId}/undo-discard` | - | 200 `{request}` | S10과 같다 | 확인: pinit-monolith@1298b8d `TaskSplitController.undoDiscard`, `T/application/split/SplitUndoDiscardService.java` |
+| N1 | `GET /v2/notifications/notices` | - | 200 `{unreadCount, items: Notice[]}`. 최근 것부터 많아야 100건 | 일반 실패(패널 안 문구) | 확인: pinit-monolith@1298b8d `N/interfaces/notification/SplitNoticeController.java` `list`, `dto/SplitNoticeDtos.java`, `N/application/notice/SplitNoticeService.java`(`LIST_LIMIT = 100`) |
+| N2 | `GET /v2/notifications/notices/unread-count` | - | 200 `{unreadCount}` | 어떤 실패든 숫자를 숨긴다 | 확인: pinit-monolith@1298b8d `SplitNoticeController.unreadCount` |
+| N3 | `POST /v2/notifications/notices/{noticeId}/read` | - | 204 | `NOTICE_NOT_FOUND` 404(무시하고 이동). 없는 ID, UUID가 아닌 ID, 남의 알림이 모두 같다 | 확인: pinit-monolith@1298b8d `SplitNoticeController.read`, `N/interfaces/notification/SplitNoticeControllerAdvice.java` |
+| N4 | `POST /v2/notifications/notices/read` | `{kind?, requestId?}`: `{}` 모두 읽음, `{kind: 'SPLIT_READY', requestId}` 제안을 열 때, `{kind: 'SPLIT_FAILED'}` 보관함을 열 때 | 200 `{unreadCount}` | 화면 호출은 어떤 실패든 무시. `모두 읽음` 실패는 토스트 `알림을 읽음으로 하지 못했어요.`(서버가 준 `message`가 있으면 그것). 서버: `Content-Type: application/json`인데 읽을 수 없는 본문·형이 틀린 칸·`[]`는 400(`message`, `code` 없음), 본문이 있는데 JSON이 아니면 415(본문 없음). 본문이 없거나 `null`이면 `{}`와 같고, 모르는 속성은 무시하며, 모르는 `kind`는 아무것도 바꾸지 않고 200 | 확인: pinit-monolith@1298b8d `SplitNoticeController.readMatching`, `SplitNoticeControllerAdvice.unreadable` |
+| NP | `GET`·`PUT /v2/notifications/preferences` | 기존 필드 + `taskSplitEnabled`(PUT에서 null이거나 없으면 저장된 값을 둔다. 저장된 행이 없으면 true) | 기존 필드 + `taskSplitEnabled`(늘 있다) | 기존과 같다 | 확인: pinit-monolith@1298b8d `N/interfaces/notification/dto/NotificationPreferenceRequest.java`, `NotificationPreferenceResponse.java` |
+| 푸시 | 서버가 보내는 `url` | - | 준비됨 `/app/tasks/splits/{requestId}`, 실패 `/app/tasks/splits`. FE 경로가 바뀌면 서버 상수도 바뀐다. 푸시 제목은 준비됨 `쪼개기 제안이 준비됐어요`, 실패 `쪼개기를 하지 못했어요`, 본문은 `'원본 제목'`과 둘째 줄 | - | 확인: pinit-monolith@1298b8d `N/domain/notification/TaskSplitPush.java`, `N/infrastructure/events/inbox/NotificationTaskSplitEventConsumer.java` |
+| P1 | 하루 계획 승인 | 기존 | 기존 | 블록 거부 사유 `TASK_LOCKED_BY_SPLIT` | 확인: pinit-monolith@1298b8d `T/domain/planning/model/BlockRejectionReason.java`, `T/domain/planning/exception/PlanningErrorMessages.java` |
 
 `SplitRequestItem = {requestId, taskId, spaceId, originalTitle: string | null, status, failureReason, requestedAt, readyAt, expiresAt, pieceCount, excludedCount, violationRemaining: boolean | null, canApply: boolean | null, cannotApplyReason: 'ADMIN_ONLY' | null}`(`T/application/split/SplitRequestItemView.java`). `status`는 표시 상태다. `Notice = {noticeId: string, kind: 'SPLIT_READY' | 'SPLIT_FAILED', requestId, originalTitle, createdAt, readAt}`. 제안·검사의 타입(`SplitPiece`, `SplitProposalView`, `SplitCheck`)은 `src/features/task-split/api/splitProposals.ts`, 알림은 `src/features/notices/api/notices.ts`에만 있다.
 
 실시간 코드는 고치지 않았다. 서버의 `SPLIT_CHANGED` 기록은 기존 `TASK` 변경 신호로 와서 작업 상세와 `task:changed`를 거쳐 요약·보관함을 다시 읽게 한다(ADR-0035 §14.5).
+
+## 서버와 대조한 기록
+
+2026-11-17, pinit-monolith 브랜치 `claude/sweet-sagan-gfwn0u`, 커밋 `1298b8d`(`feat(task-split): 쪼개기 끝남 event로 알림 기록과 푸시를 남긴다`, 작업 트리 깨끗함)의 서버 코드를 읽어 위 표의 줄마다 메서드, 경로, 요청 칸, 응답 칸과 null 여부, 성공 상태, 오류 code·상태·`split` 칸, enum 값, 직렬화 설정을 FE의 API 모듈 다섯·알림함·알림 설정 모듈과 mock에 견줬다. N1~N4의 실제 본문과 경계 동작은 서버 과업 보고(`pinit-monolith/.superpowers/sdd/2026-11-17-task-split-x6-notice/task-6-report.md`, 시험에서 잡은 본문)로 더 확인했다. Gate X2·X4·X5·X3은 끝났고 X6(알림)은 N1~N4, `taskSplitEnabled`, 푸시 consumer까지 들어왔다. X6의 남은 과업은 HTTP 모양을 바꾸지 않는다. 그 최종 리뷰가 N1~N4 모양을 바꾸면 이 기록과 `src/mocks/notices.ts`를 그 커밋으로 다시 맞춘다. 아직 구현되지 않아 대조하지 못한 엔드포인트는 없다.
+
+| 항목 | FE(지금) | 서버 | 조치 |
+|---|---|---|---|
+| 직렬화 | null인 칸은 빠질 수 있다고 보고 `== null`로 가른다 | null을 `null`로 싣는다(Jackson 2 기본값, `@JsonInclude` 없음). 시각은 ISO-8601 instant(알림은 마이크로초까지), 날짜는 `YYYY-MM-DD` | 없음(빠진 채 와도, null로 와도 같다) |
+| 쪼개기 오류 본문 | `{code, message, resourceType, resourceId, latestVersion, split}`, `split`의 칸은 null 가능 | `WorkspaceControllerAdvice.Error`와 `SplitErrorDetails` 열 칸이 같다. 쪼개기 오류가 아니면 `split`이 null | 없음 |
+| 오류 code와 상태 | 14개 code, 상태 503·409·404·422·429 | `statusOf`의 표와 `SplitErrorMessages.ALL_CODES`가 같다 | 없음 |
+| S1 요약 | `{available, consent{currentVersion, consented, provider}, quota{limit, used, remaining, resetsAt}, archiveCount}` | `SplitSummary`가 같다 | 없음 |
+| S2 동의 | `{disclosureVersion}` → `{disclosureVersion, consentedAt}` | 같다 | 없음 |
+| S3 접수 | 201 `{request, quota}`. `SPLIT_NOT_ELIGIBLE`은 서버 문구를 보인다 | 같다. `reasons`는 `TASK_COMPLETED`, `TASK_IN_TRASH`, `RECURRING_TASK`, `HAS_LINKED_SCHEDULE`, `ADMIN_ONLY` 순서. `HAS_LINKED_SCHEDULE`은 요청하는 회원 **본인의** 일정만 본다. 만료된 제안의 해제와 한도 차감은 한 트랜잭션이라 한도로 거부되면 해제도 되돌아간다 | 화면은 그대로(`reasons`를 읽지 않는다). mock: 본인 일정만 보게, 한도를 먼저 보게 고쳤다 |
+| S4 보관함 | `{quota, items}`, 최근 것부터 | 같다 | 없음 |
+| `SplitRequestItem` | 14칸, `originalTitle`·`failureReason`·`readyAt`·`expiresAt`·`pieceCount`·`excludedCount`·`violationRemaining`·`canApply`·`cannotApplyReason` null 가능 | `SplitRequestItemView`가 같다. `canApply`는 표시 상태가 준비됨일 때만 값이 있다 | 없음 |
+| `status`·`failureReason` enum | 8개·3개 | `SplitStatus`·`SplitFailureReason`이 같다 | 없음 |
+| S5 상세 | `{request, proposal, check}`, 준비됨이 아니면 `proposal`·`check` null | 같다(`SplitProposalService.SplitDetail`). `SplitProposalView`의 일곱 칸, 조각의 `dueDateAdjusted`는 늘 불리언, `exclusion`은 null 또는 `{reason, evidenceTaskId, evidenceTitle}`, `factors`는 문자열 키의 숫자 | 없음(`dueDateAdjusted?: boolean \| null`이 늘 불리언인 값을 받는다) |
+| S6 검사 요청 | 조각마다 여덟 칸, `action?: {type, key}` | `SplitDraftInput`이 같은 여덟 칸만 읽고 모르는 칸은 버린다(`@JsonIgnoreProperties`) | 없음 |
+| S6 검사 응답 | `SplitCheck` 열 칸, 조각 검사 여덟 칸, `limits` 여섯 칸 | `SplitCheckResult`가 같다. `cannotApplyReason`은 `NOTHING_SELECTED`·`HAS_PROBLEMS`·`ADMIN_ONLY`, `emptyReason`은 `ALL_EXCLUDED_BY_AI`·`ALL_REMOVED_BY_MEMBER`, 후보의 `link`는 `DIRECT`·`VIA_EXCLUDED`·`NONE` | 없음 |
+| S6 칸 오류 문구와 순서 | mock: 제목, 설명, 시간, 난이도, 마감, 이전 조각 | `SplitDraftCheck.fieldErrors` 순서와 `TaskErrorMessages`·`ScheduleErrorMessages`·`SplitErrorMessages`의 문구가 같다 | mock 시험을 더했다 |
+| 되풀이하는 제목(후보·마감 순서 문구) | mock: 20자에서 자르고 `…` | 한도 자리가 서로게이트 쌍의 가운데면 그 글자 앞에서 자른다 | mock을 고쳤다 |
+| 빈 제목·설명 | mock: `trim()`이 비면 빈 글 | `String.isBlank`: 줄 바꿈 없는 공백(U+00A0 등)과 BOM은 공백이 아니다 | mock을 고쳤다 |
+| 4시간 판정 | 보정 후 240분 이상 | `SplitFourHourRule.violates`: `>= 240` | 없음 |
+| S7 만들기 | `{pieces}` → `{request, created{key, taskId}, createdEdges{fromTaskId, toTaskId}, notInherited{taskId, direction, reason}, trashedTaskId}` | `SplitApplyResult`가 같다. `direction`은 `BEFORE`·`AFTER`, `reason`은 `RECURRING_TASK`. 기존 그래프와 합친 순환은 409 `STATE_CONFLICT` | 없음 |
+| S8·S9 취소·버리기 | `{request}`, `{request, undoable}` | `SplitCancelResult`, `SplitDiscardResult`가 같다 | 없음 |
+| S10 만들기 되돌리기 | `{request, restoredTaskId, restoredEdgeCount, notRestored{taskId, direction}}` | `SplitUndoApplyResult`가 같다. `undoReason`은 `STATE`·`EXPIRED`·`ORIGINAL_MISSING`·`ORIGINAL_CHANGED`·`PERMISSION`·`PIECES_CHANGED` | 없음 |
+| S11 버리기 되돌리기 | `{request}` | `SplitUndoDiscardResult`가 같다. `undoReason`은 `STATE`·`EXPIRED`·`ORIGINAL_NOT_ELIGIBLE`(`reasons`와 함께)·`ORIGINAL_CHANGED`·`OTHER_REQUEST_EXISTS` | 없음 |
+| T1 작업 응답의 `split` | `{recommended, canRequest, cannotRequestReasons, lock}`, `lock{stage, mine, requestId, requestStatus, requesterNickname}` | `SplitTaskView`·`SplitLockView`가 같다. `cannotRequestReasons`에 휴지통 이유는 없고 잠겼으면 `SPLIT_IN_PROGRESS`가 맨 뒤 | 없음 |
+| T1 잠긴 원본의 `allowedActions` 이유 순서 | mock: edit·assign·move·delete는 권한 다음 잠금, complete·reopen은 반대 상태(이유 없음) 다음 잠금, schedule·editDependencies는 잠금이 먼저 | `WorkspaceResourceService.taskView`와 `ActionReasons`(처음 막힌 조건의 이유 하나)가 같다 | 없음(A단계에서 미확인으로 남긴 것을 확인) |
+| T2·P1 | `TASK_LOCKED_BY_SPLIT` 409와 블록 거부 사유 | 같다 | 없음 |
+| N1 목록 | `{unreadCount, items}`, `Notice{noticeId: string, kind, requestId, originalTitle, createdAt, readAt}` | `SplitNoticeListResponse`·`SplitNoticeItem`이 같다. `noticeId`는 UUID 문자열, `originalTitle`은 늘 있다(1~255자), 안 읽음의 `readAt`은 `null`로 실린다. 최근 100건, `unreadCount`는 안 읽은 알림 전부 | 화면은 그대로(목록 밖의 안 읽음은 `모두 읽음`이 지운다, ADR §14.3). mock은 이미 100건에서 잘랐고 시험을 더했다 |
+| N1 알림 종류 | `SPLIT_READY`·`SPLIT_FAILED`, 모르는 종류는 목록에서 뺀다 | `SplitNoticeKind`가 둘뿐이다. 안 읽은 수에 목록이 숨기는 종류가 섞이지 않는다 | 없음(Task 11의 남은 우려는 지금 서버에서 생기지 않는다) |
+| N2 안 읽은 수 | `{unreadCount}` | 같다 | 없음 |
+| N3 하나 읽기 | 204, 404 `NOTICE_NOT_FOUND`는 무시 | 같다. UUID가 아닌 ID와 남의 알림도 같은 404 | 없음 |
+| N3 404 본문 | mock: `{type: 'about:blank', title, status, detail, message, code}` | `{detail, instance, status, title, message, code}`(`type` 없음, `instance`는 요청 경로) | mock을 고쳤다 |
+| N4 묶어 읽기 | 늘 `Content-Type: application/json`과 `{}`·`{kind: 'SPLIT_READY', requestId}`·`{kind: 'SPLIT_FAILED'}`를 보낸다 | 같은 본문을 받는다. 본문이 없거나 `null`이면 `{}`, 모르는 속성은 무시(`{"x":1}`도 모두 읽음), 모르는 `kind`는 아무것도 바꾸지 않고 200 | 화면은 그대로 |
+| N4 읽을 수 없는 본문 | mock: 읽을 수 없는 JSON을 `{}`로 보고 모두 읽음 | JSON 본문인데 읽을 수 없거나 형이 틀리거나 `[]`면 400 `{detail, instance, status, title, message}`(`code` 없음). 본문이 있는데 JSON이 아니면 415(본문 없음) | mock을 고쳤다. 화면 호출은 실패를 무시하고 `모두 읽음`만 서버 문구(없으면 화면 문장)로 알린다 |
+| N1~N4 인증 | 로그인한 회원 | 인증 필요, CSRF 꺼짐, 회원마다 따로 | mock 시험(회원 격리)을 더했다 |
+| NP 알림 설정 | GET·PUT 응답에 `taskSplitEnabled`가 있을 때만 줄을 그린다. 불러온 뒤에는 늘 불리언을 보낸다 | `NotificationPreferenceResponse.taskSplitEnabled`는 늘 있다(행이 없으면 true). PUT은 `Boolean`이라 null·없음이면 저장된 값을 둔다 | 없음 |
+| 푸시 | 준비됨은 `/app/tasks/splits/{requestId}`, 실패는 `/app/tasks/splits`로 연다 | `TaskSplitPush.targetUrl`이 같다 | 없음 |
+| 푸시와 알림함의 실패 제목 | 알림함 `쪼개기를 끝내지 못했어요`(ui-design §5.3 그림) | 푸시 `쪼개기를 하지 못했어요`(UseCase 초안 UC-INT-07의 문장) | 고치지 않음. 아래 열린 질문 |
+| 401 본문 | mock: `{message: '로그인이 필요합니다.'}` | `sendError(401)`(Spring 오류 응답, `code`·`message` 없음) | 고치지 않음. 화면은 401 본문을 읽지 않고 토큰을 다시 받는다 |
+
+**고친 차이**(계획 문서의 "API 가정" 표를 고칠 사람에게): FE의 타입과 호출에는 서버와 다른 곳이 없었다. 고친 것은 mock이다.
+
+1. N4가 읽을 수 없는 JSON 본문을 `{}`로 받아 모두 읽음으로 했다 → 서버처럼 400(`ProblemDetail` + `message`), JSON이 아닌 본문은 415.
+2. N3·N4 오류 본문에 `type`이 있고 `instance`가 없었다 → 서버처럼 `{detail, instance, status, title, message}`(+ 404의 `code`).
+3. 접수의 `HAS_LINKED_SCHEDULE`이 누구의 일정이든 켜졌다 → 요청하는 회원 본인의 일정만.
+4. 한도로 거부된 접수가 만료된 제안의 해제를 남겼다 → 한도를 먼저 본다(서버는 한 트랜잭션이라 함께 되돌린다).
+5. 되풀이하는 제목이 서로게이트 쌍을 갈랐다 → 그 글자 앞에서 자른다.
+6. 빈 제목·설명을 `trim()`으로 가렸다 → Java `isBlank`처럼(NBSP·BOM은 빈 글이 아니다).
+7. `finish(…, 'READY_WITH_VIOLATION')`의 일반 제안에 4시간 이상인 조각이 없어 `violationRemaining`이 true인데 `overCount`가 0이었다 → 둘째 조각을 300분·난이도 5로.
+8. fixture `adminOnly`·`expired`·`otherReady`에 적은 조각 수(4·뺀 조각 1)가 만들어 두는 일반 제안(3·0)과 달랐다(제안이 늘 앞서 만들어져 쓰이지 않던 값) → 제안과 같게.
+
+**열린 질문**(화면이 보이는 것이 바뀌는데 ui-design·ADR이 정하지 않은 것. 고치지 않았다):
+
+1. 실패 알림의 제목이 알림함(`쪼개기를 끝내지 못했어요`, ui-design §5.3)과 푸시(`쪼개기를 하지 못했어요`, UC-INT-07, ADR §14.4 "문구는 화면 확인 대상")에서 다르다. 한쪽으로 맞출지는 문구 확인 때 정한다. FE를 바꾸면 `noticeViewOf`와 `inboxNote`의 대체 문장도 같이 본다.
+2. 예상 시간 칸에 소수를 넣으면 서버는 `Integer`로 받으며 소수점 아래를 버리고(Jackson 2 기본 `ACCEPT_FLOAT_AS_INT`. 서버를 돌려 보지 않고 설정으로 판단했다) 검사한다. mock은 소수를 `예상 시간은 5분~24시간으로 넣어 주세요.`로 거부한다. 화면은 친 값을 그대로 보낸다(최종 리뷰 M-15, "그대로 둔다"). 실제 서버에서는 `확인`이 받아들여지고 화면의 초안에는 소수가 남는다. 보내기 전에 정수로 맞출지는 ui-design이 정하지 않았다.
+
+**서버 결함 후보**(ADR과 다르게 보이는 곳. 서버를 고칠지 백엔드가 정한다):
+
+1. N4 오류 본문에 `code`가 없다. ADR §14.3은 "오류 본문은 `ProblemDetail` + `message`이고 `code` 속성을 더한다"고 적었는데, 읽을 수 없는 본문의 400에는 `code`가 없고 JSON이 아닌 본문의 415는 본문이 비어 `message`도 없다(Spring 기본). 화면은 N4 실패를 무시하거나 문구만 보이므로 동작에는 영향이 없다. 404만 `code`를 다는 것이 의도라면 ADR 문장을 고친다.
+
+**mock에 남긴 차이**(화면 확인에 영향이 없어 고치지 않았다): 401 본문(위 표), 알림 설정 PUT에서 필수 칸이 빠지면 서버는 400(`알림 설정 중 빠진 항목이 있어요. …`)인데 mock은 저장된 값을 쓴다(FE는 늘 모든 칸을 보낸다), 휴지통에 있는 원본의 접수는 서버가 422 `TASK_IN_TRASH`인데 mock은 404 `SPLIT_TARGET_NOT_FOUND`, 작업 응답의 `ALREADY_SCHEDULED`는 mock이 누구의 일정이든 본다(쪼개기 밖), 소수 예상 시간(위 열린 질문 2). 그 밖의 mock 정리 항목(`json`·`ZONE_ID` 도우미 중복, `tests/notices.test.mjs`의 `load` 사본)은 저장소의 다른 시험 파일과 같은 방식이라 그대로 두었다. 새 요청의 5초 자동 완료는 브라우저 12번이 확인한다.
+
 
 ## mock
 
@@ -150,14 +215,14 @@ FE가 부르는 모든 엔드포인트다. S1~S4·S8·S9·T1·T2·P1의 출처�
 
 - `fixtures` — 위 키마다 `{taskId, requestId}`.
 - `requests` — mock이 가진 요청 목록(저장 상태).
-- `finish(requestId, 'READY' | 'READY_WITH_VIOLATION' | 'FAILED')` — 처리 중인 요청을 끝내고 작업 변경 신호를 보낸다.
+- `finish(requestId, 'READY' | 'READY_WITH_VIOLATION' | 'FAILED')` — 처리 중인 요청을 끝내고 작업 변경 신호를 보낸다. `READY_WITH_VIOLATION`의 일반 제안은 둘째 조각이 보정 후 4시간 이상이다(300분·난이도 5).
 - `settings` — `available`, `consented`, `used`, `limit`을 바꾼다.
 - `setAutoFinish(ms | null)` — 새 요청이 저절로 준비되기까지의 시간(기본 5000ms). `null`이면 저절로 끝나지 않는다.
 - `failNextApply('EXPIRED' | 'ADMIN_ONLY' | 'UNEXPECTED' | null)` — 다음 만들기 한 번을 그 거부로 답한다(UNEXPECTED는 순환 안전장치 `STATE_CONFLICT`). 시안의 "시안 전용" 선택 상자 대신이다.
 
 준비된 fixture의 제안은 처음 읽을 때 만든다: `ready`는 시안의 온보딩 제안, `violation`은 보정 후 6시간인 조각이 낀 세 조각, `allExcluded`는 AI가 모두 뺀 세 조각, 그 밖은 2~4조각의 일반 제안이다. 버림 fixture는 버리기 되돌리기용 제안을 가진다.
 
-알림함 mock은 `ready`의 준비 알림(안 읽음), `failed`의 실패 알림(안 읽음), `applied`의 준비 알림(읽음)을 깔아 둔다. 요청이 끝나면(`finish`, 자동 준비) 1.5초 뒤에 알림을 만든다(서버에서 알림이 신호보다 늦게 생기는 것을 흉내 낸다). 응답 지연은 `__pinitMock.setLatency(ms)`로 바꾼다(새로 고쳐도 남는다).
+알림함 mock은 `ready`의 준비 알림(안 읽음), `failed`의 실패 알림(안 읽음), `applied`의 준비 알림(읽음)을 깔아 둔다. 목록은 최근 100건, 안 읽은 수는 전부다. 묶어 읽기(N4)의 본문과 오류 본문(400·404의 `ProblemDetail` + `message`, 404의 `code`, JSON이 아닌 본문의 415)은 서버와 같게 답한다. 요청이 끝나면(`finish`, 자동 준비) 1.5초 뒤에 알림을 만든다(서버에서 알림이 신호보다 늦게 생기는 것을 흉내 낸다). 응답 지연은 `__pinitMock.setLatency(ms)`로 바꾼다(새로 고쳐도 남는다).
 
 ## 화면으로 확인받을 것
 
@@ -273,7 +338,7 @@ B단계: 시안 저장소에 이미 설치된 의존성으로 시안의 Vite 개
 ## 검증
 
 - 단위 시험: `tests/task-split-*.test.mjs`(API 모듈, 잠금 이유, mock 핸들러와 검사·만들기·되돌리기, 다듬기 상태와 화면 판정, 문구, 지도 배치, 조각 창, 제안 화면, 만들기, 요약·명령, 시작 흐름, 카드·상세 표시, 보관함), `tests/notices.test.mjs`, `tests/notification-preferences.test.mjs`, `tests/term-help.test.mjs`, `tests/confirm-dialog.test.mjs`, `tests/long-description.test.mjs`. `npm test`·`npm run lint`·`npm run build`가 통과한다(빌드는 기존 청크 크기 경고만).
-- 브라우저: `node qa/task-split/local.mjs`가 Vite 개발 서버(mock)와 Chromium으로 위 38단계를 두 뷰포트(390×844 손가락 입력, 1280×800)에서 걷는다. 단계마다 문구를 확인하고 페이지 가로 넘침(`scrollWidth <= 뷰포트 너비`)을 확인한다. 캡처는 최종 리뷰 수정(`8c4ef4f`~`c4b08f3`) 위에서 다시 찍었다.
+- 브라우저: `node qa/task-split/local.mjs`가 Vite 개발 서버(mock)와 Chromium으로 위 38단계를 두 뷰포트(390×844 손가락 입력, 1280×800)에서 걷는다. 단계마다 문구를 확인하고 페이지 가로 넘침(`scrollWidth <= 뷰포트 너비`)을 확인한다. 캡처는 최종 리뷰 수정(`8c4ef4f`~`c4b08f3`) 위에서 다시 찍었다. 서버 계약 대조(`2026-11-17`)의 변경 뒤에도 38단계 × 두 뷰포트를 다시 돌려 통과했고, 그림이 바뀐 화면이 없어(달라진 것은 `N분 전` 같은 시각뿐) 캡처는 그대로 두었다.
 - console 오류: console error와 pageerror가 하나라도 있으면 실패한다. 예외는 일부러 만든 거부의 HTTP 기록이고, 뷰포트마다 경우별로 줄 수를 단언한다: 만들기 거부 UNEXPECTED·ADMIN_ONLY·EXPIRED 각 2줄, 없는 요청 열기 4줄. 거부된 응답 하나가 두 줄인 까닭: `src/shared/api/httpClient.ts`의 요청 함수가 오류 응답에 `❌ API Error`를 찍고 `ApiError`를 던지면, 같은 함수의 바깥 `catch`가 그것을 받아 `🔥 API Error caught`를 찍고 다시 던진다. 없는 요청이 4줄인 까닭: 개발 서버는 `StrictMode`(`src/main.tsx`)라 처음 붙을 때 effect를 한 번 더 돌려 제안을 두 번 읽는다(운영 빌드에서는 한 번).
 - 테마: 15·17·19·29번은 밝은 테마와 어두운 테마로 찍었다. "글자와 바탕의 대비가 깨진 곳이 없다"는 캡처를 눈으로 본 판단이고, 대비를 잰 것이 아니다.
 - ui-design §11에서 "확인하지 않은 것"으로 남았던 모바일에서 "?" 설명 누르기(20), 권한·만료 거부 화면(27·31·33), 알림을 눌러 이동(15), 조각 내용 창의 "확인"(18·19)을 확인했다.
@@ -288,7 +353,7 @@ B단계: 시안 저장소에 이미 설치된 의존성으로 시안의 Vite 개
   - `SPLIT_REQUEST_NOT_READY` + `currentStatus: READY`의 조용한 다시 읽기: 같은 파일 "요청이 아직 준비됨인데 거부되면 제안을 다시 읽게 한다", `tests/task-split-proposal.test.mjs` "요청이 아직 준비됨인데 검사가 거부되면 제안을 다시 읽고 고치던 조각을 잇는다".
   - `모두 읽음` 실패 토스트(`알림을 읽음으로 하지 못했어요.`): 브라우저에서도 단위 시험에서도 확인하지 않았다(성공은 37번).
   - 브라우저로 확인한 것으로 옮긴 것: 만드는 동안 조각 조작의 잠금(29), `모두 읽음`(37), 만료 말고 열 수 없는 제안 세 갈래(38), 작업 맵으로 기록을 바꾸는 이동과 토스트 하나(29).
-- 확인하지 않은 것: 실제 서버(X2·X4·X5·X6)·DB와의 연결과 계약 대조(다음 과업), 실제 인증·세션 갱신, 실제 푸시와 서비스 워커(캡처는 서비스 워커를 막고 찍었다), 실시간 스트림의 실제 `SPLIT_CHANGED` 전달과 지연, 조각 50개짜리 제안의 사용감, 실제 기기·스크린 리더, 운영 배포. 서비스 워커 캐시 버전은 `pinit-cache-v36`으로 올렸다(`tests/service-worker-cache-version.test.mjs`).
+- 확인하지 않은 것: 실제 서버(X2·X4·X5·X6)·DB와의 연결(계약은 서버 코드를 읽어 대조했다. 아래 "서버와 대조한 기록"), 실제 인증·세션 갱신, 실제 푸시와 서비스 워커(캡처는 서비스 워커를 막고 찍었다), 실시간 스트림의 실제 `SPLIT_CHANGED` 전달과 지연, 조각 50개짜리 제안의 사용감, 실제 기기·스크린 리더, 운영 배포. 서비스 워커 캐시 버전은 `pinit-cache-v37`로 올렸다(`tests/service-worker-cache-version.test.mjs`).
 
 ## 브라우저 확인에서 찾은 결함(모두 고침)
 

@@ -573,3 +573,85 @@ test('검사와 만들기는 같은 본문 판정을 쓴다', async () => {
     assert.equal((await api(route, 'POST', { pieces: pieces.map((p) => ({ ...p, after: [1] })) })).status, 400, action)
   }
 })
+
+// 서버 코드와 대조하며 맞춘 곳(BE 계약 대조).
+test('연결 일정은 요청하는 회원 본인의 일정만 본다(서버 findAllByOwnerIdAndTaskIdIn(actor, …))', async () => {
+  const { api, split, load } = setup()
+  const f = split.mockSplitFixtures
+  const { mockSchedules } = load('src/mocks/db.ts')
+  mockSchedules.push({ ...mockSchedules.find((s) => s.taskId === f.linked.taskId), id: 99_001, ownerId: 2, taskId: f.free.taskId })
+  const free = (await api(`/v2/workspace/tasks/${f.free.taskId}`)).body
+  assert.equal(JSON.stringify(free.split.cannotRequestReasons), '[]')
+  assert.equal(free.split.canRequest, true)
+})
+test('한도로 거부된 접수는 만료된 제안을 만료로 바꿔 두지 않는다(서버는 한 트랜잭션이라 함께 되돌린다)', async () => {
+  const { api, split, state } = setup()
+  const f = split.mockSplitFixtures
+  await api('/v2/task-splits/consent', 'PUT', { disclosureVersion: '1' })
+  split.mockSplitSettings.used = split.mockSplitSettings.limit
+  const before = state.latestChangeId()
+  const full = await api('/v2/task-splits', 'POST', { taskId: f.expired.taskId })
+  assert.equal(full.status, 429)
+  assert.equal(split.mockSplitRequests.find((r) => r.requestId === f.expired.requestId).status, 'READY')
+  assert.equal(state.latestChangeId(), before)
+})
+test('fixture에 적은 조각 수는 만들어 둔 제안의 수와 같다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  const counts = async () =>
+    JSON.stringify((await api('/v2/task-splits')).body.items.map((i) => [i.requestId, i.pieceCount, i.excludedCount]))
+  const before = await counts()
+  for (const key of ['ready', 'violation', 'adminOnly', 'allExcluded']) await api(`/v2/task-splits/${f[key].requestId}`)
+  assert.equal(await counts(), before)
+  // 보관함에 없는 준비됨 fixture(만료, 다른 참여자)도 저장된 수가 제안과 같다.
+  for (const key of ['expired', 'otherReady', 'discarded']) {
+    const request = split.mockSplitRequests.find((r) => r.requestId === f[key].requestId)
+    const item = split.itemOf(request)
+    assert.equal(`${key}:${item.pieceCount}/${item.excludedCount}`, `${key}:${request.pieceCount}/${request.excludedCount}`)
+  }
+})
+test('위반이 남은 채 준비된 요청의 일반 제안에는 4시간 이상인 조각이 있다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  split.finishMockSplit(f.queued.requestId, 'READY_WITH_VIOLATION')
+  const detail = (await api(`/v2/task-splits/${f.queued.requestId}`)).body
+  assert.equal(detail.request.violationRemaining, true)
+  assert.equal(detail.proposal.violationRemaining, true)
+  assert.ok(detail.check.overCount >= 1, `overCount ${detail.check.overCount}`)
+  split.finishMockSplit(f.running.requestId, 'READY')
+  assert.equal((await api(`/v2/task-splits/${f.running.requestId}`)).body.check.overCount, 0)
+})
+test('되풀이하는 제목은 한도 자리가 서로게이트 쌍의 가운데면 그 글자 앞에서 자른다', () => {
+  const title = `${'가'.repeat(19)}😀끝`
+  const r = run([piece('a', { title }), piece('c')])
+  assert.equal(of(r, 'c').orderChoices.find((c) => c.key === 'a').title, `${'가'.repeat(19)}…`)
+})
+test('빈 글인지는 Java isBlank처럼 본다: NBSP만 있는 제목·설명은 비어 있지 않다', () => {
+  const nbsp = run([piece('a', { title: ' ', description: '  ' })])
+  assert.equal(JSON.stringify(of(nbsp, 'a').errors), '[]')
+  const blank = run([piece('a', { title: ' \t　', description: '\n ' })])
+  assert.equal(JSON.stringify(of(blank, 'a').errors.map((e) => e.field)), '["title","description"]')
+  // JS trim은 BOM을 지우지만 Java isWhitespace는 BOM을 공백으로 보지 않는다.
+  assert.equal(JSON.stringify(of(run([piece('a', { title: '﻿' })]), 'a').errors), '[]')
+})
+test('칸 오류의 문구와 순서는 서버 SplitDraftCheck와 같다(제목, 설명, 시간, 난이도, 마감, 이전 조각)', () => {
+  const r = run([piece('a', { title: '', description: '', minutes: 4, difficulty: 4, dueDate: null, after: ['zz'] })])
+  assert.equal(
+    JSON.stringify(of(r, 'a').errors),
+    JSON.stringify([
+      { field: 'title', message: '제목은 1~20자로 입력해 주세요.' },
+      { field: 'description', message: '설명은 1~2,000자로 입력해 주세요.' },
+      { field: 'minutes', message: '예상 시간은 5분~24시간으로 넣어 주세요.' },
+      { field: 'difficulty', message: '난이도는 1, 2, 3, 5, 8, 13, 21 중에서 골라 주세요.' },
+      { field: 'dueDate', message: '마감 날짜를 넣어 주세요.' },
+      { field: 'after', message: '없는 조각은 이전 조각으로 고를 수 없어요.' },
+    ]),
+  )
+  assert.equal(of(run([piece('a', { minutes: 1441 })]), 'a').errors[0].message, '예상 시간은 5분~24시간으로 넣어 주세요.')
+  assert.equal(of(run([piece('a', { description: 'x'.repeat(2001) })]), 'a').errors[0].field, 'description')
+  assert.equal(of(run([piece('a', { dueDate: '2026-11-16' })]), 'a').errors[0].message, '이미 지난 날짜예요. 오늘 이후로 넣어 주세요.')
+  assert.equal(of(run([piece('a', { dueDate: '2026-11-26' })]), 'a').errors[0].message, '원본 마감(11/25)보다 늦을 수 없어요.')
+  assert.equal(of(run([piece('a', { dueDate: '2026-11-31' })]), 'a').errors[0].message, '마감 날짜를 넣어 주세요.')
+  const cycle = run([piece('a', { after: ['b'] }), piece('b', { after: ['a'] })])
+  assert.equal(of(cycle, 'a').errors[0].message, '이전 조각을 따라가면 이 조각으로 돌아와요. 순서를 고쳐 주세요.')
+})

@@ -18,7 +18,7 @@ Playwright는 [qa/plan-integration](../plan-integration/README.md)과 같이 `qa
 - 단계마다 두 뷰포트 모두 페이지가 가로로 넘치지 않는지(`scrollWidth <= 뷰포트 너비`) 본다. 지도 상자 안의 스크롤은 페이지 너비에 들지 않는다.
 - console error나 pageerror가 하나라도 있으면 실패로 끝난다. 예외는 일부러 만든 거부의 응답을 앱의 HTTP 도우미(`src/shared/api/httpClient.ts`)가 남기는 `API Error` 기록이다. 그 창 안의 그 경로 기록만 `expected`로 따로 세고, 뷰포트마다 경우별 줄 수를 단언한다: `failNextApply`의 UNEXPECTED·ADMIN_ONLY·EXPIRED 각 2줄(오류 응답에 `❌ API Error`를 찍고 던진 것을 같은 함수의 바깥 catch가 `🔥 API Error caught`로 한 번 더 찍는다), 없는 요청 열기(404) 4줄(개발 서버의 StrictMode가 처음 붙을 때 effect를 한 번 더 돌려 두 번 읽는다).
 - 끝에 `note …` 줄로 리뷰가 브라우저에서 봐 달라고 한 측정값(종과 패널의 위치·색, 조각 창의 층과 초점, 만드는 동안 잠긴 버튼, 늦게 생긴 알림의 종 숫자 변화 등)을 찍는다.
-- 29번은 만들기 응답을 `__pinitMock.setLatency(1500)`으로 늦춰 그 사이 잠김을 보고 바로 0으로 되돌린다. 작업 맵에서는 `page.goBack()`이 제안 화면으로 가지 않는 것을 보고 `page.goForward()`로 돌아온다(기록 이동은 새로 읽지 않는다). 38번은 `history.pushState`와 `popstate`로 앱 안에서 주소를 바꾼다.
+- 29번은 만들기 응답을 `__pinitMock.setLatency(1500)`으로 늦춰 그 사이 잠김을 보고 바로 0으로 되돌린다. 작업 맵에서는 `page.goBack()`이 제안 화면이 아니라 보관함(`/app/tasks/splits`, 28번에서 제안을 연 자리)으로 가는 것을 보고 `page.goForward()`로 돌아온다(기록 이동은 새로 읽지 않는다). 38번은 `history.pushState`와 `popstate`로 앱 안에서 주소를 바꾼다.
 
 선택 환경 변수: `QA_VIEWPORT=mobile|desktop`(한 뷰포트만), `QA_VERBOSE=1`(측정값을 단계마다 찍는다), `QA_FAILED_DIR`(실패한 단계의 화면을 남길 폴더. 없으면 운영체제 임시 폴더).
 
