@@ -37,8 +37,8 @@ await server.listen()
 
 const errors = []
 /**
- * 일부러 거부시킨 만들기(`failNextApply`)의 응답은 앱의 HTTP 도우미가 console.error로 남긴다. 그 창 안에서 만들기 경로의
- * 오류 기록만 기대한 것으로 따로 세고, 그 밖의 console error는 모두 실패로 본다.
+ * 일부러 거부시킨 만들기(`failNextApply`)와 없는 요청 열기(404)의 응답은 앱의 HTTP 도우미가 console.error로 남긴다.
+ * 그 창 안에서 그 경로의 오류 기록만 기대한 것으로 따로 세고(뷰포트마다, 경우마다 줄 수를 맞춘다), 그 밖의 console error는 모두 실패로 본다.
  */
 let expectingRejection = null
 const expectedRejections = []
@@ -269,7 +269,7 @@ const mock = (page, run, arg) => page.evaluate(run, arg)
 /** `failNextApply(kind)`를 걸고 만들기를 누른다. 그 응답의 console 기록은 기대한 것으로 센다. */
 const applyRejected = async (page, kind, settled) => {
   await mock(page, (value) => window.__pinitMock.split.failNextApply(value), kind)
-  expectingRejection = kind
+  expectingRejection = { label: kind, url: /\/v2\/task-splits\/\d+\/apply\b/ }
   try {
     await applyButton(page).click()
     await settled()
@@ -346,6 +346,8 @@ const walkProposal = async (page, viewport) => {
     const label = await bell(page).getAttribute('aria-label')
     assert.match(label, /^알림, 새 알림/)
     const badge = page.locator('.split-badge').filter({ visible: true }).first()
+    // 종 옆에 보이는 숫자 자체도 2다.
+    assert.equal((await badge.innerText()).trim(), '2')
     note(viewport, 'bell', {
       label,
       badge: await badge.innerText(),
@@ -718,9 +720,44 @@ const walkProposal = async (page, viewport) => {
     viewport,
     'applied-map',
     async () => {
+      // 만드는 동안 조각을 바꾸는 모든 조작이 잠긴다. 응답을 늦춰 그 사이를 본다.
+      await mock(page, () => window.__pinitMock.setLatency(1500))
       await applyButton(page).click()
+      await applyButton(page).getByText('만드는 중…').waitFor()
+      const locked = await page.evaluate(() => {
+        const disabled = (selector) => [...document.querySelectorAll(selector)].map((element) => element.disabled)
+        return {
+          remove: disabled('.split-map__remove'),
+          toolbar: disabled('.split-toolbar .split-view__undo'),
+          include: disabled('.split-dropped button'),
+          discard: disabled('.split-page__discard'),
+          apply: disabled('.split-apply button'),
+        }
+      })
+      await mock(page, () => window.__pinitMock.setLatency(0))
+      note(viewport, 'applying locks', locked)
+      for (const [name, states] of Object.entries(locked))
+        assert.ok(states.length > 0 && states.every(Boolean), `만드는 동안 ${name}이 켜져 있다(${JSON.stringify(states)})`)
+      // 조각 카드를 누르면 읽기 창은 열리지만 그 안의 버튼(빼기·고치기·닫기)은 모두 꺼져 있다.
+      await mapNodes(page).first().locator('.split-map__title').click()
+      const dialogButtons = await pieceDialog(page)
+        .locator('button')
+        .evaluateAll((items) => items.map((item) => `${item.getAttribute('aria-label') ?? item.textContent.trim()}:${item.disabled}`))
+      note(viewport, 'applying dialog buttons', dialogButtons)
+      assert.ok(dialogButtons.length > 0 && dialogButtons.every((line) => line.endsWith(':true')), `만드는 동안 조각 창의 버튼이 켜져 있다(${dialogButtons})`)
       await page.waitForURL(/\/app\/task-map$/)
       await toast(page, '조각 5개를 만들었어요.')
+      await toastAction(page, '조각 5개를 만들었어요.').waitFor()
+      // 작업 맵에는 만들었다는 토스트 하나뿐이다.
+      assert.deepEqual(await page.locator('.toast .toast__message').allInnerTexts(), ['조각 5개를 만들었어요.'])
+      // 제안 화면은 기록에서 바뀌었다: 뒤로 가기가 제안 화면으로 돌아가지 않는다. 앞으로 가기로 작업 맵에 돌아온다.
+      await page.goBack()
+      await page.waitForFunction(() => location.pathname !== '/app/task-map')
+      const backTo = new URL(page.url()).pathname
+      note(viewport, 'applied-map back', backTo)
+      assert.ok(!/^\/app\/tasks\/splits\/\d+$/.test(backTo), `뒤로 가기가 제안 화면(${backTo})으로 갔다`)
+      await page.goForward()
+      await page.waitForURL(/\/app\/task-map$/)
       await toastAction(page, '조각 5개를 만들었어요.').waitFor()
       const titles = ['현재 온보딩 흐름 정리', '이탈 구간 데이터 뽑기', '개편안 스케치 3종', '팀 리뷰 받기', '최종안 문서화']
       // 작업 맵은 화면 밖 카드를 그리지 않는다. 다섯 조각이 지도에 있는지는 "작업으로 이동" 목록으로 보고,
@@ -851,6 +888,51 @@ const walkProposal = async (page, viewport) => {
     assert.equal(await page.locator('.toast--error, .toast[data-type="error"]').count(), 0)
     await row.scrollIntoViewIfNeeded()
   })
+
+  await step(page, viewport, 'read-all', async () => {
+    // 35번에서 남은 안 읽은 알림(사내 위키 이전 계획의 준비 알림)을 모두 읽음으로 한다.
+    assert.ok((await unreadOf(page)) > 0, '모두 읽음 전에 안 읽은 알림이 없다')
+    await bell(page).click()
+    const panel = page.locator('.split-panel')
+    await panel.locator('.notice').first().waitFor()
+    await button(panel, '모두 읽음').click()
+    await page.waitForFunction(() => !document.querySelector('.split-badge'))
+    assert.equal(await panel.locator('.notice[data-unread]').count(), 0)
+    assert.equal(await button(panel, '모두 읽음').count(), 0)
+    assert.equal(await bell(page).getAttribute('aria-label'), '알림')
+  })
+  await page.keyboard.press('Escape')
+  await page.locator('.split-panel').waitFor({ state: 'detached' })
+
+  // 만료 말고 제안을 열 수 없는 길. 주소를 앱 안에서 바꿔(새로 읽지 않는다) 연다.
+  await step(page, viewport, 'not-openable', async () => {
+    const ids = await mock(page, () => {
+      const { fixtures } = window.__pinitMock.split
+      return { applied: fixtures.applied.requestId, cancelled: fixtures.cancelled.requestId, running: fixtures.running.requestId }
+    })
+    const go = (target) =>
+      page.evaluate((to) => {
+        window.history.pushState({}, '', to)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      }, target)
+    await go(`/app/tasks/splits/${ids.running}`)
+    await page.waitForURL(/\/app\/tasks\/splits$/)
+    await go(`/app/tasks/splits/${ids.cancelled}`)
+    await visible(page.locator('main'), '이미 처리된 요청이에요.')
+    // 없는 요청은 404다. 그 응답의 HTTP 기록도 기대한 것으로 센다.
+    expectingRejection = { label: 'NOT_FOUND', url: /\/v2\/task-splits\/999999\b/ }
+    try {
+      await go('/app/tasks/splits/999999')
+      await visible(page.locator('main'), '더 이상 볼 수 없는 제안이에요.')
+    } finally {
+      expectingRejection = null
+    }
+    await settle(page)
+    await page.screenshot({ path: path.join(output, `${viewport}-38-not-openable-missing.png`) })
+    await go(`/app/tasks/splits/${ids.applied}`)
+    await visible(page.locator('main'), '이미 처리된 요청이에요.')
+    await page.locator('main').getByRole('link', { name: '보관함으로', exact: true }).waitFor()
+  })
 }
 
 let browser
@@ -875,8 +957,8 @@ try {
     page.on('console', (message) => {
       if (message.type() !== 'error') return
       const text = message.text()
-      if (expectingRejection && /API Error/.test(text) && /\/v2\/task-splits\/\d+\/apply/.test(text))
-        expectedRejections.push(`${viewport} ${expectingRejection}: ${text}`)
+      if (expectingRejection && /API Error/.test(text) && expectingRejection.url.test(text))
+        expectedRejections.push(`${viewport} ${expectingRejection.label}: ${text}`)
       else errors.push(`${viewport} console: ${text}`)
     })
     await login(page)
@@ -886,7 +968,17 @@ try {
   }
   for (const line of notes) console.log(`note ${line}`)
   for (const line of expectedRejections) console.log(`expected ${line}`)
-  assert.equal(expectedRejections.length, Object.keys(viewports).filter((name) => !process.env.QA_VIEWPORT || name === process.env.QA_VIEWPORT).length * 6, '일부러 거부시킨 만들기 세 번의 기록(각 두 줄)이 아니다')
+  // 거부된 응답 하나는 두 줄을 남긴다: httpClient가 오류 응답을 받으면 `❌ API Error`를 찍고 ApiError를 던지며,
+  // 같은 함수의 바깥 catch가 그것을 받아 `🔥 API Error caught`를 찍고 다시 던진다(src/shared/api/httpClient.ts).
+  // 없는 요청 열기는 제안을 두 번 읽는다: 개발 서버는 StrictMode라 처음 붙을 때 effect를 한 번 더 돌린다(src/main.tsx).
+  const expectedLines = { UNEXPECTED: 2, ADMIN_ONLY: 2, EXPIRED: 2, NOT_FOUND: 4 }
+  for (const viewport of Object.keys(viewports).filter((name) => !process.env.QA_VIEWPORT || name === process.env.QA_VIEWPORT))
+    for (const [label, count] of Object.entries(expectedLines))
+      assert.equal(
+        expectedRejections.filter((line) => line.startsWith(`${viewport} ${label}: `)).length,
+        count,
+        `${viewport} ${label}: 기대한 HTTP 오류 기록이 ${count}줄이 아니다`,
+      )
   assert.deepEqual(errors, [], `브라우저 오류:\n${errors.join('\n')}`)
   console.log('task-split local check passed')
 } finally {
