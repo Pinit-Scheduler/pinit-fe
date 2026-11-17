@@ -1,4 +1,4 @@
-import { useId, useSyncExternalStore } from 'react'
+import { useEffect, useId, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import Modal from './Modal'
 import { answerConfirm, currentConfirm, subscribeConfirm } from './confirm'
@@ -9,6 +9,9 @@ const ConfirmHost = () => {
   const ask = useSyncExternalStore(subscribeConfirm, currentConfirm)
   const titleId = useId()
   const bodyId = useId()
+  // 앱 셸이 사라지면(로그아웃, 계정 전환으로 다시 세움) 떠 있던 창은 "아니오"로 끝낸다. 저장소는 모듈에 있어
+  // 그대로 두면 다음 로그인 뒤 같은 창이 다시 뜨고, 확인하면 지난 계정의 동작이 실행된다.
+  useEffect(() => () => answerConfirm(false), [])
   if (!ask) return null
   return createPortal(
     <Modal

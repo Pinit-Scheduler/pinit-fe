@@ -44,3 +44,32 @@ test('바뀔 때마다 구독자가 불리고, 떠 있는 창이 없으면 답�
   void c.askConfirm(ask)
   assert.equal(calls, 3)
 })
+
+test('확인 창 자리가 사라지면(로그아웃·계정 전환) 떠 있던 창은 아니오로 끝난다', async () => {
+  const { hookRunner } = await import('./support/hooks.mjs')
+  const jsxRuntime = await import('react/jsx-runtime')
+  const confirm = load()
+  const runner = hookRunner()
+  const source = readFileSync(new URL('../src/shared/components/common/ConfirmHost.tsx', import.meta.url), 'utf8')
+  const { outputText } = ts.transpileModule(source, {
+    fileName: 'ConfirmHost.tsx',
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  })
+  const deps = {
+    react: { ...runner.react, useId: () => 'id' },
+    'react/jsx-runtime': jsxRuntime,
+    'react-dom': { createPortal: (node) => node },
+    './Modal': { default: () => null },
+    './confirm': confirm,
+    './ConfirmDialog.css': {},
+  }
+  const module = { exports: {} }
+  vm.runInNewContext(outputText, { module, exports: module.exports, document: { querySelector: () => null, body: {} }, require: (name) => deps[name] })
+  const Host = module.exports.default
+  runner.render(Host)
+  const answer = confirm.askConfirm(ask)
+  runner.render(Host)
+  runner.unmount()
+  assert.equal(await answer, false)
+  assert.equal(confirm.currentConfirm(), null)
+})
