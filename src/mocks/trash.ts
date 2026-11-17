@@ -60,6 +60,26 @@ export const moveTaskToTrash = (taskId: number, deleteSchedules: boolean) => {
   return true
 }
 
+/** 휴지통에 있는 작업과 보낸 시각. 없으면 null. */
+export const trashedTaskOf = (taskId: number): { task: Task; deletedAt: string } | null => {
+  const entry = trashedTasks.find(({ task }) => task.id === taskId)
+  return entry ? { task: entry.task, deletedAt: entry.deletedAt } : null
+}
+
+const restoreEntry = (entry: TrashedTaskEntry) => {
+  trashedTasks = trashedTasks.filter((item) => item !== entry)
+  mockTasks.push(entry.task)
+  entry.schedules.forEach((schedule) => mockSchedules.push({ ...schedule, taskId: entry.task.id }))
+}
+
+/** 휴지통의 작업을 함께 보낸 일정과 같이 되살린다. 휴지통에 없으면 false. */
+export const restoreTaskFromTrash = (taskId: number) => {
+  const entry = trashedTasks.find(({ task }) => task.id === taskId)
+  if (!entry) return false
+  restoreEntry(entry)
+  return true
+}
+
 /** DELETE /schedules/{id}: 일정을 휴지통으로. */
 export const moveScheduleToTrash = (scheduleId: number) => {
   const schedule = removeSchedule(scheduleId)
@@ -118,10 +138,11 @@ export const handleTrash = (path: string, method: string) => {
     const id = Number(taskMatch[1])
     const entry = trashedTasks.find(({ task }) => task.id === id)
     if (!entry) return notFound()
-    trashedTasks = trashedTasks.filter((item) => item !== entry)
-    if (!restore) return noContent()
-    mockTasks.push(entry.task)
-    entry.schedules.forEach((schedule) => mockSchedules.push({ ...schedule, taskId: id }))
+    if (!restore) {
+      trashedTasks = trashedTasks.filter((item) => item !== entry)
+      return noContent()
+    }
+    restoreEntry(entry)
     return json({
       taskId: id,
       restoredScheduleIds: entry.schedules.map((schedule) => schedule.id),

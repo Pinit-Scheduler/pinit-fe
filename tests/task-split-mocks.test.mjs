@@ -275,3 +275,238 @@ test('처리가 끝나면 일반 제안이 함께 생기고 보관함의 조각 
   assert.equal(item.pieceCount, 3)
   assert.equal(item.excludedCount, 0)
 })
+
+// 만들기(S7)와 되돌리기(S10·S11). 만들기는 서버 `SplitApplyService`·`SplitApplyWriter`·`SplitInheritance`를,
+// 되돌리기는 ADR-0035 §13과 합의한 계약(백엔드 X5 계획)을 따른다.
+const open = async (api, id) => (await api(`/v2/task-splits/${id}`)).body.proposal.pieces
+test('만들면 조각 작업이 생기고 원본은 휴지통으로 가며, 되돌리면 그대로 돌아온다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures.ready
+  const pieces = await open(api, f.requestId)
+  const applied = await api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces })
+  assert.equal(applied.status, 200)
+  assert.equal(applied.body.request.status, 'APPLIED')
+  assert.equal(applied.body.created.length, 5)
+  assert.equal(applied.body.trashedTaskId, f.taskId)
+  assert.equal((await api(`/v2/workspace/tasks/${f.taskId}`)).status, 404)
+  const made = (await api(`/v2/workspace/tasks/${applied.body.created[0].taskId}`)).body
+  assert.equal(made.task.title, '현재 온보딩 흐름 정리')
+  assert.equal(made.split.lock, null)
+  assert.equal((await api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces })).body.split.currentStatus, 'APPLIED')
+  const undone = await api(`/v2/task-splits/${f.requestId}/undo-apply`, 'POST')
+  assert.equal(undone.body.request.status, 'READY')
+  assert.equal(undone.body.restoredTaskId, f.taskId)
+  assert.equal(JSON.stringify(undone.body.notRestored), '[]')
+  assert.equal((await api(`/v2/workspace/tasks/${applied.body.created[0].taskId}`)).status, 404)
+  assert.equal((await api(`/v2/workspace/tasks/${f.taskId}`)).body.split.lock.stage, 'PROPOSAL_READY')
+  const again = await api(`/v2/task-splits/${f.requestId}/undo-apply`, 'POST')
+  assert.equal(again.status, 409)
+  assert.equal(again.body.split.undoReason, 'STATE')
+})
+test('조각 문제로 거부할 때 검사 결과를 함께 준다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures.ready
+  const pieces = (await open(api, f.requestId)).map((p) => (p.key === 'a' ? { ...p, title: '' } : p))
+  const refused = await api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces })
+  assert.equal(refused.status, 422)
+  assert.equal(refused.body.code, 'SPLIT_INVALID_PIECES')
+  assert.equal(refused.body.split.check.problemCount, 1)
+  assert.equal((await api(`/v2/task-splits/${f.requestId}`)).body.request.status, 'READY')
+  const none = pieces.map((p) => ({ ...p, selected: false }))
+  assert.equal((await api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces: none })).body.code, 'SPLIT_NOTHING_SELECTED')
+})
+test('권한을 잃은 요청과 미리 정한 거부', async () => {
+  const { api, split, proposals } = setup()
+  const f = split.mockSplitFixtures
+  const admin = await api(`/v2/task-splits/${f.adminOnly.requestId}/apply`, 'POST', { pieces: await open(api, f.adminOnly.requestId) })
+  assert.equal(admin.status, 422)
+  assert.equal(JSON.stringify(admin.body.split.reasons), '["ADMIN_ONLY"]')
+  const pieces = await open(api, f.ready.requestId)
+  proposals.failNextMockApply('EXPIRED')
+  assert.equal((await api(`/v2/task-splits/${f.ready.requestId}/apply`, 'POST', { pieces })).body.split.currentStatus, 'EXPIRED')
+  proposals.failNextMockApply('UNEXPECTED')
+  const odd = await api(`/v2/task-splits/${f.ready.requestId}/apply`, 'POST', { pieces })
+  assert.equal(odd.status, 409)
+  assert.equal(odd.body.code, 'STATE_CONFLICT')
+  assert.equal((await api(`/v2/task-splits/${f.ready.requestId}/apply`, 'POST', { pieces })).status, 200)
+})
+test('버린 제안은 되돌릴 수 있고 실패 항목은 되돌릴 수 없다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  await api(`/v2/task-splits/${f.ready.requestId}/discard`, 'POST')
+  const undone = await api(`/v2/task-splits/${f.ready.requestId}/undo-discard`, 'POST')
+  assert.equal(undone.body.request.status, 'READY')
+  assert.equal((await api(`/v2/workspace/tasks/${f.ready.taskId}`)).body.split.lock.mine, true)
+  await api(`/v2/task-splits/${f.failed.requestId}/discard`, 'POST')
+  const refused = await api(`/v2/task-splits/${f.failed.requestId}/undo-discard`, 'POST')
+  assert.equal(refused.status, 409)
+  assert.equal(refused.body.code, 'SPLIT_UNDO_NOT_AVAILABLE')
+  assert.equal(refused.body.split.undoReason, 'STATE')
+})
+
+/** 원본(ready)에 선행 둘(하나는 반복 회차)과 후행 하나를 건다. */
+const withNeighbors = (load, split, workspace) => {
+  const { mockTasks } = load('src/mocks/db.ts')
+  const f = split.mockSplitFixtures.ready
+  const make = (title) => workspace.mockWorkspaceRemote.createTask(title, { spaceId: -1, projectId: null, assigneeId: 1 }, 1).task.id
+  const [before, recurring, after] = [make('앞 작업'), make('반복 앞 작업'), make('뒤 작업')]
+  const task = (id) => mockTasks.find((t) => t.id === id)
+  task(recurring).recurrence = { id: 9, rule: 'FREQ=DAILY' }
+  task(f.taskId).previousTaskIds = [before, recurring]
+  task(f.taskId).nextTaskIds = [after]
+  task(before).nextTaskIds = [f.taskId]
+  task(recurring).nextTaskIds = [f.taskId]
+  task(after).previousTaskIds = [f.taskId]
+  return { before, recurring, after, task }
+}
+test('만들기는 원본의 선후관계를 첫 조각과 마지막 조각에 넘기고 반복 회차는 넘기지 않는다', async () => {
+  const { api, split, workspace, load, state } = setup()
+  const f = split.mockSplitFixtures.ready
+  const { before, recurring, after, task } = withNeighbors(load, split, workspace)
+  const since = state.latestChangeId()
+  // b를 빼면 c의 이전 조각은 a만 남는다
+  const pieces = (await open(api, f.requestId)).map((p) => (p.key === 'b' ? { ...p, selected: false } : p))
+  const applied = await api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces })
+  assert.equal(applied.status, 200)
+  const id = Object.fromEntries(applied.body.created.map((c) => [c.key, c.taskId]))
+  assert.equal(JSON.stringify(applied.body.created.map((c) => c.key)), '["a","c","d","e"]')
+  assert.equal(
+    JSON.stringify(applied.body.createdEdges),
+    JSON.stringify([
+      { fromTaskId: id.a, toTaskId: id.c },
+      { fromTaskId: id.c, toTaskId: id.d },
+      { fromTaskId: id.d, toTaskId: id.e },
+      { fromTaskId: before, toTaskId: id.a },
+      { fromTaskId: id.e, toTaskId: after },
+    ]),
+  )
+  assert.equal(JSON.stringify(applied.body.notInherited), JSON.stringify([{ taskId: recurring, direction: 'BEFORE', reason: 'RECURRING_TASK' }]))
+  assert.equal(JSON.stringify(task(before).nextTaskIds), JSON.stringify([id.a]))
+  assert.equal(JSON.stringify(task(after).previousTaskIds), JSON.stringify([id.e]))
+  assert.equal(JSON.stringify(task(recurring).nextTaskIds), '[]')
+  assert.equal(task(id.c).inboundDependencyCount, 1)
+  const made = (await api(`/v2/workspace/tasks/${id.c}`)).body
+  assert.equal(made.task.expectedDuration, 'PT2H30M')
+  assert.equal(made.task.importance, 6)
+  assert.equal(made.task.dueDate.zoneId, 'Asia/Seoul')
+  assert.equal(made.assigneeId, 1)
+  const changes = state.changesAfter(1, null, since).map((c) => `${c.action}:${c.resourceId}`)
+  assert.equal(JSON.stringify(changes), JSON.stringify([...Object.values(id).map((t) => `CREATED:${t}`), `DELETED:${f.taskId}`]))
+  // 되돌리면 조각과 그 간선이 사라지고 원본의 간선이 돌아온다. 반복 회차와 휴지통에 간 이웃의 간선은 돌려놓지 못한다
+  // (서버 `TrashRestorePolicy`: 양 끝이 살아 있고 반복 회차가 아니어야 한다).
+  const trash = load('src/mocks/trash.ts')
+  trash.moveTaskToTrash(after, false)
+  const since2 = state.latestChangeId()
+  const undone = await api(`/v2/task-splits/${f.requestId}/undo-apply`, 'POST')
+  assert.equal(undone.status, 200)
+  assert.equal(undone.body.restoredEdgeCount, 1)
+  assert.equal(JSON.stringify(undone.body.notRestored), JSON.stringify([{ taskId: recurring, direction: 'BEFORE' }, { taskId: after, direction: 'AFTER' }]))
+  assert.equal(JSON.stringify(task(f.taskId).previousTaskIds), JSON.stringify([before]))
+  assert.equal(JSON.stringify(task(before).nextTaskIds), JSON.stringify([f.taskId]))
+  assert.equal(task(id.a), undefined)
+  assert.equal(JSON.stringify(trash.trashedTaskOf(id.a)), 'null')
+  const actions = state.changesAfter(1, null, since2).map((c) => `${c.action}:${c.resourceId}`)
+  assert.equal(JSON.stringify(actions), JSON.stringify([...Object.values(id).map((t) => `PURGED:${t}`), `RESTORED:${f.taskId}`, `SPLIT_CHANGED:${f.taskId}`]))
+})
+test('만들기 되돌리기는 계약의 순서로 이유 하나를 낸다', async () => {
+  const fresh = async () => {
+    const ctx = setup()
+    const f = ctx.split.mockSplitFixtures.ready
+    const applied = await ctx.api(`/v2/task-splits/${f.requestId}/apply`, 'POST', { pieces: await open(ctx.api, f.requestId) })
+    return { ...ctx, f, ids: applied.body.created.map((c) => c.taskId), undo: () => ctx.api(`/v2/task-splits/${f.requestId}/undo-apply`, 'POST') }
+  }
+  const reason = async (response) => {
+    const { status, body } = await response
+    assert.equal(status, 409)
+    assert.equal(body.code, 'SPLIT_UNDO_NOT_AVAILABLE')
+    assert.equal(body.message, '더 이상 되돌릴 수 없어요.')
+    return body.split.undoReason
+  }
+  let ctx = await fresh()
+  ctx.workspace.mockWorkspaceRemote.renameTask(ctx.ids[0], '바꾼 제목')
+  ctx.split.mockSplitRequests.find((r) => r.requestId === ctx.f.requestId).expiresAt = new Date(Date.now() - 1000).toISOString()
+  assert.equal(await reason(ctx.undo()), 'EXPIRED')
+  ctx = await fresh()
+  ctx.load('src/mocks/trash.ts').restoreTaskFromTrash(ctx.f.taskId)
+  assert.equal(await reason(ctx.undo()), 'ORIGINAL_MISSING')
+  ctx = await fresh()
+  ctx.load('src/mocks/trash.ts').trashedTaskOf(ctx.f.taskId).task.title = '휴지통에서 바뀜'
+  assert.equal(await reason(ctx.undo()), 'ORIGINAL_CHANGED')
+  ctx = await fresh()
+  ctx.workspace.mockWorkspaceRemote.renameTask(ctx.ids[0], '바꾼 제목')
+  assert.equal(await reason(ctx.undo()), 'PIECES_CHANGED')
+  ctx = await fresh()
+  ctx.workspace.mockWorkspaceRemote.completeTask(ctx.ids[1])
+  assert.equal(await reason(ctx.undo()), 'PIECES_CHANGED')
+  ctx = await fresh()
+  ctx.state.placementOf('task', ctx.ids[0]).assigneeId = null   // 담당자만 바뀐 조각은 그대로다
+  assert.equal((await ctx.undo()).status, 200)
+  assert.equal((await ctx.api('/v2/task-splits/999999/undo-apply', 'POST')).body.code, 'SPLIT_REQUEST_NOT_FOUND')
+  assert.equal((await ctx.api(`/v2/task-splits/${ctx.split.mockSplitFixtures.otherReady.requestId}/undo-apply`, 'POST')).status, 404)
+})
+test('버리기 되돌리기는 계약의 순서로 이유 하나를 낸다', async () => {
+  const fresh = async () => {
+    const ctx = setup()
+    const f = ctx.split.mockSplitFixtures.ready
+    await ctx.api(`/v2/task-splits/${f.requestId}/discard`, 'POST')
+    return { ...ctx, f, undo: () => ctx.api(`/v2/task-splits/${f.requestId}/undo-discard`, 'POST') }
+  }
+  let ctx = await fresh()
+  ctx.split.mockSplitRequests.find((r) => r.requestId === ctx.f.requestId).expiresAt = new Date(Date.now() - 1000).toISOString()
+  assert.equal((await ctx.undo()).body.split.undoReason, 'EXPIRED')
+  ctx = await fresh()
+  ctx.workspace.mockWorkspaceRemote.completeTask(ctx.f.taskId)
+  const ineligible = await ctx.undo()
+  assert.equal(ineligible.body.split.undoReason, 'ORIGINAL_NOT_ELIGIBLE')
+  assert.equal(JSON.stringify(ineligible.body.split.reasons), '["TASK_COMPLETED"]')
+  ctx = await fresh()
+  ctx.load('src/mocks/trash.ts').moveTaskToTrash(ctx.f.taskId, false)
+  assert.equal(JSON.stringify((await ctx.undo()).body.split.reasons), '["TASK_IN_TRASH"]')
+  ctx = await fresh()
+  ctx.workspace.mockWorkspaceRemote.renameTask(ctx.f.taskId, '바꾼 원본')
+  assert.equal((await ctx.undo()).body.split.undoReason, 'ORIGINAL_CHANGED')
+  ctx = await fresh()
+  await ctx.api('/v2/task-splits/consent', 'PUT', { disclosureVersion: '1' })
+  assert.equal((await ctx.api('/v2/task-splits', 'POST', { taskId: ctx.f.taskId })).status, 201)
+  assert.equal((await ctx.undo()).body.split.undoReason, 'OTHER_REQUEST_EXISTS')
+  ctx = await fresh()
+  const before = ctx.state.latestChangeId()
+  assert.equal((await ctx.undo()).status, 200)
+  assert.equal(JSON.stringify(ctx.state.changesAfter(1, null, before).map((c) => c.action)), '["SPLIT_CHANGED"]')
+})
+test('fixture의 버림·적용됨 요청과 처리가 끝난 요청도 되돌릴 수 있다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  const discarded = await api(`/v2/task-splits/${f.discarded.requestId}/undo-discard`, 'POST')
+  assert.equal(discarded.status, 200)
+  assert.equal(discarded.body.request.pieceCount, 3)
+  assert.equal(discarded.body.request.excludedCount, 1)
+  assert.equal((await api(`/v2/task-splits/${f.discarded.requestId}`)).body.check.canApply, true)
+  const applied = await api(`/v2/task-splits/${f.applied.requestId}/undo-apply`, 'POST')
+  assert.equal(applied.status, 200)
+  assert.equal(applied.body.restoredTaskId, f.applied.taskId)
+  const original = (await api(`/v2/workspace/tasks/${f.applied.taskId}`)).body
+  assert.equal(original.task.title, '블로그 이전')
+  assert.equal(original.split.lock.stage, 'PROPOSAL_READY')
+  assert.equal((await api(`/v2/task-splits/${f.applied.requestId}`)).body.check.canApply, true)
+  split.finishMockSplit(f.queued.requestId, 'READY')
+  const pieces = await open(api, f.queued.requestId)
+  assert.equal((await api(`/v2/task-splits/${f.queued.requestId}/apply`, 'POST', { pieces })).status, 200)
+  assert.equal((await api(`/v2/task-splits/${f.queued.requestId}/undo-apply`, 'POST')).status, 200)
+  await api(`/v2/task-splits/${f.queued.requestId}/discard`, 'POST')
+  assert.equal((await api(`/v2/task-splits/${f.queued.requestId}/undo-discard`, 'POST')).status, 200)
+})
+test('만들기 본문의 모양 오류는 검사와 같이 422와 400으로 나뉜다', async () => {
+  const { api, split } = setup()
+  const f = split.mockSplitFixtures
+  const route = `/v2/task-splits/${f.ready.requestId}/apply`
+  const pieces = await open(api, f.ready.requestId)
+  const fewer = await api(route, 'POST', { pieces: pieces.slice(1) })
+  assert.equal(fewer.status, 422)
+  assert.equal(fewer.body.split, null)
+  assert.equal((await api(route, 'POST', { pieces: pieces.map((p) => ({ ...p, after: null })) })).status, 400)
+  assert.equal((await api('/v2/task-splits/999999/apply', 'POST', { pieces })).status, 404)
+  assert.equal((await api(`/v2/task-splits/${f.expired.requestId}/apply`, 'POST', { pieces })).body.split.currentStatus, 'EXPIRED')
+  const late = pieces.map((p) => (p.key === 'a' ? { ...p, minutes: 600 } : p))   // 4시간 넘는 조각은 막지 않는다
+  assert.equal((await api(route, 'POST', { pieces: late, action: { type: 'MOVE', key: 'ghost' } })).status, 200)
+})
