@@ -8,6 +8,7 @@ import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
 import { ConfirmHost } from '@shared/components/common'
 import SplitStartHost from '@features/task-split/components/SplitStartHost'
+import NoticeButton from '@features/notices/components/NoticeButton'
 import { refreshSession } from '@shared/api/authSession'
 import { startSessionRestore } from '@features/auth/utils/sessionRestore'
 import {
@@ -199,6 +200,7 @@ const AppShell = () => {
           title={title}
           scopeLabel={scopeLabel}
           leading={<SpaceSwitcher variant="bar" />}
+          tools={<NoticeButton />}
           showBackButton={showBackButton}
           onBack={handleBack}
           onSettings={() => navigate('/app/settings')}

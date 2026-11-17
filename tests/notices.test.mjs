@@ -3,12 +3,16 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { setup } from './support/mocks.mjs'
 
 const load = (relativePath, dependencies = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: relativePath,
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   })
   const module = { exports: {} }
   vm.runInNewContext(outputText, {
@@ -71,4 +75,40 @@ test('처리가 끝나면 알림이 하나 생긴다', async () => {
   assert.equal(list.items[0].kind, 'SPLIT_FAILED')
   assert.equal(list.items[0].originalTitle, '결제 모듈 이관')
   assert.equal((await api('/v2/notifications/notices/read', 'POST', {})).body.unreadCount, 0)
+})
+
+const paths = load('../src/features/task-split/utils/splitPaths.ts')
+const view = load('../src/features/notices/utils/noticeView.ts', {
+  '@features/task-split/utils/splitPaths': paths,
+})
+const NoticeList = load('../src/features/notices/components/NoticeList.tsx', {
+  'react/jsx-runtime': jsxRuntime,
+  '@shared/components/common/WorkspaceIcon': { default: () => null },
+  '@features/task-split/utils/splitLabels': { agoLabel: load('../src/features/task-split/utils/splitLabels.ts', {}).agoLabel },
+  '../utils/noticeView': view,
+}).default
+const noop = () => {}
+const html = (Component, props) =>
+  renderToStaticMarkup(React.createElement(Component, { onOpen: noop, onReadAll: noop, onOpenInbox: noop, onClose: noop, ...props }))
+
+const notice = (over = {}) => ({ noticeId: 'n1', kind: 'SPLIT_READY', requestId: 31, originalTitle: '온보딩 개편 설계', createdAt: '2026-11-17T00:00:00Z', readAt: null, ...over })
+test('알림 종류마다 문구와 갈 곳', () => {
+  assert.equal(JSON.stringify(view.noticeViewOf(notice())), '{"title":"쪼개기 제안이 준비됐어요","icon":"split","target":"/app/tasks/splits/31"}')
+  assert.equal(view.noticeViewOf(notice({ kind: 'SPLIT_FAILED' })).target, '/app/tasks/splits')
+  assert.equal(view.noticeViewOf(notice({ kind: 'SPLIT_FAILED' })).title, '쪼개기를 끝내지 못했어요')
+  assert.equal(view.noticeViewOf(notice({ kind: 'SPACE_INVITED' })), null)
+  assert.equal(view.bellLabel(0), '알림')
+  assert.equal(view.bellLabel(2), '알림, 새 알림 2개')
+})
+test('알림함은 알리기만 하고, 모르는 종류는 빼고, 비면 그렇다고 말한다', () => {
+  const list = html(NoticeList, { items: [notice(), notice({ noticeId: 'n2', kind: 'SPACE_INVITED' }), notice({ noticeId: 'n3', kind: 'SPLIT_FAILED', originalTitle: '연말 회고 자료', readAt: '2026-11-17T00:10:00Z' })], unread: 1, now: Date.parse('2026-11-17T00:35:00Z') })
+  assert.equal((list.match(/class="notice"/g) ?? []).length, 2)
+  assert.match(list, /쪼개기 제안이 준비됐어요.*온보딩 개편 설계.*35분 전/s)
+  assert.match(list, /data-unread/)
+  assert.match(list, /모두 읽음/)
+  assert.match(list, /쪼개기 보관함 열기/)
+  assert.doesNotMatch(list, /취소|버리기/)
+  const empty = html(NoticeList, { items: [], unread: 0, now: 0 })
+  assert.match(empty, /새 알림이 없어요\./)
+  assert.doesNotMatch(empty, /모두 읽음/)
 })
