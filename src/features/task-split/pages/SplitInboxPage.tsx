@@ -90,7 +90,7 @@ export default function SplitInboxPage() {
                 void commands.discard({
                   requestId: item.requestId,
                   status: item.status === 'FAILED' ? 'FAILED' : 'READY',
-                  violationRemaining: item.violationRemaining,
+                  violationRemaining: item.violationRemaining === true,
                 })
               }
             />
