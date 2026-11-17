@@ -517,7 +517,10 @@ const walkProposal = async (page, viewport) => {
 
   await step(page, viewport, 'piece-refused', async () => {
     await startEditing(page)
-    note(viewport, 'focus after read→edit', await activeElement(page))
+    // 읽기→고치기 뒤 초점은 첫 칸(제목)으로 간다.
+    const editFocus = await activeElement(page)
+    note(viewport, 'focus after read→edit', editFocus)
+    assert.equal(await titleInput(page).evaluate((input) => input === document.activeElement), true, `초점이 제목 칸이 아니다(${editFocus})`)
     await titleInput(page).fill('')
     // 기다리는 동안의 표시를 보려고 응답을 늦춘다.
     await mock(page, () => window.__pinitMock.setLatency(800))
@@ -543,7 +546,10 @@ const walkProposal = async (page, viewport) => {
       await pieceDialog(page).locator('input[type=number]').fill('300')
       await button(pieceDialog(page), '확인').click()
       await pieceDialog(page).getByRole('heading', { name: '조각 내용' }).waitFor()
-      note(viewport, 'focus after edit→read', await activeElement(page))
+      // 고치기→읽기 뒤 초점은 창 제목으로 간다.
+      const readFocus = await activeElement(page)
+      note(viewport, 'focus after edit→read', readFocus)
+      assert.equal(readFocus, 'h2 조각 내용', '초점이 창 제목이 아니다')
       await toast(page, '조각을 고쳤어요.')
       await toastAction(page, '조각을 고쳤어요.').waitFor()
       await visible(pieceDialog(page), '4시간 이상이에요.')
@@ -570,12 +576,19 @@ const walkProposal = async (page, viewport) => {
       shown: getComputedStyle(element.querySelector('.term-help__tip')).visibility,
     }))
     note(viewport, 'term-help after Esc', afterEsc)
-    // 알려진 결함: Esc는 data-open만 지우고, 초점이 "?"에 남아 :focus-visible(과 :hover)로 설명이 계속 보인다.
-    // 창이 닫히지 않는 것만 단언하고, 설명이 남는지는 기록한다(보고서의 결함 목록).
-    await tip
-      .waitFor({ state: 'hidden', timeout: 2000 })
-      .catch(() => note(viewport, 'DEFECT term-help', 'Esc 뒤에도 설명이 보인다(초점이 "?"에 남는다)'))
+    // 초점이 "?"에 남아도(:focus-visible·:hover) 설명은 닫히고 창은 그대로다.
+    await tip.waitFor({ state: 'hidden', timeout: 2000 })
     assert.equal(await pieceDialog(page).count(), 1, 'Esc가 창까지 닫았다')
+    // 키보드 초점으로 연 설명(누르지 않음)도 Esc는 설명만 닫는다. 고치던 내용을 잃지 않는다.
+    await titleInput(page).focus()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Tab')
+    await mark.focus()
+    await tip.waitFor({ state: 'visible' })
+    await page.keyboard.press('Escape')
+    await tip.waitFor({ state: 'hidden', timeout: 2000 })
+    assert.equal(await pieceDialog(page).count(), 1, '초점으로 연 설명에서 Esc가 창까지 닫았다')
+    await pieceDialog(page).getByRole('heading', { name: '조각 고치기' }).waitFor()
     // 바깥을 누르면 닫힌다.
     await press()
     await tip.waitFor({ state: 'visible' })
@@ -584,7 +597,11 @@ const walkProposal = async (page, viewport) => {
     await tip.waitFor({ state: 'hidden' })
     await press()
     await tip.getByText('이전 조각이란?').waitFor({ state: 'visible' })
-    note(viewport, 'term-help tip', await tip.boundingBox())
+    await settle(page)
+    const tipBox = await tip.boundingBox()
+    note(viewport, 'term-help tip', tipBox)
+    // 말풍선 전체가 화면 안에 있다(390px에서 왼쪽이 잘리던 것).
+    assert.ok(tipBox.x >= 0 && tipBox.x + tipBox.width <= size.width, `설명이 화면 밖으로 나간다(${JSON.stringify(tipBox)})`)
   })
 
   await step(page, viewport, 'piece-removed', async () => {
@@ -722,8 +739,11 @@ const walkProposal = async (page, viewport) => {
         }),
       )
       note(viewport, 'applied-map nodes', shown.filter((line) => titles.some((title) => line.startsWith(title))))
-      // 앞서 만들기가 거부됐을 때의 오류 토스트가 아직 떠 있는지 적는다(오류 토스트는 닫을 때까지 남는다).
-      note(viewport, 'applied-map error toasts', await page.locator('.toast--error .toast__message').allInnerTexts())
+      // 앞서 만들기가 거부됐을 때의 오류 토스트는 다음 만들기와 화면을 떠날 때 닫혔다. 만들었다는 토스트만 남는다.
+      const errorToasts = await page.locator('.toast--error .toast__message').allInnerTexts()
+      note(viewport, 'applied-map error toasts', errorToasts)
+      assert.deepEqual(errorToasts, [], '작업 맵에 만들기 거부 토스트가 남았다')
+      assert.equal(await page.locator('.toast').count(), 1, '작업 맵에 토스트가 하나가 아니다')
       note(viewport, 'applied-map active edges', await page.locator('.tm-edges path.tm-edge--active').count())
       assert.equal(await page.locator('.tm-edges path.tm-edge--active').count(), 3, '가운데 조각의 앞뒤 선(앞 둘, 뒤 하나)이 아니다')
     },
@@ -743,8 +763,6 @@ const walkProposal = async (page, viewport) => {
   })
 
   await step(page, viewport, 'apply-expired', async () => {
-    // 26번의 오류 토스트는 닫을 때까지 남아 좁은 화면에서 상단 바를 가린다. 회원처럼 닫고 간다.
-    for (const dismiss of await page.locator('.toast--error .toast__dismiss').all()) await dismiss.click()
     await openTask(page, '온보딩 개편 설계')
     await button(detail(page), '제안 보기').click()
     await page.waitForURL(/\/app\/tasks\/splits\/\d+$/)
