@@ -7,6 +7,7 @@ import {
   mockSplitSettings,
   onMockSplitSubmitted,
 } from './taskSplit'
+import { mockNoticeSettings } from './notices'
 import { failNextMockApply } from './taskSplitProposal'
 import { setChangeDeliveryDelay, STREAM_POLL_MS } from './workspaceState'
 import { setMockRefreshFailure, type MockRefreshFailure } from './refreshCookie'
@@ -67,6 +68,9 @@ export const setupMockServer = () => {
     }
     return originalFetch(input, init)
   }
+
+  // 브라우저에서는 알림이 처리가 끝난 뒤 조금 늦게 생겨, 종과 알림함이 바뀌는 것을 볼 수 있다.
+  mockNoticeSettings.delayMs = 1500
 
   let splitAutoFinish: number | null = SPLIT_AUTO_FINISH_MS
   onMockSplitSubmitted((requestId) => {

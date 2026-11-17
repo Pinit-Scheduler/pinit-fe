@@ -34,6 +34,7 @@ import {
 import { effectiveExpectedMinutes, handlePlans } from './planner'
 import { formatIsoMinutes, toTaskResponse } from './taskResponse'
 import { handleWorkspace } from './workspace'
+import { handleNotices } from './notices'
 import { handleTaskSplits } from './taskSplit'
 import { handleSplitProposalRoutes } from './taskSplitProposal'
 import { handleOnboarding } from './onboarding'
@@ -872,6 +873,9 @@ export const handleMockRequest = async (
 
   const categories = await handleCategories(path, method, request)
   if (categories) return categories
+
+  const notices = await handleNotices(path, method, request)
+  if (notices) return notices
 
   const notification = await handleNotifications(
     path,

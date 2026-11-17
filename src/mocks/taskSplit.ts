@@ -333,6 +333,13 @@ export const onMockSplitSubmitted = (listener: (requestId: number) => void) => {
   submitted.add(listener)
 }
 
+const finished = new Set<(request: MockSplitRequest) => void>()
+
+/** 처리가 끝난 요청(준비됨·실패)을 알린다. 알림함 mock이 알림을 넣는 데 쓴다. 이 모듈은 알림함을 import하지 않는다. */
+export const onMockSplitFinished = (listener: (request: MockSplitRequest) => void): void => {
+  finished.add(listener)
+}
+
 /** 처리 중인 요청을 끝낸다. 준비됨이면 제안도 함께 만든다. 실패와 위반 남음은 서버처럼 쓴 횟수를 돌려준다. */
 export const finishMockSplit = (
   requestId: number,
@@ -354,6 +361,7 @@ export const finishMockSplit = (
   }
   if (outcome !== 'READY') mockSplitSettings.used = Math.max(0, mockSplitSettings.used - 1)
   recordSplitChange(request)
+  finished.forEach((listener) => listener(request))
 }
 
 // ---------------------------------------------------------------------------
