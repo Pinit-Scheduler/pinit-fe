@@ -118,6 +118,12 @@
   margin: 6px 0 0;
   color: var(--c-slate-600);
   line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
 }
 
 .task-archive-modal__item-meta {

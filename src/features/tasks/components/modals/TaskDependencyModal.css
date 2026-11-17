@@ -54,6 +54,18 @@
     border-color var(--motion-fast) var(--motion-ease);
 }
 
+/* The text column must be allowed to shrink so a long description can ellipsize. */
+.task-dep-modal__list li label > div {
+  min-width: 0;
+}
+
+.task-dependency-modal__desc {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .task-dep-modal__list li label:not(.is-checked):hover {
   border-color: var(--c-slate-300);
 }

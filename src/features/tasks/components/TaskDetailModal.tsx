@@ -351,7 +351,7 @@ const TaskDetailModal = ({
                     {task.missed ? ' · 놓친 회차예요' : ''}
                   </p>
                 )}
-                <p className="task-detail-modal__description">
+                <p className="task-detail-modal__description task-detail-modal__description--body">
                   {task.description}
                 </p>
                 <div className="task-detail-modal__meta">

@@ -90,6 +90,11 @@
   margin-bottom: 12px;
 }
 
+.task-detail-modal__description--body {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .task-detail-modal__meta {
   display: flex;
   gap: 8px;
