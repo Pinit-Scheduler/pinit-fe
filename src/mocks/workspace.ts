@@ -25,6 +25,7 @@ import {
   recomputeMockTaskReadiness,
 } from './taskDependencies'
 import { formatIsoMinutes, toTaskResponse } from './taskResponse'
+import { splitLockFailure, splitViewOf } from './taskSplit'
 import {
   bumpVersion,
   canSee,
@@ -32,6 +33,7 @@ import {
   createReasons,
   findProject,
   findSpace,
+  inapplicable,
   latestChangeId,
   memberOf,
   mockProjects,
@@ -152,29 +154,34 @@ export const taskView = (actor: number, task: Task, extra: object = {}) => {
   const ready = (task.inboundDependencyCount ?? 0) === 0
   const scheduled =
     !completed && ready && mockSchedules.some((schedule) => schedule.taskId === task.id)
+  const split = splitViewOf(actor, task)
+  // 쪼개기에 잠긴 원본은 바꿀 수 없다. 이유의 순서는 서버 `WorkspaceResourceService`와 같다.
+  const locked = when(split.lock !== null, 'SPLIT_IN_PROGRESS')
   const { allow, reasons } = createReasons()
   const allowedActions: AllowedActions = {
-    edit: allow('edit', carry(base, 'edit')),
-    assign: allow('assign', carry(base, 'assign')),
-    move: allow('move', carry(base, 'move')),
-    delete: allow('delete', carry(base, 'delete')),
+    edit: allow('edit', carry(base, 'edit'), locked),
+    assign: allow('assign', carry(base, 'assign'), locked),
+    move: allow('move', carry(base, 'move'), locked),
+    delete: allow('delete', carry(base, 'delete'), locked),
     restore: false,
     invite: false,
     manageMembers: false,
     leave: false,
     start: false,
     suspend: false,
-    complete: !completed,
+    complete: allow('complete', inapplicable(completed), locked),
     cancel: false,
-    reopen: completed,
+    reopen: allow('reopen', inapplicable(!completed), locked),
     schedule: allow(
       'schedule',
+      locked,
       when(completed, 'TASK_COMPLETED'),
       when(!ready, 'PREDECESSOR_INCOMPLETE'),
       when(scheduled, 'ALREADY_SCHEDULED'),
     ),
     editDependencies: allow(
       'editDependencies',
+      locked,
       when(Boolean(task.recurrence), 'RECURRING_TASK'),
     ),
   }
@@ -184,6 +191,7 @@ export const taskView = (actor: number, task: Task, extra: object = {}) => {
     allowedActions,
     unavailableReasons: reasons,
     recurrenceVersion: seriesVersion(task.recurrence?.seriesId),
+    split,
     ...extra,
   }
 }
@@ -1700,6 +1708,9 @@ export const handleWorkspace = async (
     const task = visibleTask(actor, id)
     if (!task) return failure('NOT_FOUND', '작업을 찾을 수 없습니다.', 404)
     if (!action && method === 'GET') return json(taskView(actor, task))
+    // 쪼개기에 잠긴 원본을 바꾸는 명령은 버전·권한보다 먼저 거부한다(서버 `SplitLockGuard`).
+    const lockFailure = splitLockFailure(actor, task.id)
+    if (lockFailure && (method === 'PATCH' || method === 'DELETE' || method === 'POST')) return lockFailure
     if (!action && method === 'PATCH') return updateTask(actor, task, request)
     if (!action && method === 'DELETE') return deleteTask(actor, task, searchParams)
     if (action === '/state' && method === 'POST') return changeTaskState(actor, task, request)

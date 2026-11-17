@@ -1,11 +1,20 @@
 import { handleMockRequest } from './handlers'
 import { mockWorkspaceRemote } from './workspace'
+import {
+  finishMockSplit,
+  mockSplitFixtures,
+  mockSplitRequests,
+  mockSplitSettings,
+  onMockSplitSubmitted,
+} from './taskSplit'
 import { setChangeDeliveryDelay, STREAM_POLL_MS } from './workspaceState'
 import { setMockRefreshFailure, type MockRefreshFailure } from './refreshCookie'
 
 let isInstalled = false
 
 const LATENCY_KEY = 'pinit.mock.latency'
+/** 새 쪼개기 요청이 준비됨이 되기까지(ms). `__pinitMock.split.setAutoFinish(null)`이면 저절로 끝나지 않는다. */
+const SPLIT_AUTO_FINISH_MS = 5000
 
 /**
  * 응답 지연(ms). 실제 네트워크처럼 늦게 오는 응답에서 깜빡임과 로딩 표시를 확인할 때 쓴다.
@@ -58,6 +67,12 @@ export const setupMockServer = () => {
     return originalFetch(input, init)
   }
 
+  let splitAutoFinish: number | null = SPLIT_AUTO_FINISH_MS
+  onMockSplitSubmitted((requestId) => {
+    if (splitAutoFinish === null) return
+    window.setTimeout(() => finishMockSplit(requestId, 'READY'), splitAutoFinish)
+  })
+
   Object.assign(window, {
     __pinitMock: {
       /** 다른 참여자가 바꾼 것처럼 작업을 바꾸고 실시간 이벤트를 보낸다. */
@@ -70,6 +85,17 @@ export const setupMockServer = () => {
           /* 이번 탭에만 적용한다 */
         }
         return latency
+      },
+      /** 작업 쪼개기 요청. `finish(requestId, 'READY' | 'READY_WITH_VIOLATION' | 'FAILED')`로 처리를 끝낸다. */
+      split: {
+        finish: finishMockSplit,
+        fixtures: mockSplitFixtures,
+        requests: mockSplitRequests,
+        settings: mockSplitSettings,
+        setAutoFinish(ms: number | null) {
+          splitAutoFinish = ms === null ? null : Math.max(0, Number(ms) || 0)
+          return splitAutoFinish
+        },
       },
       /** 세션 갱신이 응답 없이 실패하게 한다('network' | 'unavailable'). null이면 되돌린다. 새로고침해도 남는다. */
       setRefreshFailure(failure: MockRefreshFailure | null) {
