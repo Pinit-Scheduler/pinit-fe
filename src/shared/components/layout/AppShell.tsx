@@ -175,13 +175,19 @@ const AppShell = () => {
     isPlanPage ||
     isOnboardingGuide
 
+  // 딥링크로 열 수 있는 화면에서 앱 안에서 쌓인 history가 없으면 돌아갈 곳.
+  const backFallback = isOnboardingGuide
+    ? '/app/settings'
+    : pathname === '/app/tasks/splits'
+      ? '/app/tasks'
+      : null
+
   const handleBack = () => {
-    // 온보딩 가이드는 딥링크로 열 수 있다. 앱 안에서 쌓인 history가 없으면 설정으로 간다.
-    if (isOnboardingGuide) {
+    if (backFallback) {
       const historyIndex = (window.history.state as { idx?: number } | null)
         ?.idx
       if (historyIndex === undefined || historyIndex <= 0) {
-        navigate('/app/settings', { replace: true })
+        navigate(backFallback, { replace: true })
         return
       }
     }
