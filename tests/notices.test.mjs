@@ -7,6 +7,7 @@ import React from 'react'
 import * as jsxRuntime from 'react/jsx-runtime'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { setup } from './support/mocks.mjs'
+import { hookRunner, settle } from './support/hooks.mjs'
 
 const load = (relativePath, dependencies = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -111,4 +112,49 @@ test('알림함은 알리기만 하고, 모르는 종류는 빼고, 비면 그�
   const empty = html(NoticeList, { items: [], unread: 0, now: 0 })
   assert.match(empty, /새 알림이 없어요\./)
   assert.doesNotMatch(empty, /모두 읽음/)
+})
+
+const run = ({ readNotices }) => {
+  const calls = [], set = []
+  let unread = 2
+  const runner = hookRunner()
+  const { useReadNoticesWhileOpen } = load('../src/features/notices/hooks/useReadNoticesWhileOpen.ts', {
+    react: runner.react,
+    '../api/notices': { readNotices: async (filter) => { calls.push(filter); return readNotices(filter) } },
+    './useNoticeUnread': { useNoticeUnread: () => ({ unread, setUnread: (count) => { set.push(count); unread = count }, refetch() {} }) },
+  })
+  return { calls, set, setUnread: (count) => { unread = count }, render: (filter) => runner.render(() => useReadNoticesWhileOpen(filter)) }
+}
+test('열면 한 번 읽음으로 바꾸고 받은 수로 종을 맞춘다', async () => {
+  const h = run({ readNotices: async () => ({ unreadCount: 1 }) })
+  const filter = { kind: 'SPLIT_READY', requestId: 31 }
+  h.render(filter); await settle()
+  h.render(filter); await settle()
+  assert.equal(h.calls.length, 1)
+  assert.equal(JSON.stringify(h.calls[0]), '{"kind":"SPLIT_READY","requestId":31}')
+  assert.equal(JSON.stringify(h.set), '[1]')
+})
+test('열려 있는 동안 안 읽은 수가 늘면 한 번 더 부르고, 줄면 부르지 않는다', async () => {
+  const h = run({ readNotices: async () => ({ unreadCount: 1 }) })
+  const filter = { kind: 'SPLIT_FAILED' }
+  h.render(filter); await settle()
+  h.setUnread(2); h.render(filter); await settle()
+  assert.equal(h.calls.length, 2)
+  h.render(filter); await settle()
+  h.setUnread(0); h.render(filter); await settle()
+  assert.equal(h.calls.length, 2)
+})
+test('읽음 호출이 실패해도 조용하고 끝없이 돌지 않는다', async () => {
+  const h = run({ readNotices: async () => { throw new Error('offline') } })
+  const filter = { kind: 'SPLIT_READY', requestId: 31 }
+  h.render(filter); await settle()
+  h.render(filter); await settle()
+  h.render(filter); await settle()
+  assert.equal(h.calls.length, 1)
+  assert.equal(h.set.length, 0)
+})
+test('대상이 없으면 부르지 않는다', async () => {
+  const h = run({ readNotices: async () => ({ unreadCount: 0 }) })
+  h.render(null); await settle()
+  assert.equal(h.calls.length, 0)
 })

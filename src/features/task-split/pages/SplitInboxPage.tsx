@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import { toDisplayDayjs } from '@shared/utils/datetime'
+import { useReadNoticesWhileOpen } from '@features/notices/hooks/useReadNoticesWhileOpen'
 import { fetchSplitInbox } from '../api/splitRequests'
 import SplitInboxRow from '../components/SplitInboxRow'
 import { useSplitCommands } from '../hooks/useSplitCommands'
@@ -33,6 +34,8 @@ export default function SplitInboxPage() {
       errorMessage: '보관함을 불러오지 못했어요.',
     },
   )
+  // 보관함을 열면 실패 알림을 읽음으로 한다. 서버는 보관함을 보여 줄 때 읽음으로 하지 않는다.
+  useReadNoticesWhileOpen(data ? { kind: 'SPLIT_FAILED' } : null)
 
   const header = (
     <header className="split-page__header">

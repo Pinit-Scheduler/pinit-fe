@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { toDisplayDayjs } from '@shared/utils/datetime'
+import { useReadNoticesWhileOpen } from '@features/notices/hooks/useReadNoticesWhileOpen'
 import { useSpaces } from '@features/spaces/store'
 import { adminNames } from '@features/spaces/unavailable'
 import type { SplitPiece } from '../api/splitProposals'
@@ -56,6 +57,8 @@ function SplitProposal({ requestId }: { requestId: number }) {
   const [view, setView] = useState<'map' | 'list'>('map')
   const [dialog, setDialog] = useState<{ key: string; editing: boolean } | null>(null)
   const { screen, draft, busy } = state
+  // 어느 길로 열었든 이 요청의 준비 알림을 읽음으로 한다. 서버는 제안을 보여 줄 때 읽음으로 하지 않는다.
+  useReadNoticesWhileOpen(screen.kind === 'ready' ? { kind: 'SPLIT_READY', requestId } : null)
   // 검사를 기다리거나 만드는 동안에는 조각을 바꾸지 않는다(보낸 조각과 화면이 갈라지지 않게).
   const locked = busy || applying
   const adminOnly =
