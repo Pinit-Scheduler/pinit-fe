@@ -31,7 +31,7 @@ import '@features/task-map/TaskMapPage.css'
 import '../task-split.css'
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
-/** 날짜 문자열(조각·원본 마감). 마감이 없는 조각은 빈 문자열로 온다. */
+/** 날짜 문자열(조각·원본 마감). 마감이 없는 조각은 부르는 쪽이 그리지 않는다. */
 const formatDate = (value: string) => (value ? dayjs(value).format('M/D') : '')
 /** 원본 줄에는 날짜(원본 마감)와 시각(보관 기한)이 함께 온다. */
 const formatOrigin = (value: string) =>
@@ -99,7 +99,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
         shownMinutes: info.shownMinutes,
         over: info.over,
         stage: info.stage,
-        dueDate: piece.dueDate ?? '',
+        dueDate: piece.dueDate ?? null,
         before: info.before,
         problem: info.errors.length > 0,
       },
@@ -110,6 +110,8 @@ function SplitProposal({ requestId }: { requestId: number }) {
   const compare = compareLine(proposal, check)
   const summary = applySummary(check)
   const members = spaces.find((space) => space.id === request.spaceId)?.members ?? []
+  // 같은 요청의 버리기·되돌리기가 오가는 동안에는 만들기와 버리기를 받지 않는다.
+  const commandPending = commands.pending.has(request.requestId)
   const notice = adminOnly ? adminOnlyNotice(adminNames(members), adminRefused) : null
 
   const card = (piece: SplitPiece) => {
@@ -167,7 +169,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
         <button
           type="button"
           className="workspace-button split-page__discard"
-          disabled={applying}
+          disabled={applying || commandPending}
           onClick={() => {
             // 되돌리면 고치던 조각으로 다시 열 수 있게 맡겨 둔다.
             stashDraft(request.requestId, draft.pieces)
@@ -178,10 +180,15 @@ function SplitProposal({ requestId }: { requestId: number }) {
                   status: 'READY',
                   violationRemaining: proposal.violationRemaining,
                 },
-                { onUndone: () => navigate(splitProposalPath(request.requestId)) },
+                {
+                  onUndone: () => navigate(splitProposalPath(request.requestId)),
+                  // 이미 다른 상태로 끝난 요청이었다. 낡은 제안을 두지 않고 다시 읽는다.
+                  onUnchanged: state.reload,
+                },
               )
               .then((done) => {
-                if (done) navigate(SPLIT_INBOX_PATH)
+                // 기록에서 바꾼다. 뒤로 가기로 버린 제안을 다시 열어 맡긴 조각을 써 버리지 않게 한다.
+                if (done) navigate(SPLIT_INBOX_PATH, { replace: true })
                 else takeDraft(request.requestId)
               })
           }}
@@ -317,7 +324,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
         <button
           type="button"
           className="workspace-button workspace-button--primary"
-          disabled={!check.canApply || busy || applying || adminRefused}
+          disabled={!check.canApply || busy || applying || adminRefused || commandPending}
           onClick={() => void apply()}
         >
           {applying ? '만드는 중…' : '만들기'}

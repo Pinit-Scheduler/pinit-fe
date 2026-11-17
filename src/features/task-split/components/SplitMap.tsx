@@ -110,7 +110,9 @@ const SplitMap = ({
                 <span className="split-map__meta" data-warn={piece.over || undefined}>
                   {piece.over && <WorkspaceIcon name="warning" />}
                   {formatMinutesLabel(piece.shownMinutes)}
-                  <time dateTime={piece.dueDate}>{formatDay(piece.dueDate)}</time>
+                  {piece.dueDate != null && (
+                    <time dateTime={piece.dueDate}>{formatDay(piece.dueDate)}</time>
+                  )}
                 </span>
               </article>
             </div>

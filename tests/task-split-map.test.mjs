@@ -3,11 +3,15 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
+import React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const loadModule = (relativePath, dependencies = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+    fileName: relativePath,
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   })
   const module = { exports: {} }
   vm.runInNewContext(outputText, {
@@ -70,4 +74,23 @@ test('조각 50개도 배치가 끝난다', () => {
   const layout = map.layoutSplitMap(many, { mobile: true, room: 358 })
   assert.equal(layout.nodes.length, 50)
   assert.equal(layout.width, 120)
+})
+
+test('마감이 없는 조각은 지도에 빈 날짜를 그리지 않는다', () => {
+  const isoDuration = loadModule('../src/shared/utils/isoDuration.ts')
+  const SplitMap = loadModule('../src/features/task-split/components/SplitMap.tsx', {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+    '@shared/components/common/WorkspaceIcon': { __esModule: true, default: () => null },
+    '@shared/hooks/useMediaQuery': { __esModule: true, default: () => false },
+    '@shared/utils/isoDuration': isoDuration,
+    '../utils/splitMapLayout': map,
+    '../utils/splitProposalLabels': { emptyText: () => '' },
+  }).default
+  const html = renderToStaticMarkup(React.createElement(SplitMap, {
+    pieces: [mp('a', 0), { ...mp('b', 0), dueDate: null }],
+    emptyReason: null, activeKey: null, busy: false, formatDay: () => '11/20', onActivate() {}, onRemove() {},
+  }))
+  assert.equal((html.match(/<time[ >]/g) ?? []).length, 1)
+  assert.match(html, /<time dateTime="2026-11-20">11\/20<\/time>/)
 })

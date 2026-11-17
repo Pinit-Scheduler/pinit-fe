@@ -87,6 +87,7 @@ export default function SplitInboxPage() {
               now={now}
               formatDay={formatDay}
               proposalScreen={PROPOSAL_SCREEN_READY}
+              busy={commands.pending.has(item.requestId)}
               onOpen={() => navigate(splitProposalPath(item.requestId))}
               onCancel={() => void commands.cancel(item.requestId)}
               onDiscard={() =>

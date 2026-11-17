@@ -461,6 +461,10 @@ const TaskDetailModal = ({
                   <SplitLockActions
                     lock={splitLock}
                     proposalScreen={PROPOSAL_SCREEN_READY}
+                    busy={
+                      splitLock.requestId != null &&
+                      splitCommands.pending.has(splitLock.requestId)
+                    }
                     onOpen={() => {
                       if (splitLock.requestId != null)
                         navigate(splitProposalPath(splitLock.requestId))

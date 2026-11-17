@@ -10,6 +10,8 @@ type SplitInboxRowProps = {
   onOpen: () => void
   onCancel: () => void
   onDiscard: () => void
+  /** 이 요청의 취소·버리기가 진행 중이면 그 버튼을 끈다. */
+  busy?: boolean
 }
 
 /** 쪼개기 보관함의 한 줄. 지금 할 수 있는 버튼만 둔다. */
@@ -21,6 +23,7 @@ const SplitInboxRow = ({
   onOpen,
   onCancel,
   onDiscard,
+  busy = false,
 }: SplitInboxRowProps) => {
   const processing = item.status === 'QUEUED' || item.status === 'RUNNING'
   return (
@@ -35,7 +38,7 @@ const SplitInboxRow = ({
       </div>
       <div className="split-row__actions">
         {processing && (
-          <button type="button" className="workspace-button" onClick={onCancel}>
+          <button type="button" className="workspace-button" disabled={busy} onClick={onCancel}>
             취소
           </button>
         )}
@@ -49,7 +52,7 @@ const SplitInboxRow = ({
           </button>
         )}
         {(item.status === 'READY' || item.status === 'FAILED') && (
-          <button type="button" className="workspace-button" onClick={onDiscard}>
+          <button type="button" className="workspace-button" disabled={busy} onClick={onDiscard}>
             버리기
           </button>
         )}

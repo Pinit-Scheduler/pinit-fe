@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { apiError, requireFrom } from './support/errors.mjs'
-import { hookRunner, settle } from './support/hooks.mjs'
+import { deferred, hookRunner, settle } from './support/hooks.mjs'
 
 const load = (relativePath, dependencies = {}, globals = {}) => {
   const source = readFileSync(new URL(relativePath, import.meta.url), 'utf8')
@@ -33,23 +33,25 @@ const trashUndo = load('../src/features/trash/hooks/useTrashUndo.ts', {
 const harness = ({ answer = true, api = {}, undo = {} } = {}) => {
   const toasts = [], events = [], asks = [], calls = []
   const requests = {
-    cancelSplitRequest: async (id) => { calls.push(['cancel', id]); return { request: { requestId: id, taskId: 7 } } },
-    discardSplitRequest: async (id) => { calls.push(['discard', id]); return { request: { requestId: id, taskId: 7 }, undoable: true } },
+    cancelSplitRequest: async (id) => { calls.push(['cancel', id]); return { request: { requestId: id, taskId: 7, status: 'CANCELLED' } } },
+    discardSplitRequest: async (id) => { calls.push(['discard', id]); return { request: { requestId: id, taskId: 7, status: 'DISCARDED' }, undoable: true } },
     fetchSplitInbox: async () => ({ quota: {}, items: [{ requestId: 31, violationRemaining: true, status: 'READY' }] }),
     ...api,
   }
+  const runner = hookRunner()
   const { useSplitCommands } = load('../src/features/task-split/hooks/useSplitCommands.ts', {
-    react: { useCallback: (fn) => fn },
+    react: runner.react,
     '@contexts/ToastContext': { useToast: () => ({ addToast: (...toast) => toasts.push(toast) }) },
     '@shared/utils/events': { dispatchTaskChanged: (detail) => events.push(detail) },
     '@shared/components/common/confirm': { askConfirm: async (ask) => { asks.push(ask); return answer } },
     '@features/trash/hooks/useTrashUndo': trashUndo,
     '../api/splitRequests': requests,
-    '../api/splitUndo': { undoSplitDiscard: async () => ({ request: { requestId: 0, taskId: 0 } }), ...undo },
+    '../api/splitUndo': { undoSplitDiscard: async () => ({ request: { requestId: 0, taskId: 0, status: 'READY' } }), ...undo },
     '../api/splitErrors': splitErrors,
     '../utils/splitLabels': labels,
   })
-  return { commands: useSplitCommands(), toasts, events, asks, calls }
+  const render = () => runner.render(() => useSplitCommands())
+  return { commands: render(), render, toasts, events, asks, calls }
 }
 test('취소는 확인받은 뒤 보내고 화면을 다시 읽게 한다', async () => {
   const h = harness()
@@ -144,7 +146,7 @@ test('요약을 읽지 못하면 summary는 null이고 오류를 알리지 않�
 
 test('준비된 제안을 버리면 6초 동안 되돌릴 수 있다', async () => {
   let undone = 0
-  const h = harness({ undo: { undoSplitDiscard: async (id) => ({ request: { requestId: id, taskId: 7 } }) } })
+  const h = harness({ undo: { undoSplitDiscard: async (id) => ({ request: { requestId: id, taskId: 7, status: 'READY' } }) } })
   assert.equal(await h.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false }, { onUndone: () => undone++ }), true)
   assert.equal(h.toasts[0][0], '제안을 버렸어요.')
   assert.equal(h.toasts[0][2].action.label, '되돌리기')
@@ -154,7 +156,7 @@ test('준비된 제안을 버리면 6초 동안 되돌릴 수 있다', async () 
   assert.equal(h.events.at(-1).taskId, 7)
 })
 test('되돌릴 수 없는 버리기에는 버튼이 없다', async () => {
-  const h = harness({ api: { discardSplitRequest: async (id) => ({ request: { requestId: id, taskId: 7 }, undoable: false }) } })
+  const h = harness({ api: { discardSplitRequest: async (id) => ({ request: { requestId: id, taskId: 7, status: 'DISCARDED' }, undoable: false }) } })
   await h.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false })
   assert.equal(h.toasts[0][2]?.action, undefined)
 })
@@ -166,4 +168,49 @@ test('버리기 되돌리기가 거부되면 서버 문구를 보인다', async 
   h.toasts[0][2].action.onAction(); await settle()
   assert.equal(h.toasts[1][0], '더 이상 되돌릴 수 없어요.')
   assert.equal(undone, 0)
+})
+
+test('이미 끝난 요청이라 상태가 바뀌지 않은 200은 한 것처럼 알리지 않고 다시 읽게 한다', async () => {
+  // 다른 탭에서 이미 만든 제안을 버리거나, 이미 끝난 요청을 취소했다.
+  const h = harness({ api: {
+    cancelSplitRequest: async (id) => ({ request: { requestId: id, taskId: 7, status: 'APPLIED' } }),
+    discardSplitRequest: async (id) => ({ request: { requestId: id, taskId: 7, status: 'APPLIED' }, undoable: false }),
+  } })
+  let unchanged = 0
+  assert.equal(await h.commands.cancel(31), false)
+  assert.equal(await h.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false }, { onUnchanged: () => unchanged++ }), false)
+  assert.equal(h.toasts.length, 0)
+  assert.equal(unchanged, 1)
+  assert.equal(JSON.stringify(h.events.map((e) => e.taskId)), '[7,7]')
+  // 버리는 사이 보관 기한이 지나 만료로 끝났으면 버린 것과 같이 화면을 떠나되 "버렸어요"라고 하지 않는다.
+  const expired = harness({ api: { discardSplitRequest: async (id) => ({ request: { requestId: id, taskId: 7, status: 'EXPIRED' }, undoable: false }) } })
+  assert.equal(await expired.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false }), true)
+  assert.equal(expired.toasts.length, 0)
+})
+test('같은 요청의 버리기·취소·되돌리기가 진행 중이면 다시 보내지 않고 pending에 둔다', async () => {
+  const wait = deferred()
+  const h = harness({ api: { discardSplitRequest: (id) => { h.calls.push(['discard', id]); return wait.promise } } })
+  assert.equal(h.render().pending.has(31), false)
+  const first = h.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false })
+  await settle()
+  assert.equal(h.render().pending.has(31), true)
+  assert.equal(await h.render().discard({ requestId: 31, status: 'READY', violationRemaining: false }), false)
+  assert.equal(await h.render().cancel(31), false)
+  assert.equal(h.asks.length, 1)
+  assert.equal(h.calls.length, 1)
+  wait.resolve({ request: { requestId: 31, taskId: 7, status: 'DISCARDED' }, undoable: true })
+  assert.equal(await first, true)
+  assert.equal(h.render().pending.has(31), false)
+  // 토스트의 되돌리기는 하나뿐이고 덮어쓰이지 않았다.
+  assert.equal(h.toasts.length, 1)
+  assert.equal(h.toasts[0][2].action.label, '되돌리기')
+  // 되돌리는 동안에도 막는다.
+  const undoWait = deferred()
+  const u = harness({ undo: { undoSplitDiscard: () => undoWait.promise } })
+  await u.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false })
+  u.toasts[0][2].action.onAction(); await settle()
+  assert.equal(u.render().pending.has(31), true)
+  assert.equal(await u.render().discard({ requestId: 31, status: 'READY', violationRemaining: false }), false)
+  undoWait.resolve({ request: { requestId: 31, taskId: 7, status: 'READY' } }); await settle()
+  assert.equal(u.render().pending.has(31), false)
 })

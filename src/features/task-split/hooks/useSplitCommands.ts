@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useToast } from '@contexts/ToastContext'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { askConfirm } from '@shared/components/common/confirm'
@@ -30,9 +30,34 @@ const lookUpViolation = async (requestId: number) => {
   }
 }
 
-/** 쪼개기 요청의 취소·버리기. 성공하면 작업 변경 이벤트를 보내 화면이 다시 읽게 한다. */
+/**
+ * 쪼개기 요청의 취소·버리기. 성공하면 작업 변경 이벤트를 보내 화면이 다시 읽게 한다.
+ * 서버는 이미 끝난 요청에도 200으로 그때의 상태를 답한다. 알림은 응답의 상태가 한 일을 말할 때만 띄운다.
+ * 한 요청의 취소·버리기·버리기 되돌리기는 확인 창부터 응답까지 하나씩만 한다(`pending`).
+ */
 export const useSplitCommands = () => {
   const { addToast } = useToast()
+  // 누른 즉시 막아야 해서 ref로 막고, 버튼을 끄도록 상태로도 둔다.
+  const pendingRef = useRef(new Set<number>())
+  const [pending, setPending] = useState<ReadonlySet<number>>(() => new Set())
+  const mark = useCallback((requestId: number, busy: boolean) => {
+    if (busy) pendingRef.current.add(requestId)
+    else pendingRef.current.delete(requestId)
+    setPending(new Set(pendingRef.current))
+  }, [])
+  /** 이 요청의 일이 진행 중이면 false. 아니면 `run`을 돌리고 그 값을 준다. */
+  const exclusive = useCallback(
+    async (requestId: number, run: () => Promise<boolean>) => {
+      if (pendingRef.current.has(requestId)) return false
+      mark(requestId, true)
+      try {
+        return await run()
+      } finally {
+        mark(requestId, false)
+      }
+    },
+    [mark],
+  )
 
   const fail = useCallback(
     (error: unknown, fallback: string) => {
@@ -45,61 +70,79 @@ export const useSplitCommands = () => {
     [addToast],
   )
 
-  /** 확인 창 → 취소. 취소했으면 true. */
+  /** 확인 창 → 취소. 취소됐으면 true. 이미 끝난 요청이었으면 알리지 않고 다시 읽게 한 뒤 false. */
   const cancel = useCallback(
-    async (requestId: number) => {
-      if (!(await askConfirm(CANCEL_CONFIRM))) return false
-      try {
-        const result = await cancelSplitRequest(requestId)
-        addToast(CANCELLED_TOAST, 'success')
-        dispatchTaskChanged({ taskId: result.request.taskId, reason: 'split' })
-        return true
-      } catch (error) {
-        return fail(error, '요청을 취소하지 못했어요.')
-      }
-    },
-    [addToast, fail],
+    (requestId: number) =>
+      exclusive(requestId, async () => {
+        if (!(await askConfirm(CANCEL_CONFIRM))) return false
+        try {
+          const result = await cancelSplitRequest(requestId)
+          dispatchTaskChanged({ taskId: result.request.taskId, reason: 'split' })
+          if (result.request.status !== 'CANCELLED') return false
+          addToast(CANCELLED_TOAST, 'success')
+          return true
+        } catch (error) {
+          return fail(error, '요청을 취소하지 못했어요.')
+        }
+      }),
+    [addToast, exclusive, fail],
   )
 
-  /** 준비된 제안은 확인 창 → 버리기, 실패 항목은 바로 버리기. 버렸으면 true. */
+  /**
+   * 준비된 제안은 확인 창 → 버리기, 실패 항목은 바로 버리기. 버렸거나 그사이 만료로 끝났으면 true.
+   * 이미 다른 상태로 끝난 요청이었으면 알리지 않고 다시 읽게 하고 `onUnchanged`를 부른 뒤 false.
+   */
   const discard = useCallback(
-    async (target: DiscardTarget, options?: { onUndone?: () => void }) => {
-      const confirmed = target.status !== 'FAILED'
-      if (confirmed) {
-        const violationRemaining =
-          target.violationRemaining === undefined
-            ? await lookUpViolation(target.requestId)
-            : target.violationRemaining === true
-        if (!(await askConfirm(discardConfirm(violationRemaining)))) return false
-      }
-      try {
-        const result = await discardSplitRequest(target.requestId)
-        dispatchTaskChanged({ taskId: result.request.taskId, reason: 'split' })
+    (
+      target: DiscardTarget,
+      options?: { onUndone?: () => void; onUnchanged?: () => void },
+    ) =>
+      exclusive(target.requestId, async () => {
+        const confirmed = target.status !== 'FAILED'
         if (confirmed) {
-          if (result.undoable) {
-            addToast(DISCARDED_TOAST, 'success', {
-              durationMs: UNDO_TOAST_MS,
-              action: {
-                label: '되돌리기',
-                onAction: () => {
-                  void undoSplitDiscard(target.requestId)
+          const violationRemaining =
+            target.violationRemaining === undefined
+              ? await lookUpViolation(target.requestId)
+              : target.violationRemaining === true
+          if (!(await askConfirm(discardConfirm(violationRemaining)))) return false
+        }
+        let result
+        try {
+          result = await discardSplitRequest(target.requestId)
+        } catch (error) {
+          return fail(error, '제안을 버리지 못했어요.')
+        }
+        dispatchTaskChanged({ taskId: result.request.taskId, reason: 'split' })
+        const { status } = result.request
+        if (status === 'EXPIRED') return true
+        if (status !== 'DISCARDED') {
+          options?.onUnchanged?.()
+          return false
+        }
+        if (!confirmed) return true
+        if (result.undoable) {
+          addToast(DISCARDED_TOAST, 'success', {
+            durationMs: UNDO_TOAST_MS,
+            action: {
+              label: '되돌리기',
+              onAction: () => {
+                void exclusive(target.requestId, () =>
+                  undoSplitDiscard(target.requestId)
                     .then((undone) => {
                       dispatchTaskChanged({ taskId: undone.request.taskId, reason: 'split' })
                       options?.onUndone?.()
+                      return true
                     })
-                    .catch((error) => void fail(error, '되돌리지 못했어요.'))
-                },
+                    .catch((error) => fail(error, '되돌리지 못했어요.')),
+                )
               },
-            })
-          } else addToast(DISCARDED_TOAST, 'success')
-        }
+            },
+          })
+        } else addToast(DISCARDED_TOAST, 'success')
         return true
-      } catch (error) {
-        return fail(error, '제안을 버리지 못했어요.')
-      }
-    },
-    [addToast, fail],
+      }),
+    [addToast, exclusive, fail],
   )
 
-  return { cancel, discard }
+  return { cancel, discard, pending }
 }

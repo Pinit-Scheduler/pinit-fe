@@ -7,7 +7,8 @@ export type MapPiece = {
   over: boolean
   /** 몇 번째 단계인지(0부터) */
   stage: number
-  dueDate: string
+  /** 마감. 없으면 null */
+  dueDate: string | null
   /** 지도에 있는 조각 중 바로 앞에 오는 조각 */
   before: string[]
   problem: boolean
