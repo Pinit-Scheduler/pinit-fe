@@ -1,18 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
+import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import { toDisplayDayjs } from '@shared/utils/datetime'
+import { useSpaces } from '@features/spaces/store'
+import { adminNames } from '@features/spaces/unavailable'
 import type { SplitPiece } from '../api/splitProposals'
 import PieceDialog from '../components/PieceDialog'
 import PieceSummary from '../components/PieceSummary'
 import SplitMap from '../components/SplitMap'
 import SplitProposalNotice from '../components/SplitProposalNotice'
+import { useSplitApply } from '../hooks/useSplitApply'
 import { useSplitCommands } from '../hooks/useSplitCommands'
 import { useSplitProposal } from '../hooks/useSplitProposal'
 import { infoOf, viewOf } from '../utils/splitDraft'
 import type { MapPiece } from '../utils/splitMapLayout'
 import { SPLIT_INBOX_PATH } from '../utils/splitPaths'
 import {
+  adminOnlyNotice,
   applySummary,
   compareLine,
   droppedNote,
@@ -45,9 +50,19 @@ function SplitProposal({ requestId }: { requestId: number }) {
   const state = useSplitProposal(requestId)
   const navigate = useNavigate()
   const commands = useSplitCommands()
+  const { spaces } = useSpaces()
+  const { applying, adminRefused, apply } = useSplitApply(requestId, state)
   const [view, setView] = useState<'map' | 'list'>('map')
   const [dialog, setDialog] = useState<{ key: string; editing: boolean } | null>(null)
   const { screen, draft, busy } = state
+  const adminOnly =
+    adminRefused ||
+    (screen.kind === 'ready' && draft?.check.cannotApplyReason === 'ADMIN_ONLY')
+  const rejectRef = useRef<HTMLDivElement>(null)
+  // 안내는 위에 뜨고 "만들기"는 아래에 있다. 누른 회원이 보도록 그 자리로 올린다.
+  useEffect(() => {
+    if (adminOnly) rejectRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [adminOnly])
 
   if (screen.kind === 'to-inbox') return <Navigate to={SPLIT_INBOX_PATH} replace />
   if (screen.kind !== 'ready' || draft == null)
@@ -88,6 +103,8 @@ function SplitProposal({ requestId }: { requestId: number }) {
   const activeInfo = active ? infoOf(check, active.key) : undefined
   const compare = compareLine(proposal, check)
   const summary = applySummary(check)
+  const members = spaces.find((space) => space.id === request.spaceId)?.members ?? []
+  const notice = adminOnly ? adminOnlyNotice(adminNames(members), adminRefused) : null
 
   const card = (piece: SplitPiece) => {
     const info = infoOf(check, piece.key)
@@ -144,6 +161,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
         <button
           type="button"
           className="workspace-button split-page__discard"
+          disabled={applying}
           onClick={() =>
             void commands
               .discard({
@@ -157,6 +175,16 @@ function SplitProposal({ requestId }: { requestId: number }) {
           제안 버리기
         </button>
       </header>
+
+      {notice && (
+        <div className="split-reject" role="alert" ref={rejectRef}>
+          <WorkspaceIcon name="warning" />
+          <div>
+            <strong>{notice.strong}</strong>
+            <p>{notice.body}</p>
+          </div>
+        </div>
+      )}
 
       <div className="split-toolbar">
         <div className="split-view" role="group" aria-label="보기 방식">
@@ -272,6 +300,14 @@ function SplitProposal({ requestId }: { requestId: number }) {
           <strong>{summary.main}</strong>
           <span data-warn={summary.warn !== '' || undefined}>{summary.warn}</span>
         </div>
+        <button
+          type="button"
+          className="workspace-button workspace-button--primary"
+          disabled={!check.canApply || busy || applying || adminRefused}
+          onClick={() => void apply()}
+        >
+          {applying ? '만드는 중…' : '만들기'}
+        </button>
       </footer>
     </section>
   )

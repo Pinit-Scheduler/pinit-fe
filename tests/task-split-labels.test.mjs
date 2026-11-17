@@ -46,7 +46,7 @@ test('고정 문구와 경로', () => {
   assert.equal(labels.DISCARDED_TOAST, '제안을 버렸어요.')
   assert.equal(paths.SPLIT_INBOX_PATH, '/app/tasks/splits')
   assert.equal(paths.splitProposalPath(12), '/app/tasks/splits/12')
-  assert.equal(paths.PROPOSAL_SCREEN_READY, false)
+  assert.equal(paths.PROPOSAL_SCREEN_READY, true)
 })
 
 test('횟수 줄과 맡기기 확인 창', () => {

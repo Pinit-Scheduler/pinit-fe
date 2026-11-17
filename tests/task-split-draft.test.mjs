@@ -178,6 +178,11 @@ test('만들기 거부의 갈래', () => {
   const lost = screen.applyRejectionOf(new Error('Failed to fetch'))
   assert.equal(lost.kind, 'unknown')
   assert.match(lost.message, /^만들었는지 확인하지 못했어요\./)
+  // 응답을 받은 뒤 계정 확인(assertCurrentActor)이 던지는 401은 만들어졌을 수도 있다.
+  const actor = screen.applyRejectionOf(apiError('계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.', 401))
+  assert.equal(actor.kind, 'unknown')
+  assert.equal(actor.message, '만들었는지 확인하지 못했어요. 계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.')
+  assert.equal(screen.applyRejectionOf(apiError('', 401)).message, '만들었는지 확인하지 못했어요. 다시 시도해 주세요.')
   assert.match(screen.checkFailureOf(new Error('offline')).message, /^조각을 확인하지 못했어요\./)
   assert.equal(screen.checkFailureOf(apiError('잘못', 400, { code: 'INVALID_REQUEST' })).message, '잘못')
   assert.equal(screen.checkFailureOf(notReady('EXPIRED')).screen.kind, 'expired')

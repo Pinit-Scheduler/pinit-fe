@@ -1,4 +1,4 @@
-import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { getRequestFailureMessage, readFailureMessage } from '@shared/api/errorMessage'
 import type { SplitCheck, SplitDetail } from '../api/splitProposals'
 import { splitCheckOf, splitErrorOf } from '../api/splitErrors'
 
@@ -59,11 +59,19 @@ export const screenOfError = (error: unknown): ProposalScreen =>
     message: getRequestFailureMessage(error, '제안을 불러오지 못했어요.'),
   }
 
+const statusOf = (error: unknown) =>
+  error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined
+
+/**
+ * 서버가 만들기를 거부했다고 알 수 있는 답. errorMessage의 isServerResponse와 달리 `responseStatus`(세션 갱신이
+ * 멈춘 status 0)를 보지 않는다: 그 갈래는 만들기를 보냈는지 가릴 수 없어 '확인하지 못했다'로 둔다.
+ */
 const isServerAnswer = (error: unknown) => {
-  if (!error || typeof error !== 'object') return false
-  const { status } = error as { status?: unknown }
+  const status = statusOf(error)
   return typeof status === 'number' && status >= 400
 }
+
+const UNCONFIRMED = '만들었는지 확인하지 못했어요.'
 
 export const applyRejectionOf = (error: unknown): ApplyRejection => {
   const screen = screenRejection(error)
@@ -76,8 +84,11 @@ export const applyRejectionOf = (error: unknown): ApplyRejection => {
     const check = splitCheckOf(error)
     if (check) return { kind: 'problems', check }
   }
+  // 401은 응답을 받은 뒤 계정이 바뀐 것을 알아챈 경우(httpClient의 assertCurrentActor)에도 온다. 만들었을 수 있다.
+  if (statusOf(error) === 401)
+    return { kind: 'unknown', message: `${UNCONFIRMED} ${readFailureMessage(error) ?? '다시 시도해 주세요.'}` }
   if (isServerAnswer(error)) return { kind: 'toast', message: APPLY_REFUSED }
-  return { kind: 'unknown', message: getRequestFailureMessage(error, '만들었는지 확인하지 못했어요.') }
+  return { kind: 'unknown', message: getRequestFailureMessage(error, UNCONFIRMED) }
 }
 
 export const checkFailureOf = (
