@@ -79,6 +79,9 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
   const heldRef = useRef(false)
   // 이 화면이 띄운 되돌리기 토스트. 화면을 떠나면 그 되돌리기는 할 일이 없어 닫는다.
   const toastsRef = useRef<number[]>([])
+  // 맡아 둔 조각(고치던 그대로). 준비된 제안이 받아들이거나 제안이 더는 준비됨이 아닐 때까지 들고 있어,
+  // 첫 읽기가 실패한 뒤 "다시 시도"도 이 조각으로 연다. 그 전에 떠나면 돌려놓는다.
+  const keptRef = useRef<SplitPiece[] | null>(null)
 
   const commitDraft = useCallback((next: DraftState | null) => {
     draftRef.current = next
@@ -112,7 +115,10 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
           setRequest(detail.request)
           const next = screenOfDetail(detail)
           if (next.kind !== 'ready') {
-            if (next.kind !== 'reload') show(next)
+            if (next.kind !== 'reload') {
+              keptRef.current = null
+              show(next)
+            }
             return
           }
           const { proposal, check } = next.detail
@@ -126,24 +132,36 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
               const rechecked = await checkSplitDraft(requestId, { pieces })
               if (!live()) return
               start = initDraft(pieces, rechecked)
-            } catch {
+            } catch (error) {
               if (!live()) return
+              // 받은 제안으로 연다. 고치던 조각을 말없이 버리지 않게 알린다.
+              const failure = checkFailureOf(error)
+              if (failure.kind === 'screen' && failure.screen.kind !== 'reload') {
+                keptRef.current = null
+                show(failure.screen)
+                return
+              }
+              addToast(getRequestFailureMessage(error, '조각을 확인하지 못했어요.'), 'error')
             }
           }
+          keptRef.current = null
           commitDraft(start)
           setBusy(false)
           setScreenState(next)
         } catch (error) {
           if (!live()) return
           const next = screenOfError(error)
-          if (next.kind !== 'reload') show(next)
-          else if (!retried) await read(true)
+          if (next.kind !== 'reload') {
+            // 읽지 못한 것(error)이면 맡아 둔 조각을 "다시 시도"에 남긴다.
+            if (next.kind !== 'error') keptRef.current = null
+            show(next)
+          } else if (!retried) await read(true)
           else show({ kind: 'error', message: getRequestFailureMessage(error, LOAD_FAILED) })
         }
       }
       return read(false)
     },
-    [requestId, commitDraft, setBusy, show],
+    [requestId, addToast, commitDraft, setBusy, show],
   )
 
   /** 화면이 그대로면 검사 중처럼 두고 다시 읽는다. 안내 화면이었으면 불러오는 중으로 바꾼다. */
@@ -157,16 +175,14 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
   )
 
   useEffect(() => {
-    // 맡아 둔 조각은 꺼내면 지워진다. 열기를 끝내기 전에 떠나면(개발 모드의 effect 재실행 포함) 돌려놓는다.
-    const kept = takeDraft(requestId)
-    let opened = false
-    void open(kept).then(() => {
-      opened = true
-    })
+    // 맡아 둔 조각은 꺼내면 지워진다. 받아들이기 전에 떠나면(개발 모드의 effect 재실행 포함) 돌려놓는다.
+    keptRef.current = takeDraft(requestId)
+    void open(keptRef.current)
     return () => {
       turnRef.current += 1
       draftRef.current = null
-      if (kept && !opened) stashDraft(requestId, kept)
+      if (keptRef.current) stashDraft(requestId, keptRef.current)
+      keptRef.current = null
     }
   }, [requestId, open])
 
@@ -177,16 +193,20 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
     }
   }, [dismissToast])
 
-  /** 서버를 부르지 않고 기록의 모습으로 돌아간다. 기다리던 검사 응답은 버린다. */
+  /**
+   * 서버를 부르지 않고 기록의 모습으로 돌아간다. 기다리던 검사 응답은 버린다. 남은 되돌리기 토스트는 닫는다:
+   * 그 토스트가 잡아 둔 모습과 기록 깊이는 이제 지금 기록과 맞지 않는다.
+   */
   const rewind = useCallback(
     (change: (state: DraftState) => DraftState) => {
       const current = draftRef.current
       if (!current || heldRef.current) return
       turnRef.current += 1
+      toastsRef.current.splice(0).forEach(dismissToast)
       setBusy(false)
       commitDraft(change(current))
     },
-    [commitDraft, setBusy],
+    [commitDraft, setBusy, dismissToast],
   )
 
   const send = useCallback(
@@ -238,7 +258,7 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
 
   const setScreen = useCallback(
     (next: ProposalScreen) => {
-      if (next.kind === 'reload') reread(draftRef.current?.pieces ?? null)
+      if (next.kind === 'reload') reread(draftRef.current?.pieces ?? keptRef.current)
       else if (next.kind === 'ready') setScreenState(next)
       else show(next)
     },
@@ -255,7 +275,7 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
     confirm: (next) => send({ type: 'CONFIRM', key: next.key }, next),
     undo: () => rewind(undoLast),
     reset: () => rewind(resetToFirst),
-    reload: () => reread(draftRef.current?.pieces ?? null),
+    reload: () => reread(draftRef.current?.pieces ?? keptRef.current),
     setScreen,
     setDraft: commitDraft,
     hold: (held) => {

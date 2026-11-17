@@ -52,6 +52,7 @@ const harness = (api, requestId = 31) => {
   const toasts = []
   const dismissed = []
   const calls = { detail: [], check: [] }
+  const toast = { addToast: (...shown) => toasts.push(shown), dismissToast: (id) => dismissed.push(id) }
   const proposals = {
     fetchSplitDetail: (id) => {
       calls.detail.push(id)
@@ -65,8 +66,8 @@ const harness = (api, requestId = 31) => {
   const { useSplitProposal } = load('../src/features/task-split/hooks/useSplitProposal.ts', {
     react: runner.react,
     '@contexts/ToastContext': {
-      // addToast는 토스트 번호를 돌려준다(여기서는 몇 번째인지).
-      useToast: () => ({ addToast: (...toast) => toasts.push(toast), dismissToast: (id) => dismissed.push(id) }),
+      // addToast는 토스트 번호를 돌려준다(여기서는 몇 번째인지). 앱의 것처럼 렌더마다 같은 함수다.
+      useToast: () => toast,
     },
     '@features/trash/hooks/useTrashUndo': trashUndo,
     '../api/splitProposals': proposals,
@@ -243,4 +244,57 @@ test('화면을 떠나면 이 화면이 띄운 되돌리기 토스트를 닫는�
   assert.equal(h.dismissed.length, 0)
   h.unmount()
   assert.equal(JSON.stringify(h.dismissed), '[1]')
+})
+
+test('첫 읽기가 실패한 뒤 다시 시도해도 맡아 둔 조각을 잇는다', async () => {
+  stash.stashDraft(31, detail.proposal.pieces.map((piece) => ({ ...piece, title: '고친 ' + piece.title })))
+  const answers = [async () => { throw new Error('offline') }, async () => detail]
+  const h = harness({ fetchSplitDetail: () => answers.shift()(), checkSplitDraft: async () => checked() })
+  h.render(); await settle()
+  assert.equal(h.render().screen.kind, 'error')
+  h.render().reload(); await settle()
+  const state = h.render()
+  assert.equal(state.screen.kind, 'ready')
+  assert.equal(state.draft.pieces[0].title, '고친 a')
+  assert.equal(h.calls.check[0].draft.pieces[0].title, '고친 a')
+  h.unmount()
+  // 받아들였으니 다시 맡겨 두지 않는다.
+  assert.equal(stash.takeDraft(31), null)
+})
+test('첫 읽기가 실패한 채 떠나면 맡아 둔 조각을 돌려놓는다', async () => {
+  stash.stashDraft(31, detail.proposal.pieces)
+  const h = harness({ fetchSplitDetail: async () => { throw new Error('offline') } })
+  h.render(); await settle()
+  assert.equal(h.render().screen.kind, 'error')
+  h.unmount()
+  assert.equal(stash.takeDraft(31).length, 2)
+})
+test('맡아 둔 조각을 다시 검사하지 못하면 받은 제안으로 열고 알린다', async () => {
+  stash.stashDraft(31, detail.proposal.pieces.map((piece) => ({ ...piece, title: '고친 ' + piece.title })))
+  const h = harness({ fetchSplitDetail: async () => detail, checkSplitDraft: async () => { throw new Error('offline') } })
+  h.render(); await settle()
+  const state = h.render()
+  assert.equal(state.screen.kind, 'ready')
+  assert.equal(state.draft.pieces[0].title, 'a')
+  assert.match(h.toasts[0][0], /^조각을 확인하지 못했어요\./)
+  assert.equal(h.toasts[0][1], 'error')
+  h.unmount()
+  assert.equal(stash.takeDraft(31), null)
+})
+test('토스트의 되돌리기를 차례와 다르게 눌러도 기록과 조각이 어긋나지 않게 다른 되돌리기 토스트를 닫는다', async () => {
+  const h = harness({ fetchSplitDetail: async () => detail, checkSplitDraft: async (_, sent) => checked({ selectedCount: sent.pieces.filter((p) => p.selected).length, accepted: true }) })
+  h.render(); await settle()
+  h.render().exclude('a'); await settle()
+  h.render().exclude('b'); await settle()
+  assert.equal(h.toasts.length, 2)
+  // 먼저 띄운 토스트(1번)의 되돌리기: 처음 모습으로 돌아가고, 남은 2번 토스트는 닫는다.
+  h.toasts[0][2].action.onAction()
+  const state = h.render()
+  assert.equal(state.draft.check.selectedCount, 2)
+  assert.equal(state.draft.history.length, 0)
+  assert.ok(h.dismissed.includes(2))
+  // 도구 줄의 되돌리기도 남은 되돌리기 토스트를 닫는다.
+  h.render().exclude('a'); await settle()
+  h.render().undo()
+  assert.ok(h.dismissed.includes(3))
 })
