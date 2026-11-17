@@ -169,3 +169,40 @@ test('대상이 없으면 부르지 않는다', async () => {
   h.render(null); await settle()
   assert.equal(h.calls.length, 0)
 })
+
+const unreadHook = (data) => {
+  const runner = hookRunner()
+  const { useNoticeUnread } = load('../src/features/notices/hooks/useNoticeUnread.ts', {
+    react: runner.react,
+    '@shared/hooks/useRevalidatingQuery': { useRevalidatingQuery: () => ({ data, refetch() {}, setData() {} }) },
+    '@shared/utils/events': { onDataChanged: () => () => {} },
+    '../api/notices': { fetchUnreadNoticeCount: async () => ({ unreadCount: 0 }) },
+  })
+  return runner.render(() => useNoticeUnread())
+}
+const bell = (known, unread = 0) =>
+  renderToStaticMarkup(React.createElement(load('../src/features/notices/components/NoticeButton.tsx', {
+    react: React,
+    'react/jsx-runtime': jsxRuntime,
+    'react-dom': { createPortal: (node) => node },
+    'react-router-dom': { useNavigate: () => noop },
+    '@shared/components/common/Modal': { default: () => null },
+    '@shared/components/common/WorkspaceIcon': { default: () => null },
+    '@shared/api/errorMessage': { getRequestFailureMessage: () => '' },
+    '@contexts/ToastContext': { useToast: () => ({ addToast: noop }) },
+    '@features/task-split/utils/splitPaths': paths,
+    '../api/notices': {},
+    '../hooks/useNoticeUnread': { useNoticeUnread: () => ({ unread, known, setUnread: noop, refetch: noop }), useNoticeRefresh: noop },
+    '../utils/noticeView': view,
+    './NoticeList': { default: () => null },
+    '../notices.css': {},
+  }).default))
+test('안 읽은 수를 한 번이라도 읽은 뒤에만 종을 그린다(알림함이 없는 서버에는 종이 없다)', () => {
+  assert.equal(unreadHook(undefined).known, false)
+  assert.equal(unreadHook(undefined).unread, 0)
+  assert.equal(unreadHook({ unreadCount: 0 }).known, true)
+  assert.equal(unreadHook({ unreadCount: 2 }).unread, 2)
+  assert.equal(bell(false), '')
+  assert.match(bell(true), /aria-label="알림"/)
+  assert.match(bell(true, 2), /<span class="split-badge">2<\/span>/)
+})

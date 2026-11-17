@@ -8,7 +8,10 @@ export const NOTICE_UNREAD_KEY = 'notices/unread-count'
 export const NOTICE_RECHECK_DELAY_MS = 3000
 export const NOTICE_POLL_MS = 60000
 
-/** 알림함의 안 읽은 수. 읽지 못했으면 0이다. */
+/**
+ * 알림함의 안 읽은 수. 읽지 못했으면 0이다. `known`은 한 번이라도 읽었는지다: 알림함이 없는 서버(옛 백엔드,
+ * 기능이 꺼진 배포)에서는 끝까지 false다.
+ */
 export const useNoticeUnread = () => {
   const { data, refetch, setData } = useRevalidatingQuery(
     NOTICE_UNREAD_KEY,
@@ -16,7 +19,7 @@ export const useNoticeUnread = () => {
     { invalidateOn: ['task'], refetchOnFocus: true, revalidateOnMount: false },
   )
   const setUnread = useCallback((count: number) => setData({ unreadCount: count }), [setData])
-  return { unread: data?.unreadCount ?? 0, setUnread, refetch }
+  return { unread: data?.unreadCount ?? 0, known: data !== undefined, setUnread, refetch }
 }
 
 /**

@@ -19,10 +19,11 @@ type Loaded =
 
 /**
  * 상단 바의 알림 종과 알림함. 알림은 무슨 일이 있었는지만 알리고, 누르면 그 일이 있는 화면으로 보낸다.
- * 요청을 취소하거나 버리는 일은 쪼개기 보관함의 몫이다.
+ * 요청을 취소하거나 버리는 일은 쪼개기 보관함의 몫이다. 안 읽은 수를 한 번이라도 읽기 전에는 종을 그리지 않는다
+ * (알림함이 없는 서버). 그동안에도 다시 읽기는 이어 간다.
  */
 const NoticeButton = () => {
-  const { unread, setUnread, refetch } = useNoticeUnread()
+  const { unread, known, setUnread, refetch } = useNoticeUnread()
   useNoticeRefresh(refetch)
   const navigate = useNavigate()
   const { addToast } = useToast()
@@ -80,6 +81,7 @@ const NoticeButton = () => {
     }
   }
 
+  if (!known) return null
   return (
     <>
       <button

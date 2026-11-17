@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import { toDisplayDayjs } from '@shared/utils/datetime'
 import { useReadNoticesWhileOpen } from '@features/notices/hooks/useReadNoticesWhileOpen'
 import { fetchSplitInbox } from '../api/splitRequests'
+import SplitInboxEmpty from '../components/SplitInboxEmpty'
 import SplitInboxRow from '../components/SplitInboxRow'
 import { useSplitCommands } from '../hooks/useSplitCommands'
+import { useSplitSummary } from '../hooks/useSplitSummary'
 import { quotaLine } from '../utils/splitLabels'
 import { PROPOSAL_SCREEN_READY, splitProposalPath } from '../utils/splitPaths'
 import '../task-split.css'
@@ -19,6 +21,7 @@ const formatDay = (iso: string) => toDisplayDayjs(iso).format('M/D')
 export default function SplitInboxPage() {
   const navigate = useNavigate()
   const commands = useSplitCommands()
+  const { summary } = useSplitSummary()
   // "N분 전 요청"이 낡지 않게 1분마다 다시 잰다.
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
@@ -71,13 +74,7 @@ export default function SplitInboxPage() {
     <section className="split-page" aria-busy={isRefreshing || undefined}>
       {header}
       {data.items.length === 0 ? (
-        <div className="split-empty">
-          <p>보관함이 비어 있어요.</p>
-          <p>4시간이 넘는 큰 작업을 열고 "쪼개기"를 눌러 보세요.</p>
-          <Link className="workspace-button" to="/app/tasks">
-            작업 목록으로
-          </Link>
-        </div>
+        <SplitInboxEmpty startable={summary?.available === true} />
       ) : (
         <ul className="split-list">
           {data.items.map((item) => (

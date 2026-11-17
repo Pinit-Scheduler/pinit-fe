@@ -30,6 +30,14 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
 export const taskSplitEnabledOf = (preferences: Partial<NotificationPreferences>): boolean =>
   preferences.taskSplitEnabled ?? true
 
+/**
+ * 쪼개기 알림 줄을 그릴지. 서버 응답에 그 항목이 있을 때만이다. 모르는 서버는 저장해도 값을 무시해
+ * 줄이 "저장됨"을 보이면서 켜진 채로 남는다.
+ */
+export const taskSplitKnownIn = (
+  preferences: Partial<NotificationPreferences> | null | undefined,
+): boolean => preferences?.taskSplitEnabled != null
+
 export const reminderOptionLabel = (minutes: number | null) =>
   minutes === null ? '끔' : minutes === 60 ? '1시간 전' : `${minutes}분 전`
 

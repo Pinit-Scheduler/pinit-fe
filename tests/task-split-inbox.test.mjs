@@ -79,3 +79,26 @@ test('보관함 입구는 쓸 수 있거나 보관함에 무언가 있을 때만
   assert.match(empty, /<a href="\/app\/tasks\/splits" class="workspace-button split-inbox-link">쪼개기 보관함<\/a>/)
   assert.match(html(SplitInboxLink(summary({ available: false, archiveCount: 3 }))), /쪼개기 보관함<span class="split-inbox-link__count">3<\/span>/)
 })
+
+const SplitInboxEmpty = () =>
+  load('../src/features/task-split/components/SplitInboxEmpty.tsx', {
+    'react/jsx-runtime': jsxRuntime,
+    'react-router-dom': { Link: ({ to, children, ...rest }) => React.createElement('a', { href: to, ...rest }, children) },
+  }).default
+test('빈 보관함은 쪼개기를 쓸 수 있을 때만 "쪼개기"를 누르라고 한다', () => {
+  const on = html(SplitInboxEmpty(), { startable: true })
+  assert.match(on, /보관함이 비어 있어요\./)
+  assert.match(on, /4시간이 넘는 큰 작업을 열고 &quot;쪼개기&quot;를 눌러 보세요\./)
+  assert.match(on, /<a href="\/app\/tasks" class="workspace-button">작업 목록으로<\/a>/)
+  const off = html(SplitInboxEmpty(), { startable: false })
+  assert.match(off, /보관함이 비어 있어요\./)
+  assert.doesNotMatch(off, /쪼개기/)
+  assert.match(off, /작업 목록으로/)
+})
+test('취소·버리기가 진행 중인 줄은 그 버튼을 끈다', () => {
+  const busy = html(SplitInboxRow, { item: { ...base, status: 'RUNNING' }, now: 0, formatDay: () => '', proposalScreen: true, busy: true })
+  assert.match(busy, /<button type="button" class="workspace-button" disabled="">취소<\/button>/)
+  const ready = html(SplitInboxRow, { item: base, now: 0, formatDay: () => '', proposalScreen: true, busy: true })
+  assert.match(ready, /<button type="button" class="workspace-button" disabled="">버리기<\/button>/)
+  assert.doesNotMatch(row({}), /disabled/)
+})
