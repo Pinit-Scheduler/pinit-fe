@@ -75,3 +75,20 @@ test('시작 요청 저장소는 마지막 요청 하나만 들고 있다', () =
   stop()
   assert.equal(calls, 3)
 })
+test('횟수를 다 썼다고 보이면 요약을 다시 읽어 한 번 더 정한다(자정을 넘긴 낡은 요약)', async () => {
+  const spent = summary({ quota: { limit: 3, used: 3, remaining: 0, resetsAt: '2026-11-17T15:00:00Z' } })
+  let reads = 0
+  const renewed = await flow.decideStart(task(), spent, true, async () => { reads++; return summary() })
+  assert.equal(reads, 1)
+  assert.equal(renewed.decision.kind, 'confirm')
+  assert.equal(renewed.fresh.quota.remaining, 2)
+  // 다시 읽어도 다 썼으면 그대로 막고, 읽지 못하면 받은 요약대로 막는다.
+  assert.equal((await flow.decideStart(task(), spent, true, async () => spent)).decision.kind, 'blocked')
+  const offline = await flow.decideStart(task(), spent, true, async () => { throw new Error('offline') })
+  assert.equal(offline.decision.kind, 'blocked')
+  assert.equal(offline.fresh, null)
+  // 막히지 않으면 다시 읽지 않는다.
+  const plain = await flow.decideStart(task(), summary(), true, async () => { reads++; return summary() })
+  assert.equal(plain.decision.kind, 'confirm')
+  assert.equal(reads, 1)
+})

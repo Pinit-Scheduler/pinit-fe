@@ -4,7 +4,7 @@ import { useToast } from '@contexts/ToastContext'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { askConfirm } from '@shared/components/common/confirm'
 import { dispatchTaskChanged } from '@shared/utils/events'
-import { saveSplitConsent, submitSplitRequest } from '../api/splitRequests'
+import { fetchSplitSummary, saveSplitConsent, submitSplitRequest } from '../api/splitRequests'
 import { useSplitSummary } from '../hooks/useSplitSummary'
 import {
   clearSplitStart,
@@ -14,7 +14,7 @@ import {
 } from '../splitStartStore'
 import { disclosureFor, SUBMITTED } from '../utils/splitLabels'
 import { PROPOSAL_SCREEN_READY } from '../utils/splitPaths'
-import { startDecision, submitFailureOf } from '../utils/splitStartFlow'
+import { decideStart, submitFailureOf } from '../utils/splitStartFlow'
 import SplitConsentDialog from './SplitConsentDialog'
 import '../task-split.css'
 
@@ -70,7 +70,14 @@ const SplitStartHost = () => {
   }
 
   const start = async (task: SplitStartTarget) => {
-    const decision = startDecision(task, summary, PROPOSAL_SCREEN_READY)
+    const { decision, fresh } = await decideStart(
+      task,
+      summary,
+      PROPOSAL_SCREEN_READY,
+      fetchSplitSummary,
+    )
+    // 다시 읽은 요약으로 입구와 보관함의 횟수도 맞춘다.
+    if (fresh) refetch()
     switch (decision.kind) {
       case 'goto':
         navigate(decision.to)

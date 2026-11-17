@@ -31,6 +31,26 @@ export const startDecision = (
   return { kind: 'confirm', ask: requestConfirm(summary.quota) }
 }
 
+/**
+ * 입구를 눌렀을 때 할 일을 정하되, 횟수를 다 썼다고 보이면 요약을 다시 읽어 한 번 더 정한다. 들고 있던 요약은
+ * 회원의 자정을 넘겨 낡았을 수 있다. 다시 읽지 못하면 들고 있던 요약대로 정한다. `fresh`는 다시 읽은 요약이다.
+ */
+export const decideStart = async (
+  task: SplitStartTarget,
+  summary: SplitSummary | null,
+  proposalScreen: boolean,
+  readSummary: () => Promise<SplitSummary>,
+): Promise<{ decision: StartDecision; fresh: SplitSummary | null }> => {
+  const decision = startDecision(task, summary, proposalScreen)
+  if (decision.kind !== 'blocked') return { decision, fresh: null }
+  try {
+    const fresh = await readSummary()
+    return { decision: startDecision(task, fresh, proposalScreen), fresh }
+  } catch {
+    return { decision, fresh: null }
+  }
+}
+
 export type SubmitFailure =
   | { kind: 'already-mine' }
   | { kind: 'consent' }
