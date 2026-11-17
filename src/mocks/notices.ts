@@ -119,15 +119,43 @@ const viewOf = (notice: MockNotice) => ({
 })
 
 const NOTICE_PATH = /^\/v2\/notifications\/notices(\/|$)/
+const PREFERENCES_PATH = '/v2/notifications/preferences'
+
+/**
+ * 알림 설정 mock. 쪼개기 항목(`taskSplitEnabled`, ADR-0035 §14.4)은 서버(Gate X6)가 생기기 전까지의 가정이다.
+ * PUT은 본문 전체 교체지만 `taskSplitEnabled`가 null이거나 없으면 저장된 값을 둔다(그 항목을 모르는 화면의 저장).
+ */
+let preferences = {
+  scheduleStartEnabled: true,
+  scheduleReminderMinutes: null as number | null,
+  taskDeadlineEnabled: false,
+  taskDeadlineTime: '09:00',
+  zoneId: 'Asia/Seoul',
+  taskSplitEnabled: true,
+}
 
 export const handleNotices = async (
   path: string,
   method: string,
   request: Request,
 ): Promise<Response | null> => {
-  if (!NOTICE_PATH.test(path)) return null
+  if (!NOTICE_PATH.test(path) && path !== PREFERENCES_PATH) return null
   const actor = mockCategoryOwnerId(request)
   if (!actor) return json({ message: '로그인이 필요합니다.' }, 401)
+
+  if (path === PREFERENCES_PATH && method === 'GET') return json(preferences)
+  if (path === PREFERENCES_PATH && method === 'PUT') {
+    const body = (await request.json().catch(() => ({}))) as Partial<typeof preferences>
+    preferences = {
+      scheduleStartEnabled: body.scheduleStartEnabled ?? preferences.scheduleStartEnabled,
+      scheduleReminderMinutes: body.scheduleReminderMinutes ?? null,
+      taskDeadlineEnabled: body.taskDeadlineEnabled ?? preferences.taskDeadlineEnabled,
+      taskDeadlineTime: body.taskDeadlineTime ?? preferences.taskDeadlineTime,
+      zoneId: body.zoneId ?? preferences.zoneId,
+      taskSplitEnabled: body.taskSplitEnabled ?? preferences.taskSplitEnabled,
+    }
+    return json(preferences)
+  }
 
   if (path === '/v2/notifications/notices' && method === 'GET')
     return json({

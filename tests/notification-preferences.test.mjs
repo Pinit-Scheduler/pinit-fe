@@ -17,6 +17,13 @@ const loadModule = (relativePath) => {
 
 const prefs = loadModule('../src/features/settings/utils/notificationPreferences.ts')
 
+test('쪼개기 알림은 기본이 켜짐이고, 값이 없는 응답도 켜짐으로 본다', () => {
+  assert.equal(prefs.DEFAULT_NOTIFICATION_PREFERENCES.taskSplitEnabled, true)
+  assert.equal(prefs.taskSplitEnabledOf({}), true)
+  assert.equal(prefs.taskSplitEnabledOf({ taskSplitEnabled: false }), false)
+  assert.equal(prefs.withZone({ ...prefs.DEFAULT_NOTIFICATION_PREFERENCES, taskSplitEnabled: false }, 'Asia/Seoul').taskSplitEnabled, false)
+})
+
 const loadSwScript = (file, globals = {}) => {
   const scope = { ...globals }
   scope.self = scope

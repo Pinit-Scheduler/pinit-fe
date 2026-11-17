@@ -77,6 +77,17 @@ test('처리가 끝나면 알림이 하나 생긴다', async () => {
   assert.equal(list.items[0].originalTitle, '결제 모듈 이관')
   assert.equal((await api('/v2/notifications/notices/read', 'POST', {})).body.unreadCount, 0)
 })
+test('mock 알림 설정은 쪼개기 항목을 싣고, 빠진 채 저장하면 그대로 둔다', async () => {
+  const { api } = setup()
+  const first = (await api('/v2/notifications/preferences')).body
+  assert.equal(first.taskSplitEnabled, true)
+  const off = await api('/v2/notifications/preferences', 'PUT', { ...first, taskSplitEnabled: false })
+  assert.equal(off.body.taskSplitEnabled, false)
+  const { taskSplitEnabled: _omitted, ...old } = first
+  const kept = await api('/v2/notifications/preferences', 'PUT', { ...old, scheduleStartEnabled: false })
+  assert.equal(kept.body.taskSplitEnabled, false)
+  assert.equal(kept.body.scheduleStartEnabled, false)
+})
 
 const paths = load('../src/features/task-split/utils/splitPaths.ts')
 const view = load('../src/features/notices/utils/noticeView.ts', {

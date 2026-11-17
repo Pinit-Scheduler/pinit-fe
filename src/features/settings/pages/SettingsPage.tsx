@@ -17,6 +17,7 @@ import {
   normalizeDeadlineTime,
   parseReminderOption,
   reminderOptionLabel,
+  taskSplitEnabledOf,
   type NotificationPreferences,
 } from '../utils/notificationPreferences'
 import { DailyObjectiveSetting, TimeZoneSetting } from '../components/ProfileSettingRows'
@@ -275,6 +276,27 @@ const SettingsPage = () => {
               }}
               aria-pressed={preferences.taskDeadlineEnabled}
               aria-label="작업 마감일 알림"
+            >
+              <span />
+            </button>
+          </div>
+        </div>
+        <div className="settings__row">
+          <div>
+            <p className="settings__label">작업 쪼개기 알림</p>
+            <p className="settings__description">쪼개기 제안이 준비되거나 실패하면 푸시로 알려 드려요. 꺼도 알림함에는 남아요.</p>
+          </div>
+          <div className="settings__actions">
+            <SavedMark visible={isFlashing('taskSplit')} />
+            <button
+              type="button"
+              className={['settings__toggle', taskSplitEnabledOf(preferences) && 'is-active'].filter(Boolean).join(' ')}
+              disabled={isPreferencesUnavailable}
+              onClick={() =>
+                void togglePreference({ taskSplitEnabled: !taskSplitEnabledOf(preferences) }, 'taskSplit')
+              }
+              aria-pressed={taskSplitEnabledOf(preferences)}
+              aria-label="작업 쪼개기 알림"
             >
               <span />
             </button>
