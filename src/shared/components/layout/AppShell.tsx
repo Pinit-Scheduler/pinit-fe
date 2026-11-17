@@ -7,6 +7,7 @@ import { InstallBanner, OfflineBanner, UpdateBanner } from './AppBanners'
 import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
 import { ConfirmHost } from '@shared/components/common'
+import SplitStartHost from '@features/task-split/components/SplitStartHost'
 import { refreshSession } from '@shared/api/authSession'
 import { startSessionRestore } from '@features/auth/utils/sessionRestore'
 import {
@@ -192,6 +193,7 @@ const AppShell = () => {
     >
       <OnboardingTourProvider>
         <ConfirmHost />
+        <SplitStartHost />
         <WorkspaceSidebar />
         <TopBar
           title={title}

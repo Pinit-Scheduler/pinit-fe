@@ -1,0 +1,22 @@
+/* 쪼개기 동의 창의 세 묶음(보내는 것, 보내지 않는 것, 결과). */
+.split-consent__list {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.split-consent__list > div {
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--c-slate-100);
+}
+.split-consent__list dt {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-slate-500);
+  margin-bottom: 4px;
+}
+.split-consent__list dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+}
