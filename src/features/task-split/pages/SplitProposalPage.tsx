@@ -15,7 +15,8 @@ import { useSplitCommands } from '../hooks/useSplitCommands'
 import { useSplitProposal } from '../hooks/useSplitProposal'
 import { infoOf, viewOf } from '../utils/splitDraft'
 import type { MapPiece } from '../utils/splitMapLayout'
-import { SPLIT_INBOX_PATH } from '../utils/splitPaths'
+import { stashDraft, takeDraft } from '../utils/draftStash'
+import { SPLIT_INBOX_PATH, splitProposalPath } from '../utils/splitPaths'
 import {
   adminOnlyNotice,
   applySummary,
@@ -162,15 +163,23 @@ function SplitProposal({ requestId }: { requestId: number }) {
           type="button"
           className="workspace-button split-page__discard"
           disabled={applying}
-          onClick={() =>
+          onClick={() => {
+            // 되돌리면 고치던 조각으로 다시 열 수 있게 맡겨 둔다.
+            stashDraft(request.requestId, draft.pieces)
             void commands
-              .discard({
-                requestId: request.requestId,
-                status: 'READY',
-                violationRemaining: proposal.violationRemaining,
+              .discard(
+                {
+                  requestId: request.requestId,
+                  status: 'READY',
+                  violationRemaining: proposal.violationRemaining,
+                },
+                { onUndone: () => navigate(splitProposalPath(request.requestId)) },
+              )
+              .then((done) => {
+                if (done) navigate(SPLIT_INBOX_PATH)
+                else takeDraft(request.requestId)
               })
-              .then((done) => done && navigate(SPLIT_INBOX_PATH))
-          }
+          }}
         >
           제안 버리기
         </button>

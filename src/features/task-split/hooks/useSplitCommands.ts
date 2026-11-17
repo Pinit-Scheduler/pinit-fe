@@ -3,8 +3,10 @@ import { useToast } from '@contexts/ToastContext'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
 import { askConfirm } from '@shared/components/common/confirm'
 import { dispatchTaskChanged } from '@shared/utils/events'
+import { UNDO_TOAST_MS } from '@features/trash/hooks/useTrashUndo'
 import { cancelSplitRequest, discardSplitRequest, fetchSplitInbox } from '../api/splitRequests'
 import { splitErrorOf } from '../api/splitErrors'
+import { undoSplitDiscard } from '../api/splitUndo'
 import {
   CANCEL_CONFIRM,
   CANCELLED_TOAST,
@@ -61,7 +63,7 @@ export const useSplitCommands = () => {
 
   /** 준비된 제안은 확인 창 → 버리기, 실패 항목은 바로 버리기. 버렸으면 true. */
   const discard = useCallback(
-    async (target: DiscardTarget) => {
+    async (target: DiscardTarget, options?: { onUndone?: () => void }) => {
       const confirmed = target.status !== 'FAILED'
       if (confirmed) {
         const violationRemaining =
@@ -73,8 +75,24 @@ export const useSplitCommands = () => {
       try {
         const result = await discardSplitRequest(target.requestId)
         dispatchTaskChanged({ taskId: result.request.taskId, reason: 'split' })
-        // 되돌리기 버튼은 B단계가 더한다.
-        if (confirmed) addToast(DISCARDED_TOAST, 'success')
+        if (confirmed) {
+          if (result.undoable) {
+            addToast(DISCARDED_TOAST, 'success', {
+              durationMs: UNDO_TOAST_MS,
+              action: {
+                label: '되돌리기',
+                onAction: () => {
+                  void undoSplitDiscard(target.requestId)
+                    .then((undone) => {
+                      dispatchTaskChanged({ taskId: undone.request.taskId, reason: 'split' })
+                      options?.onUndone?.()
+                    })
+                    .catch((error) => void fail(error, '되돌리지 못했어요.'))
+                },
+              },
+            })
+          } else addToast(DISCARDED_TOAST, 'success')
+        }
         return true
       } catch (error) {
         return fail(error, '제안을 버리지 못했어요.')

@@ -26,7 +26,11 @@ const load = (relativePath, dependencies = {}, globals = {}) => {
 const splitErrors = load('../src/features/task-split/api/splitErrors.ts')
 const labels = load('../src/features/task-split/utils/splitLabels.ts')
 
-const harness = ({ answer = true, api = {} } = {}) => {
+const trashUndo = load('../src/features/trash/hooks/useTrashUndo.ts', {
+  react: {}, '@contexts/ToastContext': {}, '@shared/utils/events': {}, '../api/trash': {}, '../utils/trashLabels': {},
+})
+
+const harness = ({ answer = true, api = {}, undo = {} } = {}) => {
   const toasts = [], events = [], asks = [], calls = []
   const requests = {
     cancelSplitRequest: async (id) => { calls.push(['cancel', id]); return { request: { requestId: id, taskId: 7 } } },
@@ -39,7 +43,9 @@ const harness = ({ answer = true, api = {} } = {}) => {
     '@contexts/ToastContext': { useToast: () => ({ addToast: (...toast) => toasts.push(toast) }) },
     '@shared/utils/events': { dispatchTaskChanged: (detail) => events.push(detail) },
     '@shared/components/common/confirm': { askConfirm: async (ask) => { asks.push(ask); return answer } },
+    '@features/trash/hooks/useTrashUndo': trashUndo,
     '../api/splitRequests': requests,
+    '../api/splitUndo': { undoSplitDiscard: async () => ({ request: { requestId: 0, taskId: 0 } }), ...undo },
     '../api/splitErrors': splitErrors,
     '../utils/splitLabels': labels,
   })
@@ -134,4 +140,30 @@ test('요약을 읽지 못하면 summary는 null이고 오류를 알리지 않�
   assert.equal(result.summary, null)
   assert.deepEqual(Object.keys(result).sort(), ['refetch', 'summary'])
   h.unmount()
+})
+
+test('준비된 제안을 버리면 6초 동안 되돌릴 수 있다', async () => {
+  let undone = 0
+  const h = harness({ undo: { undoSplitDiscard: async (id) => ({ request: { requestId: id, taskId: 7 } }) } })
+  assert.equal(await h.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false }, { onUndone: () => undone++ }), true)
+  assert.equal(h.toasts[0][0], '제안을 버렸어요.')
+  assert.equal(h.toasts[0][2].action.label, '되돌리기')
+  assert.equal(h.toasts[0][2].durationMs, 6000)
+  h.toasts[0][2].action.onAction(); await settle()
+  assert.equal(undone, 1)
+  assert.equal(h.events.at(-1).taskId, 7)
+})
+test('되돌릴 수 없는 버리기에는 버튼이 없다', async () => {
+  const h = harness({ api: { discardSplitRequest: async (id) => ({ request: { requestId: id, taskId: 7 }, undoable: false }) } })
+  await h.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false })
+  assert.equal(h.toasts[0][2]?.action, undefined)
+})
+test('버리기 되돌리기가 거부되면 서버 문구를 보인다', async () => {
+  const refused = apiError('더 이상 되돌릴 수 없어요.', 409, { code: 'SPLIT_UNDO_NOT_AVAILABLE', split: { undoReason: 'ORIGINAL_CHANGED' } })
+  let undone = 0
+  const h = harness({ undo: { undoSplitDiscard: async () => { throw refused } } })
+  await h.commands.discard({ requestId: 31, status: 'READY', violationRemaining: false }, { onUndone: () => undone++ })
+  h.toasts[0][2].action.onAction(); await settle()
+  assert.equal(h.toasts[1][0], '더 이상 되돌릴 수 없어요.')
+  assert.equal(undone, 0)
 })
