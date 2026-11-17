@@ -31,7 +31,8 @@
   bottom: calc(100% + 8px);
   left: 50%;
   width: min(280px, 72vw);
-  transform: translateX(-50%);
+  /* 화면이나 창 밖으로 나가지 않게 TermHelp가 잰 만큼 옆으로 민다. */
+  transform: translateX(calc(-50% + var(--term-help-shift, 0px)));
   padding: 12px;
   border: 1px solid var(--c-slate-200);
   border-radius: 8px;
@@ -53,6 +54,11 @@
 .term-help[data-open] .term-help__tip {
   visibility: visible;
   opacity: 1;
+}
+/* Esc로 닫으면 초점·마우스가 남아 있어도 감춘다. */
+.term-help[data-dismissed] .term-help__tip {
+  visibility: hidden;
+  opacity: 0;
 }
 .term-help__tip strong {
   display: block;
