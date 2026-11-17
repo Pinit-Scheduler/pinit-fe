@@ -124,6 +124,17 @@ const SplitStartHost = () => {
     [],
   )
 
+  // 동의가 필요하다는 거부 뒤 다시 읽은 안내 버전을 화면이 모르면 동의 창을 그릴 수 없다.
+  // 아무것도 보이지 않은 채 남지 않게 닫고 알린다.
+  const [unknownNotices, setUnknownNotices] = useState(0)
+  if (consentFor && !disclosure) {
+    setConsentFor(null)
+    setUnknownNotices((count) => count + 1)
+  }
+  useEffect(() => {
+    if (unknownNotices > 0) addToast(UNKNOWN_DISCLOSURE, 'error')
+  }, [unknownNotices, addToast])
+
   if (!consentFor || !disclosure) return null
   return (
     <SplitConsentDialog
