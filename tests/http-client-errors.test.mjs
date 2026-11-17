@@ -337,6 +337,33 @@ test('an unauthorized refresh after a server 401 clears the token and fails with
   assert.equal(state.accessToken, null)
 })
 
+// 응답을 받은 뒤 계정이 바뀐 것을 알아채면(assertCurrentActor) 그때 받은 응답의 상태를 남긴다.
+// 만들기 같은 화면이 "서버가 이미 처리했을 수 있음"(2xx)과 "서버가 거부함"을 가린다.
+test('an account change noticed after a response keeps that response status', async () => {
+  const h = createAnonymousHarness({
+    expired: false,
+    responses: [() => {
+      h.state.accessToken = null
+      return Response.json({ ok: true })
+    }],
+  })
+  await assert.rejects(h.httpClient('/task-splits/1/apply', { method: 'POST' }), (error) => {
+    assert.equal(error.status, 401)
+    assert.equal(error.answeredStatus, 200)
+    return true
+  })
+})
+
+test('a 401 thrown before sending or after a server 401 carries the status the server gave, if any', async () => {
+  const preflight = createAnonymousHarness({ responses: [] })
+  await assert.rejects(preflight.httpClient('/schedules'), (error) => error.status === 401 && error.answeredStatus === undefined)
+  const answered = createAnonymousHarness({
+    expired: false,
+    responses: [() => Response.json({ message: 'expired' }, { status: 401 })],
+  })
+  await assert.rejects(answered.httpClient('/schedules'), (error) => error.status === 401 && error.answeredStatus === 401)
+})
+
 test('a refreshed token after a server 401 retries the request once', async () => {
   const { httpClient, state } = createAnonymousHarness({
     expired: false,

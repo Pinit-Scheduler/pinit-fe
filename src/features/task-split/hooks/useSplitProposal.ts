@@ -52,6 +52,8 @@ export type SplitProposalState = {
   setScreen: (screen: ProposalScreen) => void
   /** Task 8이 쓴다 */
   setDraft: (draft: DraftState) => void
+  /** 만드는 동안 true. 그동안 빼기·다시 넣기·고치기·되돌리기·처음 제안으로를 받지 않는다. */
+  hold: (held: boolean) => void
 }
 
 const LOAD_FAILED = '제안을 불러오지 못했어요.'
@@ -64,7 +66,7 @@ const titleIn = (pieces: SplitPiece[], key: string) =>
  * 서버에는 아무것도 저장하지 않는다. 규칙은 모두 검사 결과가 정하고, 여기서는 순수 함수(splitDraft)로 상태만 옮긴다.
  */
 export const useSplitProposal = (requestId: number): SplitProposalState => {
-  const { addToast } = useToast()
+  const { addToast, dismissToast } = useToast()
   const [screen, setScreenState] = useState<SplitProposalState['screen']>({ kind: 'loading' })
   const [draft, setDraftState] = useState<DraftState | null>(null)
   const [request, setRequest] = useState<SplitRequestItem | null>(null)
@@ -74,6 +76,9 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
   const busyRef = useRef(false)
   // 받아들일 응답의 차례. 새 요청·되돌리기·다시 읽기·화면을 떠날 때 올라가 그 전 응답을 버린다.
   const turnRef = useRef(0)
+  const heldRef = useRef(false)
+  // 이 화면이 띄운 되돌리기 토스트. 화면을 떠나면 그 되돌리기는 할 일이 없어 닫는다.
+  const toastsRef = useRef<number[]>([])
 
   const commitDraft = useCallback((next: DraftState | null) => {
     draftRef.current = next
@@ -165,11 +170,18 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
     }
   }, [requestId, open])
 
+  useEffect(() => {
+    const shown = toastsRef.current
+    return () => {
+      shown.splice(0).forEach(dismissToast)
+    }
+  }, [dismissToast])
+
   /** 서버를 부르지 않고 기록의 모습으로 돌아간다. 기다리던 검사 응답은 버린다. */
   const rewind = useCallback(
     (change: (state: DraftState) => DraftState) => {
       const current = draftRef.current
-      if (!current) return
+      if (!current || heldRef.current) return
       turnRef.current += 1
       setBusy(false)
       commitDraft(change(current))
@@ -180,7 +192,7 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
   const send = useCallback(
     async (action: SplitDraftAction, edited?: SplitPiece): Promise<SplitFieldError[] | null> => {
       const before = draftRef.current
-      if (!before || busyRef.current) return []
+      if (!before || busyRef.current || heldRef.current) return []
       const pieces = piecesAfter(before, action, edited)
       const turn = ++turnRef.current
       setBusy(true)
@@ -211,13 +223,14 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
       // 토스트의 되돌리기는 나중에 눌린다. 바꾸기 전 모습과 그때의 기록 깊이를 지금 잡아 둔다.
       const snapshot = { pieces: before.pieces, check: before.check }
       const depth = before.history.length
-      addToast(message, 'success', {
+      const toastId = addToast(message, 'success', {
         durationMs: UNDO_TOAST_MS,
         action: {
           label: '되돌리기',
           onAction: () => rewind((state) => restoreTo(state, snapshot, depth)),
         },
       })
+      toastsRef.current.push(toastId)
       return null
     },
     [requestId, addToast, commitDraft, reread, rewind, setBusy, show],
@@ -245,5 +258,8 @@ export const useSplitProposal = (requestId: number): SplitProposalState => {
     reload: () => reread(draftRef.current?.pieces ?? null),
     setScreen,
     setDraft: commitDraft,
+    hold: (held) => {
+      heldRef.current = held
+    },
   }
 }

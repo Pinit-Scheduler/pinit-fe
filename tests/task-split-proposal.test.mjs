@@ -50,6 +50,7 @@ const detail = {
 const harness = (api, requestId = 31) => {
   const runner = hookRunner()
   const toasts = []
+  const dismissed = []
   const calls = { detail: [], check: [] }
   const proposals = {
     fetchSplitDetail: (id) => {
@@ -63,7 +64,10 @@ const harness = (api, requestId = 31) => {
   }
   const { useSplitProposal } = load('../src/features/task-split/hooks/useSplitProposal.ts', {
     react: runner.react,
-    '@contexts/ToastContext': { useToast: () => ({ addToast: (...toast) => toasts.push(toast) }) },
+    '@contexts/ToastContext': {
+      // addToast는 토스트 번호를 돌려준다(여기서는 몇 번째인지).
+      useToast: () => ({ addToast: (...toast) => toasts.push(toast), dismissToast: (id) => dismissed.push(id) }),
+    },
     '@features/trash/hooks/useTrashUndo': trashUndo,
     '../api/splitProposals': proposals,
     '../utils/splitDraft': draft,
@@ -71,7 +75,7 @@ const harness = (api, requestId = 31) => {
     '../utils/splitProposalScreen': screen,
     '../utils/splitProposalLabels': labels,
   })
-  return { render: () => runner.render(() => useSplitProposal(requestId)), unmount: runner.unmount, toasts, calls }
+  return { render: () => runner.render(() => useSplitProposal(requestId)), unmount: runner.unmount, toasts, dismissed, calls }
 }
 
 test('열면 받은 제안과 첫 검사 결과로 시작한다', async () => {
@@ -214,4 +218,29 @@ test('되돌리기와 처음 제안으로는 서버를 부르지 않는다', asy
   assert.equal(h.render().draft.check.selectedCount, 2)
   assert.equal(h.render().draft.history.length, 0)
   assert.equal(h.calls.check.length, 2)
+})
+
+test('만드는 동안(hold)에는 빼기·고치기·되돌리기를 받지 않는다', async () => {
+  const h = harness({ fetchSplitDetail: async () => detail, checkSplitDraft: async () => checked({ selectedCount: 1, accepted: true }) })
+  h.render(); await settle()
+  h.render().exclude('a'); await settle()
+  h.render().hold(true)
+  h.render().include('a'); await settle()
+  assert.equal(JSON.stringify(await h.render().confirm({ ...detail.proposal.pieces[1], title: '새 제목' })), '[]')
+  h.render().undo()
+  h.render().reset()
+  assert.equal(h.calls.check.length, 1)
+  assert.equal(h.render().draft.check.selectedCount, 1)
+  assert.equal(h.render().draft.history.length, 1)
+  h.render().hold(false)
+  h.render().undo()
+  assert.equal(h.render().draft.history.length, 0)
+})
+test('화면을 떠나면 이 화면이 띄운 되돌리기 토스트를 닫는다', async () => {
+  const h = harness({ fetchSplitDetail: async () => detail, checkSplitDraft: async () => checked({ selectedCount: 1, accepted: true }) })
+  h.render(); await settle()
+  h.render().exclude('a'); await settle()
+  assert.equal(h.dismissed.length, 0)
+  h.unmount()
+  assert.equal(JSON.stringify(h.dismissed), '[1]')
 })

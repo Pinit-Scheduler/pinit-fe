@@ -73,6 +73,11 @@ const isServerAnswer = (error: unknown) => {
 
 const UNCONFIRMED = '만들었는지 확인하지 못했어요.'
 
+const isAnsweredOk = (error: unknown) => {
+  const { answeredStatus } = error as { answeredStatus?: unknown }
+  return typeof answeredStatus === 'number' && answeredStatus >= 200 && answeredStatus < 300
+}
+
 export const applyRejectionOf = (error: unknown): ApplyRejection => {
   const screen = screenRejection(error)
   if (screen) return { kind: 'screen', screen }
@@ -84,8 +89,9 @@ export const applyRejectionOf = (error: unknown): ApplyRejection => {
     const check = splitCheckOf(error)
     if (check) return { kind: 'problems', check }
   }
-  // 401은 응답을 받은 뒤 계정이 바뀐 것을 알아챈 경우(httpClient의 assertCurrentActor)에도 온다. 만들었을 수 있다.
-  if (statusOf(error) === 401)
+  // 성공 응답을 받은 뒤 계정이 바뀐 것을 알아챈 401(httpClient의 assertCurrentActor, answeredStatus 2xx)은
+  // 서버가 이미 만들었을 수 있다. 서버가 401로 답했거나 보내기 전에 막힌 401은 다른 거부와 같다.
+  if (statusOf(error) === 401 && isAnsweredOk(error))
     return { kind: 'unknown', message: `${UNCONFIRMED} ${readFailureMessage(error) ?? '다시 시도해 주세요.'}` }
   if (isServerAnswer(error)) return { kind: 'toast', message: APPLY_REFUSED }
   return { kind: 'unknown', message: getRequestFailureMessage(error, UNCONFIRMED) }

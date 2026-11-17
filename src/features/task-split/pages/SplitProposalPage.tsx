@@ -56,6 +56,8 @@ function SplitProposal({ requestId }: { requestId: number }) {
   const [view, setView] = useState<'map' | 'list'>('map')
   const [dialog, setDialog] = useState<{ key: string; editing: boolean } | null>(null)
   const { screen, draft, busy } = state
+  // 검사를 기다리거나 만드는 동안에는 조각을 바꾸지 않는다(보낸 조각과 화면이 갈라지지 않게).
+  const locked = busy || applying
   const adminOnly =
     adminRefused ||
     (screen.kind === 'ready' && draft?.check.cannotApplyReason === 'ADMIN_ONLY')
@@ -123,7 +125,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
               <button
                 type="button"
                 className="split-piece__edit"
-                disabled={busy}
+                disabled={locked}
                 onClick={() => setDialog({ key: piece.key, editing: true })}
               >
                 고치기
@@ -131,7 +133,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
               <button
                 type="button"
                 className="split-piece__edit split-piece__edit--quiet"
-                disabled={busy}
+                disabled={locked}
                 onClick={() => remove(piece.key)}
               >
                 빼기
@@ -207,7 +209,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
         <button
           type="button"
           className="split-view__undo"
-          disabled={draft.history.length === 0 || busy}
+          disabled={draft.history.length === 0 || locked}
           onClick={state.undo}
         >
           되돌리기
@@ -215,7 +217,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
         <button
           type="button"
           className="split-view__undo"
-          disabled={draft.history.length === 0 || busy}
+          disabled={draft.history.length === 0 || locked}
           onClick={state.reset}
         >
           처음 제안으로
@@ -232,7 +234,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
           pieces={mapPieces}
           emptyReason={check.emptyReason}
           activeKey={active?.key ?? null}
-          busy={busy}
+          busy={locked}
           formatDay={formatDate}
           onActivate={(key) => setDialog({ key, editing: false })}
           onRemove={remove}
@@ -261,7 +263,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
           titleOf={nameOf}
           formatDay={formatDate}
           startEditing={dialog.editing}
-          busy={busy}
+          busy={locked}
           onClose={() => setDialog(null)}
           onRemove={() => remove(active.key)}
           onSave={state.confirm}
@@ -292,7 +294,7 @@ function SplitProposal({ requestId }: { requestId: number }) {
                   <button
                     type="button"
                     className="workspace-button"
-                    disabled={busy}
+                    disabled={locked}
                     onClick={() => state.include(piece.key)}
                   >
                     다시 넣기

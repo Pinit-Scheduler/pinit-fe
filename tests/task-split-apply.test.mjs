@@ -47,6 +47,8 @@ const harness = (api, { pieces = [piece('a'), piece('b')], busy = false } = {}, 
   const removed = []
   const selected = []
   const navigated = []
+  const navigateOptions = []
+  const holds = []
   const changes = []
   const screens = []
   const calls = { apply: [], undo: [] }
@@ -54,7 +56,12 @@ const harness = (api, { pieces = [piece('a'), piece('b')], busy = false } = {}, 
   let reloads = 0
   const { useSplitApply } = load('../src/features/task-split/hooks/useSplitApply.ts', {
     react: runner.react,
-    'react-router-dom': { useNavigate: () => (to) => navigated.push(to) },
+    'react-router-dom': {
+      useNavigate: () => (to, options) => {
+        navigated.push(to)
+        navigateOptions.push(options)
+      },
+    },
     '@contexts/ToastContext': { useToast: () => ({ addToast: (...toast) => toasts.push(toast) }) },
     '@contexts/TaskCacheContext': { useTaskCache: () => ({ removeTask: (id) => removed.push(id) }) },
     '@shared/utils/events': { dispatchTaskChanged: (detail) => changes.push(detail) },
@@ -89,11 +96,12 @@ const harness = (api, { pieces = [piece('a'), piece('b')], busy = false } = {}, 
     reload: () => {
       reloads += 1
     },
+    hold: (held) => holds.push(held),
   })
   return {
     hook: () => runner.render(() => useSplitApply(requestId, proposal())),
     draft: () => draft,
-    toasts, removed, selected, navigated, changes, screens, calls,
+    toasts, removed, selected, navigated, navigateOptions, holds, changes, screens, calls,
     get reloads() {
       return reloads
     },
@@ -109,6 +117,8 @@ test('만들면 원본의 스페이스로 바꿔 작업 맵으로 가고 되돌�
   assert.equal(JSON.stringify(h.removed), '[7]')
   assert.equal(JSON.stringify(h.selected), '[2]')
   assert.equal(h.navigated.at(-1), '/app/task-map')
+  // 제안 화면을 기록에서 바꿔 둔다. 뒤로 가기가 처리된 제안을 열어 맡긴 조각을 써 버리지 않게 한다.
+  assert.equal(h.navigateOptions.at(-1)?.replace, true)
   assert.equal(h.toasts[0][0], '조각 2개를 만들었어요.')
   assert.equal(h.toasts[0][1], 'success')
   assert.equal(h.toasts[0][2].durationMs, 6000)
@@ -208,11 +218,14 @@ test('응답이 오지 않으면 바뀌지 않았다고 말하지 않고 조각�
   assert.match(h.toasts[0][0], /^만들었는지 확인하지 못했어요\./)
   assert.equal(h.toasts[0][1], 'error')
   assert.equal(h.reloads, 1)
+  // 만들어졌을 수도 있으니 다른 화면도 다시 읽게 한다.
+  assert.equal(JSON.stringify(h.changes), '[{"reason":"split-apply-unconfirmed"}]')
   assert.equal(stash.takeDraft(31).length, 2)
 })
 
-test('응답을 받은 뒤 계정 확인에서 막히면(401) 바뀌지 않았다고 말하지 않는다', async () => {
-  const h = harness({ applySplit: async () => { throw apiError('계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.', 401) } })
+test('성공 응답을 받은 뒤 계정 확인에서 막히면(401) 바뀌지 않았다고 말하지 않는다', async () => {
+  const afterOk = Object.assign(apiError('계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.', 401), { answeredStatus: 200 })
+  const h = harness({ applySplit: async () => { throw afterOk } })
   await h.hook().apply()
   assert.equal(h.toasts[0][0], '만들었는지 확인하지 못했어요. 계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.')
   assert.equal(h.reloads, 1)
@@ -233,4 +246,21 @@ test('만드는 중이거나 검사 중이면 다시 보내지 않는다', async
   const checking = harness({ applySplit: async () => result }, { busy: true })
   await checking.hook().apply()
   assert.equal(checking.calls.apply.length, 0)
+})
+
+test('서버가 401로 답하면 만들지 않은 것이니 다른 거부처럼 알린다', async () => {
+  const h = harness({ applySplit: async () => { throw apiError('로그인이 필요해요. 다시 로그인해 주세요.', 401) } })
+  await h.hook().apply()
+  assert.equal(h.toasts[0][0], '만들지 못했어요. 아무것도 바뀌지 않았어요. 잠시 뒤 다시 시도해 주세요.')
+  assert.equal(h.reloads, 0)
+})
+
+test('만드는 동안 제안의 조각 바꾸기를 잠그고 끝나면 푼다', async () => {
+  let release
+  const h = harness({ applySplit: () => new Promise((_, reject) => { release = () => reject(apiError('순환', 409, { code: 'STATE_CONFLICT' })) }) })
+  const pending = h.hook().apply()
+  assert.equal(JSON.stringify(h.holds), '[true]')
+  release()
+  await pending
+  assert.equal(JSON.stringify(h.holds), '[true,false]')
 })

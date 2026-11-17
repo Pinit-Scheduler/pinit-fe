@@ -34,7 +34,7 @@ export const useSplitApply = (requestId: number, proposal: SplitProposalState) =
     setApplyingState(next)
   }, [])
 
-  const { draft, busy, setScreen, setDraft, reload } = proposal
+  const { draft, busy, setScreen, setDraft, reload, hold } = proposal
 
   const undo = useCallback(() => {
     void undoSplitApply(requestId)
@@ -54,13 +54,16 @@ export const useSplitApply = (requestId: number, proposal: SplitProposalState) =
   const apply = useCallback(async () => {
     if (applyingRef.current || busy || !draft) return
     setApplying(true)
+    // 보낸 조각과 화면의 조각이 갈라지지 않게 만드는 동안 고치기를 잠근다.
+    hold(true)
     try {
       const result = await applySplit(requestId, draft.pieces)
       stashDraft(requestId, draft.pieces)
       removeTask(result.trashedTaskId)
       dispatchTaskChanged({ reason: 'split-applied' })
       selectSpace(result.request.spaceId)
-      navigate('/app/task-map')
+      // 제안 화면을 기록에서 바꾼다. 뒤로 가기로 처리된 제안을 열어 맡긴 조각을 써 버리지 않게 한다.
+      navigate('/app/task-map', { replace: true })
       addToast(madeToast(result.created.length, result.notInherited.length), 'success', {
         durationMs: UNDO_TOAST_MS,
         action: { label: '되돌리기', onAction: undo },
@@ -75,13 +78,16 @@ export const useSplitApply = (requestId: number, proposal: SplitProposalState) =
         // 만들어졌을 수도 있다. 고치던 조각을 잃지 않게 맡겨 두고 실제 상태를 다시 읽는다.
         addToast(rejection.message, 'error')
         stashDraft(requestId, draft.pieces)
+        dispatchTaskChanged({ reason: 'split-apply-unconfirmed' })
         reload()
       }
     } finally {
+      hold(false)
       setApplying(false)
     }
   }, [
-    requestId, draft, busy, setScreen, setDraft, reload, addToast, removeTask, navigate, undo, setApplying,
+    requestId, draft, busy, setScreen, setDraft, reload, hold, addToast, removeTask, navigate, undo,
+    setApplying,
   ])
 
   return { applying, adminRefused, apply }

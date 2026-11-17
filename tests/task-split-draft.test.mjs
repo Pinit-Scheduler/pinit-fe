@@ -179,10 +179,16 @@ test('만들기 거부의 갈래', () => {
   assert.equal(lost.kind, 'unknown')
   assert.match(lost.message, /^만들었는지 확인하지 못했어요\./)
   // 응답을 받은 뒤 계정 확인(assertCurrentActor)이 던지는 401은 만들어졌을 수도 있다.
-  const actor = screen.applyRejectionOf(apiError('계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.', 401))
+  // httpClient는 계정 확인(assertCurrentActor)에서 던질 때 그때 받은 응답 상태를 answeredStatus로 남긴다.
+  const afterResponse = (status, message = '계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.') =>
+    Object.assign(apiError(message, 401), { answeredStatus: status })
+  const actor = screen.applyRejectionOf(afterResponse(200))
   assert.equal(actor.kind, 'unknown')
   assert.equal(actor.message, '만들었는지 확인하지 못했어요. 계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.')
-  assert.equal(screen.applyRejectionOf(apiError('', 401)).message, '만들었는지 확인하지 못했어요. 다시 시도해 주세요.')
+  assert.equal(screen.applyRejectionOf(afterResponse(201, '')).message, '만들었는지 확인하지 못했어요. 다시 시도해 주세요.')
+  // 서버가 거부로 답했거나(4xx) 보내기 전에 막힌 401은 만들어지지 않았다.
+  assert.equal(screen.applyRejectionOf(afterResponse(422)).message, fixed)
+  assert.equal(screen.applyRejectionOf(apiError('로그인이 필요해요. 다시 로그인해 주세요.', 401)).message, fixed)
   assert.match(screen.checkFailureOf(new Error('offline')).message, /^조각을 확인하지 못했어요\./)
   assert.equal(screen.checkFailureOf(apiError('잘못', 400, { code: 'INVALID_REQUEST' })).message, '잘못')
   assert.equal(screen.checkFailureOf(notReady('EXPIRED')).screen.kind, 'expired')
