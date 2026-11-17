@@ -6,6 +6,7 @@ import BottomTabBar from './BottomTabBar'
 import { InstallBanner, OfflineBanner, UpdateBanner } from './AppBanners'
 import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
+import { ConfirmHost } from '@shared/components/common'
 import { refreshSession } from '@shared/api/authSession'
 import { startSessionRestore } from '@features/auth/utils/sessionRestore'
 import {
@@ -190,6 +191,7 @@ const AppShell = () => {
       className={`app-shell${isNewPage || /\/edit$/.test(pathname) ? ' app-shell--editing' : ''}`}
     >
       <OnboardingTourProvider>
+        <ConfirmHost />
         <WorkspaceSidebar />
         <TopBar
           title={title}
