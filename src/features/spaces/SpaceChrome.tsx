@@ -5,6 +5,7 @@ import Modal from '@shared/components/common/Modal'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import useMediaQuery from '@shared/hooks/useMediaQuery'
 import { usePresence } from '@shared/motion'
+import { usePageSpace } from './pageSpace'
 import { useSpaces } from './store'
 import ProjectHead from './ProjectHead'
 import SpaceMark from './SpaceMark'
@@ -255,6 +256,12 @@ export function SpaceContextBar() {
   const deadlineRisk = pathname === '/app/deadline-risk'
   const statistics = pathname === '/app/statistics'
   const { selectedSpace, selectedProject } = useSpaces()
+  const pageSpace = usePageSpace()
+  // 쪼개기 화면이 다른 스페이스의 요청을 보이면 고른 스페이스의 목적을 그 위에 두지 않는다.
+  const foreign =
+    pathname.startsWith('/app/tasks/splits') &&
+    pageSpace != null &&
+    pageSpace !== selectedSpace?.id
   // 허브는 목적과 프로젝트를 본문에 크게 보여 주므로 같은 정보를 위에 다시 두지 않는다.
   if (pathname === '/app/spaces') return null
   return (
@@ -275,7 +282,7 @@ export function SpaceContextBar() {
       {statistics && (
         <span className="space-context__project">모든 스페이스 · 내 기록</span>
       )}
-      {!today && !trash && !deadlineRisk && !statistics && selectedSpace?.purpose && (
+      {!today && !trash && !deadlineRisk && !statistics && !foreign && selectedSpace?.purpose && (
         <details>
           <summary>
             <span>목적</span>

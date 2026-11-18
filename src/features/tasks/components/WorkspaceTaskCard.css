@@ -91,7 +91,12 @@
 }
 .workspace-task__description p {
   margin: 8px 0;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  overflow: hidden;
 }
 .workspace-task__description .workspace-button {
   font-size: 13px;

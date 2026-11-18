@@ -26,6 +26,11 @@ export class ApiError extends Error {
    * from that answer, or empty when it carried none, and readFailureMessage treats it as a server response.
    */
   responseStatus?: number
+  /**
+   * Only on the 401 thrown when the signed-in account changed after the request was sent: the HTTP
+   * status of the response already received. A 2xx means the server may have carried the request out.
+   */
+  answeredStatus?: number
 
   constructor(message: string, status: number, data: unknown, url: string) {
     super(message)
@@ -82,13 +87,16 @@ export const httpClient = async <T>(
     next === accessToken ||
     (getTokenSubject(accessToken) !== null &&
       getTokenSubject(accessToken) === getTokenSubject(next))
-  const assertCurrentActor = () => {
+  const assertCurrentActor = (response: Response) => {
     const current = getAccessToken()
-    if (accessToken && (!current || !sameActor(current)))
-      throw new ApiError(
+    if (accessToken && (!current || !sameActor(current))) {
+      const error = new ApiError(
         '계정이 변경되었어요. 최신 화면에서 다시 시도해 주세요.',
         401, null, logUrl,
       )
+      error.answeredStatus = response.status
+      throw error
+    }
   }
 
   const performFetch = async (token?: string) => {
@@ -191,7 +199,7 @@ export const httpClient = async <T>(
       }
     }
 
-    assertCurrentActor()
+    assertCurrentActor(response)
 
     // 응답 로깅
     debugLog(`📥 [${new Date().toISOString()}] API Response:`, {
@@ -212,7 +220,7 @@ export const httpClient = async <T>(
       } catch {
         /* 응답 본문을 읽지 못하면 기본 오류 메시지를 사용 */
       }
-      assertCurrentActor()
+      assertCurrentActor(response)
       console.error(`❌ API Error:`, {
         status: response.status,
         url: logUrl,
@@ -232,7 +240,7 @@ export const httpClient = async <T>(
     }
 
     const rawBody = await response.text()
-    assertCurrentActor()
+    assertCurrentActor(response)
     if (!rawBody) {
       debugLog(`✅ Success (Empty Body):`, logUrl)
       return undefined as T

@@ -28,6 +28,8 @@ import { usePresence } from '@shared/motion/usePresence'
 import { registerTransitionNavigate } from '@shared/routing/viewTransitionNavigation'
 import ScheduleDetailPage from '@features/schedules/pages/ScheduleDetailPage'
 import { TaskMapPage } from '@features/task-map'
+import SplitInboxPage from '@features/task-split/pages/SplitInboxPage'
+import SplitProposalPage from '@features/task-split/pages/SplitProposalPage'
 import { useEffect, useMemo, useState } from 'react'
 import { getAccessToken, getTokenSubject } from '@shared/api/authTokens'
 import AppShell from '@shared/components/layout/AppShell'
@@ -124,6 +126,8 @@ const WorkspaceRoutes = () => {
           <Route path="deadline-risk" element={<DeadlineRiskPage />} />
           <Route path="schedules" element={<SchedulesTabPage />} />
           <Route path="tasks" element={<TaskListPage />} />
+          <Route path="tasks/splits" element={<SplitInboxPage />} />
+          <Route path="tasks/splits/:requestId" element={<SplitProposalPage />} />
           <Route path="spaces" element={<SpacesPage />} />
           <Route path="task-map" element={<TaskMapPage />} />
           <Route path="statistics" element={<StatisticsTabPage />} />

@@ -8,6 +8,11 @@ export type NotificationPreferences = {
   /** 마감일 당일 요약 알림 시각(HH:mm, zoneId 기준) */
   taskDeadlineTime: string
   zoneId: string
+  /**
+   * 작업 쪼개기 푸시(ADR-0035 §14.4). 꺼도 알림함 기록은 남는다. 서버 `NotificationPreferenceResponse`는 늘 싣고,
+   * PUT에서 null이거나 없으면 저장된 값을 둔다. 이 항목을 모르는 옛 서버의 응답에는 없을 수 있어 `taskSplitEnabledOf`로 읽는다.
+   */
+  taskSplitEnabled: boolean
 }
 
 export const REMINDER_MINUTE_OPTIONS = [5, 10, 15, 30, 60] as const
@@ -18,7 +23,20 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   taskDeadlineEnabled: false,
   taskDeadlineTime: '09:00',
   zoneId: 'Asia/Seoul',
+  taskSplitEnabled: true,
 }
+
+/** 쪼개기 알림이 켜져 있는가. 값이 없으면(쪼개기 항목을 모르는 서버의 응답) 켜짐이다. */
+export const taskSplitEnabledOf = (preferences: Partial<NotificationPreferences>): boolean =>
+  preferences.taskSplitEnabled ?? true
+
+/**
+ * 쪼개기 알림 줄을 그릴지. 서버 응답에 그 항목이 있을 때만이다. 모르는 서버는 저장해도 값을 무시해
+ * 줄이 "저장됨"을 보이면서 켜진 채로 남는다.
+ */
+export const taskSplitKnownIn = (
+  preferences: Partial<NotificationPreferences> | null | undefined,
+): boolean => preferences?.taskSplitEnabled != null
 
 export const reminderOptionLabel = (minutes: number | null) =>
   minutes === null ? '끔' : minutes === 60 ? '1시간 전' : `${minutes}분 전`

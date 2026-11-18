@@ -314,7 +314,7 @@ test('an edit conflict closes the editor for the shared notice; any other failur
 // Where the head appears
 // ---------------------------------------------------------------------------
 
-const contextBar = (pathname, spaces) =>
+const contextBar = (pathname, spaces, pageSpace = null) =>
   renderToStaticMarkup(
     React.createElement(
       load('features/spaces/SpaceChrome.tsx', {
@@ -337,6 +337,7 @@ const contextBar = (pathname, spaces) =>
         },
         './SpaceMark': { default: () => null },
         './scope': load('features/spaces/scope.ts'),
+        './pageSpace': { usePageSpace: () => pageSpace },
         './spaces.css': {},
       }).SpaceContextBar,
     ),
@@ -387,4 +388,14 @@ test('the head and the hub read one summary key, so a number fetched by either i
     ['spaces/hub/summary:31', 'spaces/hub/', ['task', 'schedule']],
     [null, 'spaces/hub/', ['task', 'schedule']],
   ])
+})
+
+test('쪼개기 화면이 다른 스페이스의 요청을 보이면 고른 스페이스의 목적 줄을 숨긴다', () => {
+  const selected = { selectedSpace: space, selectedProject: null }
+  // 개인 스페이스(-1)의 제안을 제품팀(31)을 고른 채 연다.
+  assert.ok(!contextBar('/app/tasks/splits/9', selected, -1).includes(space.purpose))
+  assert.ok(contextBar('/app/tasks/splits/9', selected, 31).includes(space.purpose), 'same space keeps it')
+  assert.ok(contextBar('/app/tasks/splits/9', selected, null).includes(space.purpose), 'unknown space keeps it')
+  // 쪼개기 화면 밖에서는 남은 값이 있어도 그대로 둔다.
+  assert.ok(contextBar('/app/tasks', selected, -1).includes(space.purpose))
 })

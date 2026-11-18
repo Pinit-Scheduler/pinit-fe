@@ -304,6 +304,29 @@ test('a notification toggle shows at once, outlives a late read, and rolls back 
   assert.equal(hook().preferences.taskDeadlineEnabled, false, 'a failed save goes back to the previous value')
 })
 
+test('the task split row is known only after a read that carries taskSplitEnabled', async () => {
+  const reads = pendingCalls()
+  const h = settingsHarness({
+    '../api/notificationPreferences': { fetchNotificationPreferences: reads.call, saveNotificationPreferences: async (next) => next },
+  })
+  const old = { scheduleStartEnabled: true, scheduleReminderMinutes: null, taskDeadlineEnabled: false, taskDeadlineTime: '09:00', zoneId: 'Asia/Seoul' }
+  const screen = h.mount(NOTIFICATIONS)
+  const hook = () => screen.render(() => screen.module.default('Asia/Seoul'))
+  assert.equal(hook().taskSplitKnown, false, 'not while loading, although the defaults carry the field')
+  await settle()
+  reads.calls[0].resolve(old)
+  await settle()
+  assert.equal(hook().taskSplitKnown, false, 'a server that does not know split never shows the row')
+  screen.unmount()
+  const next = h.mount(NOTIFICATIONS)
+  const known = () => next.render(() => next.module.default('Asia/Seoul'))
+  known()
+  await settle()
+  reads.calls[1].resolve({ ...old, taskSplitEnabled: false })
+  await settle()
+  assert.equal(known().taskSplitKnown, true)
+})
+
 test('revoking the last connected app keeps the list loaded instead of showing the loading panel', async () => {
   const reads = pendingCalls()
   const h = settingsHarness({

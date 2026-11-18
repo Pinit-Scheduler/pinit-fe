@@ -48,6 +48,19 @@ import UnavailableNote from '@features/spaces/UnavailableNote'
 import { adminNames, unavailableLines } from '@features/spaces/unavailable'
 import { useArrival } from '@shared/motion'
 import { detailRefreshNeeded } from '../utils/taskDetailRefresh'
+import { useNavigate } from 'react-router-dom'
+import { isLockedBySplit } from '@features/task-split/api/splitErrors'
+import SplitLockActions from '@features/task-split/components/SplitLockActions'
+import SplitLockNotice from '@features/task-split/components/SplitLockNotice'
+import SplitOffer from '@features/task-split/components/SplitOffer'
+import { useSplitCommands } from '@features/task-split/hooks/useSplitCommands'
+import { useSplitSummary } from '@features/task-split/hooks/useSplitSummary'
+import { requestSplitStart } from '@features/task-split/splitStartStore'
+import { splitEntryOf } from '@features/task-split/utils/splitEntry'
+import {
+  PROPOSAL_SCREEN_READY,
+  splitProposalPath,
+} from '@features/task-split/utils/splitPaths'
 
 type TaskDetailModalProps = {
   taskId: number
@@ -66,6 +79,9 @@ const TaskDetailModal = ({
   const { addToast } = useToast()
   const { offerTaskUndo } = useTrashUndo()
   const { open } = useRouteSurfaceNavigation()
+  const navigate = useNavigate()
+  const { summary: splitSummary } = useSplitSummary()
+  const splitCommands = useSplitCommands()
   const { spaces, projects } = useSpaces()
   // What this modal read itself, for this id. The cache (seeded by lists, updated by every save)
   // is shown first, so opening a known task never flashes a loading line (audit A6).
@@ -140,6 +156,13 @@ const TaskDetailModal = ({
   const shownDone =
     optimistic && task && optimistic.id === task.id ? optimistic.done : savedDone
   const arriving = useArrival(isLoading, taskId)
+  const splitEntry = splitEntryOf(task?.split, splitSummary?.available ?? false)
+  const splitLock = splitEntry.kind === 'lock' ? splitEntry.lock : null
+  const admins = task
+    ? adminNames(
+        spaces.find((space) => space.id === task.spaceId)?.members ?? [],
+      )
+    : []
 
   const toggleCompletion = async () => {
     if (!task || toggleLock.current) return
@@ -167,6 +190,8 @@ const TaskDetailModal = ({
         ),
         'error',
       )
+      // 화면이 낡아 잠긴 원본에 보냈다. 다시 읽어 잠금 표시가 뜨게 한다(ADR-0035 §9).
+      if (isLockedBySplit(err)) setRevision((value) => value + 1)
     } finally {
       toggleLock.current = false
       setOptimistic(null)
@@ -228,6 +253,7 @@ const TaskDetailModal = ({
         ),
         'error',
       )
+      if (isLockedBySplit(err)) setRevision((value) => value + 1)
     }
   }
 
@@ -256,6 +282,7 @@ const TaskDetailModal = ({
           ),
           'error',
         )
+      if (isLockedBySplit(err)) setRevision((value) => value + 1)
       throw err
     }
   }
@@ -312,6 +339,7 @@ const TaskDetailModal = ({
                   {error}
                 </p>
               )}
+              {splitLock && <SplitLockNotice lock={splitLock} />}
               <section
                 className="task-detail-modal__section"
                 style={{ '--arrive-index': 0 } as CSSProperties}
@@ -351,7 +379,7 @@ const TaskDetailModal = ({
                     {task.missed ? ' · 놓친 회차예요' : ''}
                   </p>
                 )}
-                <p className="task-detail-modal__description">
+                <p className="task-detail-modal__description task-detail-modal__description--body">
                   {task.description}
                 </p>
                 <div className="task-detail-modal__meta">
@@ -429,75 +457,105 @@ const TaskDetailModal = ({
                 className="task-detail-modal__actions"
                 style={{ '--arrive-index': 2 } as CSSProperties}
               >
-                <button
-                  type="button"
-                  disabled={!task.allowedActions?.edit}
-                  onClick={() => {
-                    open(`/app/tasks/${task.id}/edit`)
-                  }}
-                  className="task-detail-modal__action-btn task-detail-modal__action-btn--edit"
-                >
-                  <WorkspaceIcon name="edit" /> 수정
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void toggleCompletion()}
-                  className="task-detail-modal__action-btn task-detail-modal__action-btn--primary"
-                  aria-busy={optimistic !== null || undefined}
-                  disabled={
-                    !(savedDone
-                      ? task.allowedActions?.reopen
-                      : task.allowedActions?.complete)
-                  }
-                >
-                  {shownDone ? '미완료로 전환' : '완료 처리'}
-                </button>
-                <button
-                  type="button"
-                  disabled={!task.allowedActions?.schedule}
-                  onClick={() => setShowScheduleModal(true)}
-                  className="task-detail-modal__action-btn"
-                >
-                  <WorkspaceIcon name="calendar" /> 일정으로 배정
-                </button>
-                <button
-                  type="button"
-                  disabled={!task.allowedActions?.delete}
-                  onClick={handleDelete}
-                  className="task-detail-modal__action-btn task-detail-modal__action-btn--delete"
-                >
-                  <WorkspaceIcon name="trash" /> 삭제
-                </button>
-                {unavailableLines(
-                  [
-                    {
-                      off: task.allowedActions?.edit === false,
-                      reason: task.unavailableReasons?.edit,
-                    },
-                    {
-                      off: task.isCompleted
-                        ? task.allowedActions?.reopen === false
-                        : task.allowedActions?.complete === false,
-                      reason: task.isCompleted
-                        ? task.unavailableReasons?.reopen
-                        : task.unavailableReasons?.complete,
-                    },
-                    {
-                      off: task.allowedActions?.schedule === false,
-                      reason: task.unavailableReasons?.schedule,
-                    },
-                    {
-                      off: task.allowedActions?.delete === false,
-                      reason: task.unavailableReasons?.delete,
-                    },
-                  ],
-                  adminNames(
-                    spaces.find((space) => space.id === task.spaceId)
-                      ?.members ?? [],
-                  ),
-                ).map((line) => (
-                  <UnavailableNote key={line} text={line} />
-                ))}
+                {splitLock ? (
+                  <SplitLockActions
+                    lock={splitLock}
+                    proposalScreen={PROPOSAL_SCREEN_READY}
+                    busy={
+                      splitLock.requestId != null &&
+                      splitCommands.pending.has(splitLock.requestId)
+                    }
+                    onOpen={() => {
+                      if (splitLock.requestId != null)
+                        navigate(splitProposalPath(splitLock.requestId))
+                    }}
+                    onCancel={() => {
+                      if (splitLock.requestId != null)
+                        void splitCommands.cancel(splitLock.requestId)
+                    }}
+                    onDiscard={() => {
+                      if (splitLock.requestId != null)
+                        void splitCommands.discard({
+                          requestId: splitLock.requestId,
+                          status: 'READY',
+                        })
+                    }}
+                  />
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={!task.allowedActions?.edit}
+                      onClick={() => {
+                        open(`/app/tasks/${task.id}/edit`)
+                      }}
+                      className="task-detail-modal__action-btn task-detail-modal__action-btn--edit"
+                    >
+                      <WorkspaceIcon name="edit" /> 수정
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void toggleCompletion()}
+                      className="task-detail-modal__action-btn task-detail-modal__action-btn--primary"
+                      aria-busy={optimistic !== null || undefined}
+                      disabled={
+                        !(savedDone
+                          ? task.allowedActions?.reopen
+                          : task.allowedActions?.complete)
+                      }
+                    >
+                      {shownDone ? '미완료로 전환' : '완료 처리'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!task.allowedActions?.schedule}
+                      onClick={() => setShowScheduleModal(true)}
+                      className="task-detail-modal__action-btn"
+                    >
+                      <WorkspaceIcon name="calendar" /> 일정으로 배정
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!task.allowedActions?.delete}
+                      onClick={handleDelete}
+                      className="task-detail-modal__action-btn task-detail-modal__action-btn--delete"
+                    >
+                      <WorkspaceIcon name="trash" /> 삭제
+                    </button>
+                    <SplitOffer
+                      entry={splitEntry}
+                      admins={admins}
+                      onStart={() => requestSplitStart(task)}
+                    />
+                    {unavailableLines(
+                      [
+                        {
+                          off: task.allowedActions?.edit === false,
+                          reason: task.unavailableReasons?.edit,
+                        },
+                        {
+                          off: task.isCompleted
+                            ? task.allowedActions?.reopen === false
+                            : task.allowedActions?.complete === false,
+                          reason: task.isCompleted
+                            ? task.unavailableReasons?.reopen
+                            : task.unavailableReasons?.complete,
+                        },
+                        {
+                          off: task.allowedActions?.schedule === false,
+                          reason: task.unavailableReasons?.schedule,
+                        },
+                        {
+                          off: task.allowedActions?.delete === false,
+                          reason: task.unavailableReasons?.delete,
+                        },
+                      ],
+                      admins,
+                    ).map((line) => (
+                      <UnavailableNote key={line} text={line} />
+                    ))}
+                  </>
+                )}
               </footer>
             </div>
           </>

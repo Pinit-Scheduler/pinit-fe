@@ -217,7 +217,9 @@ const DependencyPicker = ({
                         {(task.completed ?? task.isCompleted) && (
                           <small> · 완료</small>
                         )}
-                        <small>{task.description}</small>
+                        <small className="task-dependency-modal__desc">
+                          {task.description}
+                        </small>
                       </div>
                     </label>
                   </li>

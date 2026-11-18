@@ -6,6 +6,9 @@ import BottomTabBar from './BottomTabBar'
 import { InstallBanner, OfflineBanner, UpdateBanner } from './AppBanners'
 import MiniPlayerBar from '@features/schedules/components/MiniPlayerBar'
 import { OnboardingTourProvider } from '@features/onboarding'
+import { ConfirmHost } from '@shared/components/common'
+import SplitStartHost from '@features/task-split/components/SplitStartHost'
+import NoticeButton from '@features/notices/components/NoticeButton'
 import { refreshSession } from '@shared/api/authSession'
 import { startSessionRestore } from '@features/auth/utils/sessionRestore'
 import {
@@ -21,6 +24,7 @@ import { useSpaces } from '@features/spaces/store'
 import { routeScope, scopeCrumb } from '@features/spaces/scope'
 import { prefersReducedMotion } from '@shared/motion/tokens'
 import { playRise } from '@shared/motion/playRise'
+import { backTarget } from '@shared/routing/backTarget'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
@@ -48,6 +52,8 @@ const getPageTitle = (pathname: string): string => {
   if (pathname.startsWith('/app/schedules/')) {
     return '일정 상세'
   }
+  if (pathname === '/app/tasks/splits') return '쪼개기 보관함'
+  if (pathname.startsWith('/app/tasks/splits/')) return '쪼개기 제안'
   if (pathname.startsWith('/app/tasks/')) {
     return '작업 상세'
   }
@@ -173,16 +179,13 @@ const AppShell = () => {
     isOnboardingGuide
 
   const handleBack = () => {
-    // 온보딩 가이드는 딥링크로 열 수 있다. 앱 안에서 쌓인 history가 없으면 설정으로 간다.
-    if (isOnboardingGuide) {
-      const historyIndex = (window.history.state as { idx?: number } | null)
-        ?.idx
-      if (historyIndex === undefined || historyIndex <= 0) {
-        navigate('/app/settings', { replace: true })
-        return
-      }
-    }
-    navigate(-1)
+    // 딥링크로 열어 앱 안에 돌아갈 history가 없으면 상위 화면으로 간다.
+    const target = backTarget(
+      pathname,
+      (window.history.state as { idx?: number } | null)?.idx,
+    )
+    if (target) navigate(target, { replace: true })
+    else navigate(-1)
   }
 
   return (
@@ -190,11 +193,14 @@ const AppShell = () => {
       className={`app-shell${isNewPage || /\/edit$/.test(pathname) ? ' app-shell--editing' : ''}`}
     >
       <OnboardingTourProvider>
+        <ConfirmHost />
+        <SplitStartHost />
         <WorkspaceSidebar />
         <TopBar
           title={title}
           scopeLabel={scopeLabel}
           leading={<SpaceSwitcher variant="bar" />}
+          tools={<NoticeButton />}
           showBackButton={showBackButton}
           onBack={handleBack}
           onSettings={() => navigate('/app/settings')}

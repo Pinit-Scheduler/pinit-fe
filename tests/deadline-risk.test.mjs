@@ -164,6 +164,7 @@ test('workspace context labels personal forecast instead of the selected team pu
     '@shared/hooks/useMediaQuery': { default: () => false },
     '@shared/motion': { usePresence: (value) => ({ mounted: Boolean(value), closing: false, value }) },
     './scope': load('../src/features/spaces/scope.ts'),
+    './pageSpace': { usePageSpace: () => null },
     './spaces.css': {},
   })
   const html = renderToStaticMarkup(React.createElement(SpaceContextBar))

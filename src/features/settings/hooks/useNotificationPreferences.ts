@@ -5,6 +5,7 @@ import { fetchNotificationPreferences, saveNotificationPreferences } from '../ap
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   type NotificationPreferences,
+  taskSplitKnownIn,
   withZone,
 } from '../utils/notificationPreferences'
 import { memberStore } from './memberStore'
@@ -13,6 +14,8 @@ type UseNotificationPreferencesReturn = {
   preferences: NotificationPreferences
   isLoading: boolean
   loadError: string | null
+  /** 받은 응답이 쪼개기 알림 항목을 실었는가. 읽기 전이면 false. */
+  taskSplitKnown: boolean
   /** 바꾼 값을 바로 저장한다. 실패하면 이전 값으로 되돌리고 오류를 던진다. */
   update: (patch: Partial<NotificationPreferences>) => Promise<void>
 }
@@ -61,7 +64,13 @@ const useNotificationPreferences = (zoneId: string): UseNotificationPreferencesR
     [setData, zoneId],
   )
 
-  return { preferences, isLoading: isInitialLoading, loadError: error, update }
+  return {
+    preferences,
+    isLoading: isInitialLoading,
+    loadError: error,
+    taskSplitKnown: taskSplitKnownIn(data),
+    update,
+  }
 }
 
 export default useNotificationPreferences

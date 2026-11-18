@@ -1,3 +1,4 @@
+import type { TaskSplitInfo } from '@features/task-split/api/taskSplitInfo'
 import type { AllowedActions } from './types'
 export type ResourceLocation = { spaceId: number; projectId: number | null }
 export type WorkspaceMetadata = ResourceLocation & {
@@ -7,6 +8,7 @@ export type WorkspaceMetadata = ResourceLocation & {
   recurrenceVersion?: number | null
   version: number
   allowedActions: AllowedActions
+  split?: TaskSplitInfo | null
 }
 export type WorkspaceTaskView<T> = WorkspaceMetadata & { task: T }
 export type WorkspaceScheduleView<T> = WorkspaceMetadata & { schedule: T }

@@ -37,11 +37,14 @@ type Toast = {
 }
 
 type ToastContextValue = {
+  /** 띄운 토스트의 번호를 돌려준다. 같은 문구가 떠 있으면 그 토스트의 번호다. */
   addToast: (
     message: string,
     type?: Toast['type'],
     options?: ToastOptions,
-  ) => void
+  ) => number
+  /** 그 번호의 토스트를 닫는다. 이미 닫혔으면 아무것도 하지 않는다. */
+  dismissToast: (id: number) => void
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null)
@@ -105,11 +108,12 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
           next.id,
           setTimeout(() => dismiss(next.id), duration),
         )
+      return next.id
     },
     [commit, dismiss],
   )
 
-  const value = useMemo(() => ({ addToast }), [addToast])
+  const value = useMemo(() => ({ addToast, dismissToast: dismiss }), [addToast, dismiss])
 
   return (
     <ToastContext.Provider value={value}>

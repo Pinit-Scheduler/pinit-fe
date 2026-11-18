@@ -17,6 +17,7 @@ import {
   normalizeDeadlineTime,
   parseReminderOption,
   reminderOptionLabel,
+  taskSplitEnabledOf,
   type NotificationPreferences,
 } from '../utils/notificationPreferences'
 import { DailyObjectiveSetting, TimeZoneSetting } from '../components/ProfileSettingRows'
@@ -34,6 +35,7 @@ const SettingsPage = () => {
     preferences,
     isLoading: isPreferencesLoading,
     loadError: preferencesLoadError,
+    taskSplitKnown,
     update: updatePreferences,
   } = useNotificationPreferences(zoneId)
   const isPreferencesUnavailable = isPreferencesLoading || preferencesLoadError !== null
@@ -280,6 +282,30 @@ const SettingsPage = () => {
             </button>
           </div>
         </div>
+        {/* 쪼개기 항목을 모르는 서버(응답에 값이 없음)에는 줄을 두지 않는다. */}
+        {taskSplitKnown && (
+          <div className="settings__row">
+            <div>
+              <p className="settings__label">작업 쪼개기 알림</p>
+              <p className="settings__description">쪼개기 제안이 준비되거나 실패하면 푸시로 알려 드려요. 꺼도 알림함에는 남아요.</p>
+            </div>
+            <div className="settings__actions">
+              <SavedMark visible={isFlashing('taskSplit')} />
+              <button
+                type="button"
+                className={['settings__toggle', taskSplitEnabledOf(preferences) && 'is-active'].filter(Boolean).join(' ')}
+                disabled={isPreferencesUnavailable}
+                onClick={() =>
+                  void togglePreference({ taskSplitEnabled: !taskSplitEnabledOf(preferences) }, 'taskSplit')
+                }
+                aria-pressed={taskSplitEnabledOf(preferences)}
+                aria-label="작업 쪼개기 알림"
+              >
+                <span />
+              </button>
+            </div>
+          </div>
+        )}
         <div className="settings__row settings__row--stack" data-onboarding-anchor="settings.push">
           <div>
             <p className="settings__label">브라우저 푸시 알림</p>

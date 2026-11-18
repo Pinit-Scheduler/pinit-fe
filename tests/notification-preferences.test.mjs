@@ -17,6 +17,21 @@ const loadModule = (relativePath) => {
 
 const prefs = loadModule('../src/features/settings/utils/notificationPreferences.ts')
 
+test('쪼개기 알림은 기본이 켜짐이고, 값이 없는 응답도 켜짐으로 본다', () => {
+  assert.equal(prefs.DEFAULT_NOTIFICATION_PREFERENCES.taskSplitEnabled, true)
+  assert.equal(prefs.taskSplitEnabledOf({}), true)
+  assert.equal(prefs.taskSplitEnabledOf({ taskSplitEnabled: false }), false)
+  assert.equal(prefs.withZone({ ...prefs.DEFAULT_NOTIFICATION_PREFERENCES, taskSplitEnabled: false }, 'Asia/Seoul').taskSplitEnabled, false)
+})
+test('쪼개기 알림 줄은 서버 응답이 그 항목을 실었을 때만 보인다', () => {
+  assert.equal(prefs.taskSplitKnownIn(null), false)
+  assert.equal(prefs.taskSplitKnownIn(undefined), false)
+  assert.equal(prefs.taskSplitKnownIn({ scheduleStartEnabled: true }), false)
+  assert.equal(prefs.taskSplitKnownIn({ taskSplitEnabled: null }), false)
+  assert.equal(prefs.taskSplitKnownIn({ taskSplitEnabled: false }), true)
+  assert.equal(prefs.taskSplitKnownIn({ taskSplitEnabled: true }), true)
+})
+
 const loadSwScript = (file, globals = {}) => {
   const scope = { ...globals }
   scope.self = scope
@@ -91,4 +106,19 @@ test('tapping a notification opens only paths of this app', () => {
     'https://pinit.go-gradually.me/app/schedules',
   )
   assert.equal(clients.resolveTargetUrl({ data: {} }), 'https://pinit.go-gradually.me/app/schedules')
+})
+
+test('알림 설정 호출은 v2 경로를 직접 적는다', async () => {
+  const source = readFileSync(new URL('../src/features/settings/api/notificationPreferences.ts', import.meta.url), 'utf8')
+  const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
+  const urls = []
+  const deps = {
+    '@shared/api/config': { buildApiUrl: (path, version) => `${version}${path}` },
+    '@shared/api/httpClient': { httpClient: async (url) => { urls.push(url) } },
+  }
+  const module = { exports: {} }
+  vm.runInNewContext(outputText, { module, exports: module.exports, require: (name) => deps[name] })
+  await module.exports.fetchNotificationPreferences()
+  await module.exports.saveNotificationPreferences({})
+  assert.equal(JSON.stringify(urls), '["v2/notifications/preferences","v2/notifications/preferences"]')
 })

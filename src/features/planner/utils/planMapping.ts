@@ -22,6 +22,7 @@ export const BLOCK_REJECTION_LABEL: Record<BlockRejectionReason, string> = {
   OVERLAPS_SCHEDULE: '기존 일정과 시간이 겹쳐요.',
   PREDECESSOR_ENDS_AFTER_START: '선행 작업이 끝나기 전에 시작해요.',
   PREDECESSOR_NOT_SCHEDULED: '선행 작업이 완료되지도, 일정에 잡히지도 않았어요.',
+  TASK_LOCKED_BY_SPLIT: '쪼개기 요청이 진행 중인 작업이라 배치할 수 없어요.',
 }
 
 const hasOwn = <T extends object>(map: T, key: string): key is Extract<keyof T, string> =>

@@ -28,6 +28,7 @@ export type UnavailableReason =
   | 'PREDECESSOR_INCOMPLETE'
   | 'ALREADY_SCHEDULED'
   | 'RECURRING_TASK'
+  | 'SPLIT_IN_PROGRESS'
 export type UnavailableReasons = Partial<
   Record<keyof AllowedActions, UnavailableReason>
 >
