@@ -1574,7 +1574,8 @@ const walkToday = async (viewport, openContext) => {
         await page.waitForURL(/\/app\/today$/)
         const failure = homeCard(page).locator('.workspace-inline-error')
         await failure.waitFor()
-        assert.match(await failure.innerText(), /마인드맵을 불러오지 못했어요\./)
+        // 카드는 서버 문구를 보인다(BE `MindMapErrorMessages.UNREADABLE`).
+        assert.match(await failure.innerText(), /저장된 마인드맵을 읽지 못했어요\. 잠시 후 다시 시도해 주세요\./)
       } finally {
         expectingRejection = null
       }

@@ -3,7 +3,9 @@ import { normalizeText, textLength } from '../features/mind-map/model/text'
 import { subtreeHeight, totalNodes, type CheckState, type MindMapNode } from '../features/mind-map/model/tree'
 
 /**
- * `/v2/mind-map…` 개발용 모크(ADR-0036 §5). 서버의 근사다. 검사 순서는 ADR §4 P1(모양 → version → 나무 규칙)을 따른다.
+ * `/v2/mind-map…` 개발용 모크(ADR-0036 §5). 서버의 근사다. 검사 순서는 BE와 같다: 본문 읽기 → 값의 종류 → 모양 →
+ * version → 나무 규칙 → 탈퇴한 회원의 처음 저장. 응답 모양과 문구는 BE(pinit-monolith `MindMapControllerAdvice`)
+ * 그대로다. 대조표는 FE `docs/mind-map.md`의 "계약 대조"에 있다.
  * 회원 1(demo)만 예시 맵을 갖고, 다른 회원은 저장한 적 없다. 상태는 이 모듈 변수에만 둔다.
  */
 
@@ -13,18 +15,23 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const CHECKS: readonly CheckState[] = ['NONE', 'OPEN', 'DONE']
 const PATH = '/v2/mind-map'
 const CURSOR_PATH = '/v2/mind-map/cursor'
+const NUMERIC = /^-?\d+$/
+// 문구는 BE `MindMapErrorMessages`와 `RequestErrorMessages` 그대로다. 바꿀 때는 BE를 먼저 바꾼다.
 const CONFLICT = '다른 곳에서 마인드맵이 먼저 바뀌었어요. 최신 내용을 불러온 뒤 다시 고쳐 주세요.'
-const SHAPE_MESSAGE = '마인드맵을 저장하지 못했어요. 새로 고친 뒤 다시 해 주세요.'
-const SHAPE_REASON = '형식이 올바르지 않아요.'
+const REQUEST_SHAPE = '마인드맵의 내용을 읽지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.'
+const WITHDRAWN = '탈퇴한 회원의 마인드맵은 쓸 수 없어요.'
+const UNREADABLE = '저장된 마인드맵을 읽지 못했어요. 잠시 후 다시 시도해 주세요.'
+const UNREADABLE_BODY = '요청을 처리하지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.'
+const UNEXPECTED = '일시적인 문제로 처리하지 못했어요. 잠시 후 다시 시도해 주세요.'
 const RULE_REASONS = {
-  ROOT_ID_CHANGED: '다른 계정의 마인드맵이라 저장할 수 없어요. 새로 고친 뒤 다시 해 주세요.',
-  ROOT_CHECKED: '주제에는 체크박스를 붙일 수 없어요.',
-  ID_FORMAT: '가지 번호가 올바르지 않아요.',
-  ID_DUPLICATE: '같은 가지가 두 번 들어 있어요.',
-  TEXT_EMPTY: '가지 글을 적어 주세요.',
-  TEXT_TOO_LONG: '가지 글은 100자까지 쓸 수 있어요.',
-  TOO_MANY_BRANCHES: '가지는 500개까지 만들 수 있어요.',
-  TOO_DEEP: '가지는 주제 아래 32단계까지 만들 수 있어요.',
+  ROOT_ID_CHANGED: '가장 위의 주제는 바꿀 수 없어요. 화면을 새로고침한 뒤 다시 시도해 주세요.',
+  ROOT_CHECKED: '가장 위의 주제에는 체크박스를 달 수 없어요. 체크박스를 없애고 다시 시도해 주세요.',
+  ID_FORMAT: '가지를 구별하는 값이 올바르지 않아요. 화면을 새로고침한 뒤 다시 시도해 주세요.',
+  ID_DUPLICATE: '같은 가지가 두 번 들어 있어요. 화면을 새로고침한 뒤 다시 시도해 주세요.',
+  TEXT_EMPTY: '가지의 글이 비어 있어요. 글을 적거나 가지를 지워 주세요.',
+  TEXT_TOO_LONG: '가지의 글은 100자까지 적을 수 있어요. 글을 줄여 주세요.',
+  TOO_MANY_BRANCHES: '가지는 주제를 포함해 500개까지 만들 수 있어요. 안 쓰는 가지를 지운 뒤 다시 시도해 주세요.',
+  TOO_DEEP: '가지는 주제 아래로 32단계까지 이어 만들 수 있어요. 단계를 줄여 주세요.',
 } as const
 type Rule = keyof typeof RULE_REASONS
 
@@ -95,6 +102,8 @@ type StoredMap = { version: number; root: MindMapNode; cursorNodeId: string | nu
 const maps = new Map<number, StoredMap>([
   [1, { version: 3, root: fixture.root, cursorNodeId: fixture.ids.packing, lastSaveId: null }],
 ])
+/** 탈퇴한 회원. BE는 탈퇴할 때 맵을 지우고, 그 뒤의 처음 저장을 409 `MEMBER_WITHDRAWN`으로 거절한다. */
+const withdrawn = new Set<number>()
 let nextSaveFailure: 'lost' | 'server' | null = null
 let nextLoadFails = false
 
@@ -123,23 +132,76 @@ const errorBody = (status: number, error: string, message: string, path: string,
 const contains = (node: MindMapNode, id: string): boolean =>
   node.id === id || node.children.some((child) => contains(child, id))
 
-const readBody = async (request: Request): Promise<Record<string, unknown>> => {
-  const body: unknown = await request.json().catch(() => null)
-  return body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {}
+type Body = Record<string, unknown>
+const isObject = (value: unknown): value is Body => !!value && typeof value === 'object' && !Array.isArray(value)
+
+/** 본문의 JSON 객체. 깨진 JSON, 빈 본문, 객체가 아닌 본문이면 null(BE는 일반 400으로 답한다). */
+const readBody = async (request: Request): Promise<Body | null> => {
+  const body: unknown = await request.text().then(JSON.parse).catch(() => null)
+  return isObject(body) ? body : null
 }
 
-/** 가지 모양(필드 다섯과 그 형식)을 보고 틀린 곳을 JSON 경로로 모은다. */
-const shapeErrors = (value: unknown, path: string, errors: FieldError[]) => {
-  const fail = (field: string, rejectedValue: unknown) =>
-    errors.push({ field, rejectedValue: rejectedValue ?? null, reason: SHAPE_REASON })
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return fail(path, value)
-  const { id, text, collapsed, check, children } = value as Record<string, unknown>
-  if (typeof id !== 'string') fail(`${path}.id`, id)
-  if (typeof text !== 'string') fail(`${path}.text`, text)
-  if (typeof collapsed !== 'boolean') fail(`${path}.collapsed`, collapsed)
-  if (!CHECKS.includes(check as CheckState)) fail(`${path}.check`, check)
-  if (!Array.isArray(children)) return fail(`${path}.children`, children)
-  children.forEach((child, i) => shapeErrors(child, `${path}.children[${i}]`, errors))
+const unreadableBody = (path: string) => errorBody(400, 'Bad Request', UNREADABLE_BODY, path)
+const shapeError = (field: string, rejectedValue: unknown): FieldError => ({
+  field,
+  rejectedValue: rejectedValue ?? null,
+  reason: REQUEST_SHAPE,
+})
+const shapeFailure = (path: string, errors: FieldError[]) => errorBody(400, 'Bad Request', REQUEST_SHAPE, path, errors)
+
+/**
+ * 값의 종류가 틀린 첫 곳(BE에서는 Jackson이 읽다 멈춘 곳)의 JSON 경로. null은 종류 오류가 아니다(모양 검사가 본다).
+ * 문서에 적힌 차례대로 본다. Jackson의 기본 변환 가운데 숫자 글자의 version만 흉내 낸다.
+ */
+const nodeMismatch = (node: Body, path: string): string | null => {
+  for (const [key, value] of Object.entries(node)) {
+    if (value === null) continue
+    const at = `${path}.${key}`
+    if ((key === 'id' || key === 'text' || key === 'check') && typeof value !== 'string') return at
+    if (key === 'collapsed' && typeof value !== 'boolean') return at
+    if (key !== 'children') continue
+    if (!Array.isArray(value)) return at
+    for (const [i, child] of value.entries()) {
+      if (child === null) continue
+      if (!isObject(child)) return `${at}[${i}]`
+      const inner = nodeMismatch(child, `${at}[${i}]`)
+      if (inner) return inner
+    }
+  }
+  return null
+}
+
+const saveMismatch = (body: Body): string | null => {
+  for (const [key, value] of Object.entries(body)) {
+    if (value === null) continue
+    if (key === 'expectedVersion' && !Number.isInteger(value) && !(typeof value === 'string' && NUMERIC.test(value)))
+      return key
+    if (key === 'saveId' && typeof value !== 'string') return key
+    if (key === 'root') {
+      if (!isObject(value)) return key
+      const inner = nodeMismatch(value, 'root')
+      if (inner) return inner
+    }
+  }
+  return null
+}
+
+/** 빠지거나 null이거나 모르는 체크 상태인 곳을 모두 모은다. 차례는 BE `MindMapNodeDto.toNode`와 같다. */
+const shapeErrors = (node: Body, path: string, errors: FieldError[]) => {
+  const { id, text, collapsed, check, children } = node
+  if (check == null || !CHECKS.includes(check as CheckState)) errors.push(shapeError(`${path}.check`, check))
+  if (id == null) errors.push(shapeError(`${path}.id`, null))
+  if (text == null) errors.push(shapeError(`${path}.text`, null))
+  if (collapsed == null) errors.push(shapeError(`${path}.collapsed`, null))
+  if (children == null) {
+    errors.push(shapeError(`${path}.children`, null))
+    return
+  }
+  for (const [i, child] of (children as unknown[]).entries()) {
+    const at = `${path}.children[${i}]`
+    if (child == null) errors.push(shapeError(at, null))
+    else shapeErrors(child as Body, at, errors)
+  }
 }
 
 /** 나무 규칙(ADR §4). 가지 수·깊이가 넘으면 그 위반 하나만, 아니면 앞에서 깊이 우선으로 모두 모은다. */
@@ -176,7 +238,7 @@ const tidy = (node: MindMapNode): MindMapNode => ({
 const readMap = (memberId: number) => {
   if (nextLoadFails) {
     nextLoadFails = false
-    return errorBody(500, 'Internal Server Error', '마인드맵을 불러오지 못했어요.', PATH)
+    return errorBody(500, 'Internal Server Error', UNREADABLE, PATH)
   }
   const stored = maps.get(memberId)
   if (!stored) {
@@ -189,14 +251,18 @@ const readMap = (memberId: number) => {
 }
 
 const saveMap = async (memberId: number, request: Request) => {
-  const { expectedVersion, saveId, root } = await readBody(request)
+  const body = await readBody(request)
+  if (!body) return unreadableBody(PATH)
+  const mismatch = saveMismatch(body)
+  if (mismatch) return shapeFailure(PATH, [shapeError(mismatch, null)])
+  const { saveId, root } = body
+  const expectedVersion = typeof body.expectedVersion === 'string' ? Number(body.expectedVersion) : body.expectedVersion
   const shape: FieldError[] = []
-  if (typeof expectedVersion !== 'number' || !Number.isInteger(expectedVersion) || expectedVersion < 0)
-    shape.push({ field: 'expectedVersion', rejectedValue: expectedVersion ?? null, reason: SHAPE_REASON })
-  if (typeof saveId !== 'string' || !UUID.test(saveId))
-    shape.push({ field: 'saveId', rejectedValue: saveId ?? null, reason: SHAPE_REASON })
-  shapeErrors(root, 'root', shape)
-  if (shape.length) return errorBody(400, 'Bad Request', SHAPE_MESSAGE, PATH, shape)
+  if (expectedVersion == null || (expectedVersion as number) < 0) shape.push(shapeError('expectedVersion', expectedVersion))
+  if (saveId == null || !UUID.test(saveId as string)) shape.push(shapeError('saveId', saveId))
+  if (root == null) shape.push(shapeError('root', null))
+  else shapeErrors(root as Body, 'root', shape)
+  if (shape.length) return shapeFailure(PATH, shape)
 
   const stored = maps.get(memberId)
   const latestVersion = stored?.version ?? 0
@@ -209,10 +275,12 @@ const saveMap = async (memberId: number, request: Request) => {
   const tree = root as MindMapNode
   const violations = ruleErrors(tree, memberId)
   if (violations.length) return errorBody(400, 'Bad Request', violations[0].reason, PATH, violations)
+  if (!stored && withdrawn.has(memberId))
+    return json({ code: 'MEMBER_WITHDRAWN', message: WITHDRAWN, latestVersion: null, lastSaveId: null }, 409)
 
   const failure = nextSaveFailure
   nextSaveFailure = null
-  if (failure === 'server') return errorBody(500, 'Internal Server Error', '마인드맵을 저장하지 못했어요.', PATH)
+  if (failure === 'server') return errorBody(500, 'Internal Server Error', UNEXPECTED, PATH)
   const version = latestVersion + 1
   maps.set(memberId, {
     version,
@@ -226,11 +294,11 @@ const saveMap = async (memberId: number, request: Request) => {
 
 /** 기억한 가지는 형식만 본다. 저장한 적 없으면 아무것도 남기지 않고, version·저장 번호는 그대로다. */
 const saveCursor = async (memberId: number, request: Request) => {
-  const { nodeId } = await readBody(request)
+  const body = await readBody(request)
+  if (!body) return unreadableBody(CURSOR_PATH)
+  const { nodeId } = body
   if (typeof nodeId !== 'string' || !UUID.test(nodeId))
-    return errorBody(400, 'Bad Request', SHAPE_REASON, CURSOR_PATH, [
-      { field: 'nodeId', rejectedValue: nodeId ?? null, reason: SHAPE_REASON },
-    ])
+    return shapeFailure(CURSOR_PATH, [shapeError('nodeId', typeof nodeId === 'string' ? nodeId : null)])
   const stored = maps.get(memberId)
   if (stored) stored.cursorNodeId = nodeId
   return noContent()
@@ -256,9 +324,14 @@ export const mockMindMapControls = {
   failNextSave(kind: 'lost' | 'server' | null) {
     nextSaveFailure = kind
   },
-  /** 다음 GET 한 번을 500으로 답한다. */
+  /** 다음 GET 한 번을 500으로 답한다. 본문은 BE가 저장된 맵을 읽지 못했을 때와 같다. */
   failNextLoad(on: boolean) {
     nextLoadFails = on
+  },
+  /** 회원을 탈퇴시킨다: 맵을 지우고, 그 뒤의 처음 저장을 409 `MEMBER_WITHDRAWN`으로 거절한다. */
+  withdraw(memberId = 1) {
+    maps.delete(memberId)
+    withdrawn.add(memberId)
   },
   /** 다른 기기나 MCP가 고친 것처럼 주제 바로 아래 첫 가지 글을 바꾼다. 새 version을 돌려준다. */
   remoteEdit(memberId = 1) {
