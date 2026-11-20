@@ -110,6 +110,8 @@ const AppShell = () => {
         '--workspace-viewport-height',
         `${window.visualViewport?.height ?? window.innerHeight}px`,
       )
+      // iOS는 키보드가 열리면 보이는 영역을 아래로 민다(offsetTop). 캔버스 화면은 틀을 그 자리에 맞춘다(AppShell.css).
+      shell.style.setProperty('--workspace-viewport-top', `${window.visualViewport?.offsetTop ?? 0}px`)
     }
     const resize = new ResizeObserver(measure)
     const observe = () => {
@@ -121,12 +123,14 @@ const AppShell = () => {
     const mutation = new MutationObserver(observe)
     mutation.observe(shell, { childList: true, subtree: true })
     window.visualViewport?.addEventListener('resize', measure)
+    window.visualViewport?.addEventListener('scroll', measure)
     window.addEventListener('resize', measure)
     observe()
     return () => {
       resize.disconnect()
       mutation.disconnect()
       window.visualViewport?.removeEventListener('resize', measure)
+      window.visualViewport?.removeEventListener('scroll', measure)
       window.removeEventListener('resize', measure)
     }
   }, [])

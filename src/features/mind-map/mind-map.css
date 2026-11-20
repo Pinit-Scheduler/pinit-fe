@@ -579,3 +579,14 @@
     display: none;
   }
 }
+
+/* 폰에서 가지 글을 쓰는 동안: 키보드 위 자리를 캔버스에 준다. 아래 탭과 미니 플레이어를 숨긴다(앱의 다른 입력 화면과 같다). */
+@media (max-width: 899px) {
+  body[data-mind-map-editing='true'] .app-shell--canvas .bottom-tab,
+  body[data-mind-map-editing='true'] .mini-player-wrapper {
+    display: none;
+  }
+  body[data-mind-map-editing='true'] .app-shell--canvas .app-shell__content {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
