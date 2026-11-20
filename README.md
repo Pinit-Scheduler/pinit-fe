@@ -23,7 +23,7 @@ npm run dev
 - 로그인하면 모크 refresh 쿠키가 남고 로그아웃하면 지워집니다. `__pinitMock.setRefreshFailure('network' | 'unavailable')`로 세션 갱신 실패를 재현하고 `null`로 되돌립니다([세션 갱신](docs/auth-session-refresh.md#모크-api)).
 - 작업 쪼개기(`/v2/task-splits…`)는 요청 상태마다 fixture 작업을 깔아 둡니다. `__pinitMock.split`(`fixtures`, `requests`, `finish`, `settings`, `setAutoFinish`)으로 요청을 끝내고 스위치·동의·횟수를 바꿉니다([작업 쪼개기](docs/task-split.md#mock)).
 - 쪼개기 제안 만들기의 거부는 `__pinitMock.split.failNextApply('EXPIRED' | 'ADMIN_ONLY' | 'UNEXPECTED')`로 다음 한 번을 재현합니다. 알림함(`/v2/notifications/notices…`)은 준비·실패 알림을 깔아 두고, 요청이 끝나면 1.5초 뒤 새 알림을 만듭니다([작업 쪼개기](docs/task-split.md#mock)).
-- 마인드맵(`/v2/mind-map…`)은 demo 계정에 예시 맵을 깔아 둡니다. `__pinitMock.mindMap`(`failNextSave`, `failNextLoad`, `remoteEdit`)으로 저장 실패·응답 잃음·다른 기기의 변경을 재현합니다([마인드맵](docs/mind-map.md#mock-사용법)).
+- 마인드맵(`/v2/mind-map…`)은 demo 계정에 예시 맵을 깔아 둡니다. `__pinitMock.mindMap`(`failNextSave`, `failNextLoad`, `remoteEdit`, `withdraw`)으로 저장 실패·응답 잃음·다른 기기의 변경·탈퇴한 회원의 처음 저장을 재현합니다([마인드맵](docs/mind-map.md#mock-사용법)).
 - 실서버를 사용하려면 플래그를 제거하거나 `false`로 두면 됩니다.
 
 ## 기능 변경 문서
