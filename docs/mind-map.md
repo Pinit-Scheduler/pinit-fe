@@ -1,8 +1,36 @@
 # 마인드맵
 
+2026-11-20 기능 변경 문서다. 회원 한 명이 한 장의 나무(주제 하나에서 뻗는 가지)를 쓰는 마인드맵 화면과 저장을 설명한다. 화면은 ui-design에서 만들고 확인한 것을 같은 바이트로 옮겼고, 이 저장소에서는 **mock API로** 확인했다. 그 확인은 BE 운영 배포와 별개다. 운영 서버에 마인드맵이 반영됐는지는 이 문서가 말하지 않는다.
+
+- 화면 기준: pinit-docs의 마인드맵 설계와 Y3 계획(`docs/superpowers/plans/2026-11-20-mind-map-y3-ui-design.md`)의 "이 계획이 정한 것" 표. 시안과 측정 기록은 `pinit-ui-design` README의 "마인드맵" 절이다.
+- API 기준: `pinit-monolith`의 ADR-0036과 `/v2/mind-map…` 구현(아래 "계약 대조").
+
+## 들어가는 길
+
+- 왼쪽 메뉴 `내 화면`의 첫 줄 `마인드맵`(`/app/mind-map`). 메뉴 순서는 마인드맵, 통계다.
+- 홈(오늘 화면)의 마인드맵 카드. 맵을 읽지 못하면 카드가 서버 문구를 보인다.
+- 설정 머리 바로 아래 카드의 `마인드맵` 줄. 폰에서 들어가는 주된 길이다.
+
+계정당 한 장이고 스페이스와 상관없다.
+
+## 화면이 계산하지 않는 것
+
+- 나무 규칙(주제 id·체크·id 형식·중복·글 길이·가지 수·깊이)의 최종 판정은 서버다. 화면은 같은 규칙으로 미리 막기만 하고, 서버가 거절하면 서버 문구를 그대로 보인다.
+- 제한값(가지 수, 글 길이, 깊이)은 화면에 박아 두지 않고 GET 응답의 `limits`를 쓴다.
+- 글 정리(공백·줄바꿈)는 서버와 같은 표(`tests/fixtures/mind-map-text-cases.json`)로 검사한다. 이 파일은 BE `modules/task/src/test/resources/mind-map/text-normalization-cases.json`과 바이트가 같아야 하고 다르면 BE가 원본이다.
+
+## 저장
+
+- 화면의 나무는 **확정된 나무**만 서버로 간다. 글을 쓰는 중인 가지는 확정하기 전에는 보내지 않는다.
+- 변경은 1초 모아 보내고, 창이 숨거나 탭이 닫힐 때는 바로 보낸다. 창이 숨을 때는 본문이 64KB 안이면 keepalive로 보내고, 글을 쓰는 중이면 보내지 않는다(탭이 닫힐 때 `pagehide`가 쓰던 글을 확정해 보낸다).
+- 저장마다 `saveId`(소문자 UUID)를 붙인다. 응답을 잃은 저장은 다음 저장이 받은 409의 `lastSaveId`로 들어갔는지 안다.
+- 서버 version이 다르면 409 `VERSION_CONFLICT`. 화면은 덮어쓰지 않고 토스트를 한 번 띄운 뒤 최신 나무를 불러온다. 저장 상태는 위 막대에서 저장하지 못한 이유와 `다시 시도`로 보인다.
+- 페이지를 떠난 뒤의 저장이 실패하면 어느 화면에서든 토스트를 띄우고, 같은 계정으로 다시 열었을 때 서버 version이 그대로면 그 나무로 이어서 저장한다. 그사이 바뀌었으면 덮지 않고 알린다.
+- 커서(고른 가지)는 `PUT /v2/mind-map/cursor`로 따로 보낸다(204).
+
 ## 계약 대조
 
-2026-11-20, pinit-monolith 브랜치 `claude/dreamy-gauss-ln9kc1`, 커밋 `f7dfcbd`(`docs(mind-map): Y2 기록의 열린 항목을 최종 리뷰 반영에 맞춘다`, Y1·Y2 구현과 최종 리뷰 반영 포함)의 서버 코드를 읽어 `/v2/mind-map…`의 경로, 본문, 오류 모양, 문구를 mock(`src/mocks/mindMap.ts`)과 화면의 API 모듈(`src/features/mind-map/api/mindMapApi.ts`)에 줄마다 견줬다. 대조는 코드와 서버 시험(`MindMapControllerV2IntegrationTest`)을 읽어서 했고 실제 서버에 연결해 부르지는 않았다. 다른 것은 ui-design `claude/dreamy-gauss-ln9kc1`의 `677f731`(`fix(mind-map): mock을 BE 계약에 맞춘다`)에서 고쳐 이 저장소로 같은 바이트로 옮겼다. 아직 구현되지 않아 대조하지 못한 항목은 없다.
+2026-11-20, pinit-monolith 브랜치 `claude/dreamy-gauss-ln9kc1`, 커밋 `f7dfcbd`(`docs(mind-map): Y2 기록의 열린 항목을 최종 리뷰 반영에 맞춘다`, Y1·Y2 구현과 최종 리뷰 반영 포함)의 서버 코드를 읽어 `/v2/mind-map…`의 경로, 본문, 오류 모양, 문구를 mock(`src/mocks/mindMap.ts`)과 화면의 API 모듈(`src/features/mind-map/api/mindMapApi.ts`)에 줄마다 견줬다. 대조는 코드와 서버 시험(`MindMapControllerV2IntegrationTest`)을 읽어서 했고 실제 서버에 연결해 부르지는 않았다. 다른 것은 ui-design `claude/dreamy-gauss-ln9kc1`의 `677f731`(`fix(mind-map): mock을 BE 계약에 맞춘다`)에서 고쳐 이 저장소로 같은 바이트로 옮겼다. 대조는 서버 코드를 읽어서 한 것이라, Jackson 기본 변환처럼 서버를 불러 봐야 아는 느슨한 종류 처리는 확인하지 못했고 아래 "남긴 차이"에 확인하지 않은 것으로 적었다.
 
 BE 근거의 경로는 `modules/task/src/main/java/me/gg/pinit/pinittask/` 아래이고 `M/`로 줄였다. mock 줄은 `src/mocks/mindMap.ts`(고친 뒤)다.
 
@@ -41,3 +69,62 @@ BE 근거의 경로는 `modules/task/src/main/java/me/gg/pinit/pinittask/` 아�
 - **가지 수와 깊이를 함께 넘을 때**: BE는 스택으로 도는 동안 먼저 닿은 한도 하나를 답한다(`MindMapPolicy.java:47-70`). mock은 늘 가지 수를 먼저 본다. 둘 다 위반 하나만 싣는 것은 같다.
 - **`violations`의 `rule`**: `classifySaveError`는 `rejectedValue`가 글이면 `rule`에 넣는다. 모양 오류에서는 규칙 이름이 아니라 받은 값(예: `MAYBE`)이 들어간다. 화면은 `violations`를 쓰지 않고 문구만 보이므로 두었다.
 - **503 `lost`와 401**: `failNextSave('lost')`의 503(반영한 뒤 응답을 잃음)과 로그인 없는 401은 이 controller가 아니라 게이트웨이·네트워크를 흉내 낸 것이라 BE 본문과 대조하지 않았다.
+
+## mock 사용법
+
+dev 서버를 `VITE_USE_MOCK_API=true`로 띄운다. demo 계정에 예시 맵이 깔려 있다. 개발자 도구의 `__pinitMock.mindMap`:
+
+- `failNextSave('server' | 'lost' | null)`: 다음 저장 한 번을 실패시킨다. `server`는 반영하지 않고 500, `lost`는 반영한 뒤 503(응답을 잃은 저장).
+- `failNextLoad(true)`: 다음 읽기 한 번을 500으로 답한다.
+- `withdraw(memberId = 1)`: 회원을 탈퇴시킨다. 그 뒤 처음 저장이 409 `MEMBER_WITHDRAWN`으로 거절된다(새로 고치면 되돌아간다).
+- `remoteEdit()`: 다른 기기나 MCP가 고친 것처럼 첫 가지 글 끝에 ` (다른 기기)`를 붙이고 version을 올린다. `lastSaveId`는 비운다.
+
+글 정리 표는 fixture(`tests/fixtures/mind-map-text-cases.json`), 화면 확인은 `node qa/mind-map/local.mjs`(`QA_ORIGIN`으로 이미 띄운 dev 서버를 쓴다. 이 저장소에는 `start` 스크립트가 없어 `VITE_USE_MOCK_API=true npx vite --host 127.0.0.1 --port 4174`로 띄웠다)다. 캡처는 `qa/mind-map/screenshots/`에 남지만 `.gitignore`에 있어 커밋하지 않는다.
+
+## 화면이 정한 것
+
+정한 표는 Y3 계획의 "이 계획이 정한 것"이다. 아래는 그 가운데 폰 단추 줄을 잰 결과와 저장 줄이다(근거 기록은 ui-design README의 "마인드맵" 절).
+
+- **폰의 동작 단추 줄(390px)**: 일곱 단추(하위 가지, 같은 단계, 글 고치기, 체크박스, 접기, 삭제, 되돌리기)를 아이콘 위·글 아래(11.5px)로 한 줄에 둔다. 이 저장소에서 다시 잰 값은 단추 줄 356px, 단추마다 폭 48px·높이 50px, 글 모두 한 줄, 가장 긴 글이 42.5px로 단추 안쪽에 들어간다. 그래서 글을 숨기지 않았다. 375px에서는 단추 46px로 글이 안쪽 여백에 1.5px, 360px에서는 43px로 0.5px 걸쳐 여유가 거의 없다(여전히 한 줄).
+- **좁은 PC 창**: 캔버스 폭이 1,000px 미만이면 단추 옆 단축키(`kbd`)를 숨긴다.
+- **미니 플레이어**가 떠 있으면 단추 줄을 PC 24px, 폰 32px 올린다(`MiniPlayerBar.css`의 아래 여백과 같이 바뀌어야 한다).
+- **폰의 위 막대**: 첫 줄에 `← 홈`·제목·저장 상태, 둘째 줄에 숫자.
+- **오늘 화면의 카드**: "오늘의 작업"은 제자리, "오늘의 일정"은 두 칸일 때만 카드 높이 + 간격만큼 내려간다.
+- **저장**: 위 "저장" 절과 같다. 화면 확인의 `leave-fails` 단계가 떠나는 순간의 저장을 모두 500으로 만들어 본다.
+
+## 두 저장소를 같게 두는 방법
+
+화면 코드는 `pinit-ui-design`에서 고치고 이 저장소로 같은 바이트로 옮긴다. 같음 확인(두 저장소를 나란히 두고):
+
+```sh
+UI=../pinit-ui-design; FE=.
+# 마인드맵 파일마다
+(cd $UI && git ls-files src/features/mind-map src/mocks/mindMap.ts 'tests/mind-map-*' tests/fixtures qa/mind-map | grep -v screenshots) |
+  while read f; do cmp -s "$UI/$f" "$FE/$f" || echo "DIFF $f"; done
+diff -rq $UI/src $FE/src; diff -rq $UI/public $FE/public; diff -rq $UI/tests/support $FE/tests/support
+cmp ../pinit-monolith/modules/task/src/test/resources/mind-map/text-normalization-cases.json $FE/tests/fixtures/mind-map-text-cases.json
+```
+
+모두 출력이 없어야 한다. 2026-11-20 이 저장소의 `qa`를 마친 뒤 ui-design `677f731`과 비교해 출력이 없었다.
+
+## 검증한 것과 하지 않은 것
+
+**검증한 것은 mock API 위에서다.** 운영 서버나 BE 배포 상태에 대한 확인이 아니다.
+
+- `node --test --test-concurrency=1`, `npm run lint`, `npm run build`.
+- `node qa/mind-map/local.mjs`를 이 저장소의 dev 서버(mock 켜짐)에 돌렸다. PC 1280×860과 폰 390×800 두 뷰포트에서 모든 단계가 끝까지 갔고 기대하지 않은 console error와 가로 넘침이 없었다. 기대한 오류 기록은 일부러 실패시킨 저장·읽기와 mock의 없는 진행 중 일정 404뿐이다.
+- ui-design에 남은 같은 이름의 캡처(데스크톱 42장)와 견주면 39장이 바이트까지 같고 3장(`desktop-drag-between-held-dark`, `desktop-save-failed-state`, `-dark`)이 다르다. 저장 실패 두 장은 ui-design 캡처가 mock을 BE 문구에 맞추기(`677f731`) 전의 것이라 이유 문구가 `마인드맵을 저장하지 못했어요.`와 `일시적인 문제로 처리하지 못했어요. …`로 갈린다. 드래그 한 장은 다시 찍어 확인하지 않았다(같은 코드이므로 환경의 시점 차이로 본다).
+
+**확인하지 않았다**(유지관리자가 BE 운영 반영 뒤 실제 기기와 브라우저로 확인하길 요청하는 항목이다. 통과로 쓰지 않는다):
+
+- 실제 한글 입력기. 조합 중 `Enter`·`Tab`·`Esc`와 고른 상태에서 바로 한글 치기는 `isComposing`·keyCode 229 키 이벤트로 시험했을 뿐이다.
+- 실제 폰의 손가락 끌기와 두 손가락 확대(Chromium에 CDP 터치 이벤트를 보내 시험했을 뿐이다).
+- 탭을 닫을 때(`pagehide`)와 창이 숨을 때의 keepalive 저장과 64KB 한도. 저장기 테스트로만 확인했다.
+- Firefox와 Safari. Chromium에서만 걸었다.
+- 페이지를 떠났다가 저장 응답이 오기 전에 돌아오는 경합. 저장기 테스트(`tests/mind-map-saver.test.mjs`)로만 확인했다.
+- MCP 동의 화면의 마인드맵 문구. mock에 OAuth 동의 경로가 없어 화면 확인에서 지나가지 못했고 단위 테스트로만 확인했다.
+- 실제 `/v2/mind-map` 서버. 계약은 코드를 읽어 견줬을 뿐 호출하지 않았다.
+
+## 구현 위치
+
+`src/features/mind-map/`(`api/`, `model/`, `hooks/`, `components/`, `pages/MindMapPage.tsx`, `paths.ts`), mock `src/mocks/mindMap.ts`, 테스트 `tests/mind-map-*.test.mjs`, 화면 확인 `qa/mind-map/local.mjs`. 메뉴·홈 카드·설정 줄은 각각 사이드바, 오늘 화면, 설정 화면에 걸려 있다.
