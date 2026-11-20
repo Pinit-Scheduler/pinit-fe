@@ -1,0 +1,84 @@
+import { useMemo } from 'react'
+import type { CSSProperties } from 'react'
+import type { Editing } from '../model/editor'
+import type { MapLayout } from '../model/layout'
+import type { MindMapNode } from '../model/tree'
+import MindMapNodeView from './MindMapNodeView'
+
+type Props = {
+  root: MindMapNode
+  layout: MapLayout
+  selectedId: string | null
+  editing: Editing | null
+  readOnly: boolean
+  nodeRef?: (id: string, el: HTMLElement | null) => void
+  onLabelInput?: (text: string) => void
+  onCheckClick?: (id: string) => void
+  onToggleClick?: (id: string) => void
+  dropId?: string | null
+  /** 화면 위치(transform)와 보이기는 부모가 정한다. */
+  style?: CSSProperties
+}
+
+const byId = (root: MindMapNode): Map<string, MindMapNode> => {
+  const out = new Map<string, MindMapNode>()
+  const walk = (node: MindMapNode) => {
+    out.set(node.id, node)
+    node.children.forEach(walk)
+  }
+  walk(root)
+  return out
+}
+
+const stroke = (color: number | null) =>
+  color === null ? 'var(--workspace-muted)' : `var(--workspace-mind-map-branch-${color})`
+
+/** 선과 가지들. 페이지는 편집하고, 홈 카드는 `readOnly`로 보여 주기만 한다. */
+export default function MindMapWorld({
+  root,
+  layout,
+  selectedId,
+  editing,
+  readOnly,
+  nodeRef,
+  onLabelInput,
+  onCheckClick,
+  onToggleClick,
+  dropId = null,
+  style,
+}: Props) {
+  const nodes = useMemo(() => byId(root), [root])
+  return (
+    <div
+      className={'mind-map-world' + (readOnly ? ' mind-map-world--readonly' : '')}
+      style={style}
+      aria-hidden={readOnly || undefined}
+    >
+      <svg className="mind-map-edges" aria-hidden="true">
+        {layout.edges.map((edge) => (
+          <path key={`${edge.fromId}>${edge.toId ?? ''}`} d={edge.d} style={{ stroke: stroke(edge.color) }} />
+        ))}
+      </svg>
+      {layout.nodes.map((place) => {
+        const node = nodes.get(place.id)
+        if (!node) return null
+        return (
+          <MindMapNodeView
+            key={place.id}
+            node={node}
+            place={place}
+            box={layout.boxes.get(place.id)}
+            selected={place.id === selectedId}
+            editing={!readOnly && editing?.id === place.id}
+            readOnly={readOnly}
+            dropTarget={place.id === dropId}
+            nodeRef={nodeRef}
+            onLabelInput={onLabelInput}
+            onCheckClick={onCheckClick}
+            onToggleClick={onToggleClick}
+          />
+        )
+      })}
+    </div>
+  )
+}

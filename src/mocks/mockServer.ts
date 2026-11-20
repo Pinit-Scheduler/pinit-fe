@@ -8,6 +8,7 @@ import {
   onMockSplitSubmitted,
 } from './taskSplit'
 import { mockNoticeSettings } from './notices'
+import { mockMindMapControls } from './mindMap'
 import { failNextMockApply } from './taskSplitProposal'
 import { setChangeDeliveryDelay, STREAM_POLL_MS } from './workspaceState'
 import { setMockRefreshFailure, type MockRefreshFailure } from './refreshCookie'
@@ -91,6 +92,8 @@ export const setupMockServer = () => {
         }
         return latency
       },
+      /** 마인드맵. `failNextSave('lost' | 'server' | null)`, `failNextLoad(true)`, `remoteEdit()`(다른 기기·MCP처럼 고친다). */
+      mindMap: mockMindMapControls,
       /**
        * 작업 쪼개기 요청. `finish(requestId, 'READY' | 'READY_WITH_VIOLATION' | 'FAILED')`로 처리를 끝낸다.
        * `failNextApply('EXPIRED' | 'ADMIN_ONLY' | 'UNEXPECTED')`는 다음 만들기 한 번을 그 거부로 답한다(null이면 지운다).

@@ -82,6 +82,12 @@ const TOOL_LABELS: Record<string, string> = {
   delete_schedule: '일정 삭제',
   delete_task: '작업 삭제',
   delete_recurrence: '반복 삭제',
+  get_mind_map: '마인드맵 조회',
+  add_mind_map_branches: '마인드맵 가지 추가',
+  update_mind_map_branch: '마인드맵 가지 글 수정',
+  move_mind_map_branch: '마인드맵 가지 옮기기',
+  set_mind_map_branch_check: '마인드맵 체크 상태 변경',
+  delete_mind_map_branch: '마인드맵 가지 삭제',
 }
 
 const DELETE_TOOLS = new Set([
@@ -96,6 +102,7 @@ const DELETE_TOOLS = new Set([
   'delete_workspace_task',
   'delete_workspace_schedule',
   'delete_workspace_recurrence',
+  'delete_mind_map_branch',
 ])
 
 const TARGET_LABELS: Record<string, string> = {

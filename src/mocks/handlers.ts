@@ -38,6 +38,7 @@ import { handleNotices } from './notices'
 import { handleTaskSplits } from './taskSplit'
 import { handleSplitProposalRoutes } from './taskSplitProposal'
 import { handleOnboarding } from './onboarding'
+import { handleMindMap } from './mindMap'
 import { handleRecurrences } from './recurrences'
 import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
 import { handleCalibration } from './calibration'
@@ -890,6 +891,9 @@ export const handleMockRequest = async (
 
   const member = await handleMember(path, method, request)
   if (member) return member
+
+  const mindMap = await handleMindMap(path, method, request)
+  if (mindMap) return mindMap
 
   const onboarding = await handleOnboarding(path, method, request)
   if (onboarding) return onboarding

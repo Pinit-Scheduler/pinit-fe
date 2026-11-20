@@ -28,6 +28,7 @@ import { backTarget } from '@shared/routing/backTarget'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
+  '/app/mind-map': '마인드맵',
   '/app/spaces': '스페이스',
   '/app/plan': '하루 계획',
   '/app/deadline-risk': '마감 위험 예보',
@@ -153,11 +154,15 @@ const AppShell = () => {
   const title = getPageTitle(pathname)
   const personalSpace =
     spaces.find((space) => space.id === defaultSpaceId) ?? null
-  const scopeLabel = scopeCrumb(
-    routeScope(pathname),
-    routeScope(pathname) === 'personal' ? personalSpace : selectedSpace,
-    selectedProject,
-  )
+  // 마인드맵은 스페이스와 상관없는 내 화면이고 본문 전체를 캔버스로 쓴다. 범위 표시를 두지 않는다.
+  const isCanvasPage = pathname === '/app/mind-map'
+  const scopeLabel = isCanvasPage
+    ? null
+    : scopeCrumb(
+        routeScope(pathname),
+        routeScope(pathname) === 'personal' ? personalSpace : selectedSpace,
+        selectedProject,
+      )
   const showSettingsButton = !pathname.startsWith('/app/settings')
   const isScheduleDetail =
     pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3
@@ -190,7 +195,7 @@ const AppShell = () => {
 
   return (
     <div
-      className={`app-shell${isNewPage || /\/edit$/.test(pathname) ? ' app-shell--editing' : ''}`}
+      className={`app-shell${isNewPage || /\/edit$/.test(pathname) ? ' app-shell--editing' : ''}${isCanvasPage ? ' app-shell--canvas' : ''}`}
     >
       <OnboardingTourProvider>
         <ConfirmHost />

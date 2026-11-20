@@ -38,6 +38,7 @@ import { useListPresence, presenceProps } from '@shared/motion/useListPresence'
 import { useTweenedNumber } from '@shared/motion/useTweenedNumber'
 import type { PresenceEntry } from '@shared/motion/presence'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
+import MindMapHomeCard from '@features/mind-map/components/MindMapHomeCard'
 import { useSettlingList } from '../settle'
 import { moveFocusOutOfLeavingRow } from '../focus'
 import './TodayPage.css'
@@ -382,6 +383,7 @@ export default function TodayPage() {
             )}
           </div>
         </section>
+        <MindMapHomeCard />
       </div>
       <TaskScheduleModal
         isOpen={selectedTaskId !== null}

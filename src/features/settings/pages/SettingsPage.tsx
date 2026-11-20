@@ -139,6 +139,23 @@ const SettingsPage = () => {
         <h1 className="settings__title">알림 및 기준 정보</h1>
       </header>
 
+      <section className="settings__card" aria-label="마인드맵">
+        <h2>마인드맵</h2>
+        <Link
+          to="/app/mind-map"
+          onClick={tabLinkClick('/app/mind-map')}
+          className="settings__row settings__row--link"
+        >
+          <div>
+            <p className="settings__label">마인드맵</p>
+            <p className="settings__description">큰 일을 가지로 쪼개 적어 두는 내 마인드맵이에요.</p>
+          </div>
+          <span className="settings__chevron" aria-hidden>
+            ›
+          </span>
+        </Link>
+      </section>
+
       <section className="settings__card" aria-label="자동 계획">
         <h2>자동 계획</h2>
         <Link

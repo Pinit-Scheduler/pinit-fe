@@ -3,13 +3,16 @@ import { useSpaces } from '@features/spaces/store'
 import { Link, NavLink } from 'react-router-dom'
 import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import WorkspaceIcon, { type WorkspaceIconName } from '../common/WorkspaceIcon'
-const main: [string, string, WorkspaceIconName][] = [
+const mine: [string, string, WorkspaceIconName][] = [
   ['today', '오늘', 'sun'],
+  ['mind-map', '마인드맵', 'mindMap'],
+  ['statistics', '통계', 'chart'],
+]
+const space: [string, string, WorkspaceIconName][] = [
   ['spaces', '스페이스', 'spaces'],
   ['schedules', '일정', 'calendar'],
   ['tasks', '작업', 'task'],
   ['task-map', '작업 맵', 'map'],
-  ['statistics', '통계', 'chart'],
 ]
 const manage: [string, string, WorkspaceIconName][] = [
   ['settings/routines', '생활 시간', 'clock'],
@@ -27,9 +30,21 @@ export default function WorkspaceSidebar() {
           pinit<span className="workspace-brand__dot">.</span>
         </span>
       </Link>
+      <nav className="workspace-sidebar__mine" aria-label="내 화면">
+        {mine.map(([path, label, icon]) => (
+          <NavLink
+            key={path}
+            to={'/app/' + path}
+            onClick={tabLinkClick('/app/' + path)}
+          >
+            <WorkspaceIcon name={icon} />
+            {label}
+          </NavLink>
+        ))}
+      </nav>
       <SpaceSwitcher />
-      <nav aria-label="주 메뉴">
-        {main.map(([path, label, icon]) => (
+      <nav aria-label="스페이스 메뉴">
+        {space.map(([path, label, icon]) => (
           <NavLink
             key={path}
             to={'/app/' + path}

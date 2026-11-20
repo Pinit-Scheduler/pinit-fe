@@ -264,6 +264,8 @@ export function SpaceContextBar() {
     pageSpace !== selectedSpace?.id
   // 허브는 목적과 프로젝트를 본문에 크게 보여 주므로 같은 정보를 위에 다시 두지 않는다.
   if (pathname === '/app/spaces') return null
+  // 마인드맵은 스페이스와 상관없는 내 화면이라 범위 표시를 두지 않는다.
+  if (pathname === '/app/mind-map') return null
   return (
     <section className="space-context" aria-label="목적과 프로젝트">
       {today && (
