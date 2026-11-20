@@ -25,8 +25,19 @@
 .today-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+  grid-template-areas: "tasks card" "tasks schedules";
+  grid-template-rows: auto 1fr;
   gap: 26px;
   align-items: start;
+}
+.today-workspace__tasks {
+  grid-area: tasks;
+}
+.today-workspace__schedules {
+  grid-area: schedules;
+}
+.today-workspace > .mind-map-card {
+  grid-area: card;
 }
 .today-page__legend {
   display: flex;
@@ -213,6 +224,8 @@
 @media (max-width: 1000px) {
   .today-workspace {
     grid-template-columns: 1fr;
+    grid-template-areas: "tasks" "schedules" "card";
+    grid-template-rows: none;
   }
   .today-workspace__task-body {
     padding-inline: 16px;

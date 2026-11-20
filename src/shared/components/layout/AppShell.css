@@ -34,6 +34,16 @@
   margin-inline: auto;
   width: 100%;
 }
+/* 본문 전체를 캔버스로 쓰는 화면(마인드맵): 안쪽 여백과 스크롤이 없다. */
+.app-shell--canvas .app-shell__content {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 var(--workspace-player-height);
+  overflow: hidden;
+}
+.app-shell--canvas .app-shell__content > * {
+  max-width: none;
+}
 .workspace-sidebar {
   background: var(--c-surface);
   border-right: 1px solid var(--c-slate-200);
@@ -283,4 +293,15 @@
   .app-shell--editing .app-shell__content {
     padding-bottom: 24px;
   }
+  .app-shell--canvas .app-shell__content {
+    padding: 0 0
+      calc(
+        var(--workspace-nav-height) + var(--workspace-player-height) +
+          env(safe-area-inset-bottom, 0px)
+      );
+  }
+}
+/* 내 화면(오늘·마인드맵·통계): 로고와 스페이스 상자 사이. 보이는 묶음 제목은 없다. */
+.workspace-sidebar__mine {
+  margin: 24px 0 18px;
 }

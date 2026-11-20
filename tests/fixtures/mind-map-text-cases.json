@@ -1,0 +1,10 @@
+[
+  {"name": "공백 정리", "input": "  짐  정리 ", "normalized": "짐 정리", "codePoints": 4},
+  {"name": "탭과 줄바꿈", "input": "a\tb\nc", "normalized": "a b c", "codePoints": 5},
+  {"name": "넓은 공백", "input": " x　y ", "normalized": "x y", "codePoints": 3},
+  {"name": "NEL", "input": "\u0085a", "normalized": "a", "codePoints": 1},
+  {"name": "폭 없는 공백은 글자", "input": "​x", "normalized": "​x", "codePoints": 2},
+  {"name": "빈 글", "input": "", "normalized": "", "codePoints": 0},
+  {"name": "공백만", "input": " \t ", "normalized": "", "codePoints": 0},
+  {"name": "이모지 한 글자", "input": "😀", "normalized": "😀", "codePoints": 1}
+]

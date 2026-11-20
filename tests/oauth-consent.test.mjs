@@ -135,9 +135,12 @@ test('optInScopes render unchecked and are granted only when the user checks the
   )
   assert.equal(
     options[2].label,
-    '스페이스·프로젝트·일정·작업 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
+    '스페이스·프로젝트·일정·작업·마인드맵 가지 삭제 및 초대 철회·참여자 제외 (미리보기 후 확인)',
   )
   assert.ok(options[2].warning, 'delete carries a warning')
+  assert.match(options[2].warning, /마인드맵 가지 삭제는 되돌릴 수 없어요/)
+  assert.match(options[0].label, /마인드맵/)
+  assert.match(options[1].label, /마인드맵/)
 
   const defaults = consent.getDefaultSelectedScopes(requested, optIn)
   assert.deepEqual([...defaults], ['mcp:write'])
@@ -216,7 +219,7 @@ test('opt-in wins over requested, and unknown scopes in either list show raw and
       ]),
     ],
     [
-      ['mcp:read', '개인·공유 스페이스의 일정·작업·프로젝트·참여자 보기', true, false],
+      ['mcp:read', '개인·공유 스페이스의 일정·작업·프로젝트·참여자와 내 마인드맵 보기', true, false],
       ['mcp:future', 'mcp:future', false, true],
       ['mcp:later', 'mcp:later', false, true],
     ],

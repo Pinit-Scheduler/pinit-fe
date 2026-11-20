@@ -63,4 +63,6 @@ export const writeText = (key: string, value: string, storage: FlagStorage | nul
 export const STORAGE_KEYS = {
   /** 마지막으로 받은 회원 시간대(ADR-0028). 다음 실행의 첫 화면을 같은 시간대로 그린다 */
   displayZoneId: 'pinit.time.displayZoneId',
+  /** 오늘 화면의 마인드맵 카드를 접었다(`'1'`) 폈다(`'0'`). 이 기기에만 기억한다 */
+  mindMapCardCollapsed: 'pinit.mindMap.cardCollapsed',
 } as const

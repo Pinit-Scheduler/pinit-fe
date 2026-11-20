@@ -30,6 +30,11 @@
   --workspace-map-dot: #d9e1ee;
   --workspace-map-group: #edf3ff88;
   --workspace-map-group-line: #dfe6f3;
+  --workspace-mind-map-branch-0: #345ce5;
+  --workspace-mind-map-branch-1: #c0607c;
+  --workspace-mind-map-branch-2: #2c8a7e;
+  --workspace-mind-map-branch-3: #a8741c;
+  --workspace-mind-map-branch-4: #7658d0;
   --workspace-chart-main: var(--workspace-blue);
   --workspace-chart-light: color-mix(
     in srgb,
@@ -118,6 +123,11 @@
   --workspace-map-dot: #3c4c66;
   --workspace-map-group: #25375888;
   --workspace-map-group-line: #3d5072;
+  --workspace-mind-map-branch-0: #9bb4ff;
+  --workspace-mind-map-branch-1: #df97b2;
+  --workspace-mind-map-branch-2: #6cc7ba;
+  --workspace-mind-map-branch-3: #e0b060;
+  --workspace-mind-map-branch-4: #b8a2f5;
   --workspace-chart-light: color-mix(in srgb, var(--workspace-blue), white 50%);
   --workspace-chart-mid: color-mix(in srgb, var(--workspace-blue), white 28%);
   --workspace-chart-strong: color-mix(in srgb, var(--workspace-blue), white 8%);
@@ -153,6 +163,11 @@
     --workspace-map-dot: #3c4c66;
     --workspace-map-group: #25375888;
     --workspace-map-group-line: #3d5072;
+    --workspace-mind-map-branch-0: #9bb4ff;
+    --workspace-mind-map-branch-1: #df97b2;
+    --workspace-mind-map-branch-2: #6cc7ba;
+    --workspace-mind-map-branch-3: #e0b060;
+    --workspace-mind-map-branch-4: #b8a2f5;
     --workspace-chart-light: color-mix(
       in srgb,
       var(--workspace-blue),

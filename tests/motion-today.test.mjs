@@ -161,6 +161,7 @@ const todayHarness = () => {
     },
     '@shared/motion/useTweenedNumber': { useTweenedNumber: (value) => value },
     '@shared/components/common/WorkspaceIcon': { default: () => null },
+    '@features/mind-map/components/MindMapHomeCard': { default: () => React.createElement('aside', { className: 'mind-map-card-stub' }) },
     '../settle': load('features/today/settle.ts', { react: React, '@shared/motion/tokens': { COMPLETION_HOLD_MS: 480 } }),
     '../focus': { moveFocusOutOfLeavingRow: () => { h.focus++ } },
     './TodayPage.css': {},
@@ -188,6 +189,15 @@ test('Today keys both panels on the day and refreshes them on one change batch, 
     { key: 'today/schedules/2026-11-10@Asia/Seoul', invalidateOn: ['task', 'schedule'] },
   ])
   assert.deepEqual(h.presence, Array(3).fill('2026-11-10@Asia/Seoul'), 'another day is a new baseline, not an animated swap')
+})
+
+test('Today puts the mind-map card after the schedule panel without a query of its own', () => {
+  const h = todayHarness()
+  const html = h.render(loaded)
+  const at = (name) => html.indexOf(name)
+  assert.ok(at('today-workspace__tasks') < at('today-workspace__schedules'))
+  assert.ok(at('today-workspace__schedules') < at('mind-map-card-stub'))
+  assert.equal(h.queries.length, 2)
 })
 
 test('Today seeds the tasks and schedules it shows into the caches the cards read', () => {

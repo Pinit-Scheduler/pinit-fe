@@ -6,6 +6,7 @@ const paths = {
     'M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm2-3v6m10-6v6M4 10h16M8 14h2m4 0h2m-8 3h2',
   task: 'M9 12l2 2 5-6M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z',
   map: 'M9 3h6v5H9ZM2 16h6v5H2Zm14 0h6v5h-6ZM12 8v4M5 16v-4h14v4',
+  mindMap: 'M3 10h5v4H3ZM8 12h3m0-6v12m0-12h2m-2 6h2m-2 6h2M13 4h8v4h-8Zm0 6h8v4h-8Zm0 6h8v4h-8Z',
   spaces: 'M5 4h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm9 0h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM5 13h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Zm9 0h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1Z',
   chart: 'M4 3v18h17M8 17v-5m5 5V7m5 10V4',
   plus: 'M12 5v14M5 12h14',
