@@ -28,6 +28,7 @@ type Props = {
 }
 
 const DOT_SPACING = 22
+const ANY_PICK = '*'
 
 const caretToEnd = (el: HTMLElement) => {
   const range = document.createRange()
@@ -66,7 +67,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
   /** 열린 가지 메뉴. 고른 가지가 바뀌거나 글 쓰기가 시작되면 보이지 않는다. */
   const [menu, setMenu] = useState<MenuPlace | null>(null)
   const closeMenu = useCallback(() => setMenu(null), [])
-  /** 눌러서 고른 가지. 누른 가지는 이미 보이므로 화면을 옮기지 않는다. */
+  /** 눌러서 고른 가지. 누른 가지는 이미 보이므로 화면을 옮기지 않는다. `ANY_PICK`은 범위 선택처럼 주 가지가 어느 것이든 그렇다. */
   const pointerPicked = useRef<string | null>(null)
   const layout = useMemo(() => layoutMap(state.tree, sizes), [state.tree, sizes])
   const { editing, selectedId, limits } = state
@@ -151,9 +152,10 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
       return
     }
     const picked = pointerPicked.current
-    if (previous.selectedId !== selectedId) pointerPicked.current = null
+    if (previous.selectedId !== selectedId || picked === ANY_PICK) pointerPicked.current = null
     const resized = previous.frame !== null && (previous.frame.w !== frame.w || previous.frame.h !== frame.h)
-    if ((previous.selectedId !== selectedId && picked !== selectedId) || editing || resized) {
+    const byPointer = picked === selectedId || picked === ANY_PICK
+    if ((previous.selectedId !== selectedId && !byPointer) || editing || resized) {
       const next = keepVisible(view, box, frame)
       if (next.x !== view.x || next.y !== view.y) setView(next)
     }
@@ -163,6 +165,11 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
       if (!active || active === document.body || canvas.contains(active)) canvas.focus({ preventScroll: true })
     }
   }, [layout, sizes, setGeometry, selectedId, editing, view, fontsLoaded, frameSize])
+
+  // 범위 선택이 주 가지를 바꾸지 않았어도 표시는 이번 그리기에서 끝낸다. 다음 키보드 이동은 화면을 따라 옮긴다.
+  useLayoutEffect(() => {
+    if (pointerPicked.current === ANY_PICK) pointerPicked.current = null
+  }, [state.selection])
 
   const labelOf = (id: string) =>
     elements.current.get(id)?.querySelector<HTMLElement>('.mind-map-node__label') ?? null
@@ -233,28 +240,37 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     if (!stage) return
     const rect = stage.getBoundingClientRect()
     pointerPicked.current = id
-    flushSync(() => dispatch({ type: 'select', id }))
+    // 고른 여러 가지 가운데 하나면 고른 것을 두어 메뉴가 모두에 하게 한다.
+    flushSync(() => dispatch({ type: 'select', id, keep: true }))
     canvasRef.current?.focus({ preventScroll: true })
     setMenu({ id, x: x - rect.left, y: y - rect.top, above })
   }
 
-  const { drag, panning, cancelPress, handlers } = useCanvasPointer({
+  const { drag, panning, marquee, cancelPress, ownsContextMenu, handlers } = useCanvasPointer({
     canvasRef,
     state,
     view,
     setView,
     dispatch,
+    boxes: layout.boxes,
+    isMac,
+    onMenuAt: (id, x, y) => openMenu(id, x, y, false),
     onPointerSelect: (id) => {
-      pointerPicked.current = id
+      pointerPicked.current = id ?? ANY_PICK
     },
     onLongPress: (id, x, y) => openMenu(id, x, y, true),
   })
 
-  /** 오른쪽 단추(안드로이드는 길게 누르기도)로 가지 메뉴를 연다. 쓰는 글 안에서는 브라우저 메뉴를 둔다. */
+  /**
+   * 키보드 메뉴 키와 안드로이드 길게 누르기로 가지 메뉴를 연다. 쓰는 글 안에서는 브라우저 메뉴를 둔다.
+   * 마우스 오른쪽 단추는 끌면 화면 이동이라 포인터 훅이 뗄 때 메뉴를 연다. 그 `contextmenu`는 막기만 한다.
+   */
   const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement
     if (target.isContentEditable) return
     event.preventDefault()
+    const pointerType = (event.nativeEvent as PointerEvent).pointerType
+    if (ownsContextMenu() && (pointerType === 'mouse' || pointerType === undefined)) return
     const id = nodeIdOf(target)
     if (drag || !id || editing) return
     cancelPress()
@@ -275,6 +291,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
 
   const k = view?.k ?? 1
   const childDrop = drag?.drop?.mode === 'child' ? drag.drop.targetId : null
+  const selectedIds = useMemo(() => new Set(state.selection), [state.selection])
   return (
     <div className="mind-map-stage">
       <div
@@ -283,6 +300,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
         tabIndex={0}
         role="tree"
         aria-label="마인드맵 편집 화면"
+        aria-multiselectable="true"
         aria-activedescendant={selectedId ? `mind-map-node-${selectedId}` : undefined}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
@@ -305,6 +323,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
           root={state.tree}
           layout={layout}
           selectedId={selectedId}
+          selectedIds={selectedIds}
           editing={editing}
           readOnly={false}
           dropId={childDrop}
@@ -323,6 +342,13 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
             visibility: view ? undefined : 'hidden',
           }}
         />
+        {marquee && (
+          <div
+            className="mind-map-marquee"
+            style={{ left: marquee.left, top: marquee.top, width: marquee.width, height: marquee.height }}
+            aria-hidden="true"
+          />
+        )}
         {drag?.line && (
           <div
             className="mind-map-insert-line"

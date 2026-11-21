@@ -9,6 +9,8 @@ type Props = {
   root: MindMapNode
   layout: MapLayout
   selectedId: string | null
+  /** 고른 가지들(편집 화면). 없으면 `selectedId` 하나만 고른 것으로 그린다. */
+  selectedIds?: ReadonlySet<string>
   editing: Editing | null
   readOnly: boolean
   nodeRef?: (id: string, el: HTMLElement | null) => void
@@ -38,6 +40,7 @@ export default function MindMapWorld({
   root,
   layout,
   selectedId,
+  selectedIds,
   editing,
   readOnly,
   nodeRef,
@@ -68,7 +71,8 @@ export default function MindMapWorld({
             node={node}
             place={place}
             box={layout.boxes.get(place.id)}
-            selected={place.id === selectedId}
+            selected={selectedIds ? selectedIds.has(place.id) : place.id === selectedId}
+            primary={(selectedIds?.size ?? 0) > 1 && place.id === selectedId}
             editing={!readOnly && editing?.id === place.id}
             readOnly={readOnly}
             dropTarget={place.id === dropId}
