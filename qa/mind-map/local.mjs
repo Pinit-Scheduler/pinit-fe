@@ -180,8 +180,9 @@ const worldOffset = (page) =>
 /**
  * 누르고 끈 뒤 놓는다. PC는 마우스, 폰은 터치(CDP의 터치 이벤트, Chromium이 pointerType touch로 바꾼다).
  * Playwright의 `page.touchscreen`은 `tap`만 있어 끌기는 CDP로 보낸다. `whileHeld`는 놓기 전에 부른다.
+ * `button`은 PC의 마우스 단추다(화면 이동은 `right`).
  */
-const dragBetween = async (page, viewport, from, to, whileHeld = async () => {}) => {
+const dragBetween = async (page, viewport, from, to, whileHeld = async () => {}, { button = 'left' } = {}) => {
   const steps = 10
   if (viewport === 'mobile') {
     const cdp = await page.context().newCDPSession(page)
@@ -199,11 +200,23 @@ const dragBetween = async (page, viewport, from, to, whileHeld = async () => {})
     return
   }
   await page.mouse.move(from.x, from.y)
-  await page.mouse.down()
+  await page.mouse.down({ button })
   await page.mouse.move(to.x, to.y, { steps })
   await whileHeld()
-  await page.mouse.up()
+  await page.mouse.up({ button })
 }
+
+/** 고른 가지들의 글(화면 차례)과 주 가지의 글. */
+const pickedLabels = (page) =>
+  page.evaluate(() => {
+    const canvas = document.querySelector('.mind-map-canvas')
+    const primary = document.getElementById(canvas.getAttribute('aria-activedescendant'))
+    const label = (el) => el.querySelector('.mind-map-node__label').textContent
+    return {
+      all: [...canvas.querySelectorAll('.mind-map-node[aria-selected="true"]')].map(label),
+      primary: primary ? label(primary) : null,
+    }
+  })
 
 /** 손가락으로 길게 누른다(가지 메뉴). CDP 터치는 Chromium이 pointerType touch로 바꾼다. */
 const longPress = async (page, locator) => {
@@ -802,12 +815,76 @@ const walk = async (page, viewport) => {
     assert.deepEqual(await savedLabels(page), ['저장됨'], '바뀌지 않았는데 저장했다')
   })
 
+  if (viewport === 'desktop')
+    await step(page, viewport, 'multi-select', async () => {
+      const rooms = nodeByText(page, '방마다 포장하기')
+      const boxes = nodeByText(page, '박스와 테이프 사기')
+      const moveDay = nodeByText(page, '이사 당일')
+      const packingLevel = Number(await nodeByText(page, '짐 정리').getAttribute('aria-level'))
+      // 빈 곳에서 두 가지를 덮게 끈다.
+      const a = await rooms.boundingBox()
+      const b = await boxes.boundingBox()
+      const from = { x: Math.min(a.x, b.x) - 10, y: Math.min(a.y, b.y) - 3 }
+      const to = { x: Math.max(a.x + a.width, b.x + b.width) + 6, y: Math.max(a.y + a.height, b.y + b.height) + 2 }
+      const empty = await page.evaluate(({ x, y }) => !document.elementFromPoint(x, y)?.closest('.mind-map-node'), from)
+      assert.ok(empty, '범위 선택을 시작할 곳이 빈 곳이 아니다')
+      const start = await worldOffset(page)
+      await dragBetween(page, viewport, from, to, async () => {
+        await page.locator('.mind-map-marquee').waitFor()
+        await captureHeld(page, viewport, 'multi-select-marquee')
+      })
+      assert.deepEqual(await worldOffset(page), start, '범위 선택이 화면을 옮겼다')
+      assert.deepEqual((await pickedLabels(page)).all.sort(), ['박스와 테이프 사기', '방마다 포장하기'])
+      assert.equal(await canvas(page).getAttribute('aria-multiselectable'), 'true')
+      assert.equal(await page.locator('.mind-map-node.is-primary').count(), 1)
+      // 고른 가지 하나를 끌면 둘 다 옮겨진다.
+      await dragBetween(page, viewport, await center(rooms.locator('.mind-map-node__label')), await center(moveDay), async () => {
+        await page.locator('.mind-map-node.is-drop').filter({ hasText: '이사 당일' }).waitFor()
+        assert.equal(await page.locator('.mind-map-ghost').innerText(), '방마다 포장하기 외 1개')
+        await captureHeld(page, viewport, 'multi-select-drag')
+      })
+      const dayLevel = Number(await moveDay.getAttribute('aria-level'))
+      assert.equal(await rooms.getAttribute('aria-level'), String(dayLevel + 1))
+      assert.equal(await boxes.getAttribute('aria-level'), String(dayLevel + 1))
+      assert.deepEqual((await pickedLabels(page)).all.sort(), ['박스와 테이프 사기', '방마다 포장하기'], '놓은 뒤에도 고른 채다')
+      await waitSaved(page)
+      // 되돌리기 한 번이면 둘 다 제자리다.
+      await button(actionBar(page), '되돌리기').click()
+      assert.equal(await rooms.getAttribute('aria-level'), String(packingLevel + 1))
+      assert.equal(await boxes.getAttribute('aria-level'), String(packingLevel + 1))
+      assert.equal(await rooms.getAttribute('aria-posinset'), '1')
+      assert.equal((await pickedLabels(page)).all.length, 1, '되돌리면 하나만 고른다')
+      await waitSaved(page)
+      // Shift+누르기는 더하고 Esc는 하나로 줄인다.
+      await rooms.locator('.mind-map-node__label').click()
+      await boxes.locator('.mind-map-node__label').click({ modifiers: ['Shift'] })
+      assert.deepEqual(await pickedLabels(page), { all: ['방마다 포장하기', '박스와 테이프 사기'], primary: '박스와 테이프 사기' })
+      await page.keyboard.press('Escape')
+      assert.deepEqual(await pickedLabels(page), { all: ['박스와 테이프 사기'], primary: '박스와 테이프 사기' })
+      // 가지 위에서 오른쪽 단추로 끌면 화면 이동이고 메뉴는 열리지 않는다.
+      const before = await worldOffset(page)
+      const at = await center(rooms.locator('.mind-map-node__label'))
+      await dragBetween(page, viewport, at, { x: at.x + 60, y: at.y + 40 }, undefined, { button: 'right' })
+      const after = await worldOffset(page)
+      assert.ok(Math.abs(after.x - before.x - 60) <= 1 && Math.abs(after.y - before.y - 40) <= 1, JSON.stringify({ before, after }))
+      assert.equal(await page.locator('.mind-map-menu').count(), 0, '끈 오른쪽 단추가 메뉴를 열었다')
+      // 끌지 않은 오른쪽 단추는 메뉴를 하나 연다.
+      await rooms.locator('.mind-map-node__label').click({ button: 'right' })
+      await page.locator('.mind-map-menu').waitFor()
+      assert.equal(await page.locator('.mind-map-menu').count(), 1)
+      await page.keyboard.press('Escape')
+      await page.locator('.mind-map-menu').waitFor({ state: 'detached' })
+      // 다음 단계를 위해 화면을 제자리로 돌린다(배율은 그대로 100%).
+      await dragBetween(page, viewport, { x: at.x + 60, y: at.y + 40 }, at, undefined, { button: 'right' })
+      assert.deepEqual(await worldOffset(page), before)
+    })
+
   await step(
     page,
     viewport,
     'pan-zoom',
     async () => {
-      // 빈 곳을 끌면 화면이 같은 만큼 움직인다.
+      // 빈 곳을 끌면 화면이 같은 만큼 움직인다. PC는 오른쪽 단추로 끈다(왼쪽은 범위 선택).
       const frame = await canvas(page).boundingBox()
       const from = { x: frame.x + 24, y: frame.y + 90 }
       const empty = await page.evaluate(({ x, y }) => {
@@ -816,7 +893,18 @@ const walk = async (page, viewport) => {
       }, from)
       assert.ok(empty, '빈 곳이 아니다')
       const start = await worldOffset(page)
-      await dragBetween(page, viewport, from, { x: from.x + 60, y: from.y + 40 })
+      if (viewport === 'desktop') {
+        // 왼쪽 단추로 빈 곳을 끌면 화면은 그대로이고 사각형을 그린다.
+        await dragBetween(page, viewport, from, { x: from.x + 60, y: from.y + 40 }, async () => {
+          await page.locator('.mind-map-marquee').waitFor()
+        })
+        assert.deepEqual(await worldOffset(page), start, '왼쪽 끌기가 화면을 옮겼다')
+        assert.equal(await page.locator('.mind-map-marquee').count(), 0)
+      }
+      await dragBetween(page, viewport, from, { x: from.x + 60, y: from.y + 40 }, undefined, {
+        button: viewport === 'desktop' ? 'right' : 'left',
+      })
+      assert.equal(await page.locator('.mind-map-menu').count(), 0, '끈 오른쪽 단추가 메뉴를 열었다')
       const moved = await worldOffset(page)
       assert.ok(Math.abs(moved.x - start.x - 60) <= 1 && Math.abs(moved.y - start.y - 40) <= 1, JSON.stringify({ start, moved }))
       // + 두 번이면 1.2 × 1.2배(PC 100% → 144%, 폰 85% → 122%).
