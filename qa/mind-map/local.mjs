@@ -206,6 +206,85 @@ const dragBetween = async (page, viewport, from, to, whileHeld = async () => {},
   await page.mouse.up({ button })
 }
 
+/**
+ * 마우스로 끄는 동안, 프레임마다 그리기 직전에(requestAnimationFrame) 화면이 마지막 포인터 자리를 따라왔는지 센다.
+ * 포인터 이동은 그 프레임이 그려지기 전에 화면에 반영돼야 한다. 다음 프레임으로 밀리면 상자가 포인터보다 한 박자 늦게 보인다.
+ * - marquee: 범위 상자의 오른쪽 아래 모서리가 포인터에 있고, 고른 가지가 상자와 겹치는 가지와 맞는다.
+ * - pan: 화면(월드)이 포인터가 움직인 만큼 옮겨져 있다.
+ * - ghost: 끄는 가지의 유령 상자가 포인터 자리에 있다.
+ * 돌려주는 값: 포인터가 움직인 뒤의 프레임 수, 그 가운데 늦은 프레임 수(`late`), 고른 가지가 상자와 어긋난 프레임 수(`unpicked`).
+ */
+const dragLag = async (page, mode, button, from, to) => {
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down({ button })
+  await page.evaluate(
+    ({ mode, from }) => {
+      const canvas = document.querySelector('.mind-map-canvas')
+      const offset = () => {
+        const m = new DOMMatrix(getComputedStyle(document.querySelector('.mind-map-world')).transform)
+        return { x: m.e, y: m.f }
+      }
+      const watch = { pointer: null, frames: 0, late: 0, unpicked: 0, on: true, start: offset() }
+      window.__mindMapLag = watch
+      const onMove = (event) => {
+        watch.pointer = { x: event.clientX, y: event.clientY }
+      }
+      document.addEventListener('pointermove', onMove, true)
+      watch.stop = () => {
+        watch.on = false
+        document.removeEventListener('pointermove', onMove, true)
+      }
+      const gapOf = (p) => {
+        if (mode === 'pan') {
+          const now = offset()
+          return Math.hypot(now.x - watch.start.x - (p.x - from.x), now.y - watch.start.y - (p.y - from.y))
+        }
+        if (mode === 'ghost') {
+          const ghost = document.querySelector('.mind-map-ghost')
+          const frame = canvas.getBoundingClientRect()
+          return ghost ? Math.hypot(parseFloat(ghost.style.left) - (p.x - frame.left), parseFloat(ghost.style.top) - (p.y - frame.top)) : Infinity
+        }
+        const box = document.querySelector('.mind-map-marquee')?.getBoundingClientRect()
+        return box ? Math.hypot(box.right - p.x, box.bottom - p.y) : Infinity
+      }
+      /** 상자와 겹치는 가지 수의 범위(가장자리 2px은 어느 쪽이든 받는다). */
+      const pickedOk = () => {
+        const box = document.querySelector('.mind-map-marquee')?.getBoundingClientRect()
+        if (!box) return true
+        const hit = (r, pad) => box.left < r.right + pad && r.left - pad < box.right && box.top < r.bottom + pad && r.top - pad < box.bottom
+        const rects = [...canvas.querySelectorAll('.mind-map-node')].map((el) => el.getBoundingClientRect())
+        const least = Math.max(1, rects.filter((r) => hit(r, -2)).length)
+        const most = Math.max(1, rects.filter((r) => hit(r, 2)).length)
+        const picked = canvas.querySelectorAll('.mind-map-node[aria-selected="true"]').length
+        return picked >= least && picked <= most
+      }
+      const tick = () => {
+        if (!watch.on) return
+        if (watch.pointer) {
+          watch.frames += 1
+          if (gapOf(watch.pointer) > 1) watch.late += 1
+          if (mode === 'marquee' && !pickedOk()) watch.unpicked += 1
+        }
+        requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    },
+    { mode, from },
+  )
+  const steps = 40
+  for (let i = 1; i <= steps; i++) {
+    await page.mouse.move(from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps)
+    await page.waitForTimeout(12)
+  }
+  const result = await page.evaluate(() => {
+    const { frames, late, unpicked, stop } = window.__mindMapLag
+    stop()
+    return { frames, late, unpicked }
+  })
+  await page.mouse.up({ button })
+  return result
+}
+
 /** 고른 가지들의 글(화면 차례)과 주 가지의 글. */
 const pickedLabels = (page) =>
   page.evaluate(() => {
@@ -867,6 +946,28 @@ const walk = async (page, viewport) => {
       assert.ok(blankOk, '빈 범위가 가지에 닿는다')
       await dragBetween(page, viewport, blank, blankEnd)
       assert.deepEqual(await pickedLabels(page), { all: ['박스와 테이프 사기'], primary: '박스와 테이프 사기' }, '빈 범위가 고른 것을 비우지 않았다')
+      // 다시 그리기가 포인터를 따라오지 못할 때(포인터 이동이 한 작업 안에 몰릴 때)에도 고른 가지는 마지막 상자를 따른다.
+      // 넓게 끌었다가 주 가지만 덮게 되돌리면 주 가지 하나만 남아야 한다(한 박자 늦게 남으면 안 된다).
+      await rooms.locator('.mind-map-node__label').click()
+      const r = await rooms.boundingBox()
+      const lagStart = { x: r.x - 8, y: r.y - 3 }
+      const narrow = { x: r.x + 20, y: r.y + r.height - 2 }
+      const wide = { x: frame.x + frame.width - 30, y: frame.y + frame.height - 140 }
+      assert.ok(await page.evaluate(({ x, y }) => !document.elementFromPoint(x, y)?.closest('.mind-map-node'), lagStart), '범위 선택을 시작할 곳이 빈 곳이 아니다')
+      await page.mouse.move(lagStart.x, lagStart.y)
+      await page.mouse.down()
+      await page.evaluate(({ start, wide, narrow }) => {
+        const canvas = document.querySelector('.mind-map-canvas')
+        const move = (x, y) =>
+          canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, pointerType: 'mouse', clientX: x, clientY: y, buttons: 1 }))
+        for (let i = 1; i <= 10; i++) move(start.x + ((wide.x - start.x) * i) / 10, start.y + ((wide.y - start.y) * i) / 10)
+        for (let i = 1; i <= 10; i++) move(wide.x + ((narrow.x - wide.x) * i) / 10, wide.y + ((narrow.y - wide.y) * i) / 10)
+      }, { start: lagStart, wide, narrow })
+      await page.waitForTimeout(100)
+      const lagging = await pickedLabels(page)
+      await page.mouse.up()
+      assert.deepEqual(lagging, { all: ['방마다 포장하기'], primary: '방마다 포장하기' }, '고른 가지가 상자보다 한 박자 늦다')
+      await boxes.locator('.mind-map-node__label').click()
       await rooms.locator('.mind-map-node__label').click({ modifiers: ['Shift'] })
       assert.equal((await pickedLabels(page)).all.length, 2)
       await page.keyboard.press('Escape')
@@ -898,6 +999,30 @@ const walk = async (page, viewport) => {
       // 다음 단계를 위해 화면을 제자리로 돌린다(배율은 그대로 100%).
       await dragBetween(page, viewport, { x: at.x + 60, y: at.y + 40 }, at, undefined, { button: 'right' })
       assert.deepEqual(await worldOffset(page), before)
+    })
+
+  if (viewport === 'desktop')
+    await step(page, viewport, 'drag-latency', async () => {
+      // 끄는 동안 화면은 포인터와 같은 프레임에 그려진다(한 박자 늦지 않는다).
+      const frame = await canvas(page).boundingBox()
+      const blank = { x: frame.x + 24, y: frame.y + 90 }
+      const far = { x: frame.x + frame.width - 60, y: frame.y + frame.height - 150 }
+      assert.ok(await page.evaluate(({ x, y }) => !document.elementFromPoint(x, y)?.closest('.mind-map-node'), blank), '빈 곳이 아니다')
+      const marquee = await dragLag(page, 'marquee', 'left', blank, far)
+      assert.ok(marquee.frames >= 20, JSON.stringify(marquee))
+      assert.equal(marquee.late, 0, `범위 상자가 포인터보다 늦게 그려진 프레임: ${JSON.stringify(marquee)}`)
+      assert.equal(marquee.unpicked, 0, `고른 가지가 상자와 어긋난 프레임: ${JSON.stringify(marquee)}`)
+      await page.keyboard.press('Escape')
+      const pan = await dragLag(page, 'pan', 'right', blank, { x: blank.x + 200, y: blank.y + 120 })
+      assert.ok(pan.frames >= 20, JSON.stringify(pan))
+      assert.equal(pan.late, 0, `화면 이동이 포인터보다 늦게 그려진 프레임: ${JSON.stringify(pan)}`)
+      await dragBetween(page, viewport, { x: blank.x + 200, y: blank.y + 120 }, blank, undefined, { button: 'right' })
+      // 가지를 끄는 유령 상자도 같다. 빈 곳에 놓아 아무것도 옮기지 않는다.
+      const leaf = await center(nodeByText(page, '이사 짐 목록').locator('.mind-map-node__label'))
+      const ghost = await dragLag(page, 'ghost', 'left', leaf, { x: blank.x + 40, y: blank.y + 10 })
+      assert.ok(ghost.frames >= 20, JSON.stringify(ghost))
+      assert.ok(ghost.late <= 1, `끄는 가지의 유령 상자가 포인터보다 늦게 그려진 프레임: ${JSON.stringify(ghost)}`)
+      await waitSaved(page)
     })
 
   await step(

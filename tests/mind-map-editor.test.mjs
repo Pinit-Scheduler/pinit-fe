@@ -652,13 +652,3 @@ test('여러 가지를 고르면 단추 줄 상태가 고른 수를 센다', () 
   assert.equal(can.canDelete, true)
   assert.equal(editor.actionState(run(start, [{ type: 'select', id: 'r' }]).state).count, 0)
 })
-
-test('changesSelection은 고른 것을 바꾸지 않는 누르기를 가린다', () => {
-  const one = run(start, [{ type: 'select', id: 'a' }]).state
-  assert.equal(editor.changesSelection(one, { type: 'single' }), false)
-  assert.equal(editor.changesSelection(one, { type: 'toggleSelect', id: 'a' }), false, '하나뿐인 가지는 빼지 않는다')
-  assert.equal(editor.changesSelection(one, { type: 'toggleSelect', id: 'c' }), true)
-  const two = run(one, [{ type: 'toggleSelect', id: 'c' }]).state
-  assert.equal(editor.changesSelection(two, { type: 'single' }), true)
-  assert.equal(editor.changesSelection(two, { type: 'selectMany', ids: ['a', 'c'], additive: false }), false)
-})

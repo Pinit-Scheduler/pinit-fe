@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react'
+import { memo, useLayoutEffect, useRef } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import type { Box } from '../model/editor'
 import type { VisibleNode } from '../model/layout'
@@ -45,8 +45,12 @@ const CheckMark = () => (
   </svg>
 )
 
-/** 가지 하나. 쓰는 중이면 라벨이 글 상자가 되고 처음에 글 전체를 고른다. */
-export default function MindMapNodeView({
+/**
+ * 가지 하나. 쓰는 중이면 라벨이 글 상자가 되고 처음에 글 전체를 고른다.
+ * 받은 값이 같으면 다시 그리지 않는다(`memo`). 끄는 동안 화면은 포인터 이동마다 그려지므로, 바뀐 가지만 그려야 한다.
+ * 그래서 부모는 가지·자리·상자와 함수들을 그릴 때마다 새로 만들지 않고 같은 것을 넘겨야 한다.
+ */
+function MindMapNodeView({
   node,
   place,
   box,
@@ -166,3 +170,5 @@ export default function MindMapNodeView({
     </div>
   )
 }
+
+export default memo(MindMapNodeView)

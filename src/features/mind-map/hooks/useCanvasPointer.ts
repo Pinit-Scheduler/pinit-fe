@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from 'react'
 import { flushSync } from 'react-dom'
-import { changesSelection } from '../model/editor'
 import type { Box, EditorCommand, EditorState } from '../model/editor'
 import { dropTargetMany, findNode, pathTo, topmostBranches } from '../model/tree'
 import type { Drop } from '../model/tree'
@@ -46,7 +45,8 @@ type Options = {
   state: EditorState
   view: View | null
   setView: Dispatch<SetStateAction<View | null>>
-  dispatch: (command: EditorCommand) => void
+  /** 명령을 하고 화면 상태가 바뀌었는지 돌려준다(편집기의 최신 상태 기준). */
+  dispatch: (command: EditorCommand) => boolean
   /** 보이는 가지의 상자(배치 좌표). 범위 선택이 쓴다. */
   boxes: ReadonlyMap<string, Box>
   /** Mac은 `⌘`+누르기가 하나씩 고르기이고 `Ctrl`+누르기는 오른쪽 단추다. */
@@ -230,13 +230,13 @@ export function useCanvasPointer({
   }
 
   /**
-   * 범위 선택·하나씩 고르기를 보낸다. 고른 것이 바뀔 때만 화면에 알린다. 바뀌지 않으면 다시 그리지 않아
-   * 그 표시가 남고, 다음 키보드 이동이 화면을 따라 옮기지 않기 때문이다.
+   * 범위 선택·하나씩 고르기를 보낸다. 늘 보내고, 고른 것이 실제로 바뀌었을 때만 화면에 알린다.
+   * 바뀌었는지는 다시 그린 상태(`latest`)가 아니라 편집기의 최신 상태로 판단한다. 다시 그리기가 포인터를 따라오지
+   * 못한 사이에 지난 상태와 견주면 마지막 변경을 버려, 고른 가지가 상자보다 한 박자 늦게 남는다.
+   * 알림은 보낸 뒤에 한다. 변경은 이 함수가 끝난 뒤에(끄는 중에는 `onPointerMove`의 끝에서) 그려지므로 그리기 전에 표시가 놓인다.
    */
   const pickBySweep = (command: EditorCommand) => {
-    if (!changesSelection(latest.current, command)) return
-    onPointerSelect(null)
-    dispatch(command)
+    if (dispatch(command)) onPointerSelect(null)
   }
 
   /** 범위 사각형을 그리고 겹치는 보이는 가지를 고른다. 고른 가지가 바뀔 때만 알린다. */
@@ -255,7 +255,14 @@ export function useCanvasPointer({
     pickBySweep({ type: 'selectMany', ids: [...current.base, ...hits], additive: false })
   }
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  /**
+   * 포인터 이동의 화면 변경(범위 상자·고른 가지·화면 이동·유령 상자)은 이 이벤트 안에서 바로 그린다.
+   * React는 포인터 이동의 변경을 다음 작업으로 미루는데, 브라우저는 포인터 이동을 그리기 직전에 보내므로
+   * 미루면 늘 다음 프레임에 그려져 끄는 것이 포인터보다 한 박자 늦게 보인다.
+   */
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => flushSync(() => track(event))
+
+  const track = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = points.current.get(event.pointerId)
     const canvas = canvasRef.current
     if (!point || !canvas) return
@@ -375,9 +382,10 @@ export function useCanvasPointer({
         const rect = canvas.getBoundingClientRect()
         const cx = event.clientX - rect.left
         const cy = event.clientY - rect.top
-        setView((v) => v && zoomAt(v, cx, cy, wheelFactor(event.deltaY)))
+        // 휠도 그리기 직전에 온다. 바로 그려 한 박자 늦지 않게 한다.
+        flushSync(() => setView((v) => v && zoomAt(v, cx, cy, wheelFactor(event.deltaY))))
       } else {
-        setView((v) => v && { ...v, x: v.x - event.deltaX, y: v.y - event.deltaY })
+        flushSync(() => setView((v) => v && { ...v, x: v.x - event.deltaX, y: v.y - event.deltaY }))
       }
     },
     [canvasRef, setView],

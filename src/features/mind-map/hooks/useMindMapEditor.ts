@@ -127,16 +127,18 @@ export function useMindMapEditor() {
     }
   }, [fetchLatest, failLoad, forgetPending])
 
+  /** 명령을 하고, 화면 상태가 바뀌었는지 돌려준다(최신 상태 기준). */
   const dispatch = useCallback(
-    (command: EditorCommand) => {
+    (command: EditorCommand): boolean => {
       const current = stateRef.current
-      if (!current || saver.isBlocked()) return
+      if (!current || saver.isBlocked()) return false
       const result = reduce(current, command, { newId: () => crypto.randomUUID(), geo: geometry.current })
       if (result.state !== current) show(result.state)
       if (result.state.clipboard && result.state.clipboard !== current.clipboard)
         writeSystemClipboard(result.state.clipboard.text)
       if (result.notice) addToast(result.notice, 'info')
       if (result.save) saver.changed(result.save)
+      return result.state !== current
     },
     [saver, show, addToast],
   )
