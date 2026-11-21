@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { FocusEvent, KeyboardEvent } from 'react'
+import type { FocusEvent, KeyboardEvent, MouseEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { useToast } from '@shared/contexts/ToastContext'
-import { useCanvasPointer } from '../hooks/useCanvasPointer'
+import { nodeIdOf, useCanvasPointer } from '../hooks/useCanvasPointer'
 import { textNotice } from '../model/editor'
 import type { Box, EditorCommand, Editing, EditorState } from '../model/editor'
 import { keyAction } from '../model/keymap'
@@ -12,6 +12,8 @@ import { clipText } from '../model/text'
 import { centerOn, fitView, keepVisible, pageScale, zoomStep } from '../model/viewport'
 import type { View } from '../model/viewport'
 import MindMapActionBar from './MindMapActionBar'
+import MindMapContextMenu from './MindMapContextMenu'
+import type { MenuPlace } from './MindMapContextMenu'
 import { measure, sameSizes } from './measureNodes'
 import MindMapWorld from './MindMapWorld'
 import MindMapZoom from './MindMapZoom'
@@ -57,6 +59,13 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
   const [fontsLoaded, setFontsLoaded] = useState(false)
   /** 캔버스 크기. 폰에서 키보드가 열리면 줄어든다. 줄면 고른 가지가 보이게 다시 옮긴다. */
   const [frameSize, setFrameSize] = useState<{ w: number; h: number } | null>(null)
+  /** `Ctrl V`를 눌러 브라우저의 붙여넣기 이벤트를 기다리는 중. 이벤트가 오지 않으면 화면의 클립보드를 붙인다. */
+  const pendingPaste = useRef(false)
+  /** 문서에 단 붙여넣기 듣기가 마지막 값을 읽는다. */
+  const latest = useRef({ editing: false, dispatch })
+  /** 열린 가지 메뉴. 고른 가지가 바뀌거나 글 쓰기가 시작되면 보이지 않는다. */
+  const [menu, setMenu] = useState<MenuPlace | null>(null)
+  const closeMenu = useCallback(() => setMenu(null), [])
   /** 눌러서 고른 가지. 누른 가지는 이미 보이므로 화면을 옮기지 않는다. */
   const pointerPicked = useRef<string | null>(null)
   const layout = useMemo(() => layoutMap(state.tree, sizes), [state.tree, sizes])
@@ -90,6 +99,25 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     })
     observer.observe(canvas)
     return () => observer.disconnect()
+  }, [])
+
+  useLayoutEffect(() => {
+    latest.current = { editing: editing !== null, dispatch }
+  })
+
+  // 붙여넣기 이벤트는 초점이 쓸 수 없는 요소에 있으면 문서로 온다. 캔버스에 초점이 있고 글을 쓰지 않을 때만 가지로 붙인다.
+  // 글을 쓰는 중이면 브라우저가 글 상자에 글로 붙인다.
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas || latest.current.editing) return
+      if (!pendingPaste.current && document.activeElement !== canvas) return
+      pendingPaste.current = false
+      event.preventDefault()
+      latest.current.dispatch({ type: 'paste', text: event.clipboardData?.getData('text/plain') ?? '' })
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
   }, [])
 
   // 글을 쓰는 동안(폰에서는 키보드가 열린 동안) 아래 탭과 미니 플레이어를 숨긴다(mind-map.css). 앱의 다른 입력 화면과 같다.
@@ -159,8 +187,25 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if ((event.target as HTMLElement).closest('select, input, textarea')) return
+    if (menu) {
+      closeMenu()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        return
+      }
+    }
     const action = keyAction(event.nativeEvent, editing !== null)
     if (!action) return
+    if (action.command.type === 'paste') {
+      // 붙여넣기 이벤트는 이 키의 기본 동작으로 바로 온다. 오지 않는 브라우저에서는 화면의 클립보드를 붙인다.
+      pendingPaste.current = true
+      window.setTimeout(() => {
+        if (!pendingPaste.current) return
+        pendingPaste.current = false
+        latest.current.dispatch({ type: 'paste' })
+      }, 0)
+      return
+    }
     if (action.preventDefault) event.preventDefault()
     // 친 글자가 글 상자에 들어가도록, 기본 동작 전에 글 상자를 그리고 초점을 옮긴다.
     if (!action.preventDefault) flushSync(() => dispatch(action.command))
@@ -182,7 +227,18 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     if (!editing) canvasRef.current?.focus({ preventScroll: true })
   }
 
-  const { drag, panning, handlers } = useCanvasPointer({
+  /** 가지를 고르고 그 가지의 메뉴를 연다. 좌표는 화면 기준이다. */
+  const openMenu = (id: string, x: number, y: number, above: boolean) => {
+    const stage = canvasRef.current?.parentElement
+    if (!stage) return
+    const rect = stage.getBoundingClientRect()
+    pointerPicked.current = id
+    flushSync(() => dispatch({ type: 'select', id }))
+    canvasRef.current?.focus({ preventScroll: true })
+    setMenu({ id, x: x - rect.left, y: y - rect.top, above })
+  }
+
+  const { drag, panning, cancelPress, handlers } = useCanvasPointer({
     canvasRef,
     state,
     view,
@@ -191,7 +247,20 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     onPointerSelect: (id) => {
       pointerPicked.current = id
     },
+    onLongPress: (id, x, y) => openMenu(id, x, y, true),
   })
+
+  /** 오른쪽 단추(안드로이드는 길게 누르기도)로 가지 메뉴를 연다. 쓰는 글 안에서는 브라우저 메뉴를 둔다. */
+  const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (target.isContentEditable) return
+    event.preventDefault()
+    const id = nodeIdOf(target)
+    if (drag || !id || editing) return
+    cancelPress()
+    const touch = (event.nativeEvent as PointerEvent).pointerType === 'touch'
+    openMenu(id, event.clientX, event.clientY, touch)
+  }
 
   /** 단추 줄의 명령. 글 쓰기가 시작되지 않았으면 초점을 캔버스에 둔다(키보드가 이어서 듣는다). */
   const runAction = (command: EditorCommand) => {
@@ -217,6 +286,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
         aria-activedescendant={selectedId ? `mind-map-node-${selectedId}` : undefined}
         onKeyDown={onKeyDown}
         onBlur={onBlur}
+        onContextMenu={onContextMenu}
         {...handlers}
         onCompositionStart={() => {
           composing.current = true
@@ -267,6 +337,9 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
         )}
       </div>
       {view && <MindMapZoom k={view.k} onZoom={zoom} onFit={fit} />}
+      {menu && menu.id === selectedId && !editing && (
+        <MindMapContextMenu state={state} place={menu} isMac={isMac} run={runAction} onClose={closeMenu} />
+      )}
       <MindMapActionBar state={state} dispatch={runAction} isMac={isMac} />
     </div>
   )

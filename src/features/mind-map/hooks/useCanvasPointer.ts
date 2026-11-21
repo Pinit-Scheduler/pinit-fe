@@ -11,6 +11,8 @@ import type { Pinch, View } from '../model/viewport'
 const DRAG_START = 6
 /** 같은 가지를 이 안에(ms) 두 번 누르면 글을 고친다. */
 const DOUBLE_TAP_MS = 380
+/** 손가락으로 가지를 이만큼(ms) 움직이지 않고 누르면 가지 메뉴를 연다. */
+const LONG_PRESS_MS = 500
 const NODE_ID_PREFIX = 'mind-map-node-'
 
 type Point = { x: number; y: number }
@@ -35,9 +37,11 @@ type Options = {
   dispatch: (command: EditorCommand) => void
   /** 누른 가지를 고를 때 알린다. 누른 가지는 화면을 옮겨 보이게 하지 않는다. */
   onPointerSelect: (id: string) => void
+  /** 손가락으로 가지를 길게 눌렀다(화면 좌표). */
+  onLongPress: (id: string, x: number, y: number) => void
 }
 
-const nodeIdOf = (el: Element | null): string | null => {
+export const nodeIdOf = (el: Element | null): string | null => {
   const node = el?.closest<HTMLElement>('.mind-map-node')
   return node?.id.startsWith(NODE_ID_PREFIX) ? node.id.slice(NODE_ID_PREFIX.length) : null
 }
@@ -48,7 +52,15 @@ const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) || 1
  * 캔버스의 마우스·터치: 가지 고르기, 두 번 눌러 고치기, 끌어 옮기기, 빈 곳 끌어 화면 옮기기,
  * 두 손가락 확대, 휠(이동, `Ctrl`·`Cmd`+휠은 확대).
  */
-export function useCanvasPointer({ canvasRef, state, view, setView, dispatch, onPointerSelect }: Options) {
+export function useCanvasPointer({
+  canvasRef,
+  state,
+  view,
+  setView,
+  dispatch,
+  onPointerSelect,
+  onLongPress,
+}: Options) {
   const latest = useRef(state)
   const viewRef = useRef(view)
   useLayoutEffect(() => {
@@ -62,11 +74,27 @@ export function useCanvasPointer({ canvasRef, state, view, setView, dispatch, on
   const dropRef = useRef<Drop | null>(null)
   const [drag, setDrag] = useState<Drag | null>(null)
   const [panning, setPanning] = useState(false)
+  const longPress = useRef<number | null>(null)
 
   const clearDrag = () => {
     dropRef.current = null
     setDrag(null)
   }
+
+  const stopLongPress = () => {
+    if (longPress.current !== null) window.clearTimeout(longPress.current)
+    longPress.current = null
+  }
+  useEffect(() => stopLongPress, [])
+
+  /** 지금 누르기를 버린다. 가지 메뉴를 열었으면 손을 떼도 누르기·끌기로 치지 않는다. */
+  const cancelPress = useCallback(() => {
+    stopLongPress()
+    press.current = null
+    lastTap.current = { id: null, t: 0 }
+    dropRef.current = null
+    setDrag(null)
+  }, [])
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current
@@ -86,6 +114,7 @@ export function useCanvasPointer({ canvasRef, state, view, setView, dispatch, on
     points.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
     canvas.setPointerCapture?.(event.pointerId)
     if (points.current.size === 2) {
+      stopLongPress()
       clearDrag()
       press.current = null
       const [a, b] = [...points.current.values()]
@@ -96,6 +125,17 @@ export function useCanvasPointer({ canvasRef, state, view, setView, dispatch, on
       onPointerSelect(id)
       dispatch({ type: 'select', id })
       press.current = { type: 'node', id, sx: event.clientX, sy: event.clientY, travelled: false, moved: false }
+      if (event.pointerType !== 'mouse') {
+        const { clientX, clientY } = event
+        stopLongPress()
+        longPress.current = window.setTimeout(() => {
+          longPress.current = null
+          const current = press.current
+          if (current?.type !== 'node' || current.id !== id || current.travelled || points.current.size !== 1) return
+          cancelPress()
+          onLongPress(id, clientX, clientY)
+        }, LONG_PRESS_MS)
+      }
     } else {
       press.current = { type: 'pan', lx: event.clientX, ly: event.clientY }
     }
@@ -131,6 +171,7 @@ export function useCanvasPointer({ canvasRef, state, view, setView, dispatch, on
     if (!current.moved) {
       if (Math.hypot(event.clientX - current.sx, event.clientY - current.sy) <= DRAG_START) return
       current.travelled = true
+      stopLongPress()
       if (current.id === tree.id) return
       current.moved = true
     }
@@ -159,6 +200,7 @@ export function useCanvasPointer({ canvasRef, state, view, setView, dispatch, on
   }
 
   const release = (event: ReactPointerEvent<HTMLDivElement>) => {
+    stopLongPress()
     points.current.delete(event.pointerId)
     if (points.current.size < 2) pinch.current = null
     setPanning(false)
@@ -212,6 +254,7 @@ export function useCanvasPointer({ canvasRef, state, view, setView, dispatch, on
   return {
     drag,
     panning,
+    cancelPress,
     handlers: { onPointerDown, onPointerMove, onPointerUp: release, onPointerCancel: release },
   }
 }

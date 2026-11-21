@@ -205,6 +205,16 @@ const dragBetween = async (page, viewport, from, to, whileHeld = async () => {})
   await page.mouse.up()
 }
 
+/** 손가락으로 길게 누른다(가지 메뉴). CDP 터치는 Chromium이 pointerType touch로 바꾼다. */
+const longPress = async (page, locator) => {
+  const at = await center(locator)
+  const cdp = await page.context().newCDPSession(page)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: at.x, y: at.y, id: 1 }] })
+  await page.waitForTimeout(650)
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+  await cdp.detach()
+}
+
 /** 폰은 손가락으로, PC는 마우스로 누른다. */
 const press = async (page, viewport, locator) => {
   if (viewport === 'mobile') await locator.tap()
@@ -657,6 +667,73 @@ const walk = async (page, viewport) => {
       assert.equal(new Set(fit.buttons.map((b) => b.height)).size, 1, '단추 높이가 다르다')
     })
   }
+
+  // 잘라내기·복사·붙여넣기. PC는 단축키(`Ctrl C`·`Ctrl V`·`Ctrl X`)와 오른쪽 단추 메뉴, 폰은 길게 눌러 여는 메뉴.
+  // 붙인 가지를 잘라 내 맵을 처음대로 둔다.
+  await step(
+    page,
+    viewport,
+    'clipboard',
+    async () => {
+      const menu = page.locator('.mind-map-menu')
+      const item = (name) => menu.getByRole('menuitem', { name: new RegExp(`^${name}`) })
+      const selectedNode = page.locator('.mind-map-node.is-selected .mind-map-node__label')
+      const before = await branchCount(page)
+      // PC는 `전체 보기`를 누르지 않고 보이는 가지를 바로 누른다(다음 단계가 100%에서 배율을 센다).
+      const choose = async (text) => {
+        if (viewport === 'mobile') return pick(page, viewport, text)
+        await nodeByText(page, text).locator('.mind-map-node__label').click()
+        assert.equal(await selectedLabel(page), text)
+      }
+      await choose('프로그램')
+      if (viewport === 'desktop') {
+        await page.keyboard.press('Control+c')
+        await choose('이사 당일')
+        await page.keyboard.press('Control+v')
+      } else {
+        await longPress(page, selectedNode)
+        await item('복사').tap()
+        await menu.waitFor({ state: 'detached' })
+        await choose('이사 당일')
+        await longPress(page, selectedNode)
+        await menu.waitFor()
+        assert.equal(await item('붙여넣기').isEnabled(), true)
+        await item('붙여넣기').tap()
+      }
+      await page.waitForFunction((n) => {
+        const strong = document.querySelector('.mind-map-page__counts strong')
+        return Number(strong?.textContent?.trim()) === n
+      }, before + 3)
+      assert.equal(await selectedLabel(page), '프로그램')
+      // 붙인 가지는 이사 당일의 마지막 하위 가지다.
+      const pasted = await page.evaluate(() => document.querySelector('.mind-map-node.is-selected')?.id)
+      assert.equal(await parentOfSelected(page), '이사 당일')
+      await press(page, viewport, page.locator(`#${pasted} .mind-map-node__label`))
+      if (viewport === 'desktop') {
+        // 메뉴: 오른쪽 단추로 열고 단축키가 보인다. Esc로 닫는다. 주제는 잘라내지 않는다.
+        await page.locator(`#${pasted} .mind-map-node__label`).click({ button: 'right' })
+        await menu.waitFor()
+        assert.equal(await item('복사').innerText(), '복사\nCtrl C')
+        await capture(page, viewport, 'clipboard-menu')
+        await page.keyboard.press('Escape')
+        await menu.waitFor({ state: 'detached' })
+        await page.keyboard.press('Control+x')
+      } else {
+        await longPress(page, selectedNode)
+        await menu.waitFor()
+        await capture(page, viewport, 'clipboard-menu')
+        await item('잘라내기').tap()
+      }
+      await menu.waitFor({ state: 'detached' })
+      await page.waitForFunction((n) => {
+        const strong = document.querySelector('.mind-map-page__counts strong')
+        return Number(strong?.textContent?.trim()) === n
+      }, before)
+      assert.equal(await page.locator(`#${pasted}`).count(), 0)
+      assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('mind-map-canvas')), true)
+      await waitSaved(page)
+    },
+  )
 
   await step(page, viewport, 'drag-child', async () => {
     const toss = nodeByText(page, '버릴 것 고르기')

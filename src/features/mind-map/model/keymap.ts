@@ -2,6 +2,8 @@ import type { EditorCommand } from './editor'
 
 export type KeyLike = {
   key: string
+  /** 물리 키. 한글 자판에서 `key`가 `ㅊ`처럼 오면 이것으로 글자 키를 안다. */
+  code?: string
   keyCode?: number
   ctrlKey: boolean
   metaKey: boolean
@@ -35,13 +37,25 @@ const editingAction = (event: KeyLike): KeyAction | null => {
   return null
 }
 
+/** 단축키의 글자. 라틴 글자가 아니면(한글 자판) 물리 키(`KeyC`)로 읽는다. */
+const commandLetter = (event: KeyLike): string => {
+  if (/^[a-z]$/i.test(event.key)) return event.key.toLowerCase()
+  const physical = /^Key([A-Z])$/.exec(event.code ?? '')
+  return physical ? physical[1].toLowerCase() : event.key.toLowerCase()
+}
+
 const commandKeyAction = (event: KeyLike): KeyAction | null => {
-  const key = event.key.toLowerCase()
+  const key = commandLetter(event)
   if (event.altKey) return null
   if (event.key === 'Enter') return handled({ type: event.shiftKey ? 'toggleCheckbox' : 'toggleCheck' })
   if (key === '/' && !event.shiftKey) return handled({ type: 'toggleCollapse' })
   if (key === 'z') return handled({ type: event.shiftKey ? 'redo' : 'undo' })
   if (key === 'y' && !event.shiftKey) return handled({ type: 'redo' })
+  if (event.shiftKey) return null
+  if (key === 'c') return handled({ type: 'copy' })
+  if (key === 'x') return handled({ type: 'cut' })
+  // 기본 동작을 막지 않아야 브라우저가 붙여넣기 이벤트로 시스템 클립보드의 글을 준다(MindMapCanvas).
+  if (key === 'v') return { command: { type: 'paste' }, preventDefault: false }
   return null
 }
 
@@ -76,7 +90,17 @@ const selectedAction = (event: KeyLike): KeyAction | null => {
 export const keyAction = (event: KeyLike, editing: boolean): KeyAction | null =>
   editing ? editingAction(event) : selectedAction(event)
 
-export type ShortcutName = 'child' | 'sibling' | 'edit' | 'checkbox' | 'collapse' | 'delete' | 'undo'
+export type ShortcutName =
+  | 'child'
+  | 'sibling'
+  | 'edit'
+  | 'checkbox'
+  | 'collapse'
+  | 'delete'
+  | 'cut'
+  | 'copy'
+  | 'paste'
+  | 'undo'
 
 const SHORTCUTS: Record<ShortcutName, string> = {
   child: 'Tab',
@@ -85,6 +109,9 @@ const SHORTCUTS: Record<ShortcutName, string> = {
   checkbox: '{mod} ⇧ Enter',
   collapse: '{mod} /',
   delete: 'Del',
+  cut: '{mod} X',
+  copy: '{mod} C',
+  paste: '{mod} V',
   undo: '{mod} Z',
 }
 

@@ -26,6 +26,28 @@ test('고른 상태의 키', () => {
   assert.equal(type(k('Z', { ctrlKey: true, shiftKey: true })), 'redo')
   assert.equal(type(k('y', { ctrlKey: true })), 'redo')
 })
+test('잘라내기·복사·붙여넣기 단축키. 붙여넣기는 브라우저의 붙여넣기 이벤트를 위해 기본 동작을 막지 않는다', () => {
+  assert.equal(type(k('x', { ctrlKey: true })), 'cut')
+  assert.equal(type(k('c', { metaKey: true })), 'copy')
+  assert.deepEqual(plain(keymap.keyAction(k('v', { ctrlKey: true }), false)), {
+    command: { type: 'paste' },
+    preventDefault: false,
+  })
+  assert.equal(keymap.keyAction(k('c', { ctrlKey: true }), false).preventDefault, true)
+  assert.equal(type(k('C', { ctrlKey: true, shiftKey: true })), null)
+  assert.equal(type(k('c', { ctrlKey: true }), true), null, '쓰는 중에는 글의 복사다')
+  assert.equal(type(k('v', { ctrlKey: true }), true), null)
+  // 한글 자판: key는 자모, code는 물리 키다.
+  assert.equal(type(k('ㅊ', { ctrlKey: true, code: 'KeyC' })), 'copy')
+  assert.equal(type(k('ㅌ', { ctrlKey: true, code: 'KeyX' })), 'cut')
+  assert.equal(type(k('ㅍ', { metaKey: true, code: 'KeyV' })), 'paste')
+  assert.equal(type(k('ㅋ', { ctrlKey: true, code: 'KeyZ' })), 'undo')
+  // 라틴 자판은 key를 따른다(Dvorak에서 물리 KeyC는 j).
+  assert.equal(type(k('j', { ctrlKey: true, code: 'KeyC' })), null)
+  assert.equal(keymap.shortcutText('paste', true), '⌘ V')
+  assert.equal(keymap.shortcutText('cut', false), 'Ctrl X')
+})
+
 test('글자 키는 바로 고치기이고 기본 동작을 막지 않는다', () => {
   assert.deepEqual(plain(keymap.keyAction(k('가'), false)), { command: { type: 'startEdit' }, preventDefault: false })
   assert.deepEqual(plain(keymap.keyAction(k('Process', { keyCode: 229 }), false)), { command: { type: 'startEdit' }, preventDefault: false })

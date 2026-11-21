@@ -15,6 +15,14 @@ import { afterLeavingSaves, resumeLeftChange, useMindMapSaver } from './useMindM
 
 export const LOAD_FAILED = '마인드맵을 불러오지 못했어요.'
 
+/**
+ * 복사한 가지를 들여 쓴 목록 글로 시스템 클립보드에도 쓴다(다른 앱·다른 탭에 붙일 수 있게).
+ * 쓰지 못해도(권한·안전하지 않은 주소) 화면 안의 붙여넣기는 화면의 클립보드로 된다.
+ */
+const writeSystemClipboard = (text: string) => {
+  navigator.clipboard?.writeText(text).catch(() => {})
+}
+
 type Load = { status: 'loading' | 'error' | 'ready'; error: string | null }
 
 /**
@@ -125,6 +133,8 @@ export function useMindMapEditor() {
       if (!current || saver.isBlocked()) return
       const result = reduce(current, command, { newId: () => crypto.randomUUID(), geo: geometry.current })
       if (result.state !== current) show(result.state)
+      if (result.state.clipboard && result.state.clipboard !== current.clipboard)
+        writeSystemClipboard(result.state.clipboard.text)
       if (result.notice) addToast(result.notice, 'info')
       if (result.save) saver.changed(result.save)
     },
