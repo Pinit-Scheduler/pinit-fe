@@ -51,18 +51,18 @@ export default function MindMapWorld({
   style,
 }: Props) {
   const nodes = useMemo(() => byId(root), [root])
-  return (
-    <div
-      className={'mind-map-world' + (readOnly ? ' mind-map-world--readonly' : '')}
-      style={style}
-      aria-hidden={readOnly || undefined}
-    >
-      <svg className="mind-map-edges" aria-hidden="true">
-        {layout.edges.map((edge) => (
-          <path key={`${edge.fromId}>${edge.toId ?? ''}`} d={edge.d} style={{ stroke: stroke(edge.color) }} />
-        ))}
-      </svg>
-      {layout.nodes.map((place) => {
+  // 선과 가지 목록은 내용이 바뀔 때만 다시 만든다. 화면 이동·확대나 범위 상자처럼 `style`만 바뀌는 그리기에서는
+  // 가지 수만큼의 요소를 새로 만들지 않는다(끄는 동안 포인터 이동마다 그린다).
+  const edges = useMemo(
+    () =>
+      layout.edges.map((edge) => (
+        <path key={`${edge.fromId}>${edge.toId ?? ''}`} d={edge.d} style={{ stroke: stroke(edge.color) }} />
+      )),
+    [layout],
+  )
+  const branches = useMemo(
+    () =>
+      layout.nodes.map((place) => {
         const node = nodes.get(place.id)
         if (!node) return null
         return (
@@ -82,7 +82,19 @@ export default function MindMapWorld({
             onToggleClick={onToggleClick}
           />
         )
-      })}
+      }),
+    [layout, nodes, selectedId, selectedIds, editing, readOnly, dropId, nodeRef, onLabelInput, onCheckClick, onToggleClick],
+  )
+  return (
+    <div
+      className={'mind-map-world' + (readOnly ? ' mind-map-world--readonly' : '')}
+      style={style}
+      aria-hidden={readOnly || undefined}
+    >
+      <svg className="mind-map-edges" aria-hidden="true">
+        {edges}
+      </svg>
+      {branches}
     </div>
   )
 }

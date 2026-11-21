@@ -233,7 +233,7 @@ export function useCanvasPointer({
    * 범위 선택·하나씩 고르기를 보낸다. 늘 보내고, 고른 것이 실제로 바뀌었을 때만 화면에 알린다.
    * 바뀌었는지는 다시 그린 상태(`latest`)가 아니라 편집기의 최신 상태로 판단한다. 다시 그리기가 포인터를 따라오지
    * 못한 사이에 지난 상태와 견주면 마지막 변경을 버려, 고른 가지가 상자보다 한 박자 늦게 남는다.
-   * 알림은 보낸 뒤에 한다. 이벤트 안의 변경은 이 함수가 끝난 뒤에 그려지므로 그리기 전에 표시가 놓인다.
+   * 알림은 보낸 뒤에 한다. 변경은 이 함수가 끝난 뒤에(끄는 중에는 `onPointerMove`의 끝에서) 그려지므로 그리기 전에 표시가 놓인다.
    */
   const pickBySweep = (command: EditorCommand) => {
     if (dispatch(command)) onPointerSelect(null)
@@ -255,7 +255,14 @@ export function useCanvasPointer({
     pickBySweep({ type: 'selectMany', ids: [...current.base, ...hits], additive: false })
   }
 
-  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  /**
+   * 포인터 이동의 화면 변경(범위 상자·고른 가지·화면 이동·유령 상자)은 이 이벤트 안에서 바로 그린다.
+   * React는 포인터 이동의 변경을 다음 작업으로 미루는데, 브라우저는 포인터 이동을 그리기 직전에 보내므로
+   * 미루면 늘 다음 프레임에 그려져 끄는 것이 포인터보다 한 박자 늦게 보인다.
+   */
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => flushSync(() => track(event))
+
+  const track = (event: ReactPointerEvent<HTMLDivElement>) => {
     const point = points.current.get(event.pointerId)
     const canvas = canvasRef.current
     if (!point || !canvas) return
@@ -375,9 +382,10 @@ export function useCanvasPointer({
         const rect = canvas.getBoundingClientRect()
         const cx = event.clientX - rect.left
         const cy = event.clientY - rect.top
-        setView((v) => v && zoomAt(v, cx, cy, wheelFactor(event.deltaY)))
+        // 휠도 그리기 직전에 온다. 바로 그려 한 박자 늦지 않게 한다.
+        flushSync(() => setView((v) => v && zoomAt(v, cx, cy, wheelFactor(event.deltaY))))
       } else {
-        setView((v) => v && { ...v, x: v.x - event.deltaX, y: v.y - event.deltaY })
+        flushSync(() => setView((v) => v && { ...v, x: v.x - event.deltaX, y: v.y - event.deltaY }))
       }
     },
     [canvasRef, setView],

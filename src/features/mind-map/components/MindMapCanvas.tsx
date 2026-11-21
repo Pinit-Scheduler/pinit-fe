@@ -71,6 +71,13 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
   /** 눌러서 고른 가지. 누른 가지는 이미 보이므로 화면을 옮기지 않는다. `ANY_PICK`은 범위 선택처럼 주 가지가 어느 것이든 그렇다. */
   const pointerPicked = useRef<string | null>(null)
   const layout = useMemo(() => layoutMap(state.tree, sizes), [state.tree, sizes])
+  /** 마지막으로 가지 크기를 재서 배치와 맞은 때의 조건. 이 가운데 하나라도 바뀌면 다시 잰다. */
+  const measuredFor = useRef<{
+    layout: typeof layout
+    editing: Editing | null
+    fontsLoaded: boolean
+    frameSize: { w: number; h: number } | null
+  } | null>(null)
   const { editing, selectedId, limits } = state
 
   const nodeRef = useCallback((id: string, el: HTMLElement | null) => {
@@ -132,14 +139,20 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     }
   }, [isEditing])
 
-  // 배치·선택·쓰기가 바뀌거나 글꼴이 오면 보이는 가지를 잰다. 크기가 바뀌었으면 다시 배치하고, 같으면 화면 위치를 맞춘다.
+  // 배치·쓰기·캔버스 크기가 바뀌거나 글꼴이 오면 보이는 가지를 잰다. 크기가 바뀌었으면 다시 배치하고, 같으면 화면 위치를 맞춘다.
+  // 선택과 화면 위치(이동·확대)는 가지 크기를 바꾸지 않으므로 그때는 다시 재지 않는다. 재는 것은 모든 가지의 배치 계산을
+  // 강제해서, 끄는 동안 포인터 이동마다 하면 가지 수만큼 느려진다.
   useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const measured = measure(layout.nodes.map((place) => place.id), elements.current)
-    if (!sameSizes(measured, sizes)) {
-      setSizes(measured)
-      return
+    const last = measuredFor.current
+    if (!last || last.layout !== layout || last.editing !== editing || last.fontsLoaded !== fontsLoaded || last.frameSize !== frameSize) {
+      const measured = measure(layout.nodes.map((place) => place.id), elements.current)
+      if (!sameSizes(measured, sizes)) {
+        setSizes(measured)
+        return
+      }
+      measuredFor.current = { layout, editing, fontsLoaded, frameSize }
     }
     setGeometry(layout.boxes)
     const box = layout.boxes.get(selectedId)
@@ -235,6 +248,27 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     if (!editing) canvasRef.current?.focus({ preventScroll: true })
   }
 
+  // 가지에 넘기는 함수는 늘 같은 것이어야 가지가 다시 그려지지 않는다(MindMapNodeView의 memo). 할 일은 마지막 것을 부른다.
+  const nodeHandlers = useRef({ onLabelInput, focusCanvas })
+  useLayoutEffect(() => {
+    nodeHandlers.current = { onLabelInput, focusCanvas }
+  })
+  const onNodeLabelInput = useCallback((text: string) => nodeHandlers.current.onLabelInput(text), [])
+  const onNodeCheckClick = useCallback(
+    (id: string) => {
+      dispatch({ type: 'toggleCheck', id })
+      nodeHandlers.current.focusCanvas()
+    },
+    [dispatch],
+  )
+  const onNodeToggleClick = useCallback(
+    (id: string) => {
+      dispatch({ type: 'toggleCollapse', id })
+      nodeHandlers.current.focusCanvas()
+    },
+    [dispatch],
+  )
+
   /** 가지를 고르고 그 가지의 메뉴를 연다. 좌표는 화면 기준이다. */
   const openMenu = (id: string, x: number, y: number, above: boolean) => {
     const stage = canvasRef.current?.parentElement
@@ -329,15 +363,9 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
           readOnly={false}
           dropId={childDrop}
           nodeRef={nodeRef}
-          onLabelInput={onLabelInput}
-          onCheckClick={(id) => {
-            dispatch({ type: 'toggleCheck', id })
-            focusCanvas()
-          }}
-          onToggleClick={(id) => {
-            dispatch({ type: 'toggleCollapse', id })
-            focusCanvas()
-          }}
+          onLabelInput={onNodeLabelInput}
+          onCheckClick={onNodeCheckClick}
+          onToggleClick={onNodeToggleClick}
           style={{
             transform: view ? `translate(${view.x}px, ${view.y}px) scale(${view.k})` : undefined,
             visibility: view ? undefined : 'hidden',
