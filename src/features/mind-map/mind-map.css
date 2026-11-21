@@ -287,6 +287,58 @@
   }
 }
 
+/* 가지 메뉴(오른쪽 단추·길게 누르기) */
+.mind-map-menu {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 168px;
+  padding: 5px;
+  box-sizing: border-box;
+  border: 1px solid var(--workspace-line);
+  border-radius: 12px;
+  background: var(--workspace-surface);
+  box-shadow: 0 6px 24px color-mix(in srgb, var(--workspace-ink), transparent 85%);
+  cursor: default;
+}
+.mind-map-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--workspace-ink);
+  font-size: 13.5px;
+  font-weight: 550;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mind-map-menu__item:hover:not(:disabled) {
+  background: var(--workspace-blue-soft);
+}
+.mind-map-menu__item:disabled {
+  color: var(--workspace-muted);
+  cursor: default;
+}
+.mind-map-menu kbd {
+  color: var(--workspace-muted);
+  font: inherit;
+  font-size: 12px;
+}
+/* 터치에서는 손가락에 맞게 키우고 단축키를 숨긴다. */
+@media (pointer: coarse) {
+  .mind-map-menu__item {
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+  .mind-map-menu kbd {
+    display: none;
+  }
+}
+
 /* 가지 */
 .mind-map-node {
   position: absolute;

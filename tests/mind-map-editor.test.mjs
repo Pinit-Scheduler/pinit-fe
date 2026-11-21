@@ -492,6 +492,8 @@ test('단추 줄: 주제에서는 삭제·체크박스를, 자식이 없으면 �
   const atRoot = editor.actionState(run(start, [{ type: 'select', id: 'r' }]).state)
   assert.deepEqual(plain(atRoot), {
     canDelete: false,
+    canCopy: true,
+    canPaste: false,
     canCheckbox: false,
     hasCheckbox: false,
     canCollapse: true,
@@ -501,6 +503,8 @@ test('단추 줄: 주제에서는 삭제·체크박스를, 자식이 없으면 �
   const leaf = run(start, [{ type: 'select', id: 'c' }, { type: 'toggleCheckbox' }]).state
   assert.deepEqual(plain(editor.actionState(leaf)), {
     canDelete: true,
+    canCopy: true,
+    canPaste: false,
     canCheckbox: true,
     hasCheckbox: true,
     canCollapse: false,

@@ -1,3 +1,5 @@
+import { clipboardOf, clipCount, clipHeight, pasteSource, plant } from './clipboard'
+import type { Clipboard } from './clipboard'
 import { emptyHistory, record, redo as redoHistory, undo as undoHistory } from './history'
 import type { History, Snapshot } from './history'
 import { normalizeText, textLength } from './text'
@@ -32,6 +34,8 @@ export type EditorState = {
   editing: Editing | null
   history: History
   limits: Limits
+  /** 잘라내거나 복사한 가지. 되돌리기 기록에 들지 않고, 서버에서 다시 받아도 남는다. */
+  clipboard: Clipboard | null
 }
 export type EditorCommand =
   | { type: 'select'; id: string }
@@ -49,6 +53,10 @@ export type EditorCommand =
   | { type: 'toggleCheck'; id?: string }
   | { type: 'toggleCheckbox' }
   | { type: 'drop'; draggedId: string; drop: Drop }
+  | { type: 'copy' }
+  | { type: 'cut' }
+  /** `text`는 시스템 클립보드의 글이다. 없으면 화면이 복사해 둔 가지를 붙인다. */
+  | { type: 'paste'; text?: string }
   | { type: 'undo' }
   | { type: 'redo' }
 export type SaveTiming = 'now' | 'later' | null
@@ -162,6 +170,42 @@ const remove = (state: EditorState): EditorResult => {
   const removed = removeNode(state.tree, state.selectedId)
   if (!removed) return result(state)
   return result({ ...recorded(state), tree: removed.root, selectedId: removed.nextId }, 'later')
+}
+
+const copy = (state: EditorState): EditorResult => {
+  const node = findNode(state.tree, state.selectedId)
+  return node ? result({ ...state, clipboard: clipboardOf(node) }, null, '가지를 복사했어요.') : result(state)
+}
+
+/** 지우기와 같고 지운 가지를 클립보드에 둔다. 주제는 잘라내지 않는다. */
+const cut = (state: EditorState): EditorResult => {
+  const node = findNode(state.tree, state.selectedId)
+  const removed = removeNode(state.tree, state.selectedId)
+  if (!node || !removed) return result(state)
+  return result(
+    { ...recorded(state), tree: removed.root, selectedId: removed.nextId, clipboard: clipboardOf(node) },
+    'later',
+  )
+}
+
+export const NOTHING_TO_PASTE = '붙여 넣을 가지가 없어요. 먼저 가지를 복사하거나 잘라내 주세요.'
+
+/** 고른 가지의 마지막 하위 가지로 붙이고 붙인 첫 가지를 고른다. 한도를 넘으면 하나도 붙이지 않는다. */
+const paste = (state: EditorState, ctx: EditorContext, text: string | undefined): EditorResult => {
+  const source = pasteSource(state.clipboard, text, state.limits.maxTextLength)
+  if (!source) return result(state, null, NOTHING_TO_PASTE)
+  const count = source.nodes.reduce((sum, node) => sum + clipCount(node), 0)
+  if (totalNodes(state.tree) + count > state.limits.maxBranches) return result(state, null, branchesNotice(state.limits))
+  const height = source.nodes.reduce((max, node) => Math.max(max, clipHeight(node)), 0)
+  if (depthOf(state.tree, state.selectedId) + 1 + height > state.limits.maxDepth)
+    return result(state, null, depthNotice(state.limits))
+  const planted = source.nodes.map((node) => plant(node, ctx.newId))
+  const tree = planted.reduce((root, node) => addChild(root, state.selectedId, node), state.tree)
+  return result(
+    { ...recorded(state), tree, selectedId: planted[0].id },
+    'later',
+    source.clipped ? textNotice(state.limits) : null,
+  )
 }
 
 const centre = (box: Box): number => box.y + box.h / 2
@@ -310,6 +354,12 @@ const apply = (state: EditorState, command: EditorCommand, ctx: EditorContext): 
       return changeCheck(state, undefined, toggledCheckbox)
     case 'drop':
       return drop(state, command.draggedId, command.drop)
+    case 'copy':
+      return copy(state)
+    case 'cut':
+      return cut(state)
+    case 'paste':
+      return paste(state, ctx, command.text)
     case 'undo':
       return travel(state, undoHistory)
     case 'redo':
@@ -320,7 +370,7 @@ const apply = (state: EditorState, command: EditorCommand, ctx: EditorContext): 
 const writing = new Set<EditorCommand['type']>(['input', 'commit', 'commitAndAddChild', 'cancel'])
 
 /**
- * 처음 쓰는 새 가지에 하는 명령 가운데 취소로 끝나는 것: 지우기는 늘, 체크·접기는 글이 비었을 때.
+ * 처음 쓰는 새 가지에 하는 명령 가운데 취소로 끝나는 것: 지우기는 늘, 체크·접기·잘라내기·복사·붙여넣기는 글이 비었을 때.
  * 글이 있으면 체크·접기는 확정한 새 가지에 한다. 어느 쪽이든 이전 선택에는 하지 않는다.
  */
 const cancelsNewBranch = (state: EditorState, editing: Editing, command: EditorCommand): boolean => {
@@ -330,6 +380,9 @@ const cancelsNewBranch = (state: EditorState, editing: Editing, command: EditorC
     case 'delete':
       return true
     case 'toggleCheckbox':
+    case 'copy':
+    case 'cut':
+    case 'paste':
       return blank()
     case 'toggleCheck':
     case 'toggleCollapse':
@@ -345,10 +398,13 @@ export const initialEditor = (map: ServerMap): EditorState => ({
   editing: null,
   history: emptyHistory(),
   limits: map.limits,
+  clipboard: null,
 })
 
 export type ActionState = {
   canDelete: boolean
+  canCopy: boolean
+  canPaste: boolean
   canCheckbox: boolean
   hasCheckbox: boolean
   canCollapse: boolean
@@ -356,12 +412,17 @@ export type ActionState = {
   canUndo: boolean
 }
 
-/** 동작 단추 줄이 고른 가지에 대해 보이는 상태: 주제는 지우거나 체크박스를 붙이지 않고, 자식이 없으면 접지 않는다. */
+/**
+ * 동작 단추 줄이 고른 가지에 대해 보이는 상태: 주제는 지우거나 잘라내거나 체크박스를 붙이지 않고, 자식이 없으면 접지 않는다.
+ * 붙이기 단추는 화면이 복사해 둔 가지가 있을 때만 쓴다(단축키는 시스템 클립보드의 글도 붙인다).
+ */
 export const actionState = (state: EditorState): ActionState => {
   const node = findNode(state.tree, state.selectedId)
   const isBranch = node !== null && node.id !== state.tree.id
   return {
     canDelete: isBranch,
+    canCopy: node !== null,
+    canPaste: (state.clipboard?.nodes.length ?? 0) > 0,
     canCheckbox: isBranch,
     hasCheckbox: isBranch && node.check !== 'NONE',
     canCollapse: (node?.children.length ?? 0) > 0,
@@ -402,4 +463,5 @@ export const replaceFromServer = (state: EditorState, map: ServerMap): EditorSta
   editing: null,
   history: emptyHistory(),
   limits: map.limits,
+  clipboard: state.clipboard,
 })
