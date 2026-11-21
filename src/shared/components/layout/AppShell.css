@@ -293,6 +293,11 @@
   .app-shell--editing .app-shell__content {
     padding-bottom: 24px;
   }
+  /* 캔버스 화면은 문서가 스크롤되지 않으므로, 키보드가 보이는 영역을 밀면(iOS) 틀을 보이는 영역에 붙인다. */
+  .app-shell--canvas {
+    position: fixed;
+    inset: var(--workspace-viewport-top, 0px) 0 auto 0;
+  }
   .app-shell--canvas .app-shell__content {
     padding: 0 0
       calc(

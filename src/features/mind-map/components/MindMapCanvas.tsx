@@ -47,13 +47,16 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
   const composing = useRef(false)
   /** 한도 안내를 이미 띄운 쓰기. 글이 한도 안으로 돌아오거나 새로 쓰기 시작하면 다시 알린다. */
   const noticedFor = useRef<Editing | null>(null)
-  const shown = useRef<{ selectedId: string | null; editingId: string | null }>({
+  const shown = useRef<{ selectedId: string | null; editingId: string | null; frame: { w: number; h: number } | null }>({
     selectedId: null,
     editingId: null,
+    frame: null,
   })
   const [sizes, setSizes] = useState<ReadonlyMap<string, Size>>(() => new Map())
   const [view, setView] = useState<View | null>(null)
   const [fontsLoaded, setFontsLoaded] = useState(false)
+  /** 캔버스 크기. 폰에서 키보드가 열리면 줄어든다. 줄면 고른 가지가 보이게 다시 옮긴다. */
+  const [frameSize, setFrameSize] = useState<{ w: number; h: number } | null>(null)
   /** 눌러서 고른 가지. 누른 가지는 이미 보이므로 화면을 옮기지 않는다. */
   const pointerPicked = useRef<string | null>(null)
   const layout = useMemo(() => layoutMap(state.tree, sizes), [state.tree, sizes])
@@ -75,6 +78,30 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     }
   }, [])
 
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const observer = new ResizeObserver(() => {
+      setFrameSize((previous) =>
+        previous && previous.w === canvas.clientWidth && previous.h === canvas.clientHeight
+          ? previous
+          : { w: canvas.clientWidth, h: canvas.clientHeight },
+      )
+    })
+    observer.observe(canvas)
+    return () => observer.disconnect()
+  }, [])
+
+  // 글을 쓰는 동안(폰에서는 키보드가 열린 동안) 아래 탭과 미니 플레이어를 숨긴다(mind-map.css). 앱의 다른 입력 화면과 같다.
+  const isEditing = editing !== null
+  useEffect(() => {
+    if (!isEditing) return
+    document.body.dataset.mindMapEditing = 'true'
+    return () => {
+      delete document.body.dataset.mindMapEditing
+    }
+  }, [isEditing])
+
   // 배치·선택·쓰기가 바뀌거나 글꼴이 오면 보이는 가지를 잰다. 크기가 바뀌었으면 다시 배치하고, 같으면 화면 위치를 맞춘다.
   useLayoutEffect(() => {
     const canvas = canvasRef.current
@@ -89,7 +116,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     if (!box) return
     const frame = { w: canvas.clientWidth, h: canvas.clientHeight }
     const previous = shown.current
-    shown.current = { selectedId, editingId: editing?.id ?? null }
+    shown.current = { selectedId, editingId: editing?.id ?? null, frame }
     if (!view) {
       setView(centerOn(box, frame, pageScale(window.innerWidth)))
       canvas.focus({ preventScroll: true })
@@ -97,7 +124,8 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
     }
     const picked = pointerPicked.current
     if (previous.selectedId !== selectedId) pointerPicked.current = null
-    if ((previous.selectedId !== selectedId && picked !== selectedId) || editing) {
+    const resized = previous.frame !== null && (previous.frame.w !== frame.w || previous.frame.h !== frame.h)
+    if ((previous.selectedId !== selectedId && picked !== selectedId) || editing || resized) {
       const next = keepVisible(view, box, frame)
       if (next.x !== view.x || next.y !== view.y) setView(next)
     }
@@ -106,7 +134,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
       const active = document.activeElement
       if (!active || active === document.body || canvas.contains(active)) canvas.focus({ preventScroll: true })
     }
-  }, [layout, sizes, setGeometry, selectedId, editing, view, fontsLoaded])
+  }, [layout, sizes, setGeometry, selectedId, editing, view, fontsLoaded, frameSize])
 
   const labelOf = (id: string) =>
     elements.current.get(id)?.querySelector<HTMLElement>('.mind-map-node__label') ?? null

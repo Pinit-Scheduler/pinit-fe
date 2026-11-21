@@ -1108,11 +1108,11 @@ const walk = async (page, viewport) => {
   )
 
   await step(page, viewport, 'leave-saves', async () => {
-    // 글을 쓰는 중에 메뉴의 통계로 떠나도 쓰던 글이 확정·저장된다.
+    // 글을 쓰는 중에 떠나도 쓰던 글이 확정·저장된다(PC는 메뉴의 통계로, 폰은 페이지의 ← 홈으로).
     await returnToMap(page, viewport)
     assert.equal(await selectedLabel(page), '두 번째 3')
     await rewriteSelected(page, '떠나며 확정', { confirm: false })
-    await goMenu(page, viewport, '통계', '/app/statistics')
+    await leaveWhileWriting(page, viewport)
     await returnToMap(page, viewport)
     assert.equal(await nodeByText(page, '떠나며 확정').count(), 1)
     assert.equal(await nodeByText(page, '두 번째 3').count(), 0)
@@ -1127,7 +1127,7 @@ const walk = async (page, viewport) => {
     await failSaves(page, true)
     const logged = await expectErrors('leave-fails', saveError('500'), async () => {
       await rewriteSelected(page, '떠나며 실패', { confirm: false })
-      await goMenu(page, viewport, '통계', '/app/statistics')
+      await leaveWhileWriting(page, viewport)
       await page.locator('.toast__message', { hasText: LEFT_SAVE_FAILED }).waitFor()
     })
     await failSaves(page, false)
@@ -1150,7 +1150,7 @@ const walk = async (page, viewport) => {
     await failSaves(page, true)
     await expectErrors('leave-fails-moved', saveError('500'), async () => {
       await rewriteSelected(page, '덮으면 안 되는 글', { confirm: false })
-      await goMenu(page, viewport, '통계', '/app/statistics')
+      await leaveWhileWriting(page, viewport)
       await page.locator('.toast__message', { hasText: LEFT_SAVE_FAILED }).waitFor()
     })
     await failSaves(page, false)
@@ -1232,6 +1232,58 @@ const walk = async (page, viewport) => {
     },
     { dark: true },
   )
+
+  // iOS는 키보드가 열리면 보이는 영역을 줄이고 아래로 민다(visualViewport.height·offsetTop). 헤드리스 Chromium에는
+  // 키보드가 없으므로 그 두 값을 흉내 낸다. 틀은 보이는 영역에 붙고, 쓰는 가지는 캔버스 안·단추 줄 밖에 있고,
+  // 아래 탭은 숨는다. 이 시험은 iOS의 실제 동작이 아니라 흉내 낸 값에 대한 화면의 반응만 본다.
+  if (viewport === 'mobile') {
+    await step(page, viewport, 'keyboard-viewport', async () => {
+      await press(page, viewport, actionBar(page).getByRole('button', { name: /하위 가지/ }))
+      await editingLabel(page).waitFor()
+      const keyboard = { top: 130, height: 508 }
+      await page.evaluate(({ top, height }) => {
+        const vv = window.visualViewport
+        Object.defineProperty(vv, 'height', { configurable: true, get: () => height })
+        Object.defineProperty(vv, 'offsetTop', { configurable: true, get: () => top })
+        vv.dispatchEvent(new Event('resize'))
+        vv.dispatchEvent(new Event('scroll'))
+      }, keyboard)
+      const rect = (selector) =>
+        page.evaluate((s) => {
+          const el = document.querySelector(s)
+          if (!el || getComputedStyle(el).display === 'none') return null
+          const b = el.getBoundingClientRect()
+          return { top: Math.round(b.top), bottom: Math.round(b.bottom) }
+        }, selector)
+      await page.waitForFunction(
+        ({ top }) => Math.round(document.querySelector('.app-shell').getBoundingClientRect().top) === top,
+        keyboard,
+      )
+      await page.waitForTimeout(200)
+      const shell = await rect('.app-shell')
+      const canvasBox = await rect('.mind-map-canvas')
+      const actions = await rect('.mind-map-actions')
+      const node = await rect('.mind-map-node.is-editing')
+      assert.deepEqual(shell, { top: keyboard.top, bottom: keyboard.top + keyboard.height })
+      assert.equal(await rect('.bottom-tab'), null, '쓰는 동안 아래 탭이 숨는다')
+      assert.equal(await rect('.mini-player-wrapper'), null, '쓰는 동안 미니 플레이어가 숨는다')
+      assert.ok(node.top >= canvasBox.top && node.bottom <= canvasBox.bottom, `쓰는 가지 ${JSON.stringify(node)}가 캔버스 ${JSON.stringify(canvasBox)} 안`)
+      assert.ok(node.bottom <= actions.top || node.top >= actions.bottom, `쓰는 가지 ${JSON.stringify(node)}가 단추 줄 ${JSON.stringify(actions)} 밖`)
+      await capture(page, viewport, 'keyboard-viewport')
+      // 키보드를 닫는다: 쓰던 새 가지를 버리고 보이는 영역을 되돌린다. 아래 탭이 돌아온다.
+      await page.keyboard.press('Escape')
+      await editingLabel(page).waitFor({ state: 'detached' })
+      await page.evaluate(() => {
+        const vv = window.visualViewport
+        delete vv.height
+        delete vv.offsetTop
+        vv.dispatchEvent(new Event('resize'))
+        vv.dispatchEvent(new Event('scroll'))
+      })
+      await page.waitForFunction(() => document.querySelector('.app-shell').getBoundingClientRect().top === 0)
+      assert.notEqual(await rect('.bottom-tab'), null, '쓰기가 끝나면 아래 탭이 돌아온다')
+    })
+  }
 }
 
 // ---- 오늘 화면(`/app/today`)의 홈 카드 ----
@@ -1252,6 +1304,15 @@ const goMenu = async (page, viewport, name, pathname) => {
   const scope = viewport === 'mobile' ? bottomTabs(page) : sidebar(page)
   await press(page, viewport, scope.getByRole('link', { name, exact: true }))
   await page.waitForURL(new RegExp(`${pathname}$`))
+}
+/**
+ * 글을 쓰는 중에 마인드맵을 떠난다. 폰은 쓰는 동안 아래 탭이 숨으므로(키보드 위 자리를 캔버스에 준다) 페이지의 `← 홈`으로 떠난다.
+ */
+const leaveWhileWriting = async (page, viewport) => {
+  if (viewport !== 'mobile') return goMenu(page, viewport, '통계', '/app/statistics')
+  assert.equal(await bottomTabs(page).isVisible(), false, '쓰는 동안 아래 탭이 숨는다')
+  await press(page, viewport, page.getByRole('link', { name: '← 홈', exact: true }))
+  await page.waitForURL(/\/app\/today$/)
 }
 const homeCard = (page) => page.locator('section.mind-map-card')
 const cardPreview = (page) => homeCard(page).locator('.mind-map-card__preview')
