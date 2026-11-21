@@ -262,7 +262,7 @@ export default function MindMapCanvas({ state, dispatch, setGeometry, isMac }: P
   })
 
   /**
-   * 키보드 메뉴 키와 안드로이드 길게 누르기로 가지 메뉴를 연다. 쓰는 글 안에서는 브라우저 메뉴를 둔다.
+   * 안드로이드 길게 누르기로 가지 메뉴를 연다(키보드 메뉴 키는 캔버스를 가리켜 가지가 없으므로 열지 않는다). 쓰는 글 안에서는 브라우저 메뉴를 둔다.
    * 마우스 오른쪽 단추는 끌면 화면 이동이라 포인터 훅이 뗄 때 메뉴를 연다. 그 `contextmenu`는 막기만 한다.
    */
   const onContextMenu = (event: MouseEvent<HTMLDivElement>) => {

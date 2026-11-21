@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from 'react'
 import { flushSync } from 'react-dom'
+import { changesSelection } from '../model/editor'
 import type { Box, EditorCommand, EditorState } from '../model/editor'
 import { dropTargetMany, findNode, pathTo, topmostBranches } from '../model/tree'
 import type { Drop } from '../model/tree'
@@ -24,8 +25,11 @@ type Press =
   | { type: 'node'; id: string; sx: number; sy: number; travelled: boolean; moved: boolean; group: boolean }
   /** menuId: 마우스 오른쪽 단추로 누른 가지. 끌지 않고 떼면 그 가지의 메뉴를 연다. */
   | { type: 'pan'; lx: number; ly: number; sx: number; sy: number; moved: boolean; menuId: string | null }
-  /** 마우스로 빈 곳을 왼쪽 단추로 눌렀다. 끌면 범위 선택이다. base: `Shift`로 더할 때 누르기 전의 고른 가지. */
-  | { type: 'marquee'; sx: number; sy: number; moved: boolean; base: string[]; hits: string }
+  /**
+   * 마우스로 빈 곳을 왼쪽 단추로 눌렀다. 끌면 범위 선택이다. base: `Shift`로 더할 때 누르기 전의 고른 가지.
+   * hits: 마지막으로 알린 겹친 가지들. `null`이면 아직 알리지 않았다(겹친 가지가 없어도 처음 한 번은 알린다).
+   */
+  | { type: 'marquee'; sx: number; sy: number; moved: boolean; base: string[]; hits: string | null }
 /** 범위 사각형(캔버스 기준). */
 export type Marquee = { left: number; top: number; width: number; height: number }
 export type Drag = {
@@ -92,9 +96,40 @@ export function useCanvasPointer({
     viewRef.current = view
     boxesRef.current = boxes
   })
-  /** 마우스 오른쪽 단추로 누른 뒤 다음 누르기까지 참이다. 그 사이의 `contextmenu`는 브라우저가 누를 때 보내든 뗄 때 보내든 이 훅이 다룬다. */
+  /**
+   * 마우스 오른쪽 단추로 누른 뒤 다음 누르기나 키 입력까지 참이다. 그 사이의 `contextmenu`는 브라우저가 누를 때 보내든
+   * 뗄 때 보내든 이 훅이 다룬다(메뉴는 뗄 때 연다).
+   */
   const ownsMenu = useRef(false)
   const [marquee, setMarquee] = useState<Marquee | null>(null)
+
+  // Windows는 오른쪽 단추를 뗀 뒤 뗀 자리로 `contextmenu`를 보낸다. 끌다가 캔버스 밖(단추 줄·확대 단추)에서 떼도
+  // 브라우저 메뉴가 뜨지 않게 문서에서 막는다. 캔버스 밖을 누르거나 키를 치면 더는 막지 않는다(메뉴 키는 그대로 둔다).
+  useEffect(() => {
+    const outside = (event: Event) => {
+      const canvas = canvasRef.current
+      return !canvas || !canvas.contains(event.target as Node)
+    }
+    const release = (event: Event) => {
+      if (outside(event)) ownsMenu.current = false
+    }
+    const releaseByKey = () => {
+      ownsMenu.current = false
+    }
+    const swallow = (event: MouseEvent) => {
+      if (!ownsMenu.current || !outside(event)) return
+      const pointerType = (event as PointerEvent).pointerType
+      if (pointerType === 'mouse' || pointerType === undefined) event.preventDefault()
+    }
+    document.addEventListener('pointerdown', release, true)
+    document.addEventListener('keydown', releaseByKey, true)
+    document.addEventListener('contextmenu', swallow, true)
+    return () => {
+      document.removeEventListener('pointerdown', release, true)
+      document.removeEventListener('keydown', releaseByKey, true)
+      document.removeEventListener('contextmenu', swallow, true)
+    }
+  }, [canvasRef])
   const points = useRef(new Map<number, Point>())
   const press = useRef<Press | null>(null)
   const pinch = useRef<Pinch | null>(null)
@@ -164,8 +199,7 @@ export function useCanvasPointer({
     }
     if (id && known) {
       if (mouse && (event.shiftKey || (isMac ? event.metaKey : event.ctrlKey))) {
-        onPointerSelect(null)
-        dispatch({ type: 'toggleSelect', id })
+        pickBySweep({ type: 'toggleSelect', id })
         press.current = null
         lastTap.current = { id: null, t: 0 }
         return
@@ -188,11 +222,21 @@ export function useCanvasPointer({
       }
     } else if (mouse) {
       const base = event.shiftKey ? [...latest.current.selection] : []
-      press.current = { type: 'marquee', sx: event.clientX, sy: event.clientY, moved: false, base, hits: '' }
+      press.current = { type: 'marquee', sx: event.clientX, sy: event.clientY, moved: false, base, hits: null }
     } else {
       const { clientX: x, clientY: y } = event
       press.current = { type: 'pan', lx: x, ly: y, sx: x, sy: y, moved: false, menuId: null }
     }
+  }
+
+  /**
+   * 범위 선택·하나씩 고르기를 보낸다. 고른 것이 바뀔 때만 화면에 알린다. 바뀌지 않으면 다시 그리지 않아
+   * 그 표시가 남고, 다음 키보드 이동이 화면을 따라 옮기지 않기 때문이다.
+   */
+  const pickBySweep = (command: EditorCommand) => {
+    if (!changesSelection(latest.current, command)) return
+    onPointerSelect(null)
+    dispatch(command)
   }
 
   /** 범위 사각형을 그리고 겹치는 보이는 가지를 고른다. 고른 가지가 바뀔 때만 알린다. */
@@ -208,8 +252,7 @@ export function useCanvasPointer({
     const key = hits.join(' ')
     if (key === current.hits) return
     current.hits = key
-    onPointerSelect(null)
-    dispatch({ type: 'selectMany', ids: [...current.base, ...hits], additive: false })
+    pickBySweep({ type: 'selectMany', ids: [...current.base, ...hits], additive: false })
   }
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -297,10 +340,7 @@ export function useCanvasPointer({
     }
     if (current.type === 'marquee') {
       setMarquee(null)
-      if (!current.moved && event.type === 'pointerup') {
-        onPointerSelect(null)
-        dispatch({ type: 'single' })
-      }
+      if (!current.moved && event.type === 'pointerup') pickBySweep({ type: 'single' })
       return
     }
     if (current.moved) {

@@ -859,8 +859,18 @@ const walk = async (page, viewport) => {
       await rooms.locator('.mind-map-node__label').click()
       await boxes.locator('.mind-map-node__label').click({ modifiers: ['Shift'] })
       assert.deepEqual(await pickedLabels(page), { all: ['방마다 포장하기', '박스와 테이프 사기'], primary: '박스와 테이프 사기' })
+      // 가지가 없는 곳을 범위로 끌면 고른 것이 주 가지 하나로 줄어든다(`Shift` 없이).
+      const frame = await canvas(page).boundingBox()
+      const blank = { x: frame.x + 24, y: frame.y + 90 }
+      const blankEnd = { x: blank.x + 30, y: blank.y + 20 }
+      const blankOk = await page.evaluate((points) => points.every(({ x, y }) => !document.elementFromPoint(x, y)?.closest('.mind-map-node')), [blank, blankEnd])
+      assert.ok(blankOk, '빈 범위가 가지에 닿는다')
+      await dragBetween(page, viewport, blank, blankEnd)
+      assert.deepEqual(await pickedLabels(page), { all: ['박스와 테이프 사기'], primary: '박스와 테이프 사기' }, '빈 범위가 고른 것을 비우지 않았다')
+      await rooms.locator('.mind-map-node__label').click({ modifiers: ['Shift'] })
+      assert.equal((await pickedLabels(page)).all.length, 2)
       await page.keyboard.press('Escape')
-      assert.deepEqual(await pickedLabels(page), { all: ['박스와 테이프 사기'], primary: '박스와 테이프 사기' })
+      assert.deepEqual(await pickedLabels(page), { all: ['방마다 포장하기'], primary: '방마다 포장하기' }, 'Esc는 주 가지(마지막으로 더한 가지)만 남긴다')
       // 가지 위에서 오른쪽 단추로 끌면 화면 이동이고 메뉴는 열리지 않는다.
       const before = await worldOffset(page)
       const at = await center(rooms.locator('.mind-map-node__label'))
@@ -868,6 +878,17 @@ const walk = async (page, viewport) => {
       const after = await worldOffset(page)
       assert.ok(Math.abs(after.x - before.x - 60) <= 1 && Math.abs(after.y - before.y - 40) <= 1, JSON.stringify({ before, after }))
       assert.equal(await page.locator('.mind-map-menu').count(), 0, '끈 오른쪽 단추가 메뉴를 열었다')
+      // Windows는 뗀 뒤에 뗀 자리로 contextmenu를 보낸다. 캔버스 밖(단추 줄)에서 떼도 브라우저 메뉴가 뜨지 않아야 하고,
+      // 다른 곳을 누른 뒤의 contextmenu는 막지 않는다.
+      const late = () =>
+        page.evaluate(() => {
+          const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })
+          document.querySelector('[role="toolbar"]').dispatchEvent(event)
+          return event.defaultPrevented
+        })
+      assert.equal(await late(), true, '오른쪽 단추로 끈 뒤 캔버스 밖의 contextmenu를 막지 않았다')
+      await page.evaluate(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 })))
+      assert.equal(await late(), false, '다른 곳을 누른 뒤에도 contextmenu를 막는다')
       // 끌지 않은 오른쪽 단추는 메뉴를 하나 연다.
       await rooms.locator('.mind-map-node__label').click({ button: 'right' })
       await page.locator('.mind-map-menu').waitFor()

@@ -123,7 +123,11 @@ const selectMany = (state: EditorState, ids: readonly string[], additive: boolea
   const selection = preorder(state.tree).filter((id) => wanted.has(id))
   if (selection.length === 0) return result({ ...state, selection: [state.selectedId] })
   const selectedId = selection.includes(state.selectedId) ? state.selectedId : selection[0]
-  return result({ ...state, selectedId, selection })
+  const same =
+    selectedId === state.selectedId &&
+    selection.length === state.selection.length &&
+    selection.every((id) => state.selection.includes(id))
+  return result(same ? state : { ...state, selectedId, selection })
 }
 
 /** 여러 가지를 골랐으면 함께 다룰 위 가지들, 아니면 `null`. */
@@ -566,6 +570,10 @@ export const reduce = (state: EditorState, command: EditorCommand, ctx: EditorCo
   const next = multi ? tidySelection(done.state) : single(done.state)
   return next === done.state ? done : { ...done, state: next }
 }
+
+/** 고르기 명령이 고른 가지(목록이나 주 가지)를 바꾸는지. 바꾸지 않으면 화면이 다시 그려지지 않는다. */
+export const changesSelection = (state: EditorState, command: EditorCommand): boolean =>
+  reduce(state, command, { newId: () => '' }).state !== state
 
 /** 서버에 보낼 나무: 쓰는 가지는 마지막으로 확정한 글로 두고, 처음 쓰는 새 가지는 뺀다. */
 export const confirmedTree = (state: EditorState): MindMapNode => {
