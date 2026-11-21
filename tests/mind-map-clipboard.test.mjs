@@ -162,3 +162,10 @@ test('단추 상태: 주제는 잘라내지 않고, 붙여넣기는 클립보드
   const copied = run(startAt('a'), [{ type: 'copy' }]).state
   assert.equal(editor.actionState(copied).canPaste, true)
 })
+
+test('clipboardOfNodes는 여러 가지를 차례대로 담는다', () => {
+  const n = (text, children = []) => ({ id: text, text, collapsed: false, check: 'NONE', children })
+  const board = clipboard.clipboardOfNodes([n('a', [n('a1'), n('a2')]), n('c')])
+  assert.equal(board.nodes.length, 2)
+  assert.equal(board.text, '- a\n  - a1\n  - a2\n- c')
+})

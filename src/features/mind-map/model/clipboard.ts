@@ -31,10 +31,13 @@ export const outlineText = (nodes: readonly ClipNode[]): string => {
   return lines.join('\n')
 }
 
-export const clipboardOf = (node: MindMapNode): Clipboard => {
-  const nodes = [toClip(node)]
+/** 여러 가지를 주어진 차례대로 담는다. */
+export const clipboardOfNodes = (list: readonly MindMapNode[]): Clipboard => {
+  const nodes = list.map(toClip)
   return { nodes, text: outlineText(nodes) }
 }
+
+export const clipboardOf = (node: MindMapNode): Clipboard => clipboardOfNodes([node])
 
 const indentWidth = (line: string): number => {
   let width = 0

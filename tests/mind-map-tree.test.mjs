@@ -125,3 +125,36 @@ test('JSON은 정해진 키 순서', () => {
   assert.equal(tree.treeJson(n('r')), '{"id":"r","text":"r","collapsed":false,"check":"NONE","children":[]}')
   assert.equal(tree.treeJson({ children: [], check: 'NONE', collapsed: false, text: 'r', id: 'r' }), tree.treeJson(n('r')))
 })
+
+test('topmostBranches는 주제·없는 id·다른 고른 가지의 아래를 빼고 깊이 우선 차례로 준다', () => {
+  assert.deepEqual(plain(tree.topmostBranches(map, ['a1', 'r', 'a', 'c', 'zz'])), ['a', 'c'])
+  assert.deepEqual(plain(tree.topmostBranches(map, ['c', 'a2', 'b1'])), ['a2', 'b1', 'c'])
+  assert.deepEqual(plain(tree.topmostBranches(map, ['r'])), [])
+})
+
+test('dropTargetMany는 끄는 가지들의 안과 이미 모두 자식인 자리를 막는다', () => {
+  assert.equal(tree.dropTargetMany(map, ['a', 'c'], 'a1', 0.5), null, '끄는 가지의 아래')
+  assert.equal(tree.dropTargetMany(map, ['a', 'c'], 'c', 0.1), null, '끄는 가지 자신')
+  assert.deepEqual(plain(tree.dropTargetMany(map, ['a1', 'c'], 'b', 0.5)), { targetId: 'b', mode: 'child' })
+  assert.equal(tree.dropTargetMany(map, ['a', 'c'], 'r', 0.5), null, '모두 이미 주제의 자식')
+  assert.deepEqual(plain(tree.dropTargetMany(map, ['a1', 'c'], 'r', 0.5)), { targetId: 'r', mode: 'child' })
+  assert.equal(tree.dropTargetMany(map, ['a1', 'a2'], 'a', 0.5), null, '모두 이미 그 자식')
+  assert.deepEqual(plain(tree.dropTargetMany(map, ['a1', 'c'], 'a', 0.5)), { targetId: 'a', mode: 'child' })
+  assert.deepEqual(plain(tree.dropTargetMany(map, ['a2', 'c'], 'a1', 0.2)), { targetId: 'a1', mode: 'before' })
+  assert.equal(tree.dropTargetMany(map, [], 'a', 0.5), null)
+})
+
+test('applyDropMany는 모두 떼어 낸 뒤 놓는 자리에 깊이 우선 차례로 넣는다', () => {
+  const ids = (root, id) => plain(tree.findNode(root, id).children.map((x) => x.id))
+  const child = tree.applyDropMany(map, ['c', 'a1'], { targetId: 'b', mode: 'child' })
+  assert.deepEqual(ids(child, 'b'), ['b1', 'a1', 'c'])
+  assert.deepEqual(ids(child, 'r'), ['a', 'b'])
+  assert.equal(tree.findNode(child, 'b').collapsed, false, '자식으로 넣으면 편다')
+  const before = tree.applyDropMany(map, ['a2', 'c'], { targetId: 'a1', mode: 'before' })
+  assert.deepEqual(ids(before, 'a'), ['a2', 'c', 'a1'])
+  const after = tree.applyDropMany(map, ['a1', 'c'], { targetId: 'a2', mode: 'after' })
+  assert.deepEqual(ids(after, 'a'), ['a2', 'a1', 'c'])
+  assert.equal(tree.applyDropMany(map, ['a', 'c'], { targetId: 'a1', mode: 'child' }), map, '끄는 가지의 아래')
+  assert.equal(tree.applyDropMany(map, ['a'], { targetId: 'r', mode: 'before' }), map, '주제의 앞')
+  assert.equal(tree.totalNodes(child), tree.totalNodes(map))
+})
