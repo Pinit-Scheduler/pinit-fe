@@ -491,6 +491,7 @@ test('처음 상태는 보이는 기억한 가지를 고르고 기록이 비었�
 test('단추 줄: 주제에서는 삭제·체크박스를, 자식이 없으면 접기를, 기록이 없으면 되돌리기를 막는다', () => {
   const atRoot = editor.actionState(run(start, [{ type: 'select', id: 'r' }]).state)
   assert.deepEqual(plain(atRoot), {
+    count: 0,
     canDelete: false,
     canCopy: true,
     canPaste: false,
@@ -502,6 +503,7 @@ test('단추 줄: 주제에서는 삭제·체크박스를, 자식이 없으면 �
   })
   const leaf = run(start, [{ type: 'select', id: 'c' }, { type: 'toggleCheckbox' }]).state
   assert.deepEqual(plain(editor.actionState(leaf)), {
+    count: 1,
     canDelete: true,
     canCopy: true,
     canPaste: false,
@@ -532,4 +534,131 @@ test('같은 부모의 같은 자리로 놓으면 바뀐 것이 없어 기록·�
   const moved = run(start, [{ type: 'drop', draggedId: 'a1', drop: { targetId: 'a2', mode: 'after' } }])
   assert.equal(moved.save, 'later')
   assert.deepEqual(childIds(moved.state, 'a'), ['a2', 'a1'])
+})
+
+const sel = (state) => plain(state.selection)
+
+test('selectMany는 여러 가지를 고르고 저장하지 않는다', () => {
+  const { state, save } = run(start, [{ type: 'select', id: 'a2' }, { type: 'selectMany', ids: ['a', 'a1', 'c'], additive: false }])
+  assert.deepEqual(sel(state).sort(), ['a', 'a1', 'c'])
+  assert.equal(state.selectedId, 'a', '주 가지가 결과에 없으면 깊이 우선 첫 가지')
+  assert.equal(save, null)
+  const kept = run(start, [{ type: 'select', id: 'c' }, { type: 'selectMany', ids: ['a', 'c'], additive: false }]).state
+  assert.equal(kept.selectedId, 'c', '주 가지가 결과에 있으면 그대로')
+  const added = run(state, [{ type: 'selectMany', ids: ['b'], additive: true }]).state
+  assert.deepEqual(sel(added).sort(), ['a', 'a1', 'b', 'c'])
+  const empty = run(state, [{ type: 'selectMany', ids: [], additive: false }]).state
+  assert.deepEqual(sel(empty), ['a'])
+})
+
+test('toggleSelect는 더하고 빼며 마지막 하나는 빼지 않는다', () => {
+  const one = run(start, [{ type: 'select', id: 'a' }]).state
+  const two = run(one, [{ type: 'toggleSelect', id: 'c' }]).state
+  assert.deepEqual(sel(two).sort(), ['a', 'c'])
+  assert.equal(two.selectedId, 'c')
+  const back = run(two, [{ type: 'toggleSelect', id: 'c' }]).state
+  assert.deepEqual(sel(back), ['a'])
+  assert.equal(back.selectedId, 'a')
+  const still = run(back, [{ type: 'toggleSelect', id: 'a' }]).state
+  assert.deepEqual(sel(still), ['a'])
+})
+
+test('여러 가지를 고른 채 놓으면 함께 옮기고 되돌리기 한 번이면 돌아온다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['a2', 'c'], additive: false }]).state
+  const { state, save } = run(picked, [{ type: 'drop', draggedId: 'c', drop: { targetId: 'b', mode: 'child' } }])
+  assert.deepEqual(childIds(state, 'b'), ['b1', 'a2', 'c'])
+  assert.equal(save, 'later')
+  assert.equal(state.history.past.length, 1)
+  assert.equal(state.selectedId, 'c')
+  assert.deepEqual(sel(state).sort(), ['a2', 'c'])
+  const undone = run(state, [{ type: 'undo' }]).state
+  assert.deepEqual(childIds(undone, 'a'), ['a1', 'a2'])
+  assert.deepEqual(childIds(undone, 'r'), ['a', 'b', 'c'])
+  assert.deepEqual(childIds(undone, 'b'), ['b1'])
+  assert.equal(undone.history.past.length, 0)
+  assert.deepEqual(sel(undone), [undone.selectedId])
+})
+
+test('고르지 않은 가지를 놓으면 그 가지만 옮긴다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['a2', 'c'], additive: false }]).state
+  const { state } = run(picked, [{ type: 'drop', draggedId: 'a1', drop: { targetId: 'b', mode: 'child' } }])
+  assert.deepEqual(childIds(state, 'b'), ['b1', 'a1'])
+  assert.deepEqual(childIds(state, 'r'), ['a', 'b', 'c'])
+})
+
+test('함께 옮길 때 하나라도 깊이 한도를 넘으면 하나도 옮기지 않는다', () => {
+  const shallow = { ...start, limits: { ...limits, maxDepth: 2 } }
+  const picked = run(shallow, [{ type: 'selectMany', ids: ['a', 'c'], additive: false }]).state
+  const result = run(picked, [{ type: 'drop', draggedId: 'c', drop: { targetId: 'b1', mode: 'before' } }])
+  assert.equal(result.notice, '가지는 주제 아래 2단계까지 만들 수 있어요.')
+  assert.equal(result.state.tree, picked.tree)
+  assert.equal(result.save, null)
+})
+
+test('여러 가지를 지우면 한 번에 지우고 기록 하나다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['a', 'a1', 'c'], additive: false }]).state
+  const { state, save } = run(picked, [{ type: 'delete' }])
+  assert.equal(tree.findNode(state.tree, 'a'), null)
+  assert.equal(tree.findNode(state.tree, 'c'), null)
+  assert.equal(state.history.past.length, 1)
+  assert.equal(save, 'later')
+  assert.deepEqual(sel(state), [state.selectedId])
+  assert.ok(tree.findNode(state.tree, state.selectedId))
+  const cut = run(picked, [{ type: 'cut' }]).state
+  assert.equal(cut.clipboard.nodes.length, 2)
+  assert.equal(tree.findNode(cut.tree, 'c'), null)
+})
+
+test('여러 가지를 복사하면 위 가지만 담고 주제가 있으면 주제 하나다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['a', 'a1', 'c'], additive: false }]).state
+  const copied = run(picked, [{ type: 'copy' }])
+  assert.equal(copied.state.clipboard.nodes.length, 2)
+  assert.equal(copied.notice, '가지 2개를 복사했어요.')
+  const withRoot = run(start, [{ type: 'selectMany', ids: ['r', 'a'], additive: false }, { type: 'copy' }]).state
+  assert.equal(withRoot.clipboard.nodes.length, 1)
+  assert.equal(withRoot.clipboard.nodes[0].text, 'r')
+})
+
+test('다른 명령은 주 가지 하나로 줄인 뒤 한다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['a', 'c'], additive: false }]).state
+  for (const command of [{ type: 'navigate', dir: 'left' }, { type: 'addChild' }, { type: 'single' }, { type: 'toggleCheck' }]) {
+    const { state } = run(picked, [command])
+    assert.equal(state.selection.length, 1, JSON.stringify(command))
+    assert.equal(state.selection[0], state.selectedId)
+  }
+})
+
+test('접어서 안 보이게 된 가지는 고른 목록에서 빠진다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['a', 'a1'], additive: false }]).state
+  const { state } = run(picked, [{ type: 'toggleCollapse', id: 'a' }])
+  assert.deepEqual(sel(state), ['a'])
+})
+
+test('select keep은 고른 목록을 두고 주 가지만 바꾼다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['a', 'c'], additive: false }]).state
+  const kept = run(picked, [{ type: 'select', id: 'c', keep: true }]).state
+  assert.deepEqual(sel(kept).sort(), ['a', 'c'])
+  assert.equal(kept.selectedId, 'c')
+  const other = run(picked, [{ type: 'select', id: 'b', keep: true }]).state
+  assert.deepEqual(sel(other), ['b'])
+  const plainSelect = run(picked, [{ type: 'select', id: 'c' }]).state
+  assert.deepEqual(sel(plainSelect), ['c'])
+})
+
+test('여러 가지를 고르면 단추 줄 상태가 고른 수를 센다', () => {
+  const picked = run(start, [{ type: 'selectMany', ids: ['r', 'a', 'a1', 'c'], additive: false }]).state
+  const can = editor.actionState(picked)
+  assert.equal(can.count, 2)
+  assert.equal(can.canDelete, true)
+  assert.equal(editor.actionState(run(start, [{ type: 'select', id: 'r' }]).state).count, 0)
+})
+
+test('changesSelection은 고른 것을 바꾸지 않는 누르기를 가린다', () => {
+  const one = run(start, [{ type: 'select', id: 'a' }]).state
+  assert.equal(editor.changesSelection(one, { type: 'single' }), false)
+  assert.equal(editor.changesSelection(one, { type: 'toggleSelect', id: 'a' }), false, '하나뿐인 가지는 빼지 않는다')
+  assert.equal(editor.changesSelection(one, { type: 'toggleSelect', id: 'c' }), true)
+  const two = run(one, [{ type: 'toggleSelect', id: 'c' }]).state
+  assert.equal(editor.changesSelection(two, { type: 'single' }), true)
+  assert.equal(editor.changesSelection(two, { type: 'selectMany', ids: ['a', 'c'], additive: false }), false)
 })

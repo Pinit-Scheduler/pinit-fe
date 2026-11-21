@@ -125,35 +125,83 @@ export const moveAmongSiblings = (
   })
 }
 
+/** 깊이 우선 차례로 모든 가지의 id. */
+export const preorder = (root: MindMapNode): string[] => {
+  const out: string[] = []
+  const walk = (node: MindMapNode) => {
+    out.push(node.id)
+    node.children.forEach(walk)
+  }
+  walk(root)
+  return out
+}
+
+/** 함께 옮기거나 지울 가지: 주제·없는 id·다른 고른 가지의 아래를 빼고 깊이 우선 차례로 둔다. */
+export const topmostBranches = (root: MindMapNode, ids: readonly string[]): string[] => {
+  const picked = new Set(ids)
+  picked.delete(root.id)
+  return preorder(root).filter(
+    (id) => picked.has(id) && !pathTo(root, id).slice(0, -1).some((step) => picked.has(step)),
+  )
+}
+
+/** 끄는 가지들(`topmostBranches`로 고른 것)을 놓을 자리. 끄는 가지들의 안이나 이미 모두 그 자식이면 놓을 수 없다. */
+export const dropTargetMany = (
+  root: MindMapNode,
+  draggedIds: readonly string[],
+  targetId: string,
+  fraction: number,
+): Drop | null => {
+  if (draggedIds.length === 0 || !findNode(root, targetId)) return null
+  const parents: string[] = []
+  for (const id of draggedIds) {
+    const dragged = findNode(root, id)
+    const parent = parentOf(root, id)
+    if (!dragged || !parent || findNode(dragged, targetId)) return null
+    parents.push(parent.id)
+  }
+  const allChildrenOf = (id: string) => parents.every((parent) => parent === id)
+  // 주제 위에서는 늘 자식이다.
+  if (targetId === root.id) return allChildrenOf(root.id) ? null : { targetId, mode: 'child' }
+  if (fraction < 1 / 3) return { targetId, mode: 'before' }
+  if (fraction > 2 / 3) return { targetId, mode: 'after' }
+  return allChildrenOf(targetId) ? null : { targetId, mode: 'child' }
+}
+
 export const dropTarget = (
   root: MindMapNode,
   draggedId: string,
   targetId: string,
   fraction: number,
-): Drop | null => {
-  const dragged = findNode(root, draggedId)
-  const dragParent = parentOf(root, draggedId)
-  if (!dragged || !dragParent || !findNode(root, targetId)) return null
-  if (findNode(dragged, targetId)) return null
-  // 주제 위에서는 늘 자식이다. 이미 주제의 자식이면 놓을 수 없다.
-  if (targetId === root.id) return dragParent.id === root.id ? null : { targetId, mode: 'child' }
-  if (fraction < 1 / 3) return { targetId, mode: 'before' }
-  if (fraction > 2 / 3) return { targetId, mode: 'after' }
-  return dragParent.id === targetId ? null : { targetId, mode: 'child' }
-}
+): Drop | null => dropTargetMany(root, [draggedId], targetId, fraction)
 
-export const applyDrop = (root: MindMapNode, draggedId: string, drop: Drop): MindMapNode => {
-  const dragged = findNode(root, draggedId)
-  if (!dragged || !parentOf(root, draggedId) || findNode(dragged, drop.targetId)) return root
-  if (!findNode(root, drop.targetId)) return root
+/** 끄는 가지들을 모두 떼어 낸 뒤 놓는 자리에 깊이 우선 차례로 넣는다. 놓을 수 없으면 `root` 그대로다. */
+export const applyDropMany = (root: MindMapNode, ids: readonly string[], drop: Drop): MindMapNode => {
+  const wanted = new Set(ids)
+  const draggedIds = preorder(root).filter((id) => wanted.has(id))
+  if (draggedIds.length !== wanted.size || draggedIds.length === 0 || !findNode(root, drop.targetId)) return root
   if (drop.mode !== 'child' && !parentOf(root, drop.targetId)) return root
-  const without = removeNode(root, draggedId)!.root
-  if (drop.mode === 'child') return addChild(without, drop.targetId, dragged)
+  const dragged: MindMapNode[] = []
+  for (const id of draggedIds) {
+    const node = findNode(root, id)
+    if (!node || !parentOf(root, id) || findNode(node, drop.targetId)) return root
+    dragged.push(node)
+  }
+  const without = draggedIds.reduce((tree, id) => removeNode(tree, id)?.root ?? tree, root)
+  if (drop.mode === 'child')
+    return updateNode(without, drop.targetId, (parent) => ({
+      ...parent,
+      collapsed: false,
+      children: [...parent.children, ...dragged],
+    }))
   return withSiblings(without, drop.targetId, (siblings, i) => {
     const at = drop.mode === 'after' ? i + 1 : i
-    return [...siblings.slice(0, at), dragged, ...siblings.slice(at)]
+    return [...siblings.slice(0, at), ...dragged, ...siblings.slice(at)]
   })
 }
+
+export const applyDrop = (root: MindMapNode, draggedId: string, drop: Drop): MindMapNode =>
+  applyDropMany(root, [draggedId], drop)
 
 export const nextCheck = (check: CheckState): CheckState =>
   check === 'NONE' ? 'OPEN' : check === 'OPEN' ? 'DONE' : 'OPEN'

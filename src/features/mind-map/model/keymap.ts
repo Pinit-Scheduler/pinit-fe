@@ -80,6 +80,8 @@ const selectedAction = (event: KeyLike): KeyAction | null => {
     case 'Delete':
     case 'Backspace':
       return handled({ type: 'delete' })
+    case 'Escape':
+      return handled({ type: 'single' })
   }
   // 친 글자가 선택된 글을 대신하도록 기본 동작을 막지 않는다.
   if (isTypingKey(event)) return { command: { type: 'startEdit' }, preventDefault: false }

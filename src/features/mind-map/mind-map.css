@@ -139,6 +139,15 @@
   cursor: grabbing;
 }
 
+/* 빈 곳을 끌어 여러 가지를 고르는 사각형 */
+.mind-map-marquee {
+  position: absolute;
+  border: 1px solid var(--workspace-blue);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--workspace-blue), transparent 90%);
+  pointer-events: none;
+}
+
 /* 끄는 동안: 사이에 끼울 자리의 선과 포인터를 따라가는 유령 상자 */
 .mind-map-insert-line {
   position: absolute;
@@ -391,6 +400,9 @@
 .mind-map-node.is-selected {
   outline: 2px solid var(--workspace-blue);
   outline-offset: 2px;
+}
+.mind-map-node.is-primary {
+  outline-width: 3px;
 }
 .mind-map-node.is-selected[data-depth='0'] {
   outline-offset: 3px;

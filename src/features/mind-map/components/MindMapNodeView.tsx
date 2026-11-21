@@ -11,6 +11,8 @@ type Props = {
   place: VisibleNode
   box: Box | undefined
   selected: boolean
+  /** 여러 가지를 골랐을 때 주 가지(키보드·메뉴가 기준으로 삼는 가지). */
+  primary?: boolean
   editing: boolean
   readOnly: boolean
   dropTarget: boolean
@@ -49,6 +51,7 @@ export default function MindMapNodeView({
   place,
   box,
   selected,
+  primary = false,
   editing,
   readOnly,
   dropTarget,
@@ -83,6 +86,7 @@ export default function MindMapNodeView({
   const className = [
     'mind-map-node',
     selected && 'is-selected',
+    primary && 'is-primary',
     editing && 'is-editing',
     dropTarget && 'is-drop',
   ]

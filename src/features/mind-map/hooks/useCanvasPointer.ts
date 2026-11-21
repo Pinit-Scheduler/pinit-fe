@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from 'react'
 import { flushSync } from 'react-dom'
-import type { EditorCommand, EditorState } from '../model/editor'
-import { dropTarget, findNode } from '../model/tree'
+import { changesSelection } from '../model/editor'
+import type { Box, EditorCommand, EditorState } from '../model/editor'
+import { dropTargetMany, findNode, pathTo, topmostBranches } from '../model/tree'
 import type { Drop } from '../model/tree'
 import { insertLine, pinchView, wheelFactor, zoomAt } from '../model/viewport'
 import type { Pinch, View } from '../model/viewport'
@@ -17,9 +18,20 @@ const NODE_ID_PREFIX = 'mind-map-node-'
 
 type Point = { x: number; y: number }
 type Press =
-  /** travelled: 6px 넘게 움직였다(누르기로 치지 않는다). moved: 끌기를 시작했다(주제는 끌지 않는다). */
-  | { type: 'node'; id: string; sx: number; sy: number; travelled: boolean; moved: boolean }
-  | { type: 'pan'; lx: number; ly: number }
+  /**
+   * travelled: 6px 넘게 움직였다(누르기로 치지 않는다). moved: 끌기를 시작했다(주제는 끌지 않는다).
+   * group: 여러 가지를 고른 채 그 가운데 하나를 눌렀다. 끌면 고른 위 가지들을 함께 옮기고, 끌지 않고 떼면 그 가지 하나만 고른다.
+   */
+  | { type: 'node'; id: string; sx: number; sy: number; travelled: boolean; moved: boolean; group: boolean }
+  /** menuId: 마우스 오른쪽 단추로 누른 가지. 끌지 않고 떼면 그 가지의 메뉴를 연다. */
+  | { type: 'pan'; lx: number; ly: number; sx: number; sy: number; moved: boolean; menuId: string | null }
+  /**
+   * 마우스로 빈 곳을 왼쪽 단추로 눌렀다. 끌면 범위 선택이다. base: `Shift`로 더할 때 누르기 전의 고른 가지.
+   * hits: 마지막으로 알린 겹친 가지들. `null`이면 아직 알리지 않았다(겹친 가지가 없어도 처음 한 번은 알린다).
+   */
+  | { type: 'marquee'; sx: number; sy: number; moved: boolean; base: string[]; hits: string | null }
+/** 범위 사각형(캔버스 기준). */
+export type Marquee = { left: number; top: number; width: number; height: number }
 export type Drag = {
   text: string
   /** 유령 상자의 자리(캔버스 기준). */
@@ -35,8 +47,17 @@ type Options = {
   view: View | null
   setView: Dispatch<SetStateAction<View | null>>
   dispatch: (command: EditorCommand) => void
-  /** 누른 가지를 고를 때 알린다. 누른 가지는 화면을 옮겨 보이게 하지 않는다. */
-  onPointerSelect: (id: string) => void
+  /** 보이는 가지의 상자(배치 좌표). 범위 선택이 쓴다. */
+  boxes: ReadonlyMap<string, Box>
+  /** Mac은 `⌘`+누르기가 하나씩 고르기이고 `Ctrl`+누르기는 오른쪽 단추다. */
+  isMac: boolean
+  /** 마우스 오른쪽 단추를 끌지 않고 뗐다(화면 좌표). */
+  onMenuAt: (id: string, x: number, y: number) => void
+  /**
+   * 누른 가지를 고를 때 알린다. 누른 가지는 화면을 옮겨 보이게 하지 않는다.
+   * `null`은 범위 선택·하나씩 고르기로 주 가지가 어느 것으로든 바뀔 수 있다는 뜻이다(이때도 화면을 옮기지 않는다).
+   */
+  onPointerSelect: (id: string | null) => void
   /** 손가락으로 가지를 길게 눌렀다(화면 좌표). */
   onLongPress: (id: string, x: number, y: number) => void
 }
@@ -48,9 +69,12 @@ export const nodeIdOf = (el: Element | null): string | null => {
 
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) || 1
 
+const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+
 /**
- * 캔버스의 마우스·터치: 가지 고르기, 두 번 눌러 고치기, 끌어 옮기기, 빈 곳 끌어 화면 옮기기,
- * 두 손가락 확대, 휠(이동, `Ctrl`·`Cmd`+휠은 확대).
+ * 캔버스의 마우스·터치: 가지 고르기, 두 번 눌러 고치기, 끌어 옮기기(여러 가지를 골랐으면 함께), 두 손가락 확대,
+ * 휠(이동, `Ctrl`·`Cmd`+휠은 확대).
+ * 마우스는 빈 곳을 왼쪽 단추로 끌면 범위 선택, 오른쪽·가운데 단추로 끌면 화면 이동이다. 터치·펜은 빈 곳을 끌면 화면 이동이다.
  */
 export function useCanvasPointer({
   canvasRef,
@@ -58,15 +82,54 @@ export function useCanvasPointer({
   view,
   setView,
   dispatch,
+  boxes,
+  isMac,
+  onMenuAt,
   onPointerSelect,
   onLongPress,
 }: Options) {
   const latest = useRef(state)
   const viewRef = useRef(view)
+  const boxesRef = useRef(boxes)
   useLayoutEffect(() => {
     latest.current = state
     viewRef.current = view
+    boxesRef.current = boxes
   })
+  /**
+   * 마우스 오른쪽 단추로 누른 뒤 다음 누르기나 키 입력까지 참이다. 그 사이의 `contextmenu`는 브라우저가 누를 때 보내든
+   * 뗄 때 보내든 이 훅이 다룬다(메뉴는 뗄 때 연다).
+   */
+  const ownsMenu = useRef(false)
+  const [marquee, setMarquee] = useState<Marquee | null>(null)
+
+  // Windows는 오른쪽 단추를 뗀 뒤 뗀 자리로 `contextmenu`를 보낸다. 끌다가 캔버스 밖(단추 줄·확대 단추)에서 떼도
+  // 브라우저 메뉴가 뜨지 않게 문서에서 막는다. 캔버스 밖을 누르거나 키를 치면 더는 막지 않는다(메뉴 키는 그대로 둔다).
+  useEffect(() => {
+    const outside = (event: Event) => {
+      const canvas = canvasRef.current
+      return !canvas || !canvas.contains(event.target as Node)
+    }
+    const release = (event: Event) => {
+      if (outside(event)) ownsMenu.current = false
+    }
+    const releaseByKey = () => {
+      ownsMenu.current = false
+    }
+    const swallow = (event: MouseEvent) => {
+      if (!ownsMenu.current || !outside(event)) return
+      const pointerType = (event as PointerEvent).pointerType
+      if (pointerType === 'mouse' || pointerType === undefined) event.preventDefault()
+    }
+    document.addEventListener('pointerdown', release, true)
+    document.addEventListener('keydown', releaseByKey, true)
+    document.addEventListener('contextmenu', swallow, true)
+    return () => {
+      document.removeEventListener('pointerdown', release, true)
+      document.removeEventListener('keydown', releaseByKey, true)
+      document.removeEventListener('contextmenu', swallow, true)
+    }
+  }, [canvasRef])
   const points = useRef(new Map<number, Point>())
   const press = useRef<Press | null>(null)
   const pinch = useRef<Pinch | null>(null)
@@ -94,12 +157,18 @@ export function useCanvasPointer({
     lastTap.current = { id: null, t: 0 }
     dropRef.current = null
     setDrag(null)
+    setMarquee(null)
   }, [])
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current
     const target = event.target as Element
-    if (!canvas || event.button > 0 || target.closest('.mind-map-node__toggle, .mind-map-node__check')) return
+    const mouse = event.pointerType === 'mouse'
+    const right = mouse && (event.button === 2 || (isMac && event.button === 0 && event.ctrlKey))
+    const panButton = right || (mouse && event.button === 1)
+    if (!canvas || (event.button > 0 && !panButton)) return
+    if (!panButton && target.closest('.mind-map-node__toggle, .mind-map-node__check')) return
+    ownsMenu.current = right
     const id = nodeIdOf(target)
     // 쓰는 글 상자 안을 누르면 글 상자가 다룬다(커서 옮기기·글 고르기). 고르지 않는다.
     const { editing } = latest.current
@@ -121,10 +190,25 @@ export function useCanvasPointer({
       pinch.current = { k: viewRef.current?.k ?? 1, distance: distance(a, b) }
       return
     }
-    if (id && findNode(latest.current.tree, id)) {
+    const known = id !== null && findNode(latest.current.tree, id) !== null
+    if (panButton) {
+      stopLongPress()
+      const { clientX: x, clientY: y } = event
+      press.current = { type: 'pan', lx: x, ly: y, sx: x, sy: y, moved: false, menuId: right && known ? id : null }
+      return
+    }
+    if (id && known) {
+      if (mouse && (event.shiftKey || (isMac ? event.metaKey : event.ctrlKey))) {
+        pickBySweep({ type: 'toggleSelect', id })
+        press.current = null
+        lastTap.current = { id: null, t: 0 }
+        return
+      }
+      const { selection } = latest.current
+      const group = selection.length > 1 && selection.includes(id)
       onPointerSelect(id)
-      dispatch({ type: 'select', id })
-      press.current = { type: 'node', id, sx: event.clientX, sy: event.clientY, travelled: false, moved: false }
+      dispatch({ type: 'select', id, keep: group })
+      press.current = { type: 'node', id, sx: event.clientX, sy: event.clientY, travelled: false, moved: false, group }
       if (event.pointerType !== 'mouse') {
         const { clientX, clientY } = event
         stopLongPress()
@@ -136,9 +220,39 @@ export function useCanvasPointer({
           onLongPress(id, clientX, clientY)
         }, LONG_PRESS_MS)
       }
+    } else if (mouse) {
+      const base = event.shiftKey ? [...latest.current.selection] : []
+      press.current = { type: 'marquee', sx: event.clientX, sy: event.clientY, moved: false, base, hits: null }
     } else {
-      press.current = { type: 'pan', lx: event.clientX, ly: event.clientY }
+      const { clientX: x, clientY: y } = event
+      press.current = { type: 'pan', lx: x, ly: y, sx: x, sy: y, moved: false, menuId: null }
     }
+  }
+
+  /**
+   * 범위 선택·하나씩 고르기를 보낸다. 고른 것이 바뀔 때만 화면에 알린다. 바뀌지 않으면 다시 그리지 않아
+   * 그 표시가 남고, 다음 키보드 이동이 화면을 따라 옮기지 않기 때문이다.
+   */
+  const pickBySweep = (command: EditorCommand) => {
+    if (!changesSelection(latest.current, command)) return
+    onPointerSelect(null)
+    dispatch(command)
+  }
+
+  /** 범위 사각형을 그리고 겹치는 보이는 가지를 고른다. 고른 가지가 바뀔 때만 알린다. */
+  const sweep = (current: Extract<Press, { type: 'marquee' }>, x: number, y: number, rect: DOMRect) => {
+    const left = Math.min(current.sx, x) - rect.left
+    const top = Math.min(current.sy, y) - rect.top
+    const box = { left, top, width: Math.abs(x - current.sx), height: Math.abs(y - current.sy) }
+    setMarquee(box)
+    const v = viewRef.current
+    if (!v) return
+    const world = { x: (left - v.x) / v.k, y: (top - v.y) / v.k, w: box.width / v.k, h: box.height / v.k }
+    const hits = [...boxesRef.current].filter(([, b]) => overlaps(world, b)).map(([id]) => id)
+    const key = hits.join(' ')
+    if (key === current.hits) return
+    current.hits = key
+    pickBySweep({ type: 'selectMany', ids: [...current.base, ...hits], additive: false })
   }
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -158,16 +272,23 @@ export function useCanvasPointer({
     }
     const current = press.current
     if (!current) return
+    if (current.type === 'marquee') {
+      if (!current.moved && Math.hypot(event.clientX - current.sx, event.clientY - current.sy) <= DRAG_START) return
+      current.moved = true
+      sweep(current, event.clientX, event.clientY, rect)
+      return
+    }
     if (current.type === 'pan') {
       const dx = event.clientX - current.lx
       const dy = event.clientY - current.ly
       current.lx = event.clientX
       current.ly = event.clientY
+      if (Math.hypot(event.clientX - current.sx, event.clientY - current.sy) > DRAG_START) current.moved = true
       setPanning(true)
       setView((v) => v && { ...v, x: v.x + dx, y: v.y + dy })
       return
     }
-    const { tree } = latest.current
+    const { tree, selection } = latest.current
     if (!current.moved) {
       if (Math.hypot(event.clientX - current.sx, event.clientY - current.sy) <= DRAG_START) return
       current.travelled = true
@@ -178,11 +299,12 @@ export function useCanvasPointer({
     const over = document.elementFromPoint(event.clientX, event.clientY)
     const overNode = over && canvas.contains(over) ? over.closest<HTMLElement>('.mind-map-node') : null
     const overId = nodeIdOf(overNode)
+    const dragged = current.group ? topmostBranches(tree, selection) : [current.id]
     let drop: Drop | null = null
     let line: Drag['line'] = null
     if (overNode && overId) {
       const r = overNode.getBoundingClientRect()
-      drop = dropTarget(tree, current.id, overId, (event.clientY - r.top) / r.height)
+      drop = dropTargetMany(tree, dragged, overId, (event.clientY - r.top) / r.height)
       if (drop && drop.mode !== 'child')
         line = insertLine(
           { left: r.left - rect.left, top: r.top - rect.top, bottom: r.bottom - rect.top, width: r.width },
@@ -190,8 +312,12 @@ export function useCanvasPointer({
         )
     }
     dropRef.current = drop
+    // 누른 가지가 고른 다른 가지의 아래면 그 위 가지의 글을 보인다.
+    const path = pathTo(tree, current.id)
+    const lead = dragged.find((id) => path.includes(id)) ?? current.id
+    const text = findNode(tree, lead)?.text ?? ''
     setDrag({
-      text: findNode(tree, current.id)?.text ?? '',
+      text: dragged.length > 1 ? `${text} 외 ${dragged.length - 1}개` : text,
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
       drop,
@@ -206,7 +332,17 @@ export function useCanvasPointer({
     setPanning(false)
     const current = press.current
     press.current = null
-    if (!current || current.type !== 'node') return
+    if (!current) return
+    if (current.type === 'pan') {
+      if (current.menuId && !current.moved && event.type === 'pointerup')
+        onMenuAt(current.menuId, event.clientX, event.clientY)
+      return
+    }
+    if (current.type === 'marquee') {
+      setMarquee(null)
+      if (!current.moved && event.type === 'pointerup') pickBySweep({ type: 'single' })
+      return
+    }
     if (current.moved) {
       const drop = dropRef.current
       clearDrag()
@@ -218,6 +354,8 @@ export function useCanvasPointer({
       lastTap.current = { id: null, t: 0 }
       return
     }
+    // 고른 여러 가지 가운데 하나를 끌지 않고 떼면 그 가지 하나만 고른다.
+    if (current.group) dispatch({ type: 'select', id: current.id })
     const now = performance.now()
     if (lastTap.current.id === current.id && now - lastTap.current.t < DOUBLE_TAP_MS) {
       lastTap.current = { id: null, t: 0 }
@@ -254,7 +392,10 @@ export function useCanvasPointer({
   return {
     drag,
     panning,
+    marquee,
     cancelPress,
+    /** 이 `contextmenu`는 오른쪽 단추 누르기의 것이라 훅이 뗄 때 메뉴를 연다. */
+    ownsContextMenu: () => ownsMenu.current,
     handlers: { onPointerDown, onPointerMove, onPointerUp: release, onPointerCancel: release },
   }
 }
