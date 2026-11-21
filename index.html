@@ -9,6 +9,14 @@
     <meta name="theme-color" content="#0b1b42" />
     <meta name="color-scheme" content="light dark" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      // iOS는 글자가 16px보다 작은 입력 칸(마인드맵 가지 글 등)에 들어가면 화면을 확대해 틀이 어긋난다.
+      // iOS에서만 maximum-scale=1을 더해 그 자동 확대를 막는다. iOS는 이 값과 상관없이 두 손가락 확대를 허용한다.
+      // 안드로이드는 이 값이 손가락 확대까지 막으므로 건드리지 않는다.
+      if (/iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+        document.querySelector('meta[name="viewport"]').setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover')
+      }
+    </script>
     <title>Pinit</title>
     <style>
       /* 첫 페인트 색. CSS가 오기 전 흰 화면이 번쩍이지 않게 워크스페이스 배경(workspacePalette.css의 --workspace-bg)을 먼저 칠한다.

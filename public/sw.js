@@ -1,5 +1,5 @@
 importScripts(
-  '/sw/constants.js?cache=pinit-cache-v39',
+  '/sw/constants.js?cache=pinit-cache-v40',
   '/sw/cache.js',
   '/sw/time.js',
   '/sw/idempotency.js',
