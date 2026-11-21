@@ -126,7 +126,7 @@ export const moveAmongSiblings = (
 }
 
 /** 깊이 우선 차례로 모든 가지의 id. */
-const preorder = (root: MindMapNode): string[] => {
+export const preorder = (root: MindMapNode): string[] => {
   const out: string[] = []
   const walk = (node: MindMapNode) => {
     out.push(node.id)

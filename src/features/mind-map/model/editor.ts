@@ -1,4 +1,4 @@
-import { clipboardOf, clipCount, clipHeight, pasteSource, plant } from './clipboard'
+import { clipboardOf, clipboardOfNodes, clipCount, clipHeight, pasteSource, plant } from './clipboard'
 import type { Clipboard } from './clipboard'
 import { emptyHistory, record, redo as redoHistory, undo as undoHistory } from './history'
 import type { History, Snapshot } from './history'
@@ -6,7 +6,7 @@ import { normalizeText, textLength } from './text'
 import {
   addChild,
   addSiblingAfter,
-  applyDrop,
+  applyDropMany,
   depthOf,
   findNode,
   moveAmongSiblings,
@@ -14,9 +14,11 @@ import {
   nextCheck,
   parentOf,
   pathTo,
+  preorder,
   removeNode,
   subtreeHeight,
   toggledCheckbox,
+  topmostBranches,
   totalNodes,
   updateNode,
   visibleAnchor,
@@ -30,7 +32,10 @@ export type Limits = { maxBranches: number; maxTextLength: number; maxDepth: num
 export type Editing = { id: string; isNew: boolean; original: string; from: string }
 export type EditorState = {
   tree: MindMapNode
+  /** 주 가지. 커서 저장·화면 따라가기·키보드가 이 가지를 기준으로 한다. */
   selectedId: string
+  /** 고른 가지들. 늘 `selectedId`를 담고, 하나만 골랐으면 `[selectedId]`다. */
+  selection: string[]
   editing: Editing | null
   history: History
   limits: Limits
@@ -38,7 +43,14 @@ export type EditorState = {
   clipboard: Clipboard | null
 }
 export type EditorCommand =
-  | { type: 'select'; id: string }
+  /** `keep`이고 이미 고른 가지면 고른 목록을 두고 주 가지만 바꾼다. */
+  | { type: 'select'; id: string; keep?: boolean }
+  /** 고른 목록에 더하거나 뺀다(`Shift`·`Ctrl`/`⌘`+누르기). */
+  | { type: 'toggleSelect'; id: string }
+  /** 범위 사각형으로 고른다. `additive`면 지금 목록에 더한다. */
+  | { type: 'selectMany'; ids: string[]; additive: boolean }
+  /** 주 가지 하나만 남긴다(`Esc`). */
+  | { type: 'single' }
   | { type: 'addChild' }
   | { type: 'addSibling' }
   | { type: 'startEdit'; id?: string }
@@ -91,8 +103,45 @@ const withText = (root: MindMapNode, id: string, text: string): MindMapNode =>
 const selected = (state: EditorState, id: string): EditorState =>
   id === state.selectedId ? state : { ...state, selectedId: id }
 
-const select = (state: EditorState, id: string): EditorResult =>
-  result(findNode(state.tree, id) ? selected(state, id) : state)
+const select = (state: EditorState, id: string, keep = false): EditorResult => {
+  if (!findNode(state.tree, id)) return result(state)
+  if (keep && state.selection.includes(id)) return result(selected(state, id))
+  return result({ ...selected(state, id), selection: [id] })
+}
+
+const toggleSelect = (state: EditorState, id: string): EditorResult => {
+  if (!findNode(state.tree, id)) return result(state)
+  if (!state.selection.includes(id)) return result({ ...state, selectedId: id, selection: [...state.selection, id] })
+  if (state.selection.length === 1) return result(state)
+  const selection = state.selection.filter((x) => x !== id)
+  return result({ ...state, selection, selectedId: id === state.selectedId ? selection[selection.length - 1] : state.selectedId })
+}
+
+/** 주 가지가 결과 안에 있으면 그대로, 없으면 깊이 우선 첫 가지가 주 가지다. 결과가 비면 주 가지 하나다. */
+const selectMany = (state: EditorState, ids: readonly string[], additive: boolean): EditorResult => {
+  const wanted = new Set(additive ? [...state.selection, ...ids] : ids)
+  const selection = preorder(state.tree).filter((id) => wanted.has(id))
+  if (selection.length === 0) return result({ ...state, selection: [state.selectedId] })
+  const selectedId = selection.includes(state.selectedId) ? state.selectedId : selection[0]
+  return result({ ...state, selectedId, selection })
+}
+
+/** 여러 가지를 골랐으면 함께 다룰 위 가지들, 아니면 `null`. */
+const pickedBranches = (state: EditorState): string[] | null =>
+  state.selection.length > 1 ? topmostBranches(state.tree, state.selection) : null
+
+/** 가지들을 차례로 지운다. 고를 가지는 마지막으로 지운 가지 옆이고, 그 가지가 없으면 주제다. */
+const removeAll = (root: MindMapNode, ids: readonly string[]): { root: MindMapNode; nextId: string } => {
+  let tree = root
+  let nextId = root.id
+  for (const id of ids) {
+    const removed = removeNode(tree, id)
+    if (!removed) continue
+    tree = removed.root
+    nextId = removed.nextId
+  }
+  return { root: tree, nextId: findNode(tree, nextId) ? nextId : tree.id }
+}
 
 const createBranch = (
   state: EditorState,
@@ -167,18 +216,48 @@ const cancel = (state: EditorState): EditorResult =>
   result(state.editing ? discard(state, state.editing) : state)
 
 const remove = (state: EditorState): EditorResult => {
+  const picked = pickedBranches(state)
+  if (picked) {
+    if (picked.length === 0) return result(state)
+    const removed = removeAll(state.tree, picked)
+    return result({ ...recorded(state), tree: removed.root, selectedId: removed.nextId, selection: [removed.nextId] }, 'later')
+  }
   const removed = removeNode(state.tree, state.selectedId)
   if (!removed) return result(state)
   return result({ ...recorded(state), tree: removed.root, selectedId: removed.nextId }, 'later')
 }
 
 const copy = (state: EditorState): EditorResult => {
-  const node = findNode(state.tree, state.selectedId)
+  const picked = pickedBranches(state)
+  if (picked && !state.selection.includes(state.tree.id) && picked.length > 1) {
+    const nodes = picked.map((id) => findNode(state.tree, id)!)
+    return result({ ...state, clipboard: clipboardOfNodes(nodes) }, null, `가지 ${nodes.length}개를 복사했어요.`)
+  }
+  if (picked && state.selection.includes(state.tree.id))
+    return result({ ...state, clipboard: clipboardOf(state.tree) }, null, '가지를 복사했어요.')
+  const only = picked?.length === 1 ? picked[0] : state.selectedId
+  const node = findNode(state.tree, only)
   return node ? result({ ...state, clipboard: clipboardOf(node) }, null, '가지를 복사했어요.') : result(state)
 }
 
 /** 지우기와 같고 지운 가지를 클립보드에 둔다. 주제는 잘라내지 않는다. */
 const cut = (state: EditorState): EditorResult => {
+  const picked = pickedBranches(state)
+  if (picked) {
+    if (picked.length === 0) return result(state)
+    const nodes = picked.map((id) => findNode(state.tree, id)!)
+    const removed = removeAll(state.tree, picked)
+    return result(
+      {
+        ...recorded(state),
+        tree: removed.root,
+        selectedId: removed.nextId,
+        selection: [removed.nextId],
+        clipboard: clipboardOfNodes(nodes),
+      },
+      'later',
+    )
+  }
   const node = findNode(state.tree, state.selectedId)
   const removed = removeNode(state.tree, state.selectedId)
   if (!node || !removed) return result(state)
@@ -302,13 +381,20 @@ const slotOf = (root: MindMapNode, id: string): string => {
   return parent ? `${parent.id}#${parent.children.findIndex((child) => child.id === id)}` : ''
 }
 
-/** 놓은 자리가 원래 자리(같은 부모, 같은 차례)면 바뀐 것이 없어 기록·저장하지 않는다. */
+/**
+ * 놓은 자리가 원래 자리(같은 부모, 같은 차례)면 바뀐 것이 없어 기록·저장하지 않는다.
+ * 여러 가지를 고른 채 그 가운데 하나를 놓으면 고른 위 가지들을 함께 옮긴다. 하나라도 깊이 한도를 넘으면 하나도 옮기지 않는다.
+ */
 const drop = (state: EditorState, draggedId: string, target: Drop): EditorResult => {
-  const moved = applyDrop(state.tree, draggedId, target)
-  if (moved === state.tree || slotOf(moved, draggedId) === slotOf(state.tree, draggedId)) return result(state)
-  const deepest = depthOf(moved, draggedId) + subtreeHeight(findNode(moved, draggedId)!)
-  if (deepest > state.limits.maxDepth) return result(state, null, depthNotice(state.limits))
-  return result({ ...recorded(state), tree: moved, selectedId: draggedId }, 'later')
+  const together = state.selection.length > 1 && state.selection.includes(draggedId)
+  const ids = together ? topmostBranches(state.tree, state.selection) : [draggedId]
+  if (ids.length === 0) return result(state)
+  const moved = applyDropMany(state.tree, ids, target)
+  if (moved === state.tree || ids.every((id) => slotOf(moved, id) === slotOf(state.tree, id))) return result(state)
+  const tooDeep = ids.some((id) => depthOf(moved, id) + subtreeHeight(findNode(moved, id)!) > state.limits.maxDepth)
+  if (tooDeep) return result(state, null, depthNotice(state.limits))
+  const selection = together ? state.selection : [draggedId]
+  return result({ ...recorded(state), tree: moved, selectedId: draggedId, selection }, 'later')
 }
 
 /** 되살린 나무에서 지금 있는 가지의 접힘은 지금 값으로 둔다. */
@@ -325,7 +411,13 @@ const travel = (state: EditorState, step: typeof undoHistory): EditorResult => {
 const apply = (state: EditorState, command: EditorCommand, ctx: EditorContext): EditorResult => {
   switch (command.type) {
     case 'select':
-      return select(state, command.id)
+      return select(state, command.id, command.keep)
+    case 'toggleSelect':
+      return toggleSelect(state, command.id)
+    case 'selectMany':
+      return selectMany(state, command.ids, command.additive)
+    case 'single':
+      return result(state)
     case 'addChild':
       return addChildBranch(state, ctx)
     case 'addSibling':
@@ -392,9 +484,10 @@ const cancelsNewBranch = (state: EditorState, editing: Editing, command: EditorC
   }
 }
 
-export const initialEditor = (map: ServerMap): EditorState => ({
+export const initialEditor = (map: ServerMap): EditorState => single({
   tree: map.root,
   selectedId: visibleAnchor(map.root, map.cursorNodeId),
+  selection: [],
   editing: null,
   history: emptyHistory(),
   limits: map.limits,
@@ -402,6 +495,8 @@ export const initialEditor = (map: ServerMap): EditorState => ({
 })
 
 export type ActionState = {
+  /** 함께 다룰 가지 수(주제와 고른 가지의 아래는 세지 않는다). */
+  count: number
   canDelete: boolean
   canCopy: boolean
   canPaste: boolean
@@ -419,8 +514,10 @@ export type ActionState = {
 export const actionState = (state: EditorState): ActionState => {
   const node = findNode(state.tree, state.selectedId)
   const isBranch = node !== null && node.id !== state.tree.id
+  const count = topmostBranches(state.tree, state.selection).length
   return {
-    canDelete: isBranch,
+    count,
+    canDelete: count > 0,
     canCopy: node !== null,
     canPaste: (state.clipboard?.nodes.length ?? 0) > 0,
     canCheckbox: isBranch,
@@ -431,16 +528,43 @@ export const actionState = (state: EditorState): ActionState => {
   }
 }
 
-/**
- * 쓰는 중에 쓰기 밖의 명령이 오면 먼저 확정한다. 확정하지 못하면(글이 너무 길면) 그 명령은 하지 않는다.
- * 처음 쓰는 새 가지의 지우기와 빈 새 가지의 체크·접기는 취소다(없앤 뒤 이전 선택에 하지 않는다).
- */
-export const reduce = (state: EditorState, command: EditorCommand, ctx: EditorContext): EditorResult => {
+/** 고른 목록을 그대로 두고 다루는 명령. 그 밖의 명령은 주 가지 하나로 줄여 한다. */
+const MULTI = new Set<EditorCommand['type']>(['select', 'toggleSelect', 'selectMany', 'drop', 'delete', 'cut', 'copy'])
+
+const sameList = (p: readonly string[], q: readonly string[]) => p.length === q.length && p.every((x, i) => x === q[i])
+
+/** 주 가지 하나만 고른 상태. */
+const single = (state: EditorState): EditorState =>
+  sameList(state.selection, [state.selectedId]) ? state : { ...state, selection: [state.selectedId] }
+
+/** 없거나 접혀 안 보이는 가지는 고른 목록에서 빼고, 주 가지는 늘 넣는다. */
+const tidySelection = (state: EditorState): EditorState => {
+  const kept = state.selection.filter(
+    (id) => id !== state.selectedId && findNode(state.tree, id) && visibleAnchor(state.tree, id) === id,
+  )
+  const selection = [...kept, state.selectedId]
+  const same = selection.length === state.selection.length && selection.every((id) => state.selection.includes(id))
+  return same ? state : { ...state, selection }
+}
+
+const step = (state: EditorState, command: EditorCommand, ctx: EditorContext): EditorResult => {
   if (!state.editing || writing.has(command.type)) return apply(state, command, ctx)
   if (cancelsNewBranch(state, state.editing, command)) return cancel(state)
   const committed = commit(state)
   if (committed.state.editing) return committed
   return chain(committed, apply(committed.state, command, ctx))
+}
+
+/**
+ * 쓰는 중에 쓰기 밖의 명령이 오면 먼저 확정한다. 확정하지 못하면(글이 너무 길면) 그 명령은 하지 않는다.
+ * 처음 쓰는 새 가지의 지우기와 빈 새 가지의 체크·접기는 취소다(없앤 뒤 이전 선택에 하지 않는다).
+ * 여러 가지를 고른 목록은 `MULTI` 명령만 쓰고, 다른 명령 뒤에는 주 가지 하나로 돌아간다.
+ */
+export const reduce = (state: EditorState, command: EditorCommand, ctx: EditorContext): EditorResult => {
+  const multi = MULTI.has(command.type)
+  const done = step(multi ? state : single(state), command, ctx)
+  const next = multi ? tidySelection(done.state) : single(done.state)
+  return next === done.state ? done : { ...done, state: next }
 }
 
 /** 서버에 보낼 나무: 쓰는 가지는 마지막으로 확정한 글로 두고, 처음 쓰는 새 가지는 뺀다. */
@@ -454,12 +578,13 @@ export const confirmedTree = (state: EditorState): MindMapNode => {
 /** 쓰던 글을 확정한 것으로 친 확정된 나무. */
 export const leaveTree = (state: EditorState): MindMapNode => confirmedTree(commit(state).state)
 
-export const replaceFromServer = (state: EditorState, map: ServerMap): EditorState => ({
+export const replaceFromServer = (state: EditorState, map: ServerMap): EditorState => single({
   tree: map.root,
   selectedId: visibleAnchor(
     map.root,
     findNode(map.root, state.selectedId) ? state.selectedId : map.cursorNodeId,
   ),
+  selection: [],
   editing: null,
   history: emptyHistory(),
   limits: map.limits,

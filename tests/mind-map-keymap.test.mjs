@@ -74,3 +74,9 @@ test('단추 옆 단축키 글', () => {
   assert.equal(keymap.shortcutText('undo', true), '⌘ Z')
   assert.equal(keymap.shortcutText('child', true), 'Tab')
 })
+
+test('글을 쓰지 않을 때 Esc는 주 가지 하나만 남긴다', () => {
+  const key = (k) => ({ key: k, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false })
+  assert.deepEqual(plain(keymap.keyAction(key('Escape'), false)), { command: { type: 'single' }, preventDefault: true })
+  assert.equal(keymap.keyAction(key('Escape'), true).command.type, 'cancel')
+})
