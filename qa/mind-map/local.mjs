@@ -867,6 +867,28 @@ const walk = async (page, viewport) => {
       assert.ok(blankOk, '빈 범위가 가지에 닿는다')
       await dragBetween(page, viewport, blank, blankEnd)
       assert.deepEqual(await pickedLabels(page), { all: ['박스와 테이프 사기'], primary: '박스와 테이프 사기' }, '빈 범위가 고른 것을 비우지 않았다')
+      // 다시 그리기가 포인터를 따라오지 못할 때(포인터 이동이 한 작업 안에 몰릴 때)에도 고른 가지는 마지막 상자를 따른다.
+      // 넓게 끌었다가 주 가지만 덮게 되돌리면 주 가지 하나만 남아야 한다(한 박자 늦게 남으면 안 된다).
+      await rooms.locator('.mind-map-node__label').click()
+      const r = await rooms.boundingBox()
+      const lagStart = { x: r.x - 8, y: r.y - 3 }
+      const narrow = { x: r.x + 20, y: r.y + r.height - 2 }
+      const wide = { x: frame.x + frame.width - 30, y: frame.y + frame.height - 140 }
+      assert.ok(await page.evaluate(({ x, y }) => !document.elementFromPoint(x, y)?.closest('.mind-map-node'), lagStart), '범위 선택을 시작할 곳이 빈 곳이 아니다')
+      await page.mouse.move(lagStart.x, lagStart.y)
+      await page.mouse.down()
+      await page.evaluate(({ start, wide, narrow }) => {
+        const canvas = document.querySelector('.mind-map-canvas')
+        const move = (x, y) =>
+          canvas.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, pointerType: 'mouse', clientX: x, clientY: y, buttons: 1 }))
+        for (let i = 1; i <= 10; i++) move(start.x + ((wide.x - start.x) * i) / 10, start.y + ((wide.y - start.y) * i) / 10)
+        for (let i = 1; i <= 10; i++) move(wide.x + ((narrow.x - wide.x) * i) / 10, wide.y + ((narrow.y - wide.y) * i) / 10)
+      }, { start: lagStart, wide, narrow })
+      await page.waitForTimeout(100)
+      const lagging = await pickedLabels(page)
+      await page.mouse.up()
+      assert.deepEqual(lagging, { all: ['방마다 포장하기'], primary: '방마다 포장하기' }, '고른 가지가 상자보다 한 박자 늦다')
+      await boxes.locator('.mind-map-node__label').click()
       await rooms.locator('.mind-map-node__label').click({ modifiers: ['Shift'] })
       assert.equal((await pickedLabels(page)).all.length, 2)
       await page.keyboard.press('Escape')

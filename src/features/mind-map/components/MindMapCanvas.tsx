@@ -20,7 +20,8 @@ import MindMapZoom from './MindMapZoom'
 
 type Props = {
   state: EditorState
-  dispatch: (command: EditorCommand) => void
+  /** 명령을 하고 화면 상태가 바뀌었는지 돌려준다. */
+  dispatch: (command: EditorCommand) => boolean
   /** 보이는 가지의 상자를 편집기에 알린다(화면상 위·아래 고르기). */
   setGeometry: (boxes: ReadonlyMap<string, Box>) => void
   /** 단추 옆 단축키를 Mac 표기(`⌘`)로 쓴다. */

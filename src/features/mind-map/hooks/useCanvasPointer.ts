@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Dispatch, PointerEvent as ReactPointerEvent, RefObject, SetStateAction } from 'react'
 import { flushSync } from 'react-dom'
-import { changesSelection } from '../model/editor'
 import type { Box, EditorCommand, EditorState } from '../model/editor'
 import { dropTargetMany, findNode, pathTo, topmostBranches } from '../model/tree'
 import type { Drop } from '../model/tree'
@@ -46,7 +45,8 @@ type Options = {
   state: EditorState
   view: View | null
   setView: Dispatch<SetStateAction<View | null>>
-  dispatch: (command: EditorCommand) => void
+  /** 명령을 하고 화면 상태가 바뀌었는지 돌려준다(편집기의 최신 상태 기준). */
+  dispatch: (command: EditorCommand) => boolean
   /** 보이는 가지의 상자(배치 좌표). 범위 선택이 쓴다. */
   boxes: ReadonlyMap<string, Box>
   /** Mac은 `⌘`+누르기가 하나씩 고르기이고 `Ctrl`+누르기는 오른쪽 단추다. */
@@ -230,13 +230,13 @@ export function useCanvasPointer({
   }
 
   /**
-   * 범위 선택·하나씩 고르기를 보낸다. 고른 것이 바뀔 때만 화면에 알린다. 바뀌지 않으면 다시 그리지 않아
-   * 그 표시가 남고, 다음 키보드 이동이 화면을 따라 옮기지 않기 때문이다.
+   * 범위 선택·하나씩 고르기를 보낸다. 늘 보내고, 고른 것이 실제로 바뀌었을 때만 화면에 알린다.
+   * 바뀌었는지는 다시 그린 상태(`latest`)가 아니라 편집기의 최신 상태로 판단한다. 다시 그리기가 포인터를 따라오지
+   * 못한 사이에 지난 상태와 견주면 마지막 변경을 버려, 고른 가지가 상자보다 한 박자 늦게 남는다.
+   * 알림은 보낸 뒤에 한다. 이벤트 안의 변경은 이 함수가 끝난 뒤에 그려지므로 그리기 전에 표시가 놓인다.
    */
   const pickBySweep = (command: EditorCommand) => {
-    if (!changesSelection(latest.current, command)) return
-    onPointerSelect(null)
-    dispatch(command)
+    if (dispatch(command)) onPointerSelect(null)
   }
 
   /** 범위 사각형을 그리고 겹치는 보이는 가지를 고른다. 고른 가지가 바뀔 때만 알린다. */

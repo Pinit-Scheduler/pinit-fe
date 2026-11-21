@@ -571,10 +571,6 @@ export const reduce = (state: EditorState, command: EditorCommand, ctx: EditorCo
   return next === done.state ? done : { ...done, state: next }
 }
 
-/** 고르기 명령이 고른 가지(목록이나 주 가지)를 바꾸는지. 바꾸지 않으면 화면이 다시 그려지지 않는다. */
-export const changesSelection = (state: EditorState, command: EditorCommand): boolean =>
-  reduce(state, command, { newId: () => '' }).state !== state
-
 /** 서버에 보낼 나무: 쓰는 가지는 마지막으로 확정한 글로 두고, 처음 쓰는 새 가지는 뺀다. */
 export const confirmedTree = (state: EditorState): MindMapNode => {
   const { editing, tree } = state
