@@ -58,7 +58,7 @@
   color: var(--workspace-muted);
   margin: 0 10px 5px;
 }
-.space-projects-nav > button,
+.space-projects-nav button,
 .space-projects-nav > a {
   display: flex;
   align-items: center;
@@ -75,14 +75,31 @@
   text-decoration: none;
   cursor: pointer;
 }
-.space-projects-nav > button[aria-pressed='true'] {
+.space-projects-nav button[aria-pressed='true'] {
   background: var(--workspace-blue-soft);
   color: var(--workspace-blue);
   font-weight: 650;
 }
-.space-projects-nav small {
-  font-size: 10px;
+/* Completed projects fold under one quiet line, as in the hub. */
+.space-projects-fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border-radius: 7px;
+  font-size: 12px;
   color: var(--workspace-muted);
+  cursor: pointer;
+  list-style: none;
+}
+.space-projects-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.space-projects-fold > div {
+  display: grid;
+  gap: 3px;
+  margin-top: 3px;
 }
 .space-context {
   display: flex;
@@ -462,7 +479,8 @@
   .space-option,
   .space-text-button,
   .space-icon-button,
-  .space-projects-nav button
+  .space-projects-nav button,
+  .space-projects-fold > summary
 ):focus-visible {
   outline: 3px solid var(--workspace-blue);
   outline-offset: 3px;
@@ -618,7 +636,7 @@ button:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.space-projects-nav > button > span {
+.space-projects-nav button > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -747,8 +765,9 @@ button:disabled {
 .space-switcher,
 .space-option,
 .space-icon-button,
-.space-projects-nav > button,
+.space-projects-nav button,
 .space-projects-nav > a,
+.space-projects-fold > summary,
 .space-option-projects > button,
 .space-affiliation__summary {
   transition:
@@ -762,8 +781,9 @@ button:disabled {
 }
 @media (hover: hover) {
   .space-option:hover:not([aria-pressed='true']),
-  .space-projects-nav > button:hover:not([aria-pressed='true']),
+  .space-projects-nav button:hover:not([aria-pressed='true']),
   .space-projects-nav > a:hover,
+  .space-projects-fold > summary:hover,
   .space-option-projects > button:hover:not([aria-pressed='true']),
   .space-icon-button:hover {
     background: color-mix(in srgb, var(--workspace-line) 60%, transparent);
@@ -772,10 +792,21 @@ button:disabled {
 :is(
   .space-switcher,
   .space-option,
-  .space-projects-nav > button,
+  .space-projects-nav button,
   .space-option-projects > button
 ):active:not(:disabled) {
   transform: scale(var(--motion-press-scale));
+}
+
+/* The sidebar's completed projects open with a short fade; the chevron turns over. */
+.space-projects-fold[open] > div {
+  animation: motion-fade-in var(--motion-base) var(--motion-ease) both;
+}
+.space-projects-fold > summary > span {
+  transition: transform var(--motion-fast) var(--motion-ease);
+}
+.space-projects-fold[open] > summary > span {
+  transform: rotate(180deg);
 }
 
 /* The chosen space's projects open under it in the mobile sheet. */

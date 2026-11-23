@@ -283,3 +283,77 @@ test('card paths name only what lies beyond the scope', () => {
   assert.deepEqual(plain(cardPath('all', { spaceId: 31, projectId: null }, { spaceId: -4, projectId: null }, spaces, projects)), { spaceId: -4, text: '나의 스페이스' })
   assert.equal(cardPath('all', { spaceId: 31, projectId: null }, { spaceId: 99, projectId: null }, spaces, projects), null)
 })
+
+// ---------------------------------------------------------------------------
+// Sidebar project list: completed projects fold away
+// ---------------------------------------------------------------------------
+
+const sidebarProjects = (projects, selectedProjectId = null) =>
+  renderToStaticMarkup(
+    React.createElement(
+      load('features/spaces/SpaceChrome.tsx', {
+        react: React,
+        'react/jsx-runtime': jsxRuntime,
+        'react-dom': { createPortal: (node) => node },
+        'react-router-dom': {
+          Link: ({ children }) => React.createElement('a', null, children),
+          useNavigate: () => () => {},
+          useLocation: () => ({ pathname: '/app/tasks' }),
+        },
+        '@shared/components/common/Modal': { default: () => null },
+        '@shared/components/common/WorkspaceIcon': { default: () => null },
+        '@shared/hooks/useMediaQuery': { default: () => false },
+        '@shared/motion': { usePresence: () => ({ mounted: false, closing: false }) },
+        './store': {
+          useSpaces: () => ({
+            projects,
+            selectedSpaceId: 31,
+            selectedProjectId,
+            selectProject() {},
+          }),
+        },
+        './ProjectHead': { default: () => null },
+        './SpaceMark': { default: () => null },
+        './scope': load('features/spaces/scope.ts'),
+        './pageSpace': { usePageSpace: () => null },
+        './spaces.css': {},
+      }).SpaceProjectsNav,
+    ),
+  )
+const sidebarFixture = [
+  { id: 1, spaceId: 31, name: '작업 카드 개선', completed: false },
+  { id: 2, spaceId: 31, name: '10월 릴리즈', completed: true },
+  { id: 3, spaceId: 31, name: '온보딩 안내 정리', completed: false },
+  { id: 4, spaceId: 31, name: '9월 릴리즈', completed: true },
+  { id: 5, spaceId: 31, name: '지운 완료 프로젝트', completed: true, deleted: true },
+  { id: 6, spaceId: 44, name: '다른 스페이스의 완료 프로젝트', completed: true },
+]
+
+test('the sidebar folds completed projects under a closed count line', () => {
+  const html = sidebarProjects(sidebarFixture)
+  const [open, folded] = html.split('<details')
+  assert.ok(folded, 'completed projects sit in a fold')
+  assert.match(open, /작업 카드 개선/)
+  assert.match(open, /온보딩 안내 정리/)
+  assert.doesNotMatch(open, /릴리즈/, 'no completed project stays in the open list')
+  assert.match(folded, /<summary>.*완료한 프로젝트 2개.*<\/summary>/, 'counts live projects of this space only')
+  assert.match(folded, /10월 릴리즈/)
+  assert.match(folded, /9월 릴리즈/)
+  assert.doesNotMatch(html, /지운 완료 프로젝트|다른 스페이스/)
+  assert.doesNotMatch(html, /<details[^>]* open/, 'the fold starts closed')
+  assert.doesNotMatch(html, /<small>완료<\/small>/, 'the fold already says they are completed')
+  assert.ok(html.indexOf('</details>') < html.indexOf('프로젝트 관리'), 'the manage link stays last')
+})
+
+test('the sidebar shows no fold when nothing is completed', () => {
+  const html = sidebarProjects(sidebarFixture.filter((project) => !project.completed))
+  assert.doesNotMatch(html, /<details|완료한 프로젝트/)
+  assert.match(html, /작업 카드 개선/)
+})
+
+test('the sidebar fold opens while the selected project is a completed one', () => {
+  const html = sidebarProjects(sidebarFixture, 4)
+  assert.match(html, /<details[^>]* open/)
+  assert.match(html, /aria-pressed="true"[^>]*><span>9월 릴리즈/)
+  assert.doesNotMatch(sidebarProjects(sidebarFixture, 1), /<details[^>]* open/)
+})
