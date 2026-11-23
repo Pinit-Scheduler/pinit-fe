@@ -10,7 +10,8 @@ type GuideCardProps = {
   isNew: boolean
   isOpen: boolean
   onToggle: () => void
-  onShowTour: () => void
+  /** 없으면 "화면에서 보기"를 그리지 않는다(핀잇 앱 안). */
+  onShowTour?: () => void
 }
 
 const GroupHeading = ({ group }: { group: GuideGroup }) =>
@@ -78,7 +79,7 @@ const GuideCard = ({ feature, isNew, isOpen, onToggle, onShowTour }: GuideCardPr
             </div>
           ))}
         </section>
-        {tour && (
+        {tour && onShowTour && (
           <button type="button" className="onboarding-guide__show" onClick={onShowTour}>
             화면에서 보기
           </button>
@@ -93,7 +94,7 @@ const hasGuide = (feature: OnboardingFeature): feature is OnboardingFeature & { 
 
 /** 설정 → 온보딩. 백엔드가 준 기능마다 동작 방식·원리·사용 방법을 펼쳐 볼 수 있다(ADR-0017 §7). */
 const OnboardingGuidePage = () => {
-  const { response, isLoading, error, reload, startTour } = useOnboarding()
+  const { response, isLoading, error, reload, startTour, tourAvailable } = useOnboarding()
   const [openKeys, setOpenKeys] = useState<string[]>([])
 
   if (isLoading) {
@@ -128,7 +129,7 @@ const OnboardingGuidePage = () => {
         <p className="onboarding-guide__description">
           기능마다 무엇을 하는지, 어떤 원리로 동작하는지, 어떻게 쓰는지 정리했어요.
         </p>
-        {tourKeys.length > 0 && (
+        {tourAvailable && tourKeys.length > 0 && (
           <button type="button" className="onboarding-guide__replay" onClick={() => startTour(tourKeys)}>
             투어 다시 보기
           </button>
@@ -143,7 +144,7 @@ const OnboardingGuidePage = () => {
             isNew={isFeatureNew(response, feature)}
             isOpen={openKeys.includes(feature.key)}
             onToggle={() => toggle(feature.key)}
-            onShowTour={() => startTour([feature.key])}
+            onShowTour={tourAvailable ? () => startTour([feature.key]) : undefined}
           />
         ))}
       </div>

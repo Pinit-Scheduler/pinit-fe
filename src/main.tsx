@@ -8,6 +8,7 @@ import App from '@app/App.tsx'
 import '@shared/styles/information.css'
 import { watchSystemTheme } from '@shared/theme/theme'
 import { listenForInstallPrompt } from '@shared/pwa/installPrompt'
+import { installNativeShell } from '@shared/native/nativeShell'
 
 const enableMockApi =
   import.meta.env.DEV && import.meta.env.VITE_USE_MOCK_API === 'true'
@@ -16,6 +17,9 @@ if (enableMockApi) {
   const { setupMockServer } = await import('./mocks/mockServer')
   setupMockServer()
 }
+
+// Inside the Pinit app's WebView: hide the bottom tab and let the app renew the session.
+const inNativeShell = installNativeShell()
 
 watchSystemTheme()
 listenForInstallPrompt()
@@ -26,7 +30,9 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// The app's WebView always loads the deployed site and has no install or web push, so it runs
+// without the service worker. A cached shell there could also outlive an app update.
+if (import.meta.env.PROD && !inNativeShell && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     let hasNotifiedForUpdate = false
 

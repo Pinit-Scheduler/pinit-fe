@@ -28,6 +28,8 @@ import {
   surfaceFallback,
   type SurfaceState,
 } from './routeSurfaceState'
+import { isNativeShell } from '@shared/native/nativeShell'
+import { NATIVE_CLOSE_STATE } from '@shared/native/nativeShellRules'
 import './RouteSurface.css'
 
 type SurfaceContextValue = {
@@ -60,7 +62,14 @@ const closeSurface = (
     fallback: fallback ?? surfaceFallback(location.pathname),
   })
   if (action.back) navigate(-1)
-  else navigate(action.to, { replace: true })
+  // Inside the Pinit app a surface opened as the WebView's first page has no page behind it.
+  // The navigation still runs, so the unsaved-form guard asks first; once it lands, App hands
+  // the close to the app instead of showing the list (NativeHandoff in App.tsx).
+  else
+    navigate(action.to, {
+      replace: true,
+      state: isNativeShell() && !replacedPage ? { [NATIVE_CLOSE_STATE]: true } : undefined,
+    })
 }
 
 // The route component and its navigation API intentionally share one public module.

@@ -27,6 +27,7 @@ import {
 } from '@features/recurrence/utils/recurrenceRules'
 import { ApiError } from '@shared/api/httpClient'
 import { getRequestFailureMessage } from '@shared/api/errorMessage'
+import { parseDateKey } from '@shared/utils/dateKey'
 
 type LocationState = {
   initialDateKey?: string
@@ -37,7 +38,11 @@ const ScheduleCreatePage = () => {
   const location = useLocation()
   const { addToast } = useToast()
   const { offsetMinutes } = useTimePreferences()
-  const { initialDateKey } = (location.state as LocationState | null) ?? {}
+  // 열어 준 화면이 state로 날짜를 주거나, 핀잇 앱처럼 주소로만 열 때는 ?date=YYYY-MM-DD로 준다.
+  const dateParam = new URLSearchParams(location.search).get('date')
+  const initialDateKey =
+    (location.state as LocationState | null)?.initialDateKey ??
+    (dateParam && parseDateKey(dateParam) ? dateParam : undefined)
   const affiliation = useCreateAffiliation()
 
   const initialValues = useMemo(() => {

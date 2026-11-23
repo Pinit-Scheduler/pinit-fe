@@ -11,6 +11,7 @@ import SpotlightTour from '../components/SpotlightTour'
 import type { OnboardingResponse } from '../types/onboarding'
 import { buildTourSteps, shouldEndTour } from '../utils/tour'
 import type { TourStep } from '../utils/tour'
+import { isNativeShell } from '@shared/native/nativeShell'
 
 type OnboardingContextValue = {
   response: OnboardingResponse | null
@@ -19,6 +20,12 @@ type OnboardingContextValue = {
   reload: () => void
   /** keys 순서대로 투어를 시작한다. 응답이 없거나 보여 줄 단계가 없으면 아무것도 하지 않는다. */
   startTour: (keys: readonly string[]) => void
+  /**
+   * 이 화면에서 투어를 띄울 수 있는지. 핀잇 앱의 WebView 안에서는 false다. 투어는 웹 화면을 옮겨 다니며
+   * 짚어 주는데, 그중 오늘 화면 등은 앱이 직접 그려서 웹에 없다. 띄우지 않으므로 확인도 보내지 않아,
+   * 서버의 pendingTour는 그대로 남고 웹에서 열면 그때 안내한다.
+   */
+  tourAvailable: boolean
 }
 
 type ActiveTour = {
@@ -134,7 +141,7 @@ export const OnboardingTourProvider = ({ children }: { children: ReactNode }) =>
 
   const beginTour = useCallback(
     (source: OnboardingResponse, keys: readonly string[]) => {
-      if (tourRef.current) return
+      if (tourRef.current || isNativeShell()) return
       const steps = buildTourSteps(source, keys)
       if (steps.length === 0) return
       const current = currentPath()
@@ -206,7 +213,7 @@ export const OnboardingTourProvider = ({ children }: { children: ReactNode }) =>
   const handleSkip = useCallback(() => finishTour({ restore: true }), [finishTour])
 
   const value = useMemo(
-    () => ({ response, isLoading, error, reload, startTour }),
+    () => ({ response, isLoading, error, reload, startTour, tourAvailable: !isNativeShell() }),
     [response, isLoading, error, reload, startTour],
   )
 

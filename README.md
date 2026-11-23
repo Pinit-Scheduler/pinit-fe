@@ -14,6 +14,7 @@ npm run dev
 - [로그인 세션 갱신: 끝난 세션과 일시적 실패 구분](docs/auth-session-refresh.md) — `/v0/refresh`의 401/403만 로그아웃, 그 밖의 실패는 토큰을 두고 재시도. 운영 배포 상태와 구분합니다.
 - [작업 쪼개기: 맡기기·잠긴 원본·보관함(A단계)](docs/task-split.md) — `/v2/task-splits…`, 동의·확인 창·접수, 보관함에서 취소·버리기. mock에서 확인했고 운영 배포 상태와 구분합니다.
 - [마인드맵: 페이지·홈 카드·저장과 충돌](docs/mind-map.md) — `/app/mind-map`, 계정당 한 장. mock에서 확인했고 운영 배포 상태와 구분합니다.
+- [핀잇 앱(iOS·Android): 기본 화면은 네이티브, 깊은 화면은 웹뷰](docs/native-app.md) — `mobile/`의 Expo 앱과 웹의 앱 내 동작(`src/shared/native/`). 기기에서는 실행해 보지 않았고 스토어 배포도 없습니다.
 
 ## Mock API (OpenAPI 기반 요약)
 - `.github/openapi-*.json` 스펙을 기반으로 인증(v0), 작업/일정/통계(v1), 알림(v0) 엔드포인트를 프런트 내부에서 가로채는 모크를 추가했습니다.
