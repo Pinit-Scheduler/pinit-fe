@@ -219,11 +219,39 @@ export function SpaceProjectsNav() {
   const items = projects.filter(
     (project) => project.spaceId === selectedSpaceId && !project.deleted,
   )
+  const open = items.filter((project) => !project.completed)
+  const closed = items.filter((project) => project.completed)
+  // Completed projects stay folded until asked for. Unfolding holds for the space it was done
+  // in, and the fold opens by itself while the selected project is one of them, so the
+  // selection stays in view.
+  const [unfoldedSpaceId, setUnfoldedSpaceId] = useState<number | null>(null)
+  const selectedClosed = closed.some(
+    (project) => project.id === selectedProjectId,
+  )
+  const unfolded =
+    selectedClosed ||
+    (selectedSpaceId !== null && unfoldedSpaceId === selectedSpaceId)
+  const foldRef = useRef<HTMLDetailsElement>(null)
+  // React writes `open` only when it changes, so a fold the user closed by hand over a selected
+  // completed project would stay closed when another one is selected from elsewhere.
+  useEffect(() => {
+    if (foldRef.current) foldRef.current.open = unfolded
+  }, [unfolded, selectedProjectId])
   const choose = (id: number | null) => {
     selectProject(id)
     const target = projectSelectionTarget(pathname)
     if (typeof target === 'string') navigate(target)
   }
+  const row = (project: (typeof items)[number]) => (
+    <button
+      type="button"
+      key={project.id}
+      aria-pressed={selectedProjectId === project.id}
+      onClick={() => choose(project.id)}
+    >
+      <span>{project.name}</span>
+    </button>
+  )
   return (
     <nav className="space-projects-nav" aria-label="선택한 스페이스의 프로젝트">
       <p>프로젝트</p>
@@ -234,17 +262,25 @@ export function SpaceProjectsNav() {
       >
         스페이스의 모든 작업
       </button>
-      {items.map((project) => (
-        <button
-          type="button"
-          key={project.id}
-          aria-pressed={selectedProjectId === project.id}
-          onClick={() => choose(project.id)}
+      {open.map(row)}
+      {closed.length > 0 && (
+        <details
+          ref={foldRef}
+          className="space-projects-fold"
+          open={unfolded}
+          onToggle={(event) => {
+            // Only a toggle the user made differs from what was rendered.
+            const next = event.currentTarget.open
+            if (next !== unfolded)
+              setUnfoldedSpaceId(next ? selectedSpaceId : null)
+          }}
         >
-          <span>{project.name}</span>
-          {project.completed && <small>완료</small>}
-        </button>
-      ))}
+          <summary>
+            완료한 프로젝트 {closed.length}개<span aria-hidden>⌄</span>
+          </summary>
+          <div>{closed.map(row)}</div>
+        </details>
+      )}
       <Link to="/app/spaces?tab=projects">프로젝트 관리</Link>
     </nav>
   )
