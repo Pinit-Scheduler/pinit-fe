@@ -1,7 +1,7 @@
-// 핀잇 앱(mobile/)의 WebView 안에서 돌 때의 규칙. 의존성이 없어야 node 테스트에서 그대로 불러 쓸 수 있다.
-// 앱 쪽 짝은 mobile/src/bridge/protocol.ts와 mobile/src/config.ts다. 메시지나 표식을 바꾸면 두 쪽을 함께 고친다.
+// 핀잇 앱(pinit-ios·pinit-android 저장소)의 WebView 안에서 돌 때의 규칙. 의존성이 없어야 node 테스트에서 그대로 불러 쓸 수 있다.
+// 앱 쪽 짝은 앱 저장소의 src/bridge/protocol.ts와 src/config.ts다. 메시지나 표식을 바꾸면 두 쪽을 함께 고친다.
 
-/** 앱이 WebView의 User-Agent 끝에 붙이는 표식(mobile/src/config.ts의 APP_USER_AGENT). */
+/** 앱이 WebView의 User-Agent 끝에 붙이는 표식(앱 저장소 src/config.ts의 APP_USER_AGENT). */
 export const NATIVE_SHELL_MARK = 'PinitApp/'
 
 export const isNativeShellUserAgent = (userAgent: string | null | undefined) =>
@@ -36,7 +36,7 @@ export const NATIVE_CLOSE_STATE = 'nativeClose'
 export const isNativeCloseState = (state: unknown) =>
   !!state && typeof state === 'object' && (state as Record<string, unknown>)[NATIVE_CLOSE_STATE] === true
 
-/** 앱이 갱신 요청에 답하는 내용(mobile/src/bridge/protocol.ts의 RefreshReply). */
+/** 앱이 갱신 요청에 답하는 내용(앱 저장소 src/bridge/protocol.ts의 RefreshReply). */
 export type NativeRefreshReply =
   | { id: string; kind: 'token'; token: string }
   | { id: string; kind: 'unauthorized' }

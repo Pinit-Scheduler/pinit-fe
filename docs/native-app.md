@@ -1,7 +1,7 @@
 # 핀잇 앱(iOS·Android): 기본 화면은 네이티브, 깊은 화면은 웹뷰
 
 - 작성일: 2026-11-23
-- 상태: **구현, 이 저장소의 `claude/native-app` 브랜치.** 실제 기기·시뮬레이터에서는 한 번도 실행하지 않았다. 스토어 빌드·배포도 없다. 아래 [확인한 것과 확인하지 못한 것](#확인한-것과-확인하지-못한-것)을 구분해 읽는다.
+- 상태: **구현.** 앱 코드는 `Pinit-Scheduler/pinit-ios`와 `Pinit-Scheduler/pinit-android`에 있고(두 저장소에 같은 코드), 이 저장소에는 웹 쪽 코드만 있다. 처음에는 이 저장소의 `mobile/`에도 앱 사본이 있었으나 2026-11-23에 지웠다. 실제 기기·시뮬레이터에서는 한 번도 실행하지 않았다. 스토어 빌드·배포도 없다. 아래 [확인한 것과 확인하지 못한 것](#확인한-것과-확인하지-못한-것)을 구분해 읽는다.
 - 근거: [소셜 로그인 설계 §1](https://github.com/Pinit-Scheduler/pinit-docs/blob/main/docs/projects/social-login-google-apple/README.md)의 결정(크로스플랫폼 네이티브 렌더링, 깊은 화면만 웹뷰, Capacitor 폐기)과 유지관리자 요청(2026-11-23: 제안한 범위대로 시작, 홈 화면 위젯은 구조만 대비).
 - 기준 소스: FE `9449108e`, BE `pinit-monolith@f89e0697`(계약 확인용으로 읽기만 함), 문서 `pinit-docs@805dfa7f`.
 
@@ -9,11 +9,11 @@
 
 | 위치 | 내용 |
 | --- | --- |
-| `mobile/` | Expo SDK 58(React Native 0.88) 앱. 자기 `package.json`·lint·테스트를 갖는다. 웹 빌드(`npm run build`)와 Vercel 배포에는 들어가지 않는다 |
+| `pinit-ios`·`pinit-android` 저장소 | Expo SDK 58(React Native 0.88) 앱. 두 저장소의 코드가 같다. 아래에서 "앱 저장소"라고 하면 이 둘이다 |
 | `src/shared/native/` | 웹이 앱의 WebView 안에서 돌 때의 동작 |
-| `tests/native-shell.test.mjs`, `mobile/tests/` | 두 쪽의 규칙 테스트 |
+| `tests/native-shell.test.mjs`, 앱 저장소의 `tests/` | 두 쪽의 규칙 테스트 |
 
-기존 Capacitor 앱(`pinit-android`·`pinit-ios`)은 이 작업에서 보지 못했다(접근할 수 있는 저장소에 없다). 그 앱의 번들 ID·아이콘·푸시 설정은 가져오지 않았다.
+두 앱 저장소에 있던 기존 Capacitor 앱은 이 앱으로 바뀌었다. 그 앱의 번들 ID·아이콘·푸시 설정은 가져오지 않았다.
 
 ## 화면 나누기
 
@@ -37,7 +37,7 @@
 ## 로그인과 세션
 
 - `POST /v0/login`의 access token은 응답 본문, refresh token은 쿠키로 온다. 쿠키는 OS의 쿠키 저장소가 들고 `/v0/refresh`에 실린다. 백엔드는 바꾸지 않았다.
-- 기기에 저장하는 로그인 정보는 `mobile/src/session/vault.ts` 한 파일만 읽고 쓴다(iOS 키체인, Android 키스토어).
+- 기기에 저장하는 로그인 정보는 앱 저장소의 `src/session/vault.ts` 한 파일만 읽고 쓴다(iOS 키체인, Android 키스토어).
 - 앱용 본문 토큰 API(소셜 로그인 설계 §7.4)는 아직 없다. 생기면 `vault.ts`의 저장 타입에 refresh token을 더하고 `store.ts`의 로그인·갱신·로그아웃 요청만 바꾼다.
 - 네이버 로그인은 앱에 없다. 네이버로만 가입한 회원은 지금 앱에 로그인할 수 없다(설계 §7.4의 제약 그대로).
 
@@ -51,7 +51,7 @@
 
 ## 앱과 웹 사이의 약속
 
-웹은 User-Agent 끝의 `PinitApp/`으로 앱 안인 것을 안다. 메시지 정의는 `mobile/src/bridge/protocol.ts`와 `src/shared/native/nativeShellRules.ts`에 한 벌씩 있다. 한쪽을 바꾸면 다른 쪽도 바꾼다.
+웹은 User-Agent 끝의 `PinitApp/`으로 앱 안인 것을 안다. 메시지 정의는 앱 저장소의 `src/bridge/protocol.ts`와 `src/shared/native/nativeShellRules.ts`에 한 벌씩 있다. 한쪽을 바꾸면 다른 쪽도 바꾼다.
 
 | 웹 → 앱 | 언제 | 앱이 하는 일 |
 | --- | --- | --- |
@@ -72,8 +72,9 @@
 
 ## 실행
 
+아래 명령은 앱 저장소(`pinit-ios` 또는 `pinit-android`)의 루트에서 실행한다.
+
 ```bash
-cd mobile
 npm install
 ```
 
@@ -116,7 +117,7 @@ npm run typecheck && npm run lint && npm test
 
 **확인함**
 
-- `mobile/`: 타입 검사, lint, 규칙 테스트 28개 통과. Android·iOS용 JS 번들이 만들어진다(`expo export`).
+- 앱: 타입 검사, lint, 규칙 테스트 28개 통과. Android·iOS용 JS 번들이 만들어진다(`expo export`).
 - 네이티브 화면을 브라우저 미리보기(react-native-web)와 모의 API로 실행: 로그인 실패 문구, 로그인, 오늘·일정·작업·더보기, 일정 시작 거절(409 문구 표시)·일시정지·재개·완료·즉시 완료, 작업 완료, 주 이동, 완료 필터, 로그아웃.
 - 웹의 앱 내 동작을 Chromium에서 앱 User-Agent와 가짜 메시지 통로로 실행(웹 mock API): 22개 항목. `/login`·`/app/today` 넘김, 아래 탭 숨김, 뒤로·닫기의 `close`, 웹 안 이동 뒤 뒤로는 웹에 머묾, 토큰 없이 열면 `refresh`를 보내고 앱의 답으로 로그인, 로그아웃을 앱에 넘김, 세션 종료 통지, `?date=`, 앱 밖 브라우저는 그대로.
 - 웹: 기존 테스트 전체와 새 테스트, lint, 빌드 통과.
@@ -132,7 +133,7 @@ npm run typecheck && npm run lint && npm test
 ## 하지 않은 것
 
 - 푸시 알림. 웹은 서비스 워커로 받는데 앱에는 없다. FCM·APNs 설정 파일이 필요하다.
-- 번들 ID. `mobile/app.json`의 `me.gogradually.pinit`은 **임시값**이다. 기존 스토어 앱을 잇는다면 그 앱의 ID로 바꿔야 한다.
+- 번들 ID. 앱 저장소 `app.json`의 `me.gogradually.pinit`은 **임시값**이다. 기존 스토어 앱을 잇는다면 그 앱의 ID로 바꿔야 한다.
 - 딥링크(초대 링크 `/spaces/join/:token` 등), 오프라인 캐시, 위젯, Google·Apple·네이버 로그인.
 - 앱 화면의 스페이스·프로젝트 필터, 일정 드래그, 작업의 일정 배정(상세 웹뷰에서 한다).
 - 웹 테마를 수동으로 바꿨을 때의 맞춤. 앱 화면은 기기 설정을 따른다.

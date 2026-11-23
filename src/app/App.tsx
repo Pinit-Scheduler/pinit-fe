@@ -173,7 +173,7 @@ const WorkspaceRoutes = () => {
 }
 
 /**
- * Inside the Pinit app (mobile/), the app draws login and Today itself and owns the screen behind
+ * Inside the Pinit app (the pinit-ios / pinit-android repos), the app draws login and Today itself and owns the screen behind
  * a WebView. When the web would show one of those, or closes its first surface, tell the app and
  * draw nothing: the app closes this WebView or opens its own screen.
  */

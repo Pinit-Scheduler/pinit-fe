@@ -9,7 +9,7 @@ import {
 type NativeWindow = Window & {
   /** react-native-webview가 넣어 주는 통로. */
   ReactNativeWebView?: { postMessage: (message: string) => void }
-  /** 앱이 갱신 결과를 돌려줄 때 부른다(mobile/src/bridge/scripts.ts). */
+  /** 앱이 갱신 결과를 돌려줄 때 부른다(앱 저장소의 src/bridge/scripts.ts). */
   __pinitNativeReply?: (reply: unknown) => void
 }
 
