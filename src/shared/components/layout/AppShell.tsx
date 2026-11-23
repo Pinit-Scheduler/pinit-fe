@@ -25,6 +25,7 @@ import { routeScope, scopeCrumb } from '@features/spaces/scope'
 import { prefersReducedMotion } from '@shared/motion/tokens'
 import { playRise } from '@shared/motion/playRise'
 import { backTarget } from '@shared/routing/backTarget'
+import { isNativeShell, postToNative } from '@shared/native/nativeShell'
 
 const TAB_TITLES: Record<string, string> = {
   '/app/today': '오늘의 내 작업',
@@ -179,7 +180,9 @@ const AppShell = () => {
   const isSettingsPage = pathname.startsWith('/app/settings')
   const isPlanPage = pathname === '/app/plan'
   const isOnboardingGuide = pathname === '/app/settings/onboarding'
+  // Inside the Pinit app every web page is a pushed screen, so each one needs a way back.
   const showBackButton =
+    isNativeShell() ||
     isScheduleDetail ||
     isTaskDetail ||
     isSettingsPage ||
@@ -188,11 +191,11 @@ const AppShell = () => {
     isOnboardingGuide
 
   const handleBack = () => {
+    const historyIdx = (window.history.state as { idx?: number } | null)?.idx
+    // 핀잇 앱 안에서 이 WebView의 첫 화면이면 돌아갈 곳은 앱 화면이다. WebView를 닫아 달라고 알린다.
+    if (!(historyIdx !== undefined && historyIdx > 0) && postToNative({ type: 'close' })) return
     // 딥링크로 열어 앱 안에 돌아갈 history가 없으면 상위 화면으로 간다.
-    const target = backTarget(
-      pathname,
-      (window.history.state as { idx?: number } | null)?.idx,
-    )
+    const target = backTarget(pathname, historyIdx)
     if (target) navigate(target, { replace: true })
     else navigate(-1)
   }

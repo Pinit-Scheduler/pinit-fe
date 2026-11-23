@@ -36,7 +36,7 @@ const readBody = async (response: Response): Promise<unknown> => {
   }
 }
 
-type RefreshAnswer =
+export type RefreshAnswer =
   | { kind: 'token'; token: string }
   | { kind: 'unauthorized' }
   | { kind: 'transient'; status: number; data: unknown }
@@ -73,6 +73,17 @@ const requestRefresh = async (): Promise<RefreshAnswer> => {
   }
 }
 
+/**
+ * How a refresh is requested. The browser asks /v0/refresh with the cookie. Inside the Pinit app's
+ * WebView the app holds the refresh token, so the app is asked instead (src/shared/native/nativeShell.ts
+ * installs that before the first render). The transport gets the same time limit as the cookie request.
+ */
+let refreshTransport: (timeoutMs: number) => Promise<RefreshAnswer> = () => requestRefresh()
+
+export const setRefreshTransport = (transport: (timeoutMs: number) => Promise<RefreshAnswer>) => {
+  refreshTransport = transport
+}
+
 export const refreshSession = (): Promise<RefreshResult> => {
   if (isLoggedOut()) return Promise.resolve(UNAUTHORIZED)
   if (pending) return pending
@@ -80,7 +91,7 @@ export const refreshSession = (): Promise<RefreshResult> => {
   if (failed?.token === before && Date.now() < failed.until) return Promise.resolve(UNAUTHORIZED)
 
   const request = (async (): Promise<RefreshResult> => {
-    const answer = await requestRefresh()
+    const answer = await refreshTransport(REFRESH_TIMEOUT_MS)
     if (isLoggedOut()) return UNAUTHORIZED
     const current = getAccessToken()
     // A login/logout or another tab may have changed the session while awaiting the server.

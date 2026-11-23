@@ -310,3 +310,11 @@
 .workspace-sidebar__mine {
   margin: 24px 0 18px;
 }
+
+/* 핀잇 앱의 WebView 안: 아래 탭은 앱이 그린다. 웹의 탭을 숨기고 그 높이만큼 둔 여백도 없앤다. */
+:root.native-shell .app-shell {
+  --workspace-nav-height: 0px;
+}
+:root.native-shell .bottom-tab {
+  display: none;
+}

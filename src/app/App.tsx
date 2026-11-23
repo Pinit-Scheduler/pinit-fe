@@ -8,6 +8,7 @@ import '@shared/styles/workspacePalette.css'
 import {
   createBrowserRouter,
   Navigate,
+  Outlet,
   Route,
   RouterProvider,
   Routes,
@@ -72,6 +73,8 @@ import { RoutinesPage } from '@features/routines'
 import { RecurrencesPage } from '@features/recurrence'
 import { OAuthConsentPage } from '@features/oauth'
 import { OnboardingGuidePage } from '@features/onboarding'
+import { isNativeShell, postToNative } from '@shared/native/nativeShell'
+import { isNativeCloseState, isNativeRoute } from '@shared/native/nativeShellRules'
 
 const WorkspaceRoutes = () => {
   useWorkspaceEvents()
@@ -169,18 +172,39 @@ const WorkspaceRoutes = () => {
   )
 }
 
+/**
+ * Inside the Pinit app (the pinit-ios / pinit-android repos), the app draws login and Today itself and owns the screen behind
+ * a WebView. When the web would show one of those, or closes its first surface, tell the app and
+ * draw nothing: the app closes this WebView or opens its own screen.
+ */
+const NativeHandoff = () => {
+  const location = useLocation()
+  const shell = isNativeShell()
+  const closing = shell && isNativeCloseState(location.state)
+  const handedOff = shell && !closing && isNativeRoute(location.pathname)
+  const path = `${location.pathname}${location.search}`
+  useEffect(() => {
+    if (closing) postToNative({ type: 'close' })
+    else if (handedOff) postToNative({ type: 'route', path })
+  }, [closing, handedOff, path])
+  if (closing || handedOff) return null
+  return <Outlet />
+}
+
 const AppRoutes = () => (
   <Routes>
-    <Route path="/" element={<LandingPage />} />
-    <Route path="/login" element={<LoginPage />} />
-    <Route path="/signup" element={<SignupPage />} />
-    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-    <Route path="/login/callback/:provider" element={<SocialCallbackPage />} />
-    <Route element={<AuthGuard />}>
-      <Route path="/spaces/join/:token" element={<InvitationPage />} />
-      <Route path="/oauth/consent" element={<OAuthConsentPage />} />
-      <Route path="/email-registration" element={<EmailRegistrationPage />} />
-      <Route path="/app/*" element={<WorkspaceRoutes />} />
+    <Route element={<NativeHandoff />}>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/login/callback/:provider" element={<SocialCallbackPage />} />
+      <Route element={<AuthGuard />}>
+        <Route path="/spaces/join/:token" element={<InvitationPage />} />
+        <Route path="/oauth/consent" element={<OAuthConsentPage />} />
+        <Route path="/email-registration" element={<EmailRegistrationPage />} />
+        <Route path="/app/*" element={<WorkspaceRoutes />} />
+      </Route>
     </Route>
   </Routes>
 )
