@@ -180,9 +180,9 @@ test('my screens sit above the space switcher and space screens below it', () =>
   }).default
   const html = renderToStaticMarkup(React.createElement(Sidebar))
   const linksIn = (from, to) => [...html.slice(html.indexOf(from), html.indexOf(to)).matchAll(/href="([^"]+)">([^<]+)</g)].map(([, href, label]) => [href, label])
-  assert.deepEqual(linksIn('aria-label="내 화면"', 'id="switcher"'), [['/app/today', '오늘'], ['/app/mind-map', '마인드맵'], ['/app/statistics', '통계']])
+  assert.deepEqual(linksIn('aria-label="내 화면"', 'id="switcher"'), [['/app/today', '오늘'], ['/app/schedules', '일정'], ['/app/mind-map', '마인드맵'], ['/app/statistics', '통계']])
   assert.deepEqual(linksIn('aria-label="스페이스 메뉴"', 'aria-label="관리 메뉴"'), [
-    ['/app/spaces', '스페이스'], ['/app/schedules', '일정'], ['/app/tasks', '작업'], ['/app/task-map', '작업 맵'],
+    ['/app/spaces', '스페이스'], ['/app/tasks', '작업'], ['/app/task-map', '작업 맵'],
   ])
   assert.ok(html.indexOf('aria-label="내 화면"') < html.indexOf('id="switcher"'))
   assert.ok(html.indexOf('id="switcher"') < html.indexOf('aria-label="스페이스 메뉴"'))

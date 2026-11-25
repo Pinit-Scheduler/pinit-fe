@@ -345,14 +345,18 @@ const contextBar = (pathname, spaces, pageSpace = null) =>
 
 test('choosing a project puts its head on top of every screen that shows the selected project', () => {
   const selected = { selectedSpace: space, selectedProject: project() }
-  for (const path of ['/app/tasks', '/app/schedules', '/app/task-map', '/app/plan', '/app/settings/recurrences']) {
+  for (const path of ['/app/tasks', '/app/task-map', '/app/plan', '/app/settings/recurrences']) {
     const html = contextBar(path, selected)
     assert.match(html, /data-head="31:88"/, path)
     assert.ok(html.includes(space.purpose), 'the purpose stays above it')
     assert.ok(!html.includes('목적에 기여할 성과'), 'the outcome is no longer folded inside the purpose')
   }
-  for (const path of ['/app/today', '/app/statistics', '/app/deadline-risk', '/app/settings/trash', '/app/spaces'])
+  for (const path of ['/app/today', '/app/schedules', '/app/statistics', '/app/deadline-risk', '/app/settings/trash', '/app/spaces'])
     assert.doesNotMatch(contextBar(path, selected), /data-head/, path)
+  // 일정은 모든 스페이스를 보여 주는 내 화면이라 고른 스페이스의 목적도 위에 두지 않는다.
+  const schedules = contextBar('/app/schedules', selected)
+  assert.ok(schedules.includes('모든 스페이스 · 일정'))
+  assert.ok(!schedules.includes(space.purpose))
 })
 
 test('the head shows without a space purpose and never for a project of another space', () => {

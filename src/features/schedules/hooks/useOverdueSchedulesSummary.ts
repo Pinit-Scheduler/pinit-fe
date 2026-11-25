@@ -5,8 +5,13 @@ import { getTodayWithOffset, toApiDateTimeWithZone, toDateFromApi, toDateKey } f
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import { useSpaces } from '@features/spaces/store'
+import { scheduleScopeKey } from '@features/spaces/scope'
 
-type Options = { mine?: boolean }
+type Options = {
+  mine?: boolean
+  /** 고른 스페이스·프로젝트 대신 모든 스페이스를 읽는다. */
+  allSpaces?: boolean
+}
 
 const NONE: OverdueSummary = { hasOverdue: false }
 
@@ -31,17 +36,17 @@ const summarize = (schedules: ScheduleResponse[], todayKey: string): OverdueSumm
 }
 
 /** 지난 날짜의 미완료 일정 요약과 재조회 함수. */
-const useOverdueSchedulesSummary = ({ mine }: Options = {}) => {
+const useOverdueSchedulesSummary = ({ mine, allSpaces = false }: Options = {}) => {
   const { offsetMinutes } = useTimePreferences()
   const { selectedSpaceId, selectedProjectId } = useSpaces()
   const today = getTodayWithOffset(offsetMinutes)
   const todayKey = toDateKey(today)
   // 내 일정/팀 전체를 바꾸면 이전 범위의 개수를 보여 주지 않는다.
-  const key = `schedules/overdue/${todayKey}@${offsetMinutes}/${String(mine)}/${selectedSpaceId ?? 'all'}/${selectedProjectId ?? 'all'}`
+  const key = `schedules/overdue/${todayKey}@${offsetMinutes}/${String(mine)}/${scheduleScopeKey(allSpaces, selectedSpaceId, selectedProjectId)}`
   const query = useRevalidatingQuery<OverdueSummary>(
     key,
     // 현재 주의 일정을 조회 (v1 주간 API)
-    async () => summarize(await fetchWeeklySchedules(toApiDateTimeWithZone(today), { mine }), todayKey),
+    async () => summarize(await fetchWeeklySchedules(toApiDateTimeWithZone(today), { mine, allSpaces }), todayKey),
     { invalidateOn: ['schedule'] },
   )
   return {

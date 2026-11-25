@@ -6,10 +6,13 @@ import type { ScheduleResponse } from '../types/schedule'
 import { fetchWeeklySchedules } from '../api/schedules'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import { useSpaces } from '@features/spaces/store'
+import { scheduleScopeKey } from '@features/spaces/scope'
 
 type Options = {
   weekStart: dayjs.Dayjs
   mine?: boolean
+  /** 고른 스페이스·프로젝트 대신 모든 스페이스를 읽는다. */
+  allSpaces?: boolean
 }
 
 type UseWeeklySchedulePresenceReturn = {
@@ -18,16 +21,16 @@ type UseWeeklySchedulePresenceReturn = {
   refetch: () => void
 }
 
-const useWeeklySchedulePresence = ({ weekStart, mine }: Options): UseWeeklySchedulePresenceReturn => {
+const useWeeklySchedulePresence = ({ weekStart, mine, allSpaces = false }: Options): UseWeeklySchedulePresenceReturn => {
   const dateKeys = useMemo(() => getWeekDays(weekStart).map(toDateKey), [weekStart])
   const time = toApiDateTimeWithZone(weekStart.hour(12))
   const { selectedSpaceId, selectedProjectId } = useSpaces()
   // Keyed on the week, not the selected day: picking another day in the same week reads nothing.
   // 내 일정/팀 전체나 주를 바꾸면 이전 범위의 결과를 보여 주지 않는다.
-  const key = `schedules/week/${dateKeys[0]}@${time.zoneId}/${String(mine)}/${selectedSpaceId ?? 'all'}/${selectedProjectId ?? 'all'}`
+  const key = `schedules/week/${dateKeys[0]}@${time.zoneId}/${String(mine)}/${scheduleScopeKey(allSpaces, selectedSpaceId, selectedProjectId)}`
   const query = useRevalidatingQuery<ScheduleResponse[]>(
     key,
-    () => fetchWeeklySchedules(time, { mine }),
+    () => fetchWeeklySchedules(time, { mine, allSpaces }),
     { invalidateOn: ['schedule'], group: 'schedules/week/', errorMessage: '주간 일정을 불러오지 못했어요.' },
   )
 

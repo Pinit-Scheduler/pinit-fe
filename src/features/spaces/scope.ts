@@ -1,8 +1,9 @@
 export type RouteScope = 'selected' | 'all' | 'personal'
 
+// 일정(`/app/schedules`)은 여기에 없다. 오늘·마인드맵·통계처럼 스페이스를 고르지 않는 내 화면이고
+// 모든 스페이스의 일정을 보여 준다.
 const selectedListPaths = [
   '/app/tasks',
-  '/app/schedules',
   '/app/task-map',
   '/app/plan',
   '/app/settings/recurrences',
@@ -37,10 +38,14 @@ function personalSpaceId(defaultSpaceId: number | null): number | undefined {
 
 export type CreateAffiliation = { spaceId?: number; categoryId?: number }
 
+/** 모든 스페이스를 보여 주는 내 화면 가운데, 여기서 만든 것이 나의 스페이스에서 시작하는 화면. */
+const personalCreatePaths = ['/app/today', '/app/schedules']
+
 /**
  * Where a new task or schedule starts, from the screen the create form was opened over.
- * - Today (its buttons, or `?from=today`): the personal space, as before.
- * - A list that shows the selected space (tasks, schedules, map, plan, recurrences):
+ * - Today (its buttons, or `?from=today`) and the schedule screen: the personal space.
+ *   Both show every space, so the space held by the switcher is not what the person is looking at.
+ * - A list that shows the selected space (tasks, map, plan, recurrences):
  *   the selected space and, when one is chosen, its project.
  *   A completed or deleted project, or one from another space, is not a default.
  * - Anywhere else, or no screen behind the form: nothing, so the form falls back
@@ -62,10 +67,10 @@ export function createAffiliationFor(
     }[]
   },
 ): CreateAffiliation {
-  const today =
+  const mineScreen =
     new URLSearchParams(search).get('from') === 'today' ||
-    (from ? listPath(from.pathname) === '/app/today' : false)
-  if (today) {
+    (from ? personalCreatePaths.includes(listPath(from.pathname)) : false)
+  if (mineScreen) {
     const spaceId = personalSpaceId(workspace.defaultSpaceId)
     return spaceId === undefined ? {} : { spaceId }
   }
@@ -106,6 +111,20 @@ export function switcherLabel(
     : space.name
 }
 
+/**
+ * 일정 조회 캐시 key에서 요청이 읽는 스페이스 범위를 가리키는 부분. 모든 스페이스를 읽는 요청은
+ * 고른 스페이스·프로젝트를 보내지 않으므로 선택이 바뀌어도 같은 key다.
+ */
+export function scheduleScopeKey(
+  allSpaces: boolean,
+  selectedSpaceId: number | null,
+  selectedProjectId: number | null,
+): string {
+  return allSpaces
+    ? 'every-space'
+    : `${selectedSpaceId ?? 'all'}/${selectedProjectId ?? 'all'}`
+}
+
 export type ScheduleAudience = 'mine' | 'team'
 
 export function scheduleMineParam(
@@ -115,11 +134,17 @@ export function scheduleMineParam(
   return personal ? undefined : audience === 'mine'
 }
 
-export function audienceFor(
-  spaceId: number | null,
-  stored: { spaceId: number | null; audience: ScheduleAudience } | null,
-): ScheduleAudience {
-  return stored && stored.spaceId === spaceId ? stored.audience : 'mine'
+/**
+ * 일정 화면에 내 일정/팀 전체 전환을 둘지. 일정 화면은 모든 스페이스를 보여 주므로, 고른 스페이스가
+ * 아니라 내가 참여한 스페이스 가운데 다른 참여자가 있는 팀 스페이스가 하나라도 있는지로 정한다.
+ * 휴지통에 있는 스페이스의 일정은 목록에 오지 않으므로 세지 않는다.
+ */
+export function hasSharedSpace(
+  spaces: { personal: boolean; members: unknown[]; deleted?: boolean }[],
+): boolean {
+  return spaces.some(
+    (space) => !space.deleted && !space.personal && space.members.length >= 2,
+  )
 }
 
 // Same rule as the server's mine=true: the caller is the assignee.

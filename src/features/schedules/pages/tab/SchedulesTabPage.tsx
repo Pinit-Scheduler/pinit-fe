@@ -170,9 +170,10 @@ const SchedulesTabPage = () => {
   }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
-  const { memberId, selectedSpace, selectedProjectId } = useSpaces()
+  const { memberId, spaces } = useSpaces()
   const { audience, setAudience, shared } = useScheduleAudience()
-  // 주간·월간 표시는 서버의 mine 조회를 쓴다. 전환이 없는 스페이스는 서버 기본 조회를 유지한다.
+  // 일정 화면은 고른 스페이스·프로젝트와 상관없이 모든 스페이스의 일정을 읽는다(오늘·통계와 같은 내 화면).
+  // 주간·월간 표시는 서버의 mine 조회를 쓴다. 전환이 없으면 서버 기본 조회를 유지한다.
   const mine = scheduleMineParam(!shared, audience)
   // Keyed by week: picking another day in the same week reads nothing new.
   const {
@@ -182,11 +183,13 @@ const SchedulesTabPage = () => {
   } = useWeeklySchedulePresence({
     weekStart: currentWeekStart,
     mine,
+    allSpaces: true,
   })
   const monthly = useMonthlySchedules(
     selectedDate,
     calendarView === 'month',
     mine,
+    true,
   )
   const {
     schedules: schedulesByDate,
@@ -196,11 +199,11 @@ const SchedulesTabPage = () => {
     error: scheduleErrorRaw,
     refetch: refetchSchedulesRaw,
     setData: setDaySchedules,
-  } = useScheduleList(selectedDate)
+  } = useScheduleList(selectedDate, { allSpaces: true })
   // Rows exist for this day (fresh or refreshing). Only their absence shows a loading or error panel.
   const hasDayData = dayData !== undefined
   const { summary: overdueSummary, refetch: refetchOverdue } =
-    useOverdueSchedulesSummary({ mine })
+    useOverdueSchedulesSummary({ mine, allSpaces: true })
   // The banner rises in when overdue schedules appear and fades out when the last one is done.
   // One that is already known when the page mounts (from the cache) is simply there.
   const overdueBanner = usePresence(
@@ -239,11 +242,13 @@ const SchedulesTabPage = () => {
   const assigneeOf = (schedule: ScheduleSummary) => {
     if (schedule.assigneeId === null)
       return { label: '담당자 미정', unassigned: true }
+    // 일정마다 스페이스가 다를 수 있으므로 그 일정의 스페이스에서 참여자 이름을 찾는다.
     const label =
       schedule.assigneeNickname ||
-      selectedSpace?.members.find(
-        (member) => member.memberId === schedule.assigneeId,
-      )?.nickname
+      spaces
+        .find((space) => space.id === schedule.spaceId)
+        ?.members.find((member) => member.memberId === schedule.assigneeId)
+        ?.nickname
     return label ? { label, unassigned: false } : null
   }
   // The week dots failing never blanks the day list; it only raises a toast.
@@ -254,13 +259,13 @@ const SchedulesTabPage = () => {
     monthly.refetch()
   }
 
-  // New rows rise in, removed rows fade out where they were. Another day, audience or space is a
+  // New rows rise in, removed rows fade out where they were. Another day or audience is a
   // new baseline: its rows arrive with the day transition instead.
   const rows = useListPresence(
     hasDayData ? schedules : undefined,
     (schedule) => schedule.id,
     {
-      resetKey: `${selectedDateKey}|${audience}|${selectedSpace?.id ?? 'all'}|${selectedProjectId ?? 'all'}`,
+      resetKey: `${selectedDateKey}|${audience}`,
     },
   )
 

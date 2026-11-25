@@ -291,6 +291,8 @@ export function SpaceContextBar() {
   const trash = pathname === '/app/settings/trash'
   const deadlineRisk = pathname === '/app/deadline-risk'
   const statistics = pathname === '/app/statistics'
+  // 일정은 모든 스페이스를 보여 주는 내 화면이다. 고른 스페이스의 목적·프로젝트를 그 위에 두지 않는다.
+  const schedules = pathname === '/app/schedules'
   const { selectedSpace, selectedProject } = useSpaces()
   const pageSpace = usePageSpace()
   // 쪼개기 화면이 다른 스페이스의 요청을 보이면 고른 스페이스의 목적을 그 위에 두지 않는다.
@@ -320,7 +322,10 @@ export function SpaceContextBar() {
       {statistics && (
         <span className="space-context__project">모든 스페이스 · 내 기록</span>
       )}
-      {!today && !trash && !deadlineRisk && !statistics && !foreign && selectedSpace?.purpose && (
+      {schedules && (
+        <span className="space-context__project">모든 스페이스 · 일정</span>
+      )}
+      {!today && !trash && !deadlineRisk && !statistics && !schedules && !foreign && selectedSpace?.purpose && (
         <details>
           <summary>
             <span>목적</span>
@@ -337,6 +342,7 @@ export function SpaceContextBar() {
         !trash &&
         !deadlineRisk &&
         !statistics &&
+        !schedules &&
         selectedSpace &&
         selectedProject &&
         selectedProject.spaceId === selectedSpace.id && (

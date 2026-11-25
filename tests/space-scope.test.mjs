@@ -31,7 +31,6 @@ function load(path, dependencies = {}) {
 test('route scope follows the screen, not the selection', () => {
   const { routeScope } = load('features/spaces/scope.ts')
   assert.equal(routeScope('/app/tasks'), 'selected')
-  assert.equal(routeScope('/app/schedules'), 'selected')
   assert.equal(routeScope('/app/task-map'), 'selected')
   assert.equal(routeScope('/app/plan'), 'selected')
   assert.equal(routeScope('/app/settings/recurrences'), 'selected')
@@ -42,13 +41,16 @@ test('route scope follows the screen, not the selection', () => {
   assert.equal(routeScope('/app/settings/trash'), 'all')
   assert.equal(routeScope('/app/spaces'), 'all')
   assert.equal(routeScope('/app/mind-map'), 'all')
+  // 일정은 스페이스를 고르지 않는 내 화면이다(오늘·마인드맵·통계와 같은 묶음).
+  assert.equal(routeScope('/app/schedules'), 'all')
+  assert.equal(routeScope('/app/schedules/'), 'all')
   assert.equal(routeScope('/app/tasks/12'), 'all')
   assert.equal(routeScope('/app/tasks/new'), 'all')
   assert.equal(routeScope('/app/schedules/5/edit'), 'all')
 })
 test('choosing a project stays on scoped lists and leaves detail screens', () => {
   const { projectSelectionTarget } = load('features/spaces/scope.ts')
-  assert.equal(projectSelectionTarget('/app/schedules'), null)
+  assert.equal(projectSelectionTarget('/app/schedules'), '/app/tasks')
   assert.equal(projectSelectionTarget('/app/task-map'), null)
   assert.equal(projectSelectionTarget('/app/tasks'), null)
   assert.equal(projectSelectionTarget('/app/plan'), null)
@@ -83,11 +85,17 @@ test('schedule audience maps to the mine parameter', () => {
   assert.equal(scheduleMineParam(false, 'mine'), true)
   assert.equal(scheduleMineParam(false, 'team'), false)
 })
-test('switching spaces brings the schedule view back to mine', () => {
-  const { audienceFor } = load('features/spaces/scope.ts')
-  assert.equal(audienceFor(31, null), 'mine')
-  assert.equal(audienceFor(31, { spaceId: 31, audience: 'team' }), 'team')
-  assert.equal(audienceFor(44, { spaceId: 31, audience: 'team' }), 'mine')
+test('the schedule audience switch shows when any of my spaces is shared', () => {
+  const { hasSharedSpace } = load('features/spaces/scope.ts')
+  const member = (memberId) => ({ memberId })
+  const personal = { personal: true, members: [member(7)] }
+  const solo = { personal: false, members: [member(7)] }
+  const team = { personal: false, members: [member(7), member(9)] }
+  assert.equal(hasSharedSpace([]), false)
+  assert.equal(hasSharedSpace([personal]), false)
+  assert.equal(hasSharedSpace([personal, solo]), false, 'a team space with only me is not shared')
+  assert.equal(hasSharedSpace([personal, solo, team]), true, 'whichever space is selected')
+  assert.equal(hasSharedSpace([personal, { ...team, deleted: true }]), false, 'a space in the trash shows no schedules')
 })
 test('my schedules keep only my assignments and count the hidden ones', () => {
   const { audienceSchedules } = load('features/spaces/scope.ts')
@@ -133,11 +141,82 @@ test('the overdue banner asks the server for the audience it is given, under its
       },
     },
     '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: 22, selectedProjectId: null }) },
+    '@features/spaces/scope': load('features/spaces/scope.ts'),
   }).default
   for (const mine of [true, false, undefined]) useOverdueSchedulesSummary({ mine })
   for (const { fetcher } of queries) await fetcher(new AbortController().signal)
   assert.deepEqual(requests.map((options) => options.mine), [true, false, undefined])
   assert.equal(new Set(queries.map((query) => query.key)).size, 3, 'switching the audience never shows the other count')
+})
+test('the schedule screen reads every space, whichever space is selected', async () => {
+  const requests = []
+  const queries = []
+  const selection = { selectedSpaceId: 22, selectedProjectId: 7 }
+  const dayjs = (value) => ({
+    value,
+    hour: () => dayjs(value),
+    format: () => value.slice(0, 7),
+  })
+  const shared = {
+    '../api/schedules': {
+      fetchSchedules: async (time, options) => (requests.push(['day', options]), []),
+      fetchWeeklySchedules: async (time, options) => (requests.push(['week', options]), []),
+    },
+    '@shared/utils/datetime': {
+      getTodayWithOffset: () => new Date(0),
+      getWeekDays: () => ['2026-11-09'],
+      toApiDateTimeWithZone: () => ({ dateTime: '2026-11-10T12:00:00', zoneId: 'Asia/Seoul' }),
+      toDateFromApi: () => new Date(0),
+      toDateKey: () => '2026-11-10',
+    },
+    '../utils/monthGrid': { monthWeekStarts: () => [dayjs('2026-11-02')], summarizeByDate: () => ({}) },
+    '@contexts/TimePreferencesContext': { useTimePreferences: () => ({ offsetMinutes: 540 }) },
+    '@shared/hooks/useRevalidatingQuery': {
+      useRevalidatingQuery: (key, fetcher) => {
+        queries.push({ key, fetcher })
+        return { data: undefined, error: null }
+      },
+    },
+    '@features/spaces/store': { useSpaces: () => selection },
+    '@features/spaces/scope': load('features/spaces/scope.ts'),
+    dayjs: { default: () => ({ isBefore: () => false }) },
+    react: { useMemo: (factory) => factory() },
+  }
+  const hook = (name) => load(`features/schedules/hooks/${name}.ts`, shared).default
+  const render = (allSpaces) => {
+    hook('useScheduleList')(dayjs('2026-11-10'), { allSpaces })
+    hook('useWeeklySchedulePresence')({ weekStart: dayjs('2026-11-09'), mine: true, allSpaces })
+    hook('useMonthlySchedules')(dayjs('2026-11-10'), true, true, allSpaces)
+    hook('useOverdueSchedulesSummary')({ mine: true, allSpaces })
+  }
+  render(true)
+  const everySpace = queries.splice(0).map((query) => query)
+  selection.selectedSpaceId = 31
+  selection.selectedProjectId = null
+  render(true)
+  assert.deepEqual(
+    queries.map((query) => query.key),
+    everySpace.map((query) => query.key),
+    'another selected space or project is the same list, so nothing is read again',
+  )
+  render(false)
+  const selected = queries.slice(4)
+  for (const [index, query] of selected.entries())
+    assert.notEqual(query.key, everySpace[index].key, 'the selected-space list keeps its own key')
+  for (const { fetcher } of [...everySpace, ...selected]) await fetcher(new AbortController().signal)
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(requests)),
+    [
+      ['day', { allSpaces: true }],
+      ['week', { mine: true, allSpaces: true }],
+      ['week', { mine: true, allSpaces: true }],
+      ['week', { mine: true, allSpaces: true }],
+      ['day', { allSpaces: false }],
+      ['week', { mine: true, allSpaces: false }],
+      ['week', { mine: true, allSpaces: false }],
+      ['week', { mine: true, allSpaces: false }],
+    ],
+  )
 })
 test('a new item starts in the space and project of the screen behind the form', () => {
   const { createAffiliationFor } = load('features/spaces/scope.ts')
@@ -163,7 +242,6 @@ test('a new item starts in the space and project of the screen behind the form',
   for (const path of [
     '/app/tasks',
     '/app/tasks/',
-    '/app/schedules',
     '/app/task-map',
     '/app/plan',
     '/app/settings/recurrences',
@@ -192,6 +270,12 @@ test('a new item starts in the space and project of the screen behind the form',
     'personal space still loading: the form falls back',
   )
   assert.deepEqual(from('/app/today', 7, { defaultSpaceId: null }), {}, 'no personal space')
+
+  // The schedule screen shows every space, so a schedule added from it starts in the personal
+  // space too, not in whichever space the switcher happens to hold.
+  assert.deepEqual(from('/app/schedules', 7), { spaceId: -4 })
+  assert.deepEqual(from('/app/schedules/', null), { spaceId: -4 })
+  assert.deepEqual(from('/app/schedules', 7, { defaultSpaceId: 0 }), {}, 'personal space still loading')
 
   // Screens that are not a selected-space list, or no screen behind: the form's fallback.
   for (const path of ['/app/spaces', '/app/statistics', '/app/settings', '/app/deadline-risk'])

@@ -404,7 +404,7 @@ const tabHarness = () => {
     '@features/recurrence/components/RecurrenceScopeDialog': { useRecurrenceScope: () => ({ dialog: null, ask: async () => 'THIS' }) },
     '@features/recurrence/utils/seriesMutations': { confirmAndDeleteSeries() {}, previewSeriesDelete() {} },
     '@features/recurrence/utils/recurrenceRules': { isBeyondGeneration: () => false },
-    '@features/spaces/store': { useSpaces: () => ({ memberId: 1, selectedSpace: null, selectedProjectId: null }) },
+    '@features/spaces/store': { useSpaces: () => ({ memberId: 1, spaces: [] }) },
     '@features/spaces/conflicts': { conflictReloadedMessage: () => '', isEditConflict: () => false },
     '@features/spaces/scope': {
       audienceSchedules: (schedules) => ({ visible: schedules, hidden: 0 }),
