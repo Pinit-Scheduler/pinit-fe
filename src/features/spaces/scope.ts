@@ -1,13 +1,15 @@
 export type RouteScope = 'selected' | 'all' | 'personal'
 
+// 일정(`/app/schedules`)은 여기에 없다. 오늘·마인드맵·통계처럼 스페이스를 고르지 않는 내 화면이고
+// 모든 스페이스의 일정을 보여 준다.
 const selectedListPaths = [
   '/app/tasks',
-  '/app/schedules',
   '/app/task-map',
   '/app/plan',
   '/app/settings/recurrences',
 ]
 const personalListPaths = ['/app/deadline-risk']
+const spaceFreePaths = ['/app/mind-map', '/app/schedules']
 
 function listPath(pathname: string) {
   return pathname.length > 1 && pathname.endsWith('/')
@@ -20,6 +22,14 @@ export function routeScope(pathname: string): RouteScope {
   if (selectedListPaths.includes(path)) return 'selected'
   if (personalListPaths.includes(path)) return 'personal'
   return 'all'
+}
+
+/**
+ * 스페이스와 상관없는 내 화면인지. 마인드맵과 일정은 개인 것이고 어느 스페이스에도 속하지 않는다.
+ * 이런 화면에는 범위 표시("모든 스페이스", 고른 스페이스의 목적·프로젝트)를 두지 않는다.
+ */
+export function isSpaceFreeScreen(pathname: string): boolean {
+  return spaceFreePaths.includes(listPath(pathname))
 }
 
 export function projectSelectionTarget(pathname: string): string | null {
@@ -38,9 +48,10 @@ function personalSpaceId(defaultSpaceId: number | null): number | undefined {
 export type CreateAffiliation = { spaceId?: number; categoryId?: number }
 
 /**
- * Where a new task or schedule starts, from the screen the create form was opened over.
+ * Where a new task starts, from the screen the create form was opened over.
+ * (A schedule is personal and belongs to no space, so its form does not ask.)
  * - Today (its buttons, or `?from=today`): the personal space, as before.
- * - A list that shows the selected space (tasks, schedules, map, plan, recurrences):
+ * - A list that shows the selected space (tasks, map, plan, recurrences):
  *   the selected space and, when one is chosen, its project.
  *   A completed or deleted project, or one from another space, is not a default.
  * - Anywhere else, or no screen behind the form: nothing, so the form falls back
@@ -94,6 +105,25 @@ export function scopeCrumb(
   return project ? `${space.name} › ${project.name}` : space.name
 }
 
+/**
+ * 상단 경로에 보일 범위 이름. 스페이스와 상관없는 내 화면(마인드맵, 일정)에는 없다(`null`).
+ * 나의 스페이스만 보는 화면은 나의 스페이스를, 그 밖은 고른 스페이스·프로젝트나 "모든 스페이스"를 말한다.
+ */
+export function scopeLabelFor(
+  pathname: string,
+  personalSpace: { name: string; personal: boolean } | null,
+  selectedSpace: { name: string; personal: boolean } | null,
+  selectedProject: { name: string } | null,
+): string | null {
+  if (isSpaceFreeScreen(pathname)) return null
+  const scope = routeScope(pathname)
+  return scopeCrumb(
+    scope,
+    scope === 'personal' ? personalSpace : selectedSpace,
+    selectedProject,
+  )
+}
+
 export function switcherLabel(
   scope: RouteScope,
   space: { name: string } | null,
@@ -106,32 +136,70 @@ export function switcherLabel(
     : space.name
 }
 
-export type ScheduleAudience = 'mine' | 'team'
-
-export function scheduleMineParam(
-  personal: boolean,
-  audience: ScheduleAudience,
-): boolean | undefined {
-  return personal ? undefined : audience === 'mine'
+/**
+ * 일정 조회 캐시 key에서 요청이 읽는 스페이스 범위를 가리키는 부분. 모든 스페이스를 읽는 요청은
+ * 고른 스페이스·프로젝트를 보내지 않으므로 선택이 바뀌어도 같은 key다. 그래서 화면의 목록이 그대로 남는다
+ * (선택이 바뀔 때 나는 `schedule:changed`에는 같은 key로 백그라운드에서 다시 받는다).
+ */
+export function scheduleScopeKey(
+  allSpaces: boolean,
+  selectedSpaceId: number | null,
+  selectedProjectId: number | null,
+): string {
+  return allSpaces
+    ? 'every-space'
+    : `${selectedSpaceId ?? 'all'}/${selectedProjectId ?? 'all'}`
 }
 
-export function audienceFor(
-  spaceId: number | null,
-  stored: { spaceId: number | null; audience: ScheduleAudience } | null,
-): ScheduleAudience {
-  return stored && stored.spaceId === spaceId ? stored.audience : 'mine'
+/**
+ * 고른 스페이스가 나의 스페이스가 아닌지. 새 일정·반복 일정은 늘 나의 스페이스에 생기므로, 고른 스페이스만
+ * 보여 주는 화면(반복 관리)이 "여기에 모인다"고 말해도 되는지를 가린다.
+ * 아직 모르는 동안(불러오는 중의 나의 스페이스 0, 고른 스페이스 없음)에는 아니라고 답해 평소 문구를 둔다.
+ */
+export function outsidePersonalSpace(
+  defaultSpaceId: number | null,
+  selectedSpaceId: number | null,
+): boolean {
+  const personal = personalSpaceId(defaultSpaceId)
+  return (
+    personal !== undefined &&
+    selectedSpaceId !== null &&
+    selectedSpaceId !== personal
+  )
 }
 
-// Same rule as the server's mine=true: the caller is the assignee.
-export function audienceSchedules<T extends { assigneeId?: number | null }>(
+/**
+ * 일정 화면이 보여 주는 내 일정. 일정은 개인 단위이고, 일정에 올린 사람이 그 일정의 작업자다.
+ * 작업과 일정은 묶이지 않는다: 누가 작업을 맡았는지와 상관없이 일정은 올린 사람의 것이다.
+ * - 내가 올린 일정(`ownerId`). 서버는 아직 작업의 담당자를 일정에 복사하므로, 다른 사람이 맡은 작업을
+ *   내 일정에 올리면 `assigneeId`는 그 사람이다. 그래도 내 일정이다.
+ * - 내가 담당인 일정. 서버가 올린 사람을 작업자로 남기기 전에 만들어진, 다른 사람이 올리고 내가 담당인
+ *   일정을 잃지 않으려고 남긴다. 서버가 바뀌면 위 조건과 같아진다.
+ * - 담당자가 없는 일정은, 다른 참여자가 있는 팀 스페이스의 것이 아니면 내 것으로 본다
+ *   (나의 스페이스, 나만 있는 스페이스, 스페이스를 아직 모르는 일정). 그 일정을 볼 사람이 나뿐이다.
+ * 다른 사람이 올렸고 내가 담당도 아닌 일정은 내 일정이 아니다.
+ * 회원을 아직 모르면(불러오는 중의 0) 아무것도 내 일정으로 보지 않는다.
+ */
+export function ownSchedules<
+  T extends { ownerId?: number; assigneeId?: number | null; spaceId?: number },
+>(
   schedules: T[],
-  shared: boolean,
-  audience: ScheduleAudience,
   memberId: number,
-): { visible: T[]; hidden: number } {
-  if (!shared || audience === 'team') return { visible: schedules, hidden: 0 }
-  const visible = schedules.filter((item) => item.assigneeId === memberId)
-  return { visible, hidden: schedules.length - visible.length }
+  spaces: { id: number; personal: boolean; members: unknown[] }[],
+): T[] {
+  if (!memberId) return []
+  const shared = new Set(
+    spaces
+      .filter((space) => !space.personal && space.members.length >= 2)
+      .map((space) => space.id),
+  )
+  return schedules.filter(
+    (schedule) =>
+      schedule.ownerId === memberId ||
+      (schedule.assigneeId == null
+        ? schedule.spaceId === undefined || !shared.has(schedule.spaceId)
+        : schedule.assigneeId === memberId),
+  )
 }
 
 export function sheetProjects<

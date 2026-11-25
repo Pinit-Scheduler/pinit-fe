@@ -91,12 +91,15 @@ export type ScheduleSimpleRequest = {
   expectedVersion?: number
 }
 export type ScheduleSimplePatchRequest = Partial<ScheduleSimpleRequest>
+/**
+ * 일정을 만든다. 일정은 개인 단위라서 고른 스페이스·프로젝트를 빌려 쓰지 않는다.
+ * `spaceId`가 없으면 위치를 보내지 않고, 서버가 만든 사람의 나의 스페이스에 둔다.
+ */
 export async function createSchedule(payload: ScheduleSimpleRequest) {
   const revision = getResourceRevision()
-  const selected = getSelectedScope()
   const {
-    spaceId = selected.spaceId,
-    projectId = selected.projectId,
+    spaceId,
+    projectId,
     assigneeId,
     expectedVersion: _version,
     ...schedule
@@ -109,7 +112,7 @@ export async function createSchedule(payload: ScheduleSimpleRequest) {
         schedule: { ...schedule, date: toApiDateTimeWithZone(schedule.date) },
         ...(spaceId === undefined || spaceId === null
           ? {}
-          : { location: { spaceId, projectId } }),
+          : { location: { spaceId, projectId: projectId ?? null } }),
         ...(assigneeId !== undefined
           ? { assignee: { memberId: assigneeId ?? null } }
           : {}),

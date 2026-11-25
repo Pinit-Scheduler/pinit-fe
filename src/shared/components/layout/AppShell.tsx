@@ -21,7 +21,7 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import './AppShell.css'
 import { SpaceContextBar, SpaceSwitcher } from '@features/spaces/SpaceChrome'
 import { useSpaces } from '@features/spaces/store'
-import { routeScope, scopeCrumb } from '@features/spaces/scope'
+import { scopeLabelFor } from '@features/spaces/scope'
 import { prefersReducedMotion } from '@shared/motion/tokens'
 import { playRise } from '@shared/motion/playRise'
 import { backTarget } from '@shared/routing/backTarget'
@@ -161,13 +161,13 @@ const AppShell = () => {
     spaces.find((space) => space.id === defaultSpaceId) ?? null
   // 마인드맵은 스페이스와 상관없는 내 화면이고 본문 전체를 캔버스로 쓴다. 범위 표시를 두지 않는다.
   const isCanvasPage = pathname === '/app/mind-map'
-  const scopeLabel = isCanvasPage
-    ? null
-    : scopeCrumb(
-        routeScope(pathname),
-        routeScope(pathname) === 'personal' ? personalSpace : selectedSpace,
-        selectedProject,
-      )
+  // 일정도 스페이스와 상관없는 내 화면이다. 범위 표시를 두지 않는다(scopeLabelFor).
+  const scopeLabel = scopeLabelFor(
+    pathname,
+    personalSpace,
+    selectedSpace,
+    selectedProject,
+  )
   const showSettingsButton = !pathname.startsWith('/app/settings')
   const isScheduleDetail =
     pathname.startsWith('/app/schedules/') && pathname.split('/').length > 3

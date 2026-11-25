@@ -1,5 +1,5 @@
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import { cardPath } from '@features/spaces/cardPath'
+import { schedulePath } from '@features/spaces/cardPath'
 import SpacePath from '@features/spaces/SpacePath'
 import { useSpaces } from '@features/spaces/store'
 import { useId } from 'react'
@@ -212,8 +212,9 @@ const ScheduleDetailModal = ({
             {schedule.description}
           </p>
           <div className="schedule-detail-modal__meta">
+            {/* 일정은 스페이스에 속하지 않는다. 작업에 연결된 일정만 그 작업의 자리를 보인다. */}
             <SpacePath
-              path={cardPath(
+              path={schedulePath(
                 'all',
                 { spaceId: null, projectId: null },
                 schedule,

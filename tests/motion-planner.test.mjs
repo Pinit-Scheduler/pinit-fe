@@ -97,7 +97,11 @@ test('a plain click on a surface link opens the surface; modified clicks keep th
 /* useDayPlan on the real stale-while-revalidate store.              */
 /* ---------------------------------------------------------------- */
 
-const dayPlanHarness = (fetchDayPlan, fetchSchedules = async () => []) => {
+const dayPlanHarness = (
+  fetchDayPlan,
+  fetchSchedules = async () => [],
+  workspace = { selectedSpaceId: 3, selectedProjectId: null, memberId: 7, spaces: [], error: null, reload: async () => {} },
+) => {
   const slots = []
   const pending = []
   let cursor = 0
@@ -116,6 +120,7 @@ const dayPlanHarness = (fetchDayPlan, fetchSchedules = async () => []) => {
       return slots[i]
     },
     useCallback: (fn, deps) => memo(() => fn, deps),
+    useMemo: memo,
     useEffect: (fn, deps) => {
       const i = cursor++
       const old = slots[i]
@@ -147,7 +152,8 @@ const dayPlanHarness = (fetchDayPlan, fetchSchedules = async () => []) => {
   const useDayPlan = load('features/planner/hooks/useDayPlan.ts', {
     react,
     '@shared/utils/sameData': load('shared/utils/sameData.ts'),
-    '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: 3, selectedProjectId: null }) },
+    '@features/spaces/store': { useSpaces: () => workspace },
+    '@features/spaces/scope': load('features/spaces/scope.ts', {}),
     '@features/schedules/api/schedules': { fetchSchedules },
     '@shared/hooks/useRevalidatingQuery': revalidatingQuery,
     '../api/plans': { fetchDayPlan },
@@ -308,6 +314,59 @@ test('a window past midnight also reads the next day; schedules arrive once each
   const state = host.render(props)
   assert.deepEqual(reads, ['2026-11-10T12:00:00', '2026-11-11T12:00:00'])
   assert.deepEqual(Array.from(state.schedules, (schedule) => schedule.id), [1, 2, 3])
+})
+
+test('the plan avoids my schedules from every space, not the schedules of the selected space', async () => {
+  // 제품팀(31)을 골랐다. 나의 스페이스에 내 일정이, 제품팀에 다른 사람과 담당자 없는 일정이 있다.
+  const rows = [
+    { id: 1, spaceId: -7, assigneeId: 7, date: { dateTime: '2026-11-10T14:00:00' } },
+    { id: 2, spaceId: 31, assigneeId: 9, date: { dateTime: '2026-11-10T11:00:00' } },
+    { id: 3, spaceId: 31, assigneeId: null, date: { dateTime: '2026-11-10T16:00:00' } },
+    { id: 4, spaceId: 31, assigneeId: 7, date: { dateTime: '2026-11-10T09:00:00' } },
+  ]
+  const scopes = []
+  let reloads = 0
+  const workspace = {
+    selectedSpaceId: 31, selectedProjectId: null, memberId: 0, spaces: [], error: null,
+    reload: async () => { reloads += 1 },
+  }
+  const host = dayPlanHarness(
+    async ({ date }) => planFor(date, 1),
+    async (time, scope) => (scopes.push(scope), rows),
+    workspace,
+  )
+  const props = { date: '2026-11-10', zoneId: 'UTC', horizonDays: 7 }
+  host.render(props)
+  await settle()
+  assert.deepEqual(JSON.parse(JSON.stringify(scopes)), [{ allSpaces: true }], 'the obstacles are read from every space')
+  // 내가 누구인지 모르는 동안에는 계획을 내보내지 않는다. 기존 일정 없이 보이면 겹침을 못 보고 승인하게 된다.
+  const unknown = host.render(props)
+  assert.deepEqual(Array.from(unknown.schedules), [], 'until I am known nothing is drawn as mine')
+  assert.equal(unknown.plan, null, 'and the plan is withheld rather than shown without its obstacles')
+  assert.equal(unknown.planKey, null)
+  assert.equal(unknown.isInitialLoading, true)
+  assert.equal(unknown.error, null)
+  // 스페이스 정보를 못 받았으면 그 실패를 보이고, 다시 시도가 스페이스 정보부터 다시 받는다.
+  workspace.error = '스페이스를 불러오지 못했어요.'
+  const failed = host.render(props)
+  assert.equal(failed.error, '스페이스를 불러오지 못했어요.')
+  assert.equal(failed.plan, null)
+  assert.equal(failed.isInitialLoading, false)
+  failed.refetch()
+  assert.equal(reloads, 1, 'retry reloads the workspace')
+  await settle()
+  workspace.error = null
+  scopes.length = 1
+  // 회원과 스페이스가 나중에 도착하면 받아 둔 응답을 다시 거른다. 빈 목록이 캐시에 남지 않는다.
+  workspace.memberId = 7
+  workspace.spaces = [
+    { id: -7, personal: true, members: [{ memberId: 7 }] },
+    { id: 31, personal: false, members: [{ memberId: 7 }, { memberId: 9 }] },
+  ]
+  const known = host.render(props)
+  assert.deepEqual(Array.from(known.schedules, (schedule) => schedule.id), [4, 1], 'mine only, in start order')
+  assert.equal(host.render(props).schedules, known.schedules, 'the same list object while nothing changes')
+  assert.equal(scopes.length, 1, 'filtering reads nothing again')
 })
 
 /* ---------------------------------------------------------------- */

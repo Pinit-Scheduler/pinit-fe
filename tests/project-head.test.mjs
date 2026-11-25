@@ -345,14 +345,17 @@ const contextBar = (pathname, spaces, pageSpace = null) =>
 
 test('choosing a project puts its head on top of every screen that shows the selected project', () => {
   const selected = { selectedSpace: space, selectedProject: project() }
-  for (const path of ['/app/tasks', '/app/schedules', '/app/task-map', '/app/plan', '/app/settings/recurrences']) {
+  for (const path of ['/app/tasks', '/app/task-map', '/app/plan', '/app/settings/recurrences']) {
     const html = contextBar(path, selected)
     assert.match(html, /data-head="31:88"/, path)
     assert.ok(html.includes(space.purpose), 'the purpose stays above it')
     assert.ok(!html.includes('목적에 기여할 성과'), 'the outcome is no longer folded inside the purpose')
   }
-  for (const path of ['/app/today', '/app/statistics', '/app/deadline-risk', '/app/settings/trash', '/app/spaces'])
+  for (const path of ['/app/today', '/app/schedules', '/app/statistics', '/app/deadline-risk', '/app/settings/trash', '/app/spaces'])
     assert.doesNotMatch(contextBar(path, selected), /data-head/, path)
+  // 일정은 개인 것이고 어느 스페이스에도 속하지 않는다. 마인드맵처럼 범위 표시 자체가 없다.
+  assert.equal(contextBar('/app/schedules', selected), '')
+  assert.equal(contextBar('/app/mind-map', selected), '')
 })
 
 test('the head shows without a space purpose and never for a project of another space', () => {

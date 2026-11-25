@@ -389,3 +389,30 @@ test('scheduling a task bumps the task version and gives the schedule to its ass
   assert.equal(stale.status, 409)
   assert.equal(stale.body.code, 'VERSION_CONFLICT')
 })
+
+test('moving a schedule clears an assignee who is not in the destination, and keeps one who is', async () => {
+  const { api } = setup()
+  const { start, end } = weekRange()
+  const team = await api(`/v2/workspace/schedules?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&spaceId=2`)
+  assert.equal(team.status, 200)
+  const theirs = team.body.find((view) => view.assigneeId !== null && view.assigneeId !== 1)
+  const mine = team.body.find((view) => view.assigneeId === 1)
+  assert.ok(theirs && mine, 'the fixture has a team schedule held by another member and one held by me')
+  // 일정은 올린 사람의 것이다. 팀원이 맡은 일정은 그 팀원이 올린 것으로 심겨 있어야 일정 화면의 "내 일정이 아닌 것"을 볼 수 있다.
+  assert.equal(theirs.schedule.ownerId, theirs.assigneeId, 'a teammate-held seed is registered by that teammate')
+  assert.equal(mine.schedule.ownerId, 1)
+  // 나의 스페이스에는 나만 있다. 담당자를 고르지 않고 옮기면 다른 사람의 담당은 풀린다(서버 clearForeignAssignee와 같다).
+  const moved = await api(`/v2/workspace/schedules/${theirs.schedule.id}`, 'PATCH', {
+    expectedVersion: theirs.version,
+    location: { spaceId: -1, projectId: null },
+  })
+  assert.equal(moved.status, 200)
+  assert.equal(moved.body.spaceId, -1)
+  assert.equal(moved.body.assigneeId, null)
+  const kept = await api(`/v2/workspace/schedules/${mine.schedule.id}`, 'PATCH', {
+    expectedVersion: mine.version,
+    location: { spaceId: -1, projectId: null },
+  })
+  assert.equal(kept.status, 200)
+  assert.equal(kept.body.assigneeId, 1, 'I am a member of my own space')
+})

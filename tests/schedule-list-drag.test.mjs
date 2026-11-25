@@ -133,6 +133,7 @@ const listHarness = () => {
     '@shared/hooks/useRevalidatingQuery': query,
     '@shared/api/errorMessage': errorMessage,
     '@features/spaces/store': { useSpaces: () => scope },
+    '@features/spaces/scope': loadModule('../src/features/spaces/scope.ts', {}),
   }).default
   return {
     requests, scope, events,

@@ -1,7 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { useMemo } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
 import ScheduleForm from '../../components/ScheduleForm'
 import {
   getDisplayZoneId,
@@ -43,7 +42,6 @@ const ScheduleCreatePage = () => {
   const initialDateKey =
     (location.state as LocationState | null)?.initialDateKey ??
     (dateParam && parseDateKey(dateParam) ? dateParam : undefined)
-  const affiliation = useCreateAffiliation()
 
   const initialValues = useMemo(() => {
     void offsetMinutes
@@ -54,13 +52,8 @@ const ScheduleCreatePage = () => {
       if (!targetDate.isValid()) return undefined
       return targetDate.hour(now.hour()).minute(0).second(0).toDate()
     })()
-    if (date === undefined && affiliation.spaceId === undefined)
-      return undefined
-    return {
-      ...(date === undefined ? {} : { date }),
-      ...affiliation,
-    }
-  }, [initialDateKey, offsetMinutes, affiliation])
+    return date === undefined ? undefined : { date }
+  }, [initialDateKey, offsetMinutes])
 
   const handleClose = () => complete('/app/schedules')
   const handleSubmit = async (
@@ -75,13 +68,10 @@ const ScheduleCreatePage = () => {
       const plannedDuration = parseDurationInput(
         values.plannedDurationMinutes ?? '',
       )
+      // 일정은 개인 것이고 어느 스페이스에도 속하지 않는다. 스페이스·프로젝트·담당자를 보내지 않는다.
+      // 서버는 위치 없는 일정을 만든 사람의 것으로 둔다.
       const payload = {
-        spaceId: values.spaceId,
-        projectId: values.categoryId,
         expectedVersion: values.expectedVersion,
-        ...(values.assigneeId !== undefined
-          ? { assigneeId: values.assigneeId }
-          : {}),
         title: values.title,
         description: values.description,
         date: toApiDateTimeWithZone(values.date),
@@ -118,12 +108,8 @@ const ScheduleCreatePage = () => {
       values.plannedDurationMinutes ?? '',
     )
     try {
+      // 반복 일정(FIXED)도 같다. createRecurrence가 FIXED에는 위치와 담당자를 싣지 않는다.
       const payload = {
-        spaceId: values.spaceId,
-        projectId: values.categoryId,
-        ...(values.assigneeId === undefined
-          ? {}
-          : { assigneeId: values.assigneeId }),
         mode: 'FIXED' as const,
         title: values.title,
         description: values.description,
@@ -142,7 +128,7 @@ const ScheduleCreatePage = () => {
       // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
       if (!created.id)
         addToast(
-          '반복 일정을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          '반복 일정을 만들었어요. 나의 스페이스를 고른 뒤 설정 → 반복 관리에서 확인해 주세요.',
           'info',
         )
       else addToast('반복 일정을 만들었어요.', 'success')

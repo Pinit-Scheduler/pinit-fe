@@ -804,9 +804,10 @@ function ProjectMoveDialog({
       </header>
       <div className="space-dialog__body space-form">
         <p>
-          {project.name}의 작업·일정과 과거 기록이 목적지 스페이스에 함께
-          표시됩니다. 원래 스페이스에 남은 작업과의 선행 관계는 서버에서
-          해제·기록합니다.
+          {project.name}의 작업과 이 프로젝트에 넣은 일정·반복 일정, 과거 기록이
+          목적지 스페이스로 함께 옮겨집니다. 팀 스페이스로 옮기면 그 일정도 팀
+          스페이스에 놓입니다. 원래 스페이스에 남은 작업과의 선행 관계는
+          서버에서 해제·기록합니다.
         </p>
         <label>
           이동할 스페이스

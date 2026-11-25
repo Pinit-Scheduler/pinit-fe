@@ -357,7 +357,6 @@ const ScheduleEditPage = () => {
           {keptInput && <MyInputDisclosure rows={keptInput} open={false} />}
           <ScheduleForm
             allowedActions={schedule?.allowedActions}
-            unavailableReasons={schedule?.unavailableReasons}
             key={`${schedule.id}-${formKey}`}
             initialValues={initialValues}
             onSubmit={handleSubmit}

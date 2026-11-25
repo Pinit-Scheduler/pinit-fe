@@ -284,6 +284,19 @@ test('card paths name only what lies beyond the scope', () => {
   assert.equal(cardPath('all', { spaceId: 31, projectId: null }, { spaceId: 99, projectId: null }, spaces, projects), null)
 })
 
+test('a schedule has no place of its own: only one tied to a task shows where that task is', () => {
+  const { schedulePath } = load('features/spaces/cardPath.ts')
+  const spaces = [{ id: 31, name: '핀잇 개선', personal: false }, { id: -4, name: '나의 스페이스', personal: true }]
+  const projects = [{ id: 88, name: '작업 카드 개선' }]
+  const none = { spaceId: null, projectId: null }
+  // 서버는 아직 일정에 스페이스·프로젝트를 저장한다. 연결된 작업이 없으면 그 값은 보이지 않는다.
+  assert.equal(schedulePath('all', none, { spaceId: 31, projectId: 88 }, spaces, projects), null)
+  assert.equal(schedulePath('all', none, { spaceId: 31, projectId: 88, taskId: null }, spaces, projects), null)
+  assert.equal(schedulePath('all', none, { spaceId: -4, projectId: null }, spaces, projects), null)
+  assert.deepEqual(plain(schedulePath('all', none, { spaceId: 31, projectId: 88, taskId: 7 }, spaces, projects)), { spaceId: 31, text: '핀잇 개선 › 작업 카드 개선' })
+  assert.deepEqual(plain(schedulePath('all', none, { spaceId: -4, projectId: null, taskId: 7 }, spaces, projects)), { spaceId: -4, text: '나의 스페이스' })
+})
+
 // ---------------------------------------------------------------------------
 // Sidebar project list: completed projects fold away
 // ---------------------------------------------------------------------------

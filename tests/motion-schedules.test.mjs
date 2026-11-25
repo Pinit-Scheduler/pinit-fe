@@ -340,6 +340,11 @@ const tabHarness = () => {
     commits: {},
     drag: null,
     updated: null,
+    // What the page asked each schedule hook for, and the workspace it filters with.
+    calls: {},
+    workspace: { memberId: 1, spaces: [], error: null, reload: async () => { h.reloaded = true } },
+    reloaded: false,
+    retry: null,
   }
   const page = markup('features/schedules/pages/tab/SchedulesTabPage.tsx', {
     'react-router-dom': {
@@ -356,15 +361,28 @@ const tabHarness = () => {
     }),
     '../../components/WeeklyDateStrip.tsx': () => null,
     '../../components/MonthCalendar': () => null,
-    '../../hooks/useMonthlySchedules': () => ({ summaryByDate: {}, isLoading: false, error: null, refetch: () => h.refetched.push('month') }),
+    '../../hooks/useMonthlySchedules': (month, enabled, options) => {
+      h.calls.month = options
+      return { summaryByDate: {}, isLoading: false, error: null, refetch: () => h.refetched.push('month') }
+    },
     '../../components/OverdueBanner.tsx': () => React.createElement('p', null, '지난 일정'),
-    '../../hooks/useWeeklySchedulePresence.ts': () => h.presence,
-    '../../hooks/useOverdueSchedulesSummary.ts': () => ({ summary: h.overdue, refetch: () => h.refetched.push('overdue') }),
+    '../../hooks/useWeeklySchedulePresence.ts': (options) => {
+      h.calls.week = options
+      return h.presence
+    },
+    '../../hooks/useOverdueSchedulesSummary.ts': (options) => {
+      h.calls.overdue = options
+      return { summary: h.overdue, refetch: () => h.refetched.push('overdue') }
+    },
     '../../components/ScheduleCard.tsx': ({ schedule }) => React.createElement('article', null, schedule.title),
-    '../../hooks/useScheduleList.ts': () => h.list,
-    '../../hooks/useScheduleAudience': () => ({ audience: 'mine', setAudience() {}, shared: false }),
-    '@shared/components/common/StatusPanel': ({ variant, title, description }) =>
-      React.createElement('div', { className: `status-panel status-panel--${variant}` }, title, description),
+    '../../hooks/useScheduleList.ts': (date, options) => {
+      h.calls.day = options
+      return h.list
+    },
+    '@shared/components/common/StatusPanel': ({ variant, title, description, action }) => {
+      if (variant === 'error') h.retry = action?.props.onClick ?? null
+      return React.createElement('div', { className: `status-panel status-panel--${variant}` }, title, description)
+    },
     '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open() {} }) },
     '../../api/schedules.ts': {
       deleteSchedule: async () => {},
@@ -404,12 +422,10 @@ const tabHarness = () => {
     '@features/recurrence/components/RecurrenceScopeDialog': { useRecurrenceScope: () => ({ dialog: null, ask: async () => 'THIS' }) },
     '@features/recurrence/utils/seriesMutations': { confirmAndDeleteSeries() {}, previewSeriesDelete() {} },
     '@features/recurrence/utils/recurrenceRules': { isBeyondGeneration: () => false },
-    '@features/spaces/store': { useSpaces: () => ({ memberId: 1, selectedSpace: null, selectedProjectId: null }) },
+    '@features/spaces/store': { useSpaces: () => h.workspace },
     '@features/spaces/conflicts': { conflictReloadedMessage: () => '', isEditConflict: () => false },
-    '@features/spaces/scope': {
-      audienceSchedules: (schedules) => ({ visible: schedules, hidden: 0 }),
-      scheduleMineParam: () => undefined,
-    },
+    // The real rule: the page is where a day's rows are narrowed to mine.
+    '@features/spaces/scope': load('features/spaces/scope.ts', {}),
     '@shared/motion': {
       MOTION_DISTANCE_PX: 8,
       MOTION_EASE: 'ease',
@@ -453,6 +469,51 @@ test('the schedules tab keeps the day list through a refresh and through failure
   assert.doesNotMatch(html, /schedules-tab__overdue/)
   h.overdue = { hasOverdue: true, count: 1, earliestDate: '2026-11-08' }
   assert.match(h.render({ data: rows }), /<div class="schedules-tab__overdue"><p>지난 일정<\/p><\/div>/)
+})
+
+test('the schedules tab reads every space and lists only my schedules', () => {
+  const h = tabHarness()
+  h.workspace.memberId = 7
+  h.workspace.spaces = [
+    { id: -7, personal: true, members: [{ memberId: 7 }] },
+    { id: 31, personal: false, members: [{ memberId: 7 }, { memberId: 9 }] },
+  ]
+  const html = h.render({
+    data: [
+      day(1, '2026-11-10T09:00:00', { spaceId: -7, assigneeId: 7 }),
+      day(2, '2026-11-10T10:00:00', { spaceId: 31, assigneeId: 9 }),
+      day(3, '2026-11-10T11:00:00', { spaceId: 31, assigneeId: null }),
+      day(4, '2026-11-10T12:00:00', { spaceId: 31, assigneeId: 7 }),
+      day(5, '2026-11-10T13:00:00', { spaceId: -7, assigneeId: null }),
+    ],
+  })
+  // Whatever space is selected, every list on the page is read from all spaces and counts mine only.
+  assert.deepEqual(plain(h.calls), {
+    week: { weekStart: plain(h.calls.week.weekStart), allSpaces: true, own: true },
+    month: { allSpaces: true, own: true },
+    day: { allSpaces: true },
+    overdue: { allSpaces: true, own: true },
+  })
+  assert.deepEqual([...html.matchAll(/<article>일정 (\d)<\/article>/g)].map(([, id]) => Number(id)), [1, 4, 5], 'another member\'s and a team schedule held by nobody are not listed')
+  assert.doesNotMatch(html, /팀 전체|숨겨져 있어요/, 'there is no team view to switch to')
+})
+
+test('until the workspace says who I am the day is loading; if it cannot, the list says so and retries', () => {
+  const h = tabHarness()
+  const rows = [day(1, '2026-11-10T09:00:00', { assigneeId: 7 })]
+  h.workspace.memberId = 0
+  let html = h.render({ data: rows })
+  assert.match(html, /status-panel--loading/, 'rows cannot be told apart yet')
+  assert.doesNotMatch(html, /등록된 일정이 없어요|<article>/, 'never an empty day, never someone else\'s rows')
+  h.workspace.error = '스페이스를 불러오지 못했어요.'
+  html = h.render({ data: rows })
+  assert.match(html, /status-panel--error">스페이스를 불러오지 못했어요\.</)
+  h.retry()
+  assert.equal(h.reloaded, true, 'retry asks for the workspace again')
+  assert.deepEqual(h.refetched, ['presence', 'day', 'month'])
+  h.workspace.memberId = 7
+  h.workspace.error = null
+  assert.match(h.render({ data: rows }), /<article>일정 1<\/article>/)
 })
 
 test('moving or shifting a schedule dispatches one change and refetches nothing by hand', async () => {
@@ -506,10 +567,18 @@ const cardHarness = () => {
       MOTION_FAST_MS: 120,
       useChangedWhileMounted: () => h.changed,
     },
-    '@features/spaces/cardPath': { cardPath: () => null },
-    '@features/spaces/SpacePath': () => null,
+    // The real rule, so the card test fails if the card stops asking it.
+    '@features/spaces/cardPath': load('features/spaces/cardPath.ts', {}),
+    '@features/spaces/SpacePath': ({ path }) => (path ? React.createElement('em', null, path.text) : null),
     '@features/spaces/scope': { routeScope: () => null },
-    '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: null, selectedProjectId: null, spaces: [], projects: [] }) },
+    '@features/spaces/store': {
+      useSpaces: () => ({
+        selectedSpaceId: null,
+        selectedProjectId: null,
+        spaces: [{ id: 31, name: '제품팀', personal: false }],
+        projects: [{ id: 88, name: '11월 릴리즈' }],
+      }),
+    },
   })
   h.render = (actions, schedule = day(5, '2026-11-10T09:00:00')) => {
     h.actions = { canComplete: true, canCancel: false, isMutating: false, isLocked: false, lastError: null, ...actions }
@@ -517,6 +586,14 @@ const cardHarness = () => {
   }
   return h
 }
+
+test('a schedule belongs to no space: a card names a place only for the task it is tied to', () => {
+  const h = cardHarness()
+  const own = h.render({ currentState: 'NOT_STARTED' }, day(5, '2026-11-10T09:00:00', { spaceId: 31, projectId: 88 }))
+  assert.doesNotMatch(own, /제품팀/, 'a schedule on its own shows no space, wherever the server keeps it')
+  const linked = h.render({ currentState: 'NOT_STARTED' }, day(6, '2026-11-10T10:00:00', { spaceId: 31, projectId: 88, taskId: 3 }))
+  assert.match(linked, /<em>제품팀 › 11월 릴리즈<\/em>/, 'the place of the linked task')
+})
 
 test('a schedule card shows the state its actions report, completed before the save lands', () => {
   const h = cardHarness()

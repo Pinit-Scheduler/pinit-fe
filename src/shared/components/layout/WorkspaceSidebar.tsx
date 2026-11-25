@@ -5,12 +5,12 @@ import { tabLinkClick } from '@shared/routing/viewTransitionNavigation'
 import WorkspaceIcon, { type WorkspaceIconName } from '../common/WorkspaceIcon'
 const mine: [string, string, WorkspaceIconName][] = [
   ['today', '오늘', 'sun'],
+  ['schedules', '일정', 'calendar'],
   ['mind-map', '마인드맵', 'mindMap'],
   ['statistics', '통계', 'chart'],
 ]
 const space: [string, string, WorkspaceIconName][] = [
   ['spaces', '스페이스', 'spaces'],
-  ['schedules', '일정', 'calendar'],
   ['tasks', '작업', 'task'],
   ['task-map', '작업 맵', 'map'],
 ]
