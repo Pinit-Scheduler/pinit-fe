@@ -55,7 +55,7 @@ export default function AffiliationFields({
   kind?: 'task' | 'schedule'
   /**
    * 일정은 개인 단위다. 켜면 나의 스페이스와(고치는 중이면) 지금 있는 스페이스만 고를 수 있고,
-   * 담당자는 내가 아닐 때 내가 맡는 것만 고를 수 있다. 팀 스페이스로 보내거나 남에게 맡길 수 없다.
+   * 담당자 칸이 없다. 일정은 올린 사람의 것이라 누가 하는지를 폼에서 바꾸지 않는다.
    * 작업에 연결된 일정(`hasLinkedItem`)은 작업의 스페이스·프로젝트를 따라가므로 둘 다 고르지 못한다.
    * 일정의 스페이스나 프로젝트를 바꾸면 서버가 연결 작업까지 옮기기 때문이다.
    */
@@ -80,8 +80,6 @@ export default function AffiliationFields({
     (personalOnly
       ? workspace.defaultSpaceId || null
       : workspace.selectedSpaceId)
-  // 폼을 열었을 때의 담당자. 개인 단위에서는 이 사람과 나만 고를 수 있다.
-  const [initialAssigneeId] = useState(value.assigneeId)
   const request = useRef<AbortController | null>(null)
   const callback = useRef(onChange)
   const valueRef = useRef(value)
@@ -175,18 +173,9 @@ export default function AffiliationFields({
         space.id === fromSpaceId ||
         (space.personal && !hasLinkedItem)),
   )
-  const memberOptions = (draft?.members ?? []).filter(
-    (member) =>
-      !personalOnly ||
-      member.memberId === workspace.memberId ||
-      member.memberId === initialAssigneeId,
-  )
-  // 개인 단위: 갈 곳이 하나뿐이면 고르는 칸을 두지 않는다. 내가 맡은 일정에는 담당자 칸이 없다.
+  // 개인 단위: 갈 곳이 하나뿐이면 고르는 칸을 두지 않는다. 담당자 칸은 아예 없다.
   const showSpace = !personalOnly || spaceOptions.length > 1
-  const showAssignee =
-    !personalOnly ||
-    (initialAssigneeId !== undefined && initialAssigneeId !== workspace.memberId)
-  const showUnassigned = !personalOnly || initialAssigneeId === null
+  const showAssignee = !personalOnly
   const showProject = !(personalOnly && hasLinkedItem)
   const project = projects.find((item) => item.id === value.categoryId) ?? null
   const knownMembers = [
@@ -369,7 +358,7 @@ export default function AffiliationFields({
                 서버 기본 담당자 확인 중
               </option>
             )}
-            {showUnassigned && <option value="">담당자 미정</option>}
+            <option value="">담당자 미정</option>
             {!selectedMemberExists && (
               <option
                 value={
@@ -381,7 +370,7 @@ export default function AffiliationFields({
                 현재 담당자 · 이동 후 변경 필요
               </option>
             )}
-            {memberOptions.map((member) => (
+            {draft?.members.map((member) => (
               <option key={member.memberId} value={member.memberId}>
                 {member.nickname}
                 {member.memberId === workspace.memberId ? ' · 나' : ''}
@@ -452,7 +441,7 @@ export default function AffiliationFields({
       {value.assigneeId === null && (
         <p className="space-help">
           {kind === 'schedule'
-            ? '담당자 미정 일정은 오늘의 일정에 나오지 않아요. 내가 맡으면 내 일정에 보여요.'
+            ? '담당자가 없는 일정은 오늘 화면의 일정에 나오지 않아요.'
             : '담당자 미정 작업은 스페이스 목록에 남고 오늘의 내 작업에서는 제외돼요.'}
         </p>
       )}

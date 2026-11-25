@@ -78,6 +78,25 @@ test('breadcrumb names the scope the screen uses', () => {
     '내 공부',
   )
 })
+test('a schedule belongs to whoever put it on their schedule, whoever holds the task', () => {
+  const { ownSchedules } = load('features/spaces/scope.ts')
+  const spaces = [
+    { id: -7, personal: true, members: [{ memberId: 7 }] },
+    { id: 31, personal: false, members: [{ memberId: 7 }, { memberId: 9 }] },
+  ]
+  // 제품팀(31)의 작업을 일정에 올리면 서버는 작업의 담당자를 일정에 복사한다. 올린 사람은 ownerId에 남는다.
+  const day = [
+    { id: 1, spaceId: 31, ownerId: 7, assigneeId: 9 }, // 내가 올렸다. 작업 담당은 준호다.
+    { id: 2, spaceId: 31, ownerId: 7, assigneeId: null }, // 내가 올렸다. 작업 담당자가 없다.
+    { id: 3, spaceId: 31, ownerId: 9, assigneeId: 9 }, // 준호가 자기 작업을 올렸다.
+    { id: 4, spaceId: 31, ownerId: 9, assigneeId: null }, // 준호가 담당자 없는 작업을 올렸다.
+    { id: 5, spaceId: 31, ownerId: 9, assigneeId: 7 }, // 준호가 올렸고 담당이 나다(전부터 내 일정으로 보이던 것).
+  ]
+  const ids = (list) => Array.from(list, (item) => item.id)
+  assert.deepEqual(ids(ownSchedules(day, 7, spaces)), [1, 2, 5], 'what I registered is mine even when someone else holds the task')
+  // 준호가 올린 것(3·4·5)은 준호의 일정이다. 1은 서버가 그를 담당으로 적어 둔 동안에는 그에게도 보인다.
+  assert.deepEqual(ids(ownSchedules(day, 9, spaces)), [1, 3, 4, 5], 'and what 준호 registered is his')
+})
 test('my schedules are the ones I hold, plus unassigned ones where nobody else is', () => {
   const { ownSchedules } = load('features/spaces/scope.ts')
   const member = (memberId) => ({ memberId })
