@@ -567,8 +567,8 @@ const cardHarness = () => {
       MOTION_FAST_MS: 120,
       useChangedWhileMounted: () => h.changed,
     },
-    '@features/spaces/cardPath': { cardPath: () => null },
-    '@features/spaces/SpacePath': () => null,
+    '@features/spaces/cardPath': { cardPath: () => ({ spaceId: 31, text: '제품팀 › 11월 릴리즈' }) },
+    '@features/spaces/SpacePath': ({ path }) => (path ? React.createElement('em', null, path.text) : null),
     '@features/spaces/scope': { routeScope: () => null },
     '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: null, selectedProjectId: null, spaces: [], projects: [] }) },
   })
@@ -578,6 +578,14 @@ const cardHarness = () => {
   }
   return h
 }
+
+test('a schedule belongs to no space: a card names a place only for the task it is tied to', () => {
+  const h = cardHarness()
+  const own = h.render({ currentState: 'NOT_STARTED' }, day(5, '2026-11-10T09:00:00', { spaceId: 31, projectId: 88 }))
+  assert.doesNotMatch(own, /제품팀/, 'a schedule on its own shows no space, wherever the server keeps it')
+  const linked = h.render({ currentState: 'NOT_STARTED' }, day(6, '2026-11-10T10:00:00', { spaceId: 31, projectId: 88, taskId: 3 }))
+  assert.match(linked, /<em>제품팀 › 11월 릴리즈<\/em>/, 'the place of the linked task')
+})
 
 test('a schedule card shows the state its actions report, completed before the save lands', () => {
   const h = cardHarness()

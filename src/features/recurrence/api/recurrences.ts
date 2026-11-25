@@ -38,6 +38,12 @@ function normalize(view: View, remember = true, revision = getResourceRevision()
     rejectResourceResponse(result)
   return result
 }
+/**
+ * 반복을 만든다.
+ * - 반복 작업(FLEXIBLE)은 스페이스·프로젝트·담당자를 갖는다. 위치가 없으면 고른 스페이스·프로젝트를 쓴다.
+ * - 반복 일정(FIXED)은 개인 것이고 어느 스페이스에도 속하지 않는다. 위치와 담당자를 싣지 않는다.
+ *   서버는 위치 없는 반복을 만든 사람의 것으로 둔다.
+ */
 export async function createRecurrence(payload: RecurrenceCreateRequest) {
   const revision = getResourceRevision()
   const selected = getSelectedScope()
@@ -47,15 +53,16 @@ export async function createRecurrence(payload: RecurrenceCreateRequest) {
     assigneeId,
     ...recurrence
   } = payload
+  const personal = recurrence.mode === 'FIXED'
   return normalize(
     await httpClient<View>(url(), {
       method: 'POST',
       json: {
         recurrence,
-        ...(spaceId == null
+        ...(personal || spaceId == null
           ? {}
           : { location: { spaceId, projectId: projectId ?? null } }),
-        ...(assigneeId === undefined
+        ...(personal || assigneeId === undefined
           ? {}
           : { assignee: { memberId: assigneeId } }),
       },

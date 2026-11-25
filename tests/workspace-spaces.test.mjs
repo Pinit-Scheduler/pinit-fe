@@ -797,6 +797,36 @@ test('Recurrence workspace API saves content and affiliation atomically with the
   assert.equal(calls.at(-1).json.expectedVersion, 9)
   assert.equal(registry.getMetadata('series', 4).version, 10)
 })
+test('A recurring schedule is personal: no location and no assignee are sent, whatever is selected', async () => {
+  const calls = []
+  const api = load('features/recurrence/api/recurrences.ts', {
+    '@shared/api/config': config,
+    '@shared/api/httpClient': {
+      httpClient: async (url, options = {}) => {
+        calls.push({ url, ...options })
+        return { recurrence: { id: 4 }, spaceId: -4, projectId: null, assigneeId: 1, version: 0, allowedActions: {} }
+      },
+    },
+    '@features/spaces/store': {
+      // 팀 스페이스와 그 프로젝트가 골라져 있다.
+      getSelectedScope: () => ({ spaceId: 31, projectId: 13 }),
+    },
+    '@features/spaces/metadata': metadata(),
+  })
+  const rule = { frequency: 'DAILY', startDate: '2026-11-26' }
+  // 반복 일정(FIXED): 넘겨받은 값이 있어도 싣지 않는다. 서버가 만든 사람의 것으로 둔다.
+  await api.createRecurrence({ mode: 'FIXED', title: '아침 운동', rule })
+  assert.equal(Object.hasOwn(calls.at(-1).json, 'location'), false, 'the selected team space is not borrowed')
+  assert.equal(Object.hasOwn(calls.at(-1).json, 'assignee'), false)
+  await api.createRecurrence({ mode: 'FIXED', title: '아침 운동', rule, spaceId: 31, projectId: 13, assigneeId: 9 })
+  assert.equal(Object.hasOwn(calls.at(-1).json, 'location'), false)
+  assert.equal(Object.hasOwn(calls.at(-1).json, 'assignee'), false)
+  assert.equal(calls.at(-1).json.recurrence.mode, 'FIXED')
+  // 반복 작업(FLEXIBLE)은 그대로다: 위치가 없으면 고른 스페이스·프로젝트, 담당자는 준 대로.
+  await api.createRecurrence({ mode: 'FLEXIBLE', title: '주간 정리', rule, assigneeId: 9 })
+  assert.deepEqual(plain(calls.at(-1).json.location), { spaceId: 31, projectId: 13 })
+  assert.deepEqual(plain(calls.at(-1).json.assignee), { memberId: 9 })
+})
 function spacesStoreHarness(respond) {
   let member = 'member-1'
   const storage = new Map(),

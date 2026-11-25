@@ -48,6 +48,15 @@ test('route scope follows the screen, not the selection', () => {
   assert.equal(routeScope('/app/tasks/new'), 'all')
   assert.equal(routeScope('/app/schedules/5/edit'), 'all')
 })
+test('the mind map and the schedules are mine alone: no space scope is shown on them', () => {
+  const { isSpaceFreeScreen } = load('features/spaces/scope.ts')
+  assert.equal(isSpaceFreeScreen('/app/schedules'), true)
+  assert.equal(isSpaceFreeScreen('/app/schedules/'), true)
+  assert.equal(isSpaceFreeScreen('/app/mind-map'), true)
+  // 통계와 오늘은 모든 스페이스를 모아 보여 주므로 범위를 말한다. 작업은 고른 스페이스의 것이다.
+  for (const path of ['/app/statistics', '/app/today', '/app/tasks', '/app/plan', '/app/spaces', '/app/schedules/5'])
+    assert.equal(isSpaceFreeScreen(path), false, path)
+})
 test('choosing a project stays on scoped lists and leaves detail screens', () => {
   const { projectSelectionTarget } = load('features/spaces/scope.ts')
   assert.equal(projectSelectionTarget('/app/schedules'), '/app/tasks')
@@ -295,29 +304,6 @@ test('a new item starts in the space and project of the screen behind the form',
     assert.deepEqual(from(path, 7), {}, path)
   assert.deepEqual(plain(createAffiliationFor(null, '', workspace(7))), {})
 })
-test('a new schedule always starts in my space, whatever screen is behind the form', () => {
-  const { createAffiliationFor } = load('features/spaces/scope.ts')
-  const plain = (value) => JSON.parse(JSON.stringify(value))
-  const projects = [
-    { id: 7, spaceId: 22, completed: false },
-    { id: 5, spaceId: -4, completed: false },
-    { id: 6, spaceId: -4, completed: true },
-  ]
-  const workspace = (overrides = {}) => ({ defaultSpaceId: -4, selectedSpaceId: 22, selectedProjectId: 7, projects, ...overrides })
-  const schedule = (pathname, search, overrides) =>
-    plain(createAffiliationFor(pathname === null ? null : { pathname }, search, workspace(overrides), 'schedule'))
-  // A team space and its project are selected on every one of these screens: none of it reaches a schedule.
-  for (const path of ['/app/tasks', '/app/schedules', '/app/task-map', '/app/plan', '/app/settings/recurrences', '/app/today', '/app/statistics'])
-    assert.deepEqual(schedule(path, ''), { spaceId: -4 }, path)
-  assert.deepEqual(schedule(null, ''), { spaceId: -4 }, 'no screen behind the form')
-  assert.deepEqual(schedule(null, '?from=today'), { spaceId: -4 })
-  // My own space is selected with one of its projects: that project is still a fair start.
-  assert.deepEqual(schedule('/app/tasks', '', { selectedSpaceId: -4, selectedProjectId: 5 }), { spaceId: -4, categoryId: 5 })
-  assert.deepEqual(schedule('/app/tasks', '', { selectedSpaceId: -4, selectedProjectId: 6 }), { spaceId: -4 }, 'completed project')
-  // Until my space is known nothing is named; the form and the save wait for it instead of using the selection.
-  assert.deepEqual(schedule('/app/tasks', '', { defaultSpaceId: 0 }), {})
-  assert.deepEqual(schedule('/app/tasks', '', { defaultSpaceId: null }), {})
-})
 test('a screen of the selected space knows when new schedules will not land in it', () => {
   const { outsidePersonalSpace } = load('features/spaces/scope.ts')
   assert.equal(outsidePersonalSpace(-7, 31), true, 'a team space is selected')
@@ -357,9 +343,4 @@ test('a create form keeps the affiliation it opened with while the screen behind
   assert.deepEqual(render(), { spaceId: 22, categoryId: 7 })
   workspace = { ...workspace, selectedSpaceId: 31, selectedProjectId: null }
   assert.deepEqual(render(), { spaceId: 22, categoryId: 7 }, 'a later selection change does not rewrite the form')
-  // 일정 폼은 같은 화면 위에서 열어도 나의 스페이스다: 훅이 종류를 규칙에 넘긴다.
-  slots.length = 0
-  index = 0
-  workspace = { ...workspace, selectedSpaceId: 22, selectedProjectId: 7 }
-  assert.deepEqual(JSON.parse(JSON.stringify(useCreateAffiliation('schedule'))), { spaceId: -4 })
 })

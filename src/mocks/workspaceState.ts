@@ -364,6 +364,8 @@ type SeedSchedule = {
   spaceId: number
   projectId: number | null
   assigneeId: number | null
+  /** 일정에 올린 사람. 적지 않으면 맡은 사람이 올린 것으로 본다(담당자가 없으면 데모 회원). */
+  ownerId?: number
 }
 
 const seedTasks: SeedTask[] = [
@@ -449,7 +451,9 @@ const seed = () => {
     const id = nextScheduleId()
     mockSchedules.push({
       id,
-      ownerId: 1,
+      // 일정은 올린 사람의 것이다. 팀원이 맡은 일정은 그 팀원이 올린 것으로 심어야
+      // 데모 회원의 일정 화면이 "내 일정이 아닌 것"을 거르는 것을 볼 수 있다.
+      ownerId: item.ownerId ?? item.assigneeId ?? 1,
       title: item.title,
       description: item.description,
       date: item.date,

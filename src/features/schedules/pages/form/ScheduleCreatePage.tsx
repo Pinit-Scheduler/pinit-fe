@@ -1,8 +1,6 @@
 import { useLocation } from 'react-router-dom'
 import { useMemo } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
-import { useSpaces } from '@features/spaces/store'
 import ScheduleForm from '../../components/ScheduleForm'
 import {
   getDisplayZoneId,
@@ -34,9 +32,6 @@ type LocationState = {
   initialDateKey?: string
 }
 
-/** 새 일정이 놓이는 곳: 나의 스페이스와, 그 스페이스의 프로젝트(없으면 null). */
-type PersonalPlacement = { spaceId: number; projectId: number | null }
-
 const ScheduleCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
   const location = useLocation()
@@ -47,9 +42,6 @@ const ScheduleCreatePage = () => {
   const initialDateKey =
     (location.state as LocationState | null)?.initialDateKey ??
     (dateParam && parseDateKey(dateParam) ? dateParam : undefined)
-  // 일정은 개인 단위다. 어느 화면에서 열든, 어떤 스페이스가 골라져 있든 나의 스페이스에서 시작한다.
-  const affiliation = useCreateAffiliation('schedule')
-  const { defaultSpaceId, error: workspaceError } = useSpaces()
 
   const initialValues = useMemo(() => {
     void offsetMinutes
@@ -60,51 +52,25 @@ const ScheduleCreatePage = () => {
       if (!targetDate.isValid()) return undefined
       return targetDate.hour(now.hour()).minute(0).second(0).toDate()
     })()
-    if (date === undefined && affiliation.spaceId === undefined)
-      return undefined
-    return {
-      ...(date === undefined ? {} : { date }),
-      ...affiliation,
-    }
-  }, [initialDateKey, offsetMinutes, affiliation])
+    return date === undefined ? undefined : { date }
+  }, [initialDateKey, offsetMinutes])
 
   const handleClose = () => complete('/app/schedules')
   const handleSubmit = async (
     values: ScheduleFormValues,
     rule?: RuleDraft | null,
   ) => {
-    // 폼이 무엇을 들고 있든 나의 스페이스에만 만든다. 담당자는 보내지 않는다(서버 기본값이 만든 사람이다).
-    // 불러오는 중의 나의 스페이스 id는 0이다. 그때는 고른 스페이스로 대신 만들지 않고 저장을 미룬다.
-    const personalSpaceId = defaultSpaceId || undefined
-    if (personalSpaceId === undefined) {
-      // 못 받은 것이면 기다려도 풀리지 않는다. 폼 맨 위의 "스페이스 다시 확인"을 알려 준다.
-      addToast(
-        workspaceError
-          ? '스페이스 정보를 불러오지 못했어요. 위의 "스페이스 다시 확인"을 누른 뒤 다시 저장해 주세요.'
-          : '스페이스 정보를 불러오는 중이에요. 잠시 뒤 다시 저장해 주세요.',
-        'error',
-      )
-      return false
-    }
-    // 폼의 프로젝트 칸은 나의 스페이스의 프로젝트만 보여 준다. 폼이 아직 스페이스를 못 받았어도(undefined)
-    // 고른 프로젝트는 나의 스페이스 것이므로 그대로 보낸다. 다른 스페이스를 들고 있을 때만 버린다.
-    const placement: PersonalPlacement = {
-      spaceId: personalSpaceId,
-      projectId:
-        values.spaceId === undefined || values.spaceId === personalSpaceId
-          ? (values.categoryId ?? null)
-          : null,
-    }
     if (rule) {
-      await createRecurringSchedule(values, rule, placement)
+      await createRecurringSchedule(values, rule)
       return
     }
     try {
       const plannedDuration = parseDurationInput(
         values.plannedDurationMinutes ?? '',
       )
+      // 일정은 개인 것이고 어느 스페이스에도 속하지 않는다. 스페이스·프로젝트·담당자를 보내지 않는다.
+      // 서버는 위치 없는 일정을 만든 사람의 것으로 둔다.
       const payload = {
-        ...placement,
         expectedVersion: values.expectedVersion,
         title: values.title,
         description: values.description,
@@ -137,14 +103,13 @@ const ScheduleCreatePage = () => {
   const createRecurringSchedule = async (
     values: ScheduleFormValues,
     rule: RuleDraft,
-    placement: PersonalPlacement,
   ) => {
     const plannedDuration = parseDurationInput(
       values.plannedDurationMinutes ?? '',
     )
     try {
+      // 반복 일정(FIXED)도 같다. createRecurrence가 FIXED에는 위치와 담당자를 싣지 않는다.
       const payload = {
-        ...placement,
         mode: 'FIXED' as const,
         title: values.title,
         description: values.description,

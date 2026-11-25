@@ -223,19 +223,6 @@ for (const kind of ['task', 'schedule']) {
       recurrenceVersion: 13,
     }
     let tree = render()
-    assert.equal(
-      find(tree, CategoryPicker).props.personalOnly,
-      kind === 'schedule' ? true : undefined,
-      'only the schedule form limits the space and the assignee to me',
-    )
-    if (kind === 'schedule') {
-      // 작업에 연결된 일정인지를 폼이 소속 칸에 넘긴다. 이 한 줄이 연결 일정의 이동을 막는다.
-      assert.equal(find(tree, CategoryPicker).props.hasLinkedItem, false)
-      scheduleValues = { ...scheduleValues, taskId: 12 }
-      assert.equal(find(render(), CategoryPicker).props.hasLinkedItem, true)
-      scheduleValues = { ...scheduleValues, taskId: undefined }
-      tree = render()
-    }
     await tree.props.onSubmit({ preventDefault() {} })
     assert.equal(submitted.at(-1).categoryId, 7)
     assert.equal(submitted.at(-1).categoryChanged, false)
@@ -245,24 +232,32 @@ for (const kind of ['task', 'schedule']) {
     assert.equal(submitted.at(-1).locationChanged, false)
     assert.equal(submitted.at(-1).assigneeChanged, false)
     tree = render()
-    find(tree, CategoryPicker).props.onChange({
-      categoryId: 8,
-      spaceId: -4,
-      assigneeId: null,
-    })
-    tree = render()
-    await tree.props.onSubmit({ preventDefault() {} })
-    assert.equal(submitted.at(-1).categoryId, 8)
-    assert.equal(submitted.at(-1).categoryChanged, true)
-    tree = render()
-    find(tree, CategoryPicker).props.onChange({
-      categoryId: 7,
-      spaceId: -4,
-      assigneeId: null,
-    })
-    tree = render()
-    await tree.props.onSubmit({ preventDefault() {} })
-    assert.equal(submitted.at(-1).categoryChanged, false)
+    if (kind === 'schedule') {
+      // 일정은 개인 것이고 어느 스페이스에도 속하지 않는다. 일정 폼에는 스페이스·프로젝트·담당자 칸이 없고,
+      // 수정 화면이 위치와 담당자를 보내게 하는 표시는 늘 false다.
+      assert.equal(find(tree, CategoryPicker), null, 'the schedule form asks for no space, project or assignee')
+      assert.equal(submitted.at(-1).affiliationChanged, false)
+    } else {
+      assert.notEqual(find(tree, CategoryPicker), null, 'the task form still does')
+      find(tree, CategoryPicker).props.onChange({
+        categoryId: 8,
+        spaceId: -4,
+        assigneeId: null,
+      })
+      tree = render()
+      await tree.props.onSubmit({ preventDefault() {} })
+      assert.equal(submitted.at(-1).categoryId, 8)
+      assert.equal(submitted.at(-1).categoryChanged, true)
+      tree = render()
+      find(tree, CategoryPicker).props.onChange({
+        categoryId: 7,
+        spaceId: -4,
+        assigneeId: null,
+      })
+      tree = render()
+      await tree.props.onSubmit({ preventDefault() {} })
+      assert.equal(submitted.at(-1).categoryChanged, false)
+    }
     let release
     waitForSubmit = new Promise((resolve) => {
       release = resolve

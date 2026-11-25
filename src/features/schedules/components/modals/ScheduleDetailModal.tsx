@@ -212,14 +212,19 @@ const ScheduleDetailModal = ({
             {schedule.description}
           </p>
           <div className="schedule-detail-modal__meta">
+            {/* 일정은 스페이스에 속하지 않는다. 작업에 연결된 일정만 그 작업의 자리를 보인다. */}
             <SpacePath
-              path={cardPath(
-                'all',
-                { spaceId: null, projectId: null },
-                schedule,
-                spaces,
-                projects,
-              )}
+              path={
+                schedule.taskId == null
+                  ? null
+                  : cardPath(
+                      'all',
+                      { spaceId: null, projectId: null },
+                      schedule,
+                      spaces,
+                      projects,
+                    )
+              }
             />
             <span className="schedule-detail-modal__badge schedule-detail-modal__badge--state">
               {stateLabel[schedule.state]}

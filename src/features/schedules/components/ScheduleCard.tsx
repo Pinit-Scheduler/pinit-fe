@@ -211,14 +211,19 @@ const ScheduleCard = ({
             {plannedDurationLabel && (
               <p className="schedule-card__subtitle">{plannedDurationLabel}</p>
             )}
+            {/* 일정은 스페이스에 속하지 않는다. 작업에 연결된 일정만 그 작업의 자리를 보인다. */}
             <SpacePath
-              path={cardPath(
-                routeScope(pathname),
-                { spaceId: selectedSpaceId, projectId: selectedProjectId },
-                schedule,
-                spaces,
-                projects,
-              )}
+              path={
+                schedule.taskId == null
+                  ? null
+                  : cardPath(
+                      routeScope(pathname),
+                      { spaceId: selectedSpaceId, projectId: selectedProjectId },
+                      schedule,
+                      spaces,
+                      projects,
+                    )
+              }
             />
           </div>
           {description && (

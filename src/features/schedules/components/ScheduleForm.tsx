@@ -1,11 +1,5 @@
-import type {
-  AllowedActions,
-  UnavailableReasons,
-} from '@features/spaces/types'
+import type { AllowedActions } from '@features/spaces/types'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
-import AffiliationFields from '@features/spaces/AffiliationFields'
-import { needsRecordDisclosure } from '@features/spaces/affiliationImpact'
-import { useSpaces } from '@features/spaces/store'
 import dayjs from 'dayjs'
 import { useState, useId, useRef } from 'react'
 import {
@@ -27,7 +21,6 @@ import { useTimePreferences } from '@contexts/TimePreferencesContext'
 
 type ScheduleFormProps = {
   allowedActions?: AllowedActions
-  unavailableReasons?: UnavailableReasons
   initialValues?: Partial<ScheduleFormValues>
   /** rule은 "반복"을 켰을 때만 있다. 시작일은 시작 시간의 날짜다 */
   onSubmit: (
@@ -63,7 +56,6 @@ const parseDateTimeLocalValue = (value: string, offsetMinutes: number) =>
 const ScheduleForm = ({
   initialValues,
   allowedActions,
-  unavailableReasons,
   onSubmit,
   submitLabel = '일정 저장',
   plannedDurationHint,
@@ -73,17 +65,7 @@ const ScheduleForm = ({
   const submissionLock = useRef(false)
   const { close } = useRouteSurfaceNavigation()
   const form = useScheduleForm({ initialValues })
-  const [initialAffiliation] = useState({
-    spaceId: initialValues?.spaceId,
-    assigneeId: initialValues?.assigneeId,
-  })
-  const [initialCategoryId] = useState(initialValues?.categoryId ?? null)
   const { offsetMinutes } = useTimePreferences()
-  const { spaces } = useSpaces()
-  const [recordsConfirmedFor, setRecordsConfirmedFor] = useState<number | null>(
-    null,
-  )
-  const [recordsError, setRecordsError] = useState<string | undefined>()
   const [rule, setRule] = useState<RuleDraft | null>(null)
   const [ruleErrors, setRuleErrors] = useState<
     Partial<Record<RuleDraftField, string>>
@@ -91,19 +73,7 @@ const ScheduleForm = ({
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    const target = spaces.find((space) => space.id === form.values.spaceId)
-    const recordsMissing =
-      Boolean(target) &&
-      needsRecordDisclosure({
-        creating: initialValues?.expectedVersion === undefined,
-        fromSpaceId: initialAffiliation.spaceId,
-        to: target!,
-      }) &&
-      recordsConfirmedFor !== target!.id
-    setRecordsError(
-      recordsMissing ? '이동 전 기록의 공개 범위를 확인하세요.' : undefined,
-    )
-    const valid = form.validate() && !recordsMissing
+    const valid = form.validate()
     const ruleWithStart = rule
       ? { ...rule, startDate: toDateKey(form.values.date) }
       : null
@@ -131,17 +101,12 @@ const ScheduleForm = ({
       const saved = await onSubmit(
         {
           ...form.values,
-          locationChanged:
-            form.values.spaceId !== initialAffiliation.spaceId ||
-            (form.values.categoryId ?? null) !== initialCategoryId,
-          assigneeChanged:
-            form.values.assigneeId !== initialAffiliation.assigneeId,
-          affiliationChanged:
-            form.values.spaceId !== initialAffiliation.spaceId ||
-            form.values.assigneeId !== initialAffiliation.assigneeId ||
-            (form.values.categoryId ?? null) !== initialCategoryId,
-          categoryChanged:
-            (form.values.categoryId ?? null) !== initialCategoryId,
+          // 일정은 개인 것이다. 스페이스·프로젝트·담당자를 이 폼에서 고르지 않으므로 바뀔 일이 없다.
+          // 수정 화면은 이 표시가 참일 때만 위치와 담당자를 보낸다.
+          locationChanged: false,
+          assigneeChanged: false,
+          affiliationChanged: false,
+          categoryChanged: false,
         },
         ruleWithStart,
       )
@@ -158,33 +123,6 @@ const ScheduleForm = ({
 
   return (
     <form id={formId} className="schedule-form" onSubmit={handleSubmit}>
-      <AffiliationFields
-        allowedActions={allowedActions}
-        unavailableReasons={unavailableReasons}
-        kind="schedule"
-        // 일정은 개인 단위다: 팀 스페이스로 보내거나 다른 사람에게 맡기는 선택을 주지 않는다.
-        personalOnly
-        fromSpaceId={initialAffiliation.spaceId}
-        hasLinkedItem={form.values.taskId != null}
-        recordsConfirmed={recordsConfirmedFor === form.values.spaceId}
-        onRecordsConfirmedChange={(confirmed) => {
-          setRecordsConfirmedFor(
-            confirmed ? (form.values.spaceId ?? null) : null,
-          )
-          if (confirmed) setRecordsError(undefined)
-        }}
-        recordsError={recordsError}
-        recordsInputId={`${formId}-recordsConfirmed`}
-        value={{ ...form.values, categoryId: form.values.categoryId ?? null }}
-        creating={initialValues?.expectedVersion === undefined}
-        disabled={form.isSubmitting || allowedActions?.edit === false}
-        onChange={(affiliation) => {
-          form.onChange('spaceId', affiliation.spaceId)
-          form.onChange('categoryId', affiliation.categoryId)
-          form.onChange('assigneeId', affiliation.assigneeId)
-        }}
-      />
-
       <label className="schedule-form__field">
         <span>일정 제목</span>
         <input

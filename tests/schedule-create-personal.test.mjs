@@ -5,17 +5,16 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { requireFrom } from './support/errors.mjs'
 
-// 일정은 개인 단위다. 일정 추가 화면은 폼이 무엇을 들고 있든 나의 스페이스에만 만들고 담당자를 보내지 않는다.
-// 이 화면이 그 규칙을 지키는 마지막 자리다(반복 만들기 API는 위치가 없으면 고른 스페이스를 빌려 쓴다).
+// 일정은 개인 것이고 어느 스페이스에도 속하지 않는다. 일정 추가 화면은 폼이 무엇을 들고 있든
+// 스페이스·프로젝트·담당자를 보내지 않는다. 서버는 위치 없는 일정을 만든 사람의 것으로 둔다.
 
 const plain = (value) => JSON.parse(JSON.stringify(value))
 
-const createHarness = ({ workspace, affiliation = { spaceId: workspace.defaultSpaceId } }) => {
+const createHarness = () => {
   const created = []
   const series = []
   const toasts = []
   const events = []
-  const kinds = []
   const closed = []
   const ScheduleForm = () => null
   const dependencies = {
@@ -28,13 +27,6 @@ const createHarness = ({ workspace, affiliation = { spaceId: workspace.defaultSp
     '@shared/routing/RouteSurface': {
       useRouteSurfaceNavigation: () => ({ complete: (path) => closed.push(path) }),
     },
-    '@features/spaces/useCreateAffiliation': {
-      useCreateAffiliation: (kind) => {
-        kinds.push(kind)
-        return affiliation
-      },
-    },
-    '@features/spaces/store': { useSpaces: () => workspace },
     '../../components/ScheduleForm': { default: ScheduleForm },
     '@shared/utils/datetime': {
       getDisplayZoneId: () => 'Asia/Seoul',
@@ -87,6 +79,8 @@ const createHarness = ({ workspace, affiliation = { spaceId: workspace.defaultSp
     exports: module.exports,
     URLSearchParams,
     console: { error() {} },
+    // 스페이스 저장소(@features/spaces/store)나 기본 소속 훅을 다시 불러오면 여기서 실패한다:
+    // 일정 추가 화면은 스페이스를 알 필요가 없다.
     require: requireFrom(dependencies),
   })
   const findForm = (node) => {
@@ -100,7 +94,7 @@ const createHarness = ({ workspace, affiliation = { spaceId: workspace.defaultSp
     return null
   }
   const form = () => findForm(module.exports.default())
-  return { created, series, toasts, events, kinds, closed, form }
+  return { created, series, toasts, events, closed, form }
 }
 
 // 폼이 들고 있을 수 있는 가장 나쁜 값: 팀 스페이스, 그 프로젝트, 다른 사람.
@@ -116,50 +110,32 @@ const teamValues = {
 }
 const rule = { frequency: 'DAILY', startDate: '2026-11-26' }
 
-test('a new schedule is always saved under my own space, and never names an assignee', async () => {
-  const h = createHarness({ workspace: { defaultSpaceId: -7, error: null } })
-  assert.deepEqual(h.kinds, [], 'nothing rendered yet')
+test('a new schedule names no space, project or assignee, whatever the form holds', async () => {
+  const h = createHarness()
   const form = h.form()
-  assert.deepEqual(h.kinds, ['schedule'], 'the form starts from the schedule rule, not the screen behind it')
-  assert.deepEqual(plain(form.props.initialValues), { spaceId: -7 })
+  assert.equal(form.props.initialValues, undefined, 'the form starts from nothing but an optional date')
 
   await form.props.onSubmit(teamValues, null)
   assert.equal(h.created.length, 1)
-  assert.equal(h.created[0].spaceId, -7, 'the team space the form held is not used')
-  assert.equal(h.created[0].projectId, null, 'nor a project of that space')
-  assert.equal(Object.hasOwn(h.created[0], 'assigneeId'), false, 'the server default is the creator')
+  for (const key of ['spaceId', 'projectId', 'assigneeId'])
+    assert.equal(Object.hasOwn(h.created[0], key), false, `${key} is not sent: a schedule belongs to no space`)
+  assert.deepEqual(plain(h.created[0]), {
+    title: '산책',
+    description: '한강',
+    date: { dateTime: '2026-11-26T09:00:00', zoneId: 'Asia/Seoul' },
+    scheduleType: 'QUICK_TASK',
+  })
   assert.deepEqual(h.closed, ['/app/schedules'])
-
-  // 나의 스페이스의 프로젝트는 그대로 보낸다. 폼이 아직 스페이스를 못 받았을 때(undefined)도 같다.
-  await form.props.onSubmit({ ...teamValues, spaceId: -7, categoryId: 5 }, null)
-  assert.deepEqual([h.created[1].spaceId, h.created[1].projectId], [-7, 5])
-  await form.props.onSubmit({ ...teamValues, spaceId: undefined, categoryId: 5 }, null)
-  assert.deepEqual([h.created[2].spaceId, h.created[2].projectId], [-7, 5])
+  assert.deepEqual(h.toasts, [])
 })
 
 test('a new recurring schedule follows the same rule', async () => {
-  const h = createHarness({ workspace: { defaultSpaceId: -7, error: null } })
+  const h = createHarness()
   await h.form().props.onSubmit(teamValues, rule)
   assert.equal(h.created.length, 0)
   assert.equal(h.series.length, 1)
   assert.equal(h.series[0].mode, 'FIXED')
-  assert.deepEqual([h.series[0].spaceId, h.series[0].projectId], [-7, null])
-  assert.equal(Object.hasOwn(h.series[0], 'assigneeId'), false)
-})
-
-test('while my space is unknown nothing is saved, rather than borrowing the selected space', async () => {
-  // 불러오는 중의 나의 스페이스 id는 0이다.
-  const loading = createHarness({ workspace: { defaultSpaceId: 0, error: null }, affiliation: {} })
-  assert.equal(loading.form().props.initialValues, undefined)
-  assert.equal(await loading.form().props.onSubmit(teamValues, null), false, 'the form keeps the draft')
-  assert.equal(await loading.form().props.onSubmit(teamValues, rule), false)
-  assert.deepEqual([loading.created.length, loading.series.length], [0, 0])
-  assert.match(loading.toasts[0][0], /불러오는 중이에요\. 잠시 뒤 다시 저장해 주세요\./)
-  assert.deepEqual(loading.closed, [])
-
-  // 못 받은 것이면 기다려도 풀리지 않는다. 다시 확인하라고 알린다.
-  const failed = createHarness({ workspace: { defaultSpaceId: 0, error: '스페이스를 불러오지 못했어요.' }, affiliation: {} })
-  assert.equal(await failed.form().props.onSubmit(teamValues, null), false)
-  assert.equal(failed.created.length, 0)
-  assert.match(failed.toasts[0][0], /불러오지 못했어요\. 위의 "스페이스 다시 확인"을 누른 뒤 다시 저장해 주세요\./)
+  for (const key of ['spaceId', 'projectId', 'assigneeId'])
+    assert.equal(Object.hasOwn(h.series[0], key), false, `${key} is not sent`)
+  assert.deepEqual(h.closed, ['/app/schedules'])
 })

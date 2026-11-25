@@ -9,6 +9,7 @@ const selectedListPaths = [
   '/app/settings/recurrences',
 ]
 const personalListPaths = ['/app/deadline-risk']
+const spaceFreePaths = ['/app/mind-map', '/app/schedules']
 
 function listPath(pathname: string) {
   return pathname.length > 1 && pathname.endsWith('/')
@@ -21,6 +22,14 @@ export function routeScope(pathname: string): RouteScope {
   if (selectedListPaths.includes(path)) return 'selected'
   if (personalListPaths.includes(path)) return 'personal'
   return 'all'
+}
+
+/**
+ * 스페이스와 상관없는 내 화면인지. 마인드맵과 일정은 개인 것이고 어느 스페이스에도 속하지 않는다.
+ * 이런 화면에는 범위 표시("모든 스페이스", 고른 스페이스의 목적·프로젝트)를 두지 않는다.
+ */
+export function isSpaceFreeScreen(pathname: string): boolean {
+  return spaceFreePaths.includes(listPath(pathname))
 }
 
 export function projectSelectionTarget(pathname: string): string | null {
@@ -38,20 +47,9 @@ function personalSpaceId(defaultSpaceId: number | null): number | undefined {
 
 export type CreateAffiliation = { spaceId?: number; categoryId?: number }
 
-type CreateWorkspace = {
-  defaultSpaceId: number | null
-  selectedSpaceId: number | null
-  selectedProjectId: number | null
-  projects: {
-    id: number
-    spaceId: number
-    completed: boolean
-    deleted?: boolean
-  }[]
-}
-
 /**
  * Where a new task starts, from the screen the create form was opened over.
+ * (A schedule is personal and belongs to no space, so its form does not ask.)
  * - Today (its buttons, or `?from=today`): the personal space, as before.
  * - A list that shows the selected space (tasks, map, plan, recurrences):
  *   the selected space and, when one is chosen, its project.
@@ -60,10 +58,20 @@ type CreateWorkspace = {
  *   to the selected space and no project.
  * The person can change all of it in the form.
  */
-function taskAffiliationFor(
+export function createAffiliationFor(
   from: { pathname: string } | null | undefined,
   search: string,
-  workspace: CreateWorkspace,
+  workspace: {
+    defaultSpaceId: number | null
+    selectedSpaceId: number | null
+    selectedProjectId: number | null
+    projects: {
+      id: number
+      spaceId: number
+      completed: boolean
+      deleted?: boolean
+    }[]
+  },
 ): CreateAffiliation {
   const today =
     new URLSearchParams(search).get('from') === 'today' ||
@@ -84,27 +92,6 @@ function taskAffiliationFor(
   )
     return {}
   return { spaceId, categoryId: projectId }
-}
-
-/**
- * Where a new task or schedule starts.
- * - A task follows the screen behind the form (see `taskAffiliationFor`).
- * - A schedule is personal: it always starts in the personal space, whichever space is
- *   selected and whatever screen is behind the form. A project is kept only when the
- *   selected space is the personal one. Until the personal space is known nothing is
- *   named, and the form waits for it instead of falling back to the selected space.
- */
-export function createAffiliationFor(
-  from: { pathname: string } | null | undefined,
-  search: string,
-  workspace: CreateWorkspace,
-  kind: 'task' | 'schedule' = 'task',
-): CreateAffiliation {
-  const preferred = taskAffiliationFor(from, search, workspace)
-  if (kind === 'task') return preferred
-  const personal = personalSpaceId(workspace.defaultSpaceId)
-  if (personal === undefined) return {}
-  return preferred.spaceId === personal ? preferred : { spaceId: personal }
 }
 
 export function scopeCrumb(

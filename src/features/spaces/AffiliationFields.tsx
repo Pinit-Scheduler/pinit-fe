@@ -6,7 +6,6 @@ import {
   affiliationImpact,
   affiliationSummary,
   needsRecordDisclosure,
-  personalScheduleHelp,
 } from './affiliationImpact'
 import { fadeIn, shouldFadeText } from './motion'
 import SpaceMark from './SpaceMark'
@@ -37,7 +36,6 @@ export default function AffiliationFields({
   disabled,
   creating,
   kind = 'task',
-  personalOnly = false,
   allowedActions,
   unavailableReasons,
   fromSpaceId,
@@ -53,13 +51,6 @@ export default function AffiliationFields({
   disabled?: boolean
   creating: boolean
   kind?: 'task' | 'schedule'
-  /**
-   * 일정은 개인 단위다. 켜면 나의 스페이스와(고치는 중이면) 지금 있는 스페이스만 고를 수 있고,
-   * 담당자 칸이 없다. 일정은 올린 사람의 것이라 누가 하는지를 폼에서 바꾸지 않는다.
-   * 작업에 연결된 일정(`hasLinkedItem`)은 작업의 스페이스·프로젝트를 따라가므로 둘 다 고르지 못한다.
-   * 일정의 스페이스나 프로젝트를 바꾸면 서버가 연결 작업까지 옮기기 때문이다.
-   */
-  personalOnly?: boolean
   allowedActions?: AllowedActions
   unavailableReasons?: UnavailableReasons
   /** 폼을 열었을 때의 스페이스. 없으면 옮기는 중이 아니다 */
@@ -74,12 +65,7 @@ export default function AffiliationFields({
   const workspace = useSpaces()
   const [open, setOpen] = useState(false)
   const bodyId = useId()
-  // 불러오는 중의 나의 스페이스 id는 0이다. 그때는 고른 스페이스로 대신하지 않고 기다린다.
-  const spaceId =
-    value.spaceId ??
-    (personalOnly
-      ? workspace.defaultSpaceId || null
-      : workspace.selectedSpaceId)
+  const spaceId = value.spaceId ?? workspace.selectedSpaceId
   const request = useRef<AbortController | null>(null)
   const callback = useRef(onChange)
   const valueRef = useRef(value)
@@ -166,17 +152,6 @@ export default function AffiliationFields({
   const destination = workspace.spaces.find(
     (space) => space.id === spaceId && !space.deleted,
   )
-  const spaceOptions = workspace.spaces.filter(
-    (space) =>
-      !space.deleted &&
-      (!personalOnly ||
-        space.id === fromSpaceId ||
-        (space.personal && !hasLinkedItem)),
-  )
-  // 개인 단위: 갈 곳이 하나뿐이면 고르는 칸을 두지 않는다. 담당자 칸은 아예 없다.
-  const showSpace = !personalOnly || spaceOptions.length > 1
-  const showAssignee = !personalOnly
-  const showProject = !(personalOnly && hasLinkedItem)
   const project = projects.find((item) => item.id === value.categoryId) ?? null
   const knownMembers = [
     ...(draft?.members ?? []),
@@ -275,7 +250,6 @@ export default function AffiliationFields({
       </button>
       <div id={bodyId} className="space-affiliation__body" hidden={!expanded}>
       <fieldset className="space-affiliation__fields" disabled={locked}>
-        {showSpace && (
         <label>
           스페이스
           <select
@@ -293,16 +267,16 @@ export default function AffiliationFields({
             <option value="" disabled>
               스페이스 선택
             </option>
-            {spaceOptions.map((space) => (
-              <option key={space.id} value={space.id}>
-                {space.name}
-                {space.personal ? ' · 본인 전용' : ''}
-              </option>
-            ))}
+            {workspace.spaces
+              .filter((space) => !space.deleted)
+              .map((space) => (
+                <option key={space.id} value={space.id}>
+                  {space.name}
+                  {space.personal ? ' · 본인 전용' : ''}
+                </option>
+              ))}
           </select>
         </label>
-        )}
-        {showProject && (
         <label>
           프로젝트
           <select
@@ -330,8 +304,6 @@ export default function AffiliationFields({
             ))}
           </select>
         </label>
-        )}
-        {showAssignee && (
         <label>
           담당자
           <select
@@ -378,19 +350,7 @@ export default function AffiliationFields({
             ))}
           </select>
         </label>
-        )}
       </fieldset>
-      {personalOnly && (
-        <p className="space-help">
-          {personalScheduleHelp({
-            creating,
-            linked: hasLinkedItem,
-            inTeamSpace:
-              workspace.spaces.find((space) => space.id === fromSpaceId)
-                ?.personal === false,
-          })}
-        </p>
-      )}
       {noteLines.map((line) => (
         <UnavailableNote key={line} text={line} />
       ))}
@@ -440,9 +400,7 @@ export default function AffiliationFields({
       )}
       {value.assigneeId === null && (
         <p className="space-help">
-          {kind === 'schedule'
-            ? '담당자가 없는 일정은 오늘 화면의 일정에 나오지 않아요.'
-            : '담당자 미정 작업은 스페이스 목록에 남고 오늘의 내 작업에서는 제외돼요.'}
+          담당자 미정 작업은 스페이스 목록에 남고 오늘의 내 작업에서는 제외돼요.
         </p>
       )}
     </fieldset>

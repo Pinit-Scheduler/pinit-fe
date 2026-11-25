@@ -353,10 +353,9 @@ test('choosing a project puts its head on top of every screen that shows the sel
   }
   for (const path of ['/app/today', '/app/schedules', '/app/statistics', '/app/deadline-risk', '/app/settings/trash', '/app/spaces'])
     assert.doesNotMatch(contextBar(path, selected), /data-head/, path)
-  // 일정은 모든 스페이스를 보여 주는 내 화면이라 고른 스페이스의 목적도 위에 두지 않는다.
-  const schedules = contextBar('/app/schedules', selected)
-  assert.ok(schedules.includes('모든 스페이스 · 내 일정'))
-  assert.ok(!schedules.includes(space.purpose))
+  // 일정은 개인 것이고 어느 스페이스에도 속하지 않는다. 마인드맵처럼 범위 표시 자체가 없다.
+  assert.equal(contextBar('/app/schedules', selected), '')
+  assert.equal(contextBar('/app/mind-map', selected), '')
 })
 
 test('the head shows without a space purpose and never for a project of another space', () => {
