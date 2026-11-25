@@ -228,6 +228,14 @@ for (const kind of ['task', 'schedule']) {
       kind === 'schedule' ? true : undefined,
       'only the schedule form limits the space and the assignee to me',
     )
+    if (kind === 'schedule') {
+      // 작업에 연결된 일정인지를 폼이 소속 칸에 넘긴다. 이 한 줄이 연결 일정의 이동을 막는다.
+      assert.equal(find(tree, CategoryPicker).props.hasLinkedItem, false)
+      scheduleValues = { ...scheduleValues, taskId: 12 }
+      assert.equal(find(render(), CategoryPicker).props.hasLinkedItem, true)
+      scheduleValues = { ...scheduleValues, taskId: undefined }
+      tree = render()
+    }
     await tree.props.onSubmit({ preventDefault() {} })
     assert.equal(submitted.at(-1).categoryId, 7)
     assert.equal(submitted.at(-1).categoryChanged, false)

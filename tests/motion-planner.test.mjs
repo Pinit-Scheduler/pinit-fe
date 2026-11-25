@@ -100,7 +100,7 @@ test('a plain click on a surface link opens the surface; modified clicks keep th
 const dayPlanHarness = (
   fetchDayPlan,
   fetchSchedules = async () => [],
-  workspace = { selectedSpaceId: 3, selectedProjectId: null, memberId: 7, spaces: [] },
+  workspace = { selectedSpaceId: 3, selectedProjectId: null, memberId: 7, spaces: [], error: null, reload: async () => {} },
 ) => {
   const slots = []
   const pending = []
@@ -325,7 +325,11 @@ test('the plan avoids my schedules from every space, not the schedules of the se
     { id: 4, spaceId: 31, assigneeId: 7, date: { dateTime: '2026-11-10T09:00:00' } },
   ]
   const scopes = []
-  const workspace = { selectedSpaceId: 31, selectedProjectId: null, memberId: 0, spaces: [] }
+  let reloads = 0
+  const workspace = {
+    selectedSpaceId: 31, selectedProjectId: null, memberId: 0, spaces: [], error: null,
+    reload: async () => { reloads += 1 },
+  }
   const host = dayPlanHarness(
     async ({ date }) => planFor(date, 1),
     async (time, scope) => (scopes.push(scope), rows),
@@ -335,7 +339,24 @@ test('the plan avoids my schedules from every space, not the schedules of the se
   host.render(props)
   await settle()
   assert.deepEqual(JSON.parse(JSON.stringify(scopes)), [{ allSpaces: true }], 'the obstacles are read from every space')
-  assert.deepEqual(Array.from(host.render(props).schedules), [], 'until I am known nothing is drawn as mine')
+  // 내가 누구인지 모르는 동안에는 계획을 내보내지 않는다. 기존 일정 없이 보이면 겹침을 못 보고 승인하게 된다.
+  const unknown = host.render(props)
+  assert.deepEqual(Array.from(unknown.schedules), [], 'until I am known nothing is drawn as mine')
+  assert.equal(unknown.plan, null, 'and the plan is withheld rather than shown without its obstacles')
+  assert.equal(unknown.planKey, null)
+  assert.equal(unknown.isInitialLoading, true)
+  assert.equal(unknown.error, null)
+  // 스페이스 정보를 못 받았으면 그 실패를 보이고, 다시 시도가 스페이스 정보부터 다시 받는다.
+  workspace.error = '스페이스를 불러오지 못했어요.'
+  const failed = host.render(props)
+  assert.equal(failed.error, '스페이스를 불러오지 못했어요.')
+  assert.equal(failed.plan, null)
+  assert.equal(failed.isInitialLoading, false)
+  failed.refetch()
+  assert.equal(reloads, 1, 'retry reloads the workspace')
+  await settle()
+  workspace.error = null
+  scopes.length = 1
   // 회원과 스페이스가 나중에 도착하면 받아 둔 응답을 다시 거른다. 빈 목록이 캐시에 남지 않는다.
   workspace.memberId = 7
   workspace.spaces = [

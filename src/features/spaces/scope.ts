@@ -146,6 +146,23 @@ export function scheduleScopeKey(
 }
 
 /**
+ * 고른 스페이스가 나의 스페이스가 아닌지. 새 일정·반복 일정은 늘 나의 스페이스에 생기므로, 고른 스페이스만
+ * 보여 주는 화면(반복 관리)이 "여기에 모인다"고 말해도 되는지를 가린다.
+ * 아직 모르는 동안(불러오는 중의 나의 스페이스 0, 고른 스페이스 없음)에는 아니라고 답해 평소 문구를 둔다.
+ */
+export function outsidePersonalSpace(
+  defaultSpaceId: number | null,
+  selectedSpaceId: number | null,
+): boolean {
+  const personal = personalSpaceId(defaultSpaceId)
+  return (
+    personal !== undefined &&
+    selectedSpaceId !== null &&
+    selectedSpaceId !== personal
+  )
+}
+
+/**
  * 일정 화면이 보여 주는 내 일정. 일정은 개인 단위로 본다.
  * - 내가 담당인 일정.
  * - 담당자가 없는 일정은, 다른 참여자가 있는 팀 스페이스의 것이 아니면 내 것으로 본다

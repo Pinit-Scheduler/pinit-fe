@@ -75,7 +75,7 @@ export function personalScheduleHelp(input: {
   if (input.creating)
     return '일정은 나의 스페이스에 내 일정으로 만들어요. 팀과 함께 볼 일은 작업으로 만들어 주세요.'
   if (input.linked)
-    return '작업에 연결된 일정은 작업의 스페이스를 따라가요. 옮기려면 작업을 옮겨 주세요.'
+    return '작업에 연결된 일정은 작업의 스페이스와 프로젝트를 따라가요. 옮기려면 작업을 옮겨 주세요.'
   if (input.inTeamSpace)
     return '이 일정은 팀 스페이스에 있어요. 나의 스페이스로 가져올 수 있고, 다른 팀 스페이스로 보내거나 다른 사람에게 맡길 수는 없어요.'
   return '일정은 팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요. 팀과 함께 볼 일은 작업으로 만들어 주세요.'

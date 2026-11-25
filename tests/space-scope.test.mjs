@@ -299,6 +299,15 @@ test('a new schedule always starts in my space, whatever screen is behind the fo
   assert.deepEqual(schedule('/app/tasks', '', { defaultSpaceId: 0 }), {})
   assert.deepEqual(schedule('/app/tasks', '', { defaultSpaceId: null }), {})
 })
+test('a screen of the selected space knows when new schedules will not land in it', () => {
+  const { outsidePersonalSpace } = load('features/spaces/scope.ts')
+  assert.equal(outsidePersonalSpace(-7, 31), true, 'a team space is selected')
+  assert.equal(outsidePersonalSpace(-7, -7), false, 'my own space is selected')
+  // 아직 모르는 동안에는 평소 문구를 둔다.
+  assert.equal(outsidePersonalSpace(0, 31), false, 'my space is still loading')
+  assert.equal(outsidePersonalSpace(null, 31), false)
+  assert.equal(outsidePersonalSpace(-7, null), false, 'nothing is selected yet')
+})
 test('a create form keeps the affiliation it opened with while the screen behind it changes', () => {
   const slots = []
   let index = 0

@@ -4,6 +4,7 @@ import {
 } from '@shared/utils/events'
 import { reportEditConflict } from '@features/spaces/conflicts'
 import { useSpaces } from '@features/spaces/store'
+import { outsidePersonalSpace } from '@features/spaces/scope'
 import WorkspaceIcon from '@shared/components/common/WorkspaceIcon'
 import useRevalidatingQuery from '@shared/hooks/useRevalidatingQuery'
 import { presenceProps, useListPresence } from '@shared/motion'
@@ -55,11 +56,8 @@ const RecurrencesPage = () => {
   const { open } = useRouteSurfaceNavigation()
   const { selectedSpaceId, selectedProjectId, defaultSpaceId } = useSpaces()
   // 새 반복 일정은 늘 나의 스페이스에 만들어진다. 이 목록은 고른 스페이스만 보이므로, 다른 스페이스를
-  // 골랐을 때는 반복 일정이 여기에 모인다고 말하지 않는다. 불러오는 중(0, null)에는 평소 문구를 둔다.
-  const outsidePersonal =
-    !!defaultSpaceId &&
-    selectedSpaceId !== null &&
-    selectedSpaceId !== defaultSpaceId
+  // 골랐을 때는 반복 일정이 여기에 모인다고 말하지 않는다.
+  const outsidePersonal = outsidePersonalSpace(defaultSpaceId, selectedSpaceId)
   const confirmation = useRecurrenceScope()
   const [renaming, setRenaming] = useState<{
     id: number

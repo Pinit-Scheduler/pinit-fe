@@ -340,8 +340,17 @@ test('a schedule tied to a task cannot be moved from the schedule form: its plac
     personalStore,
   )
   assert.equal(optionsOf(linked, '스페이스'), null, 'moving it would move the team task with it')
-  assert.match(linked, /작업에 연결된 일정은 작업의 스페이스를 따라가요\. 옮기려면 작업을 옮겨 주세요\./)
-  assert.deepEqual(optionsOf(linked, '프로젝트'), ['프로젝트 없음', '작업 카드 개선'])
+  assert.equal(optionsOf(linked, '프로젝트'), null, 'so would re-filing it under another project')
+  assert.match(linked, /작업에 연결된 일정은 작업의 스페이스와 프로젝트를 따라가요\. 옮기려면 작업을 옮겨 주세요\./)
+  // 연결되지 않은 일정은 프로젝트를 그대로 고른다. 작업 폼도 그대로다.
+  const free = affiliationFields(
+    { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: 31, value: { spaceId: 31, categoryId: 88, assigneeId: 7 } },
+    personalStore,
+  )
+  assert.deepEqual(optionsOf(free, '프로젝트'), ['프로젝트 없음', '작업 카드 개선'])
+  const task = affiliationFields({ kind: 'task', creating: false, fromSpaceId: 31, hasLinkedItem: true, value: { spaceId: 31, categoryId: 88, assigneeId: 7 } }, personalStore)
+  assert.notEqual(optionsOf(task, '스페이스'), null)
+  assert.notEqual(optionsOf(task, '프로젝트'), null)
 })
 test('the help under an unassigned item speaks of the right thing', () => {
   const schedule = affiliationFields(
@@ -357,7 +366,7 @@ test('the schedule form help says what applies to the schedule being edited', ()
   const { personalScheduleHelp, affiliationImpact } = load('features/spaces/affiliationImpact.ts')
   const help = (input) => personalScheduleHelp({ creating: false, linked: false, inTeamSpace: false, ...input })
   assert.match(help({ creating: true, linked: true, inTeamSpace: true }), /나의 스페이스에 내 일정으로 만들어요/)
-  assert.match(help({ linked: true, inTeamSpace: true }), /작업의 스페이스를 따라가요/)
+  assert.match(help({ linked: true, inTeamSpace: true }), /작업의 스페이스와 프로젝트를 따라가요/)
   assert.match(help({ inTeamSpace: true }), /나의 스페이스로 가져올 수 있고/)
   assert.match(help({}), /팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요/)
   // 팀 스페이스에 남아 있는 일정에도 "참여자가 함께 본다"는 줄은 없다. 작업에는 그대로 있다.

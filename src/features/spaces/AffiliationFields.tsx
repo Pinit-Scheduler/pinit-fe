@@ -56,8 +56,8 @@ export default function AffiliationFields({
   /**
    * 일정은 개인 단위다. 켜면 나의 스페이스와(고치는 중이면) 지금 있는 스페이스만 고를 수 있고,
    * 담당자는 내가 아닐 때 내가 맡는 것만 고를 수 있다. 팀 스페이스로 보내거나 남에게 맡길 수 없다.
-   * 작업에 연결된 일정(`hasLinkedItem`)은 작업의 스페이스를 따라가므로 스페이스를 고르지 못한다.
-   * 일정을 옮기면 서버가 연결 작업까지 옮기기 때문이다.
+   * 작업에 연결된 일정(`hasLinkedItem`)은 작업의 스페이스·프로젝트를 따라가므로 둘 다 고르지 못한다.
+   * 일정의 스페이스나 프로젝트를 바꾸면 서버가 연결 작업까지 옮기기 때문이다.
    */
   personalOnly?: boolean
   allowedActions?: AllowedActions
@@ -187,6 +187,7 @@ export default function AffiliationFields({
     !personalOnly ||
     (initialAssigneeId !== undefined && initialAssigneeId !== workspace.memberId)
   const showUnassigned = !personalOnly || initialAssigneeId === null
+  const showProject = !(personalOnly && hasLinkedItem)
   const project = projects.find((item) => item.id === value.categoryId) ?? null
   const knownMembers = [
     ...(draft?.members ?? []),
@@ -312,6 +313,7 @@ export default function AffiliationFields({
           </select>
         </label>
         )}
+        {showProject && (
         <label>
           프로젝트
           <select
@@ -339,6 +341,7 @@ export default function AffiliationFields({
             ))}
           </select>
         </label>
+        )}
         {showAssignee && (
         <label>
           담당자
