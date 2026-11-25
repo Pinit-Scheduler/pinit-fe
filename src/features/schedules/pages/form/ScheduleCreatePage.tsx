@@ -2,6 +2,7 @@ import { useLocation } from 'react-router-dom'
 import { useMemo } from 'react'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { useCreateAffiliation } from '@features/spaces/useCreateAffiliation'
+import { useSpaces } from '@features/spaces/store'
 import ScheduleForm from '../../components/ScheduleForm'
 import {
   getDisplayZoneId,
@@ -33,6 +34,9 @@ type LocationState = {
   initialDateKey?: string
 }
 
+/** 새 일정이 놓이는 곳: 나의 스페이스와, 그 스페이스의 프로젝트(없으면 null). */
+type PersonalPlacement = { spaceId: number; projectId: number | null }
+
 const ScheduleCreatePage = () => {
   const { complete } = useRouteSurfaceNavigation()
   const location = useLocation()
@@ -43,7 +47,9 @@ const ScheduleCreatePage = () => {
   const initialDateKey =
     (location.state as LocationState | null)?.initialDateKey ??
     (dateParam && parseDateKey(dateParam) ? dateParam : undefined)
-  const affiliation = useCreateAffiliation()
+  // 일정은 개인 단위다. 어느 화면에서 열든, 어떤 스페이스가 골라져 있든 나의 스페이스에서 시작한다.
+  const affiliation = useCreateAffiliation('schedule')
+  const { defaultSpaceId } = useSpaces()
 
   const initialValues = useMemo(() => {
     void offsetMinutes
@@ -67,8 +73,23 @@ const ScheduleCreatePage = () => {
     values: ScheduleFormValues,
     rule?: RuleDraft | null,
   ) => {
+    // 폼이 무엇을 들고 있든 나의 스페이스에만 만든다. 담당자는 보내지 않는다(서버 기본값이 만든 사람이다).
+    // 불러오는 중의 나의 스페이스 id는 0이다. 그때는 고른 스페이스로 대신 만들지 않고 저장을 미룬다.
+    const personalSpaceId = defaultSpaceId || undefined
+    if (personalSpaceId === undefined) {
+      addToast(
+        '스페이스 정보를 불러오는 중이에요. 잠시 뒤 다시 저장해 주세요.',
+        'error',
+      )
+      return false
+    }
+    const placement: PersonalPlacement = {
+      spaceId: personalSpaceId,
+      projectId:
+        values.spaceId === personalSpaceId ? (values.categoryId ?? null) : null,
+    }
     if (rule) {
-      await createRecurringSchedule(values, rule)
+      await createRecurringSchedule(values, rule, placement)
       return
     }
     try {
@@ -76,12 +97,8 @@ const ScheduleCreatePage = () => {
         values.plannedDurationMinutes ?? '',
       )
       const payload = {
-        spaceId: values.spaceId,
-        projectId: values.categoryId,
+        ...placement,
         expectedVersion: values.expectedVersion,
-        ...(values.assigneeId !== undefined
-          ? { assigneeId: values.assigneeId }
-          : {}),
         title: values.title,
         description: values.description,
         date: toApiDateTimeWithZone(values.date),
@@ -113,17 +130,14 @@ const ScheduleCreatePage = () => {
   const createRecurringSchedule = async (
     values: ScheduleFormValues,
     rule: RuleDraft,
+    placement: PersonalPlacement,
   ) => {
     const plannedDuration = parseDurationInput(
       values.plannedDurationMinutes ?? '',
     )
     try {
       const payload = {
-        spaceId: values.spaceId,
-        projectId: values.categoryId,
-        ...(values.assigneeId === undefined
-          ? {}
-          : { assigneeId: values.assigneeId }),
+        ...placement,
         mode: 'FIXED' as const,
         title: values.title,
         description: values.description,

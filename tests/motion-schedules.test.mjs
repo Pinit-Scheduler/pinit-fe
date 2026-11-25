@@ -362,7 +362,6 @@ const tabHarness = () => {
     '../../hooks/useOverdueSchedulesSummary.ts': () => ({ summary: h.overdue, refetch: () => h.refetched.push('overdue') }),
     '../../components/ScheduleCard.tsx': ({ schedule }) => React.createElement('article', null, schedule.title),
     '../../hooks/useScheduleList.ts': () => h.list,
-    '../../hooks/useScheduleAudience': () => ({ audience: 'mine', setAudience() {}, shared: false }),
     '@shared/components/common/StatusPanel': ({ variant, title, description }) =>
       React.createElement('div', { className: `status-panel status-panel--${variant}` }, title, description),
     '@shared/routing/RouteSurface': { useRouteSurfaceNavigation: () => ({ open() {} }) },
@@ -404,12 +403,9 @@ const tabHarness = () => {
     '@features/recurrence/components/RecurrenceScopeDialog': { useRecurrenceScope: () => ({ dialog: null, ask: async () => 'THIS' }) },
     '@features/recurrence/utils/seriesMutations': { confirmAndDeleteSeries() {}, previewSeriesDelete() {} },
     '@features/recurrence/utils/recurrenceRules': { isBeyondGeneration: () => false },
-    '@features/spaces/store': { useSpaces: () => ({ memberId: 1, spaces: [] }) },
+    '@features/spaces/store': { useSpaces: () => ({ memberId: 1, spaces: [], error: null, reload: async () => {} }) },
     '@features/spaces/conflicts': { conflictReloadedMessage: () => '', isEditConflict: () => false },
-    '@features/spaces/scope': {
-      audienceSchedules: (schedules) => ({ visible: schedules, hidden: 0 }),
-      scheduleMineParam: () => undefined,
-    },
+    '@features/spaces/scope': { ownSchedules: (schedules) => schedules },
     '@shared/motion': {
       MOTION_DISTANCE_PX: 8,
       MOTION_EASE: 'ease',

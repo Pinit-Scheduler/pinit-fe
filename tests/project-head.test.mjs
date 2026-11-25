@@ -355,7 +355,7 @@ test('choosing a project puts its head on top of every screen that shows the sel
     assert.doesNotMatch(contextBar(path, selected), /data-head/, path)
   // 일정은 모든 스페이스를 보여 주는 내 화면이라 고른 스페이스의 목적도 위에 두지 않는다.
   const schedules = contextBar('/app/schedules', selected)
-  assert.ok(schedules.includes('모든 스페이스 · 일정'))
+  assert.ok(schedules.includes('모든 스페이스 · 내 일정'))
   assert.ok(!schedules.includes(space.purpose))
 })
 

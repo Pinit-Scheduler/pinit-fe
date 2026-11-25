@@ -24,8 +24,6 @@ type ScheduleCardProps = {
   onStart?: (scheduleId: number) => void
   onComplete?: (scheduleId: number) => void
   onCancel?: (scheduleId: number) => void
-  /** 팀 전체 보기에서만 넘긴다. 담당자 이름 또는 담당자 미정을 일정 제목 뒤(반복 배지 다음)에 보여 준다. */
-  assignee?: { label: string; unassigned: boolean } | null
 }
 
 /**
@@ -35,14 +33,12 @@ type ScheduleCardProps = {
  * @param onDelete - 삭제 핸들러
  * @param onStart - 시작 핸들러
  * @param onCancel - 취소 핸들러
- * @param assignee - 팀 전체 보기의 담당자 표시
  * @constructor
  */
 const ScheduleCard = ({
   schedule,
   onOpenDetail,
   onDelete,
-  assignee,
 }: ScheduleCardProps) => {
   const actions = useScheduleActions(schedule.id, schedule.state)
   const { schedulesById } = useScheduleCache()
@@ -206,21 +202,6 @@ const ScheduleCard = ({
               >
                 <WorkspaceIcon name="repeat" /> 반복
               </span>
-            )}
-            {assignee && (
-              <p
-                className={[
-                  'schedule-card__subtitle',
-                  'schedule-card__assignee',
-                  assignee.unassigned
-                    ? 'schedule-card__assignee--unassigned'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                {assignee.unassigned ? assignee.label : `담당 ${assignee.label}`}
-              </p>
             )}
             {scheduleType && (
               <p className="schedule-card__subtitle">

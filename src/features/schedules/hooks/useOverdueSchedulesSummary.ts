@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import dayjs from 'dayjs'
 import type { OverdueSummary, ScheduleResponse } from '../types/schedule'
 import { fetchWeeklySchedules } from '../api/schedules'
@@ -5,12 +6,13 @@ import { getTodayWithOffset, toApiDateTimeWithZone, toDateFromApi, toDateKey } f
 import { useTimePreferences } from '@contexts/TimePreferencesContext'
 import { useRevalidatingQuery } from '@shared/hooks/useRevalidatingQuery'
 import { useSpaces } from '@features/spaces/store'
-import { scheduleScopeKey } from '@features/spaces/scope'
+import { ownSchedules, scheduleScopeKey } from '@features/spaces/scope'
 
 type Options = {
-  mine?: boolean
   /** 고른 스페이스·프로젝트 대신 모든 스페이스를 읽는다. */
   allSpaces?: boolean
+  /** 받은 일정 가운데 내 일정만 센다(`ownSchedules`). */
+  own?: boolean
 }
 
 const NONE: OverdueSummary = { hasOverdue: false }
@@ -35,23 +37,29 @@ const summarize = (schedules: ScheduleResponse[], todayKey: string): OverdueSumm
   }
 }
 
-/** 지난 날짜의 미완료 일정 요약과 재조회 함수. */
-const useOverdueSchedulesSummary = ({ mine, allSpaces = false }: Options = {}) => {
+/**
+ * 지난 날짜의 미완료 일정 요약과 재조회 함수.
+ * 받은 일정은 그대로 두고 화면에 그릴 때 센다. 내 일정만 세는 기준(회원·스페이스)이 나중에 도착해도 다시 받지 않는다.
+ */
+const useOverdueSchedulesSummary = ({ allSpaces = false, own = false }: Options = {}) => {
   const { offsetMinutes } = useTimePreferences()
-  const { selectedSpaceId, selectedProjectId } = useSpaces()
+  const { selectedSpaceId, selectedProjectId, memberId, spaces } = useSpaces()
   const today = getTodayWithOffset(offsetMinutes)
   const todayKey = toDateKey(today)
-  // 내 일정/팀 전체를 바꾸면 이전 범위의 개수를 보여 주지 않는다.
-  const key = `schedules/overdue/${todayKey}@${offsetMinutes}/${String(mine)}/${scheduleScopeKey(allSpaces, selectedSpaceId, selectedProjectId)}`
-  const query = useRevalidatingQuery<OverdueSummary>(
+  const key = `schedules/overdue/${todayKey}@${offsetMinutes}/${scheduleScopeKey(allSpaces, selectedSpaceId, selectedProjectId)}`
+  const query = useRevalidatingQuery<ScheduleResponse[]>(
     key,
     // 현재 주의 일정을 조회 (v1 주간 API)
-    async () => summarize(await fetchWeeklySchedules(toApiDateTimeWithZone(today), { mine, allSpaces }), todayKey),
+    () => fetchWeeklySchedules(toApiDateTimeWithZone(today), { allSpaces }),
     { invalidateOn: ['schedule'] },
   )
-  return {
+  const summary = useMemo(() => {
     // 실패하면 배너를 띄우지 않는다.
-    summary: query.data ?? NONE,
+    if (query.data === undefined) return NONE
+    return summarize(own ? ownSchedules(query.data, memberId, spaces) : query.data, todayKey)
+  }, [query.data, own, memberId, spaces, todayKey])
+  return {
+    summary,
     refetch: query.refetch,
   }
 }

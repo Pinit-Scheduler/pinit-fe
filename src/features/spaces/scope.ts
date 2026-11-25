@@ -38,13 +38,21 @@ function personalSpaceId(defaultSpaceId: number | null): number | undefined {
 
 export type CreateAffiliation = { spaceId?: number; categoryId?: number }
 
-/** 모든 스페이스를 보여 주는 내 화면 가운데, 여기서 만든 것이 나의 스페이스에서 시작하는 화면. */
-const personalCreatePaths = ['/app/today', '/app/schedules']
+type CreateWorkspace = {
+  defaultSpaceId: number | null
+  selectedSpaceId: number | null
+  selectedProjectId: number | null
+  projects: {
+    id: number
+    spaceId: number
+    completed: boolean
+    deleted?: boolean
+  }[]
+}
 
 /**
- * Where a new task or schedule starts, from the screen the create form was opened over.
- * - Today (its buttons, or `?from=today`) and the schedule screen: the personal space.
- *   Both show every space, so the space held by the switcher is not what the person is looking at.
+ * Where a new task starts, from the screen the create form was opened over.
+ * - Today (its buttons, or `?from=today`): the personal space, as before.
  * - A list that shows the selected space (tasks, map, plan, recurrences):
  *   the selected space and, when one is chosen, its project.
  *   A completed or deleted project, or one from another space, is not a default.
@@ -52,25 +60,15 @@ const personalCreatePaths = ['/app/today', '/app/schedules']
  *   to the selected space and no project.
  * The person can change all of it in the form.
  */
-export function createAffiliationFor(
+function taskAffiliationFor(
   from: { pathname: string } | null | undefined,
   search: string,
-  workspace: {
-    defaultSpaceId: number | null
-    selectedSpaceId: number | null
-    selectedProjectId: number | null
-    projects: {
-      id: number
-      spaceId: number
-      completed: boolean
-      deleted?: boolean
-    }[]
-  },
+  workspace: CreateWorkspace,
 ): CreateAffiliation {
-  const mineScreen =
+  const today =
     new URLSearchParams(search).get('from') === 'today' ||
-    (from ? personalCreatePaths.includes(listPath(from.pathname)) : false)
-  if (mineScreen) {
+    (from ? listPath(from.pathname) === '/app/today' : false)
+  if (today) {
     const spaceId = personalSpaceId(workspace.defaultSpaceId)
     return spaceId === undefined ? {} : { spaceId }
   }
@@ -86,6 +84,27 @@ export function createAffiliationFor(
   )
     return {}
   return { spaceId, categoryId: projectId }
+}
+
+/**
+ * Where a new task or schedule starts.
+ * - A task follows the screen behind the form (see `taskAffiliationFor`).
+ * - A schedule is personal: it always starts in the personal space, whichever space is
+ *   selected and whatever screen is behind the form. A project is kept only when the
+ *   selected space is the personal one. Until the personal space is known nothing is
+ *   named, and the form waits for it instead of falling back to the selected space.
+ */
+export function createAffiliationFor(
+  from: { pathname: string } | null | undefined,
+  search: string,
+  workspace: CreateWorkspace,
+  kind: 'task' | 'schedule' = 'task',
+): CreateAffiliation {
+  const preferred = taskAffiliationFor(from, search, workspace)
+  if (kind === 'task') return preferred
+  const personal = personalSpaceId(workspace.defaultSpaceId)
+  if (personal === undefined) return {}
+  return preferred.spaceId === personal ? preferred : { spaceId: personal }
 }
 
 export function scopeCrumb(
@@ -125,38 +144,32 @@ export function scheduleScopeKey(
     : `${selectedSpaceId ?? 'all'}/${selectedProjectId ?? 'all'}`
 }
 
-export type ScheduleAudience = 'mine' | 'team'
-
-export function scheduleMineParam(
-  personal: boolean,
-  audience: ScheduleAudience,
-): boolean | undefined {
-  return personal ? undefined : audience === 'mine'
-}
-
 /**
- * 일정 화면에 내 일정/팀 전체 전환을 둘지. 일정 화면은 모든 스페이스를 보여 주므로, 고른 스페이스가
- * 아니라 내가 참여한 스페이스 가운데 다른 참여자가 있는 팀 스페이스가 하나라도 있는지로 정한다.
- * 휴지통에 있는 스페이스의 일정은 목록에 오지 않으므로 세지 않는다.
+ * 일정 화면이 보여 주는 내 일정. 일정은 개인 단위로 본다.
+ * - 내가 담당인 일정.
+ * - 담당자가 없는 일정은, 다른 참여자가 있는 팀 스페이스의 것이 아니면 내 것으로 본다
+ *   (나의 스페이스, 나만 있는 스페이스, 스페이스를 아직 모르는 일정). 그 일정을 볼 사람이 나뿐이다.
+ * 다른 사람이 담당인 일정과, 다른 참여자가 있는 팀 스페이스의 담당자 없는 일정은 내 일정이 아니다.
+ * 회원을 아직 모르면(불러오는 중의 0) 아무것도 내 일정으로 보지 않는다.
  */
-export function hasSharedSpace(
-  spaces: { personal: boolean; members: unknown[]; deleted?: boolean }[],
-): boolean {
-  return spaces.some(
-    (space) => !space.deleted && !space.personal && space.members.length >= 2,
-  )
-}
-
-// Same rule as the server's mine=true: the caller is the assignee.
-export function audienceSchedules<T extends { assigneeId?: number | null }>(
+export function ownSchedules<
+  T extends { assigneeId?: number | null; spaceId?: number },
+>(
   schedules: T[],
-  shared: boolean,
-  audience: ScheduleAudience,
   memberId: number,
-): { visible: T[]; hidden: number } {
-  if (!shared || audience === 'team') return { visible: schedules, hidden: 0 }
-  const visible = schedules.filter((item) => item.assigneeId === memberId)
-  return { visible, hidden: schedules.length - visible.length }
+  spaces: { id: number; personal: boolean; members: unknown[] }[],
+): T[] {
+  if (!memberId) return []
+  const shared = new Set(
+    spaces
+      .filter((space) => !space.personal && space.members.length >= 2)
+      .map((space) => space.id),
+  )
+  return schedules.filter((schedule) =>
+    schedule.assigneeId == null
+      ? schedule.spaceId === undefined || !shared.has(schedule.spaceId)
+      : schedule.assigneeId === memberId,
+  )
 }
 
 export function sheetProjects<

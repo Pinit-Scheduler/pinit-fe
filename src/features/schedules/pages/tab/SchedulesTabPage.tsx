@@ -10,7 +10,6 @@ import useWeeklySchedulePresence from '../../hooks/useWeeklySchedulePresence.ts'
 import useOverdueSchedulesSummary from '../../hooks/useOverdueSchedulesSummary.ts'
 import ScheduleCard from '../../components/ScheduleCard.tsx'
 import useScheduleList from '../../hooks/useScheduleList.ts'
-import useScheduleAudience from '../../hooks/useScheduleAudience'
 import StatusPanel from '@shared/components/common/StatusPanel'
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
 import { deleteSchedule, updateSchedule } from '../../api/schedules.ts'
@@ -42,10 +41,7 @@ import {
 import { isBeyondGeneration } from '@features/recurrence/utils/recurrenceRules'
 import { useSpaces } from '@features/spaces/store'
 import { conflictReloadedMessage, isEditConflict } from '@features/spaces/conflicts'
-import {
-  audienceSchedules,
-  scheduleMineParam,
-} from '@features/spaces/scope'
+import { ownSchedules } from '@features/spaces/scope'
 import {
   MOTION_DISTANCE_PX,
   MOTION_EASE,
@@ -170,11 +166,14 @@ const SchedulesTabPage = () => {
   }, [requestedDateKey, offsetMinutes, selectDate, setSearchParams])
   const { addToast } = useToast()
   const { offerScheduleUndo } = useTrashUndo()
-  const { memberId, spaces } = useSpaces()
-  const { audience, setAudience, shared } = useScheduleAudience()
-  // 일정 화면은 고른 스페이스·프로젝트와 상관없이 모든 스페이스의 일정을 읽는다(오늘·통계와 같은 내 화면).
-  // 주간·월간 표시는 서버의 mine 조회를 쓴다. 전환이 없으면 서버 기본 조회를 유지한다.
-  const mine = scheduleMineParam(!shared, audience)
+  const {
+    memberId,
+    spaces,
+    error: workspaceError,
+    reload: reloadWorkspace,
+  } = useSpaces()
+  // 일정은 개인 단위다. 이 화면은 고른 스페이스·프로젝트와 상관없이 모든 스페이스에서 읽고(오늘·통계와 같은
+  // 내 화면), 목록·주간 점·월간 숫자·지난 일정 안내 모두 내 일정만 센다(ownSchedules). 팀 전체 보기는 없다.
   // Keyed by week: picking another day in the same week reads nothing new.
   const {
     presenceMap,
@@ -182,15 +181,13 @@ const SchedulesTabPage = () => {
     refetch: refetchPresence,
   } = useWeeklySchedulePresence({
     weekStart: currentWeekStart,
-    mine,
     allSpaces: true,
+    own: true,
   })
-  const monthly = useMonthlySchedules(
-    selectedDate,
-    calendarView === 'month',
-    mine,
-    true,
-  )
+  const monthly = useMonthlySchedules(selectedDate, calendarView === 'month', {
+    allSpaces: true,
+    own: true,
+  })
   const {
     schedules: schedulesByDate,
     data: dayData,
@@ -200,10 +197,12 @@ const SchedulesTabPage = () => {
     refetch: refetchSchedulesRaw,
     setData: setDaySchedules,
   } = useScheduleList(selectedDate, { allSpaces: true })
+  // 내 일정을 가리려면 내가 누구인지 알아야 한다. 스페이스 정보가 오기 전에는 목록을 불러오는 중으로 둔다.
+  const memberKnown = memberId !== 0
   // Rows exist for this day (fresh or refreshing). Only their absence shows a loading or error panel.
-  const hasDayData = dayData !== undefined
+  const hasDayData = dayData !== undefined && memberKnown
   const { summary: overdueSummary, refetch: refetchOverdue } =
-    useOverdueSchedulesSummary({ mine, allSpaces: true })
+    useOverdueSchedulesSummary({ allSpaces: true, own: true })
   // The banner rises in when overdue schedules appear and fades out when the last one is done.
   // One that is already known when the page mounts (from the cache) is simply there.
   const overdueBanner = usePresence(
@@ -233,24 +232,11 @@ const SchedulesTabPage = () => {
       }),
     [schedulesByDate, schedulesById],
   )
-  // 날짜별 목록은 팀 전체를 받아 내 일정 보기에서 내가 담당자인 일정만 보여 준다(서버 mine=true와 같은 기준).
-  const { visible: schedules, hidden: hiddenScheduleCount } = useMemo(
-    () => audienceSchedules(daySchedules, shared, audience, memberId),
-    [daySchedules, shared, audience, memberId],
+  // 날짜별 목록은 모든 스페이스의 일정을 받아 내 일정만 보여 준다.
+  const schedules = useMemo(
+    () => ownSchedules(daySchedules, memberId, spaces),
+    [daySchedules, memberId, spaces],
   )
-  const showsAssignee = shared && audience === 'team'
-  const assigneeOf = (schedule: ScheduleSummary) => {
-    if (schedule.assigneeId === null)
-      return { label: '담당자 미정', unassigned: true }
-    // 일정마다 스페이스가 다를 수 있으므로 그 일정의 스페이스에서 참여자 이름을 찾는다.
-    const label =
-      schedule.assigneeNickname ||
-      spaces
-        .find((space) => space.id === schedule.spaceId)
-        ?.members.find((member) => member.memberId === schedule.assigneeId)
-        ?.nickname
-    return label ? { label, unassigned: false } : null
-  }
   // The week dots failing never blanks the day list; it only raises a toast.
   const scheduleError = scheduleErrorRaw ?? presenceError
   const refetchSchedules = () => {
@@ -258,14 +244,21 @@ const SchedulesTabPage = () => {
     refetchSchedulesRaw()
     monthly.refetch()
   }
+  // 스페이스 정보를 못 받았으면 누구의 일정인지 가릴 수 없다. 그 오류를 목록 자리에 보이고 다시 받게 한다.
+  const listLoading = isScheduleLoading || (!memberKnown && !workspaceError)
+  const listError = scheduleErrorRaw ?? (memberKnown ? null : workspaceError)
+  const retryList = () => {
+    if (!memberKnown) void reloadWorkspace().catch(() => {})
+    refetchSchedules()
+  }
 
-  // New rows rise in, removed rows fade out where they were. Another day or audience is a
+  // New rows rise in, removed rows fade out where they were. Another day is a
   // new baseline: its rows arrive with the day transition instead.
   const rows = useListPresence(
     hasDayData ? schedules : undefined,
     (schedule) => schedule.id,
     {
-      resetKey: `${selectedDateKey}|${audience}`,
+      resetKey: selectedDateKey,
     },
   )
 
@@ -609,25 +602,6 @@ const SchedulesTabPage = () => {
       )}
       <header className="schedules-tab__header">
         <h2>{selectedDateLabel}</h2>
-        {shared && (
-          <div
-            className="schedules-tab__audience"
-            role="group"
-            aria-label="일정 보기 범위"
-          >
-            {(['mine', 'team'] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                data-schedule-audience={value}
-                aria-pressed={audience === value}
-                onClick={() => setAudience(value)}
-              >
-                {value === 'mine' ? '내 일정' : '팀 전체'}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="schedules-tab__header-actions">
           <button
             type="button"
@@ -659,33 +633,6 @@ const SchedulesTabPage = () => {
         카드를 좌우 끝으로 끌면 전날·다음날로 이동해요. 시각 손잡이는 위아래로
         끌어 시간을 바꿔요.
       </p>
-      {shared &&
-        audience === 'mine' &&
-        hiddenScheduleCount > 0 &&
-        hasDayData && (
-          <div className="schedules-tab__hidden-note" role="status">
-            <span>
-              이 날 다른 사람이 맡았거나 담당자가 없는 일정{' '}
-              {hiddenScheduleCount}개는 숨겨져 있어요.
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                setAudience('team')
-                // 안내가 사라지므로 포커스를 범위 전환의 "팀 전체" 버튼으로 옮긴다.
-                requestAnimationFrame(() =>
-                  document
-                    .querySelector<HTMLButtonElement>(
-                      '[data-schedule-audience="team"]',
-                    )
-                    ?.focus(),
-                )
-              }}
-            >
-              팀 전체 보기
-            </button>
-          </div>
-        )}
       <div
         ref={listRef}
         // No mount animation on the list: it replayed on every visit. Days change with the
@@ -723,13 +670,13 @@ const SchedulesTabPage = () => {
         >
           <span>다음날로 이동</span>
         </div>
-        {isScheduleLoading ? (
+        {listLoading ? (
           <StatusPanel variant="loading" title="일정을 불러오는 중" />
-        ) : scheduleErrorRaw && !hasDayData ? (
+        ) : listError && !hasDayData ? (
           <StatusPanel
             variant="error"
-            title={scheduleErrorRaw}
-            action={<button onClick={refetchSchedules}>재시도</button>}
+            title={listError}
+            action={<button onClick={retryList}>재시도</button>}
           />
         ) : rows.length ? (
           rows.map(({ key, item: schedule, phase }) => (
@@ -757,23 +704,14 @@ const SchedulesTabPage = () => {
                 schedule={schedule}
                 onOpenDetail={(id) => open(`/app/schedules/${id}`)}
                 onDelete={handleDelete}
-                assignee={showsAssignee ? assigneeOf(schedule) : null}
               />
             </div>
           ))
         ) : (
           <StatusPanel
             variant="empty"
-            title={
-              shared && audience === 'mine' && hiddenScheduleCount > 0
-                ? '이 날 내 일정이 없어요'
-                : '등록된 일정이 없어요'
-            }
-            description={
-              shared && audience === 'mine' && hiddenScheduleCount > 0
-                ? '팀 전체 보기에서 다른 사람의 일정을 볼 수 있어요.'
-                : '일정 추가 탭에서 새로운 일정을 만들어보세요.'
-            }
+            title="등록된 일정이 없어요"
+            description="일정 추가 탭에서 새로운 일정을 만들어보세요."
           />
         )}
       </div>

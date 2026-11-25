@@ -189,6 +189,33 @@ test('weekly schedules forward mine', async () => {
   assert.equal(plainWeek.has('mine'), false)
   assert.equal(plainWeek.get('spaceId'), '31')
 })
+test('Schedule create never borrows the selected space: without a location the server files it under my own space', async () => {
+  const calls = []
+  const api = load('features/schedules/api/schedules.ts', {
+    dayjs: { default: () => ({}) },
+    '@shared/api/config': config,
+    '@shared/api/httpClient': {
+      httpClient: async (url, options = {}) => {
+        calls.push({ url, ...options })
+        return { schedule: { id: 9, taskId: null, recurrence: null }, spaceId: -4, projectId: null, assigneeId: 1, version: 0 }
+      },
+    },
+    '@shared/utils/datetime': { toApiDateTimeWithZone: (time) => time, toDisplayDayjs: () => ({}), toDateFromApi: () => new Date(0) },
+    '@features/spaces/store': {
+      // 팀 스페이스와 그 프로젝트가 골라져 있다.
+      getSelectedScope: () => ({ spaceId: 31, projectId: 13 }),
+    },
+    '@features/spaces/metadata': metadata(),
+  })
+  const schedule = { title: '산책', description: '', date: '2026-11-11T09:00:00', scheduleType: 'QUICK_TASK' }
+  await api.createSchedule(schedule)
+  assert.equal(Object.hasOwn(calls.at(-1).json, 'location'), false)
+  assert.equal(Object.hasOwn(calls.at(-1).json, 'assignee'), false)
+  await api.createSchedule({ ...schedule, spaceId: -4 })
+  assert.deepEqual(plain(calls.at(-1).json.location), { spaceId: -4, projectId: null }, 'the selected project is not borrowed either')
+  await api.createSchedule({ ...schedule, spaceId: -4, projectId: 5 })
+  assert.deepEqual(plain(calls.at(-1).json.location), { spaceId: -4, projectId: 5 })
+})
 test('Invitation transport uses server-issued same-origin URL and marks token requests sensitive', async () => {
   const calls = []
   let issued = {

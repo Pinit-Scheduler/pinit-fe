@@ -199,7 +199,7 @@ test('the conflict dialog can always be closed, and a failed reload offers retry
   assert.equal(plainDialog.tree.props.closing, false)
   assert.equal(conflictDialog({ closing: true }).tree.props.closing, true, 'the exit reaches the modal')
 })
-const affiliationFields = (props) => {
+const affiliationFields = (props, store = {}) => {
   const Fields = load('features/spaces/AffiliationFields.tsx', {
     react: React,
     'react/jsx-runtime': jsxRuntime,
@@ -216,6 +216,7 @@ const affiliationFields = (props) => {
         spaces: [{ id: 31, name: '핀잇 개선', personal: false, deleted: false, members: [] }],
         projects: [],
         reload: async () => {},
+        ...store,
       }),
     },
     './UnavailableNote': { default: () => null },
@@ -237,6 +238,65 @@ test('while the server draft loads, the pending line is for assistive technology
   const html = affiliationFields()
   assert.match(html, /<p class="sr-only" role="status">서버의 소속·담당자 정보를 확인하고 있어요…<\/p>/)
   assert.match(html, /담당자 확인 중/, 'the summary line already says it is checking')
+})
+
+// 일정은 개인 단위다: 일정 폼은 팀 스페이스로 보내거나 다른 사람에게 맡기는 선택을 주지 않는다.
+const personalStore = {
+  memberId: 7,
+  defaultSpaceId: -7,
+  selectedSpaceId: 31,
+  spaces: [
+    { id: -7, name: '나의 스페이스', personal: true, deleted: false, members: [{ memberId: 7, nickname: '나' }] },
+    { id: 31, name: '핀잇 개선', personal: false, deleted: false, members: [{ memberId: 7, nickname: '나' }, { memberId: 9, nickname: '준호' }] },
+    { id: 44, name: '주말 러닝 모임', personal: false, deleted: false, members: [{ memberId: 7, nickname: '나' }] },
+  ],
+  projects: [
+    { id: 5, name: '건강 루틴', spaceId: -7 },
+    { id: 88, name: '작업 카드 개선', spaceId: 31 },
+  ],
+}
+const optionsOf = (html, label) => {
+  const field = html.match(new RegExp(`<label>${label}<select[^>]*>(.*?)</select>`))
+  return field ? [...field[1].matchAll(/<option[^>]*>([^<]*)</g)].map(([, text]) => text) : null
+}
+test('a new schedule can only be filed under my own space: no space or assignee choice', () => {
+  const html = affiliationFields({ kind: 'schedule', personalOnly: true, value: { categoryId: null } }, personalStore)
+  assert.match(html, /나의 스페이스/, 'my space is used even while a team space is selected')
+  assert.equal(optionsOf(html, '스페이스'), null)
+  assert.equal(optionsOf(html, '담당자'), null)
+  assert.deepEqual(optionsOf(html, '프로젝트'), ['프로젝트 없음', '건강 루틴'], 'only projects of my space')
+  assert.match(html, /일정은 팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요/)
+  // The same fields for a task still offer every space and the assignee.
+  const task = affiliationFields({ kind: 'task', value: { categoryId: null } }, personalStore)
+  assert.deepEqual(optionsOf(task, '스페이스'), ['스페이스 선택', '나의 스페이스 · 본인 전용', '핀잇 개선', '주말 러닝 모임'])
+  assert.notEqual(optionsOf(task, '담당자'), null)
+  assert.doesNotMatch(task, /다른 사람에게 맡길 수 없어요/)
+})
+test('an existing team schedule can stay or come to my space, never go to another team space', () => {
+  const mine = affiliationFields(
+    { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: 31, value: { spaceId: 31, categoryId: 88, assigneeId: 7 } },
+    personalStore,
+  )
+  assert.deepEqual(optionsOf(mine, '스페이스'), ['스페이스 선택', '나의 스페이스 · 본인 전용', '핀잇 개선'])
+  assert.equal(optionsOf(mine, '담당자'), null, 'what I hold cannot be handed to someone else')
+  // One held by someone else, or by nobody: the only change offered is taking it.
+  const theirs = affiliationFields(
+    { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: 31, value: { spaceId: 31, categoryId: null, assigneeId: 9 } },
+    personalStore,
+  )
+  assert.notEqual(optionsOf(theirs, '담당자'), null)
+  assert.ok(!optionsOf(theirs, '담당자').includes('담당자 미정'), 'a held schedule cannot be left with nobody')
+  const nobody = affiliationFields(
+    { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: 31, value: { spaceId: 31, categoryId: null, assigneeId: null } },
+    personalStore,
+  )
+  assert.ok(optionsOf(nobody, '담당자').includes('담당자 미정'), 'the current state stays selectable')
+  // In my own space there is nowhere else to go.
+  const personal = affiliationFields(
+    { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: -7, value: { spaceId: -7, categoryId: 5, assigneeId: 7 } },
+    personalStore,
+  )
+  assert.equal(optionsOf(personal, '스페이스'), null)
 })
 
 const impactTo = { id: 44, name: '주말 러닝 모임', personal: false, memberCount: 3 }

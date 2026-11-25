@@ -36,6 +36,7 @@ export default function AffiliationFields({
   disabled,
   creating,
   kind = 'task',
+  personalOnly = false,
   allowedActions,
   unavailableReasons,
   fromSpaceId,
@@ -51,6 +52,11 @@ export default function AffiliationFields({
   disabled?: boolean
   creating: boolean
   kind?: 'task' | 'schedule'
+  /**
+   * 일정은 개인 단위다. 켜면 나의 스페이스와(고치는 중이면) 지금 있는 스페이스만 고를 수 있고,
+   * 담당자는 내가 아닐 때 내가 맡는 것만 고를 수 있다. 팀 스페이스로 보내거나 남에게 맡길 수 없다.
+   */
+  personalOnly?: boolean
   allowedActions?: AllowedActions
   unavailableReasons?: UnavailableReasons
   /** 폼을 열었을 때의 스페이스. 없으면 옮기는 중이 아니다 */
@@ -65,7 +71,14 @@ export default function AffiliationFields({
   const workspace = useSpaces()
   const [open, setOpen] = useState(false)
   const bodyId = useId()
-  const spaceId = value.spaceId ?? workspace.selectedSpaceId
+  // 불러오는 중의 나의 스페이스 id는 0이다. 그때는 고른 스페이스로 대신하지 않고 기다린다.
+  const spaceId =
+    value.spaceId ??
+    (personalOnly
+      ? workspace.defaultSpaceId || null
+      : workspace.selectedSpaceId)
+  // 폼을 열었을 때의 담당자. 개인 단위에서는 이 사람과 나만 고를 수 있다.
+  const [initialAssigneeId] = useState(value.assigneeId)
   const request = useRef<AbortController | null>(null)
   const callback = useRef(onChange)
   const valueRef = useRef(value)
@@ -152,6 +165,23 @@ export default function AffiliationFields({
   const destination = workspace.spaces.find(
     (space) => space.id === spaceId && !space.deleted,
   )
+  const spaceOptions = workspace.spaces.filter(
+    (space) =>
+      !space.deleted &&
+      (!personalOnly || space.personal || space.id === fromSpaceId),
+  )
+  const memberOptions = (draft?.members ?? []).filter(
+    (member) =>
+      !personalOnly ||
+      member.memberId === workspace.memberId ||
+      member.memberId === initialAssigneeId,
+  )
+  // 개인 단위: 갈 곳이 하나뿐이면 고르는 칸을 두지 않는다. 내가 맡은 일정에는 담당자 칸이 없다.
+  const showSpace = !personalOnly || spaceOptions.length > 1
+  const showAssignee =
+    !personalOnly ||
+    (initialAssigneeId !== undefined && initialAssigneeId !== workspace.memberId)
+  const showUnassigned = !personalOnly || initialAssigneeId === null
   const project = projects.find((item) => item.id === value.categoryId) ?? null
   const knownMembers = [
     ...(draft?.members ?? []),
@@ -250,6 +280,7 @@ export default function AffiliationFields({
       </button>
       <div id={bodyId} className="space-affiliation__body" hidden={!expanded}>
       <fieldset className="space-affiliation__fields" disabled={locked}>
+        {showSpace && (
         <label>
           스페이스
           <select
@@ -267,16 +298,15 @@ export default function AffiliationFields({
             <option value="" disabled>
               스페이스 선택
             </option>
-            {workspace.spaces
-              .filter((space) => !space.deleted)
-              .map((space) => (
-                <option key={space.id} value={space.id}>
-                  {space.name}
-                  {space.personal ? ' · 본인 전용' : ''}
-                </option>
-              ))}
+            {spaceOptions.map((space) => (
+              <option key={space.id} value={space.id}>
+                {space.name}
+                {space.personal ? ' · 본인 전용' : ''}
+              </option>
+            ))}
           </select>
         </label>
+        )}
         <label>
           프로젝트
           <select
@@ -304,6 +334,7 @@ export default function AffiliationFields({
             ))}
           </select>
         </label>
+        {showAssignee && (
         <label>
           담당자
           <select
@@ -330,7 +361,7 @@ export default function AffiliationFields({
                 서버 기본 담당자 확인 중
               </option>
             )}
-            <option value="">담당자 미정</option>
+            {showUnassigned && <option value="">담당자 미정</option>}
             {!selectedMemberExists && (
               <option
                 value={
@@ -342,7 +373,7 @@ export default function AffiliationFields({
                 현재 담당자 · 이동 후 변경 필요
               </option>
             )}
-            {draft?.members.map((member) => (
+            {memberOptions.map((member) => (
               <option key={member.memberId} value={member.memberId}>
                 {member.nickname}
                 {member.memberId === workspace.memberId ? ' · 나' : ''}
@@ -350,7 +381,14 @@ export default function AffiliationFields({
             ))}
           </select>
         </label>
+        )}
       </fieldset>
+      {personalOnly && (
+        <p className="space-help">
+          일정은 팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요. 팀과 함께 볼
+          일은 작업으로 만들어 주세요.
+        </p>
+      )}
       {noteLines.map((line) => (
         <UnavailableNote key={line} text={line} />
       ))}

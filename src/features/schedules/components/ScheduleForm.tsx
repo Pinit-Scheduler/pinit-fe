@@ -162,6 +162,8 @@ const ScheduleForm = ({
         allowedActions={allowedActions}
         unavailableReasons={unavailableReasons}
         kind="schedule"
+        // 일정은 개인 단위다: 팀 스페이스로 보내거나 다른 사람에게 맡기는 선택을 주지 않는다.
+        personalOnly
         fromSpaceId={initialAffiliation.spaceId}
         hasLinkedItem={form.values.taskId != null}
         recordsConfirmed={recordsConfirmedFor === form.values.spaceId}
