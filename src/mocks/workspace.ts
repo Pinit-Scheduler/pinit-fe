@@ -852,7 +852,13 @@ const updateSchedule = async (actor: number, schedule: ScheduleResponse, request
     placement.spaceId = destination.spaceId
     placement.projectId = destination.projectId
   }
+  // 서버처럼, 옮기면서 담당자를 고르지 않았는데 지금 담당자가 그곳 참여자가 아니면 비운다.
   if (assignee !== undefined) placement.assigneeId = assignee
+  else if (destination) {
+    const space = findSpace(destination.spaceId)
+    if (placement.assigneeId !== null && space && !memberOf(space, placement.assigneeId))
+      placement.assigneeId = null
+  }
   ;(schedule as { updatedAt?: string }).updatedAt = nowIso()
   placement.version += 1
   emit(actor, 'schedule', schedule.id, 'UPDATED')

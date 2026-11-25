@@ -25,6 +25,8 @@ const createHarness = ({ recurring = false } = {}) => {
     date: { dateTime: '2026-11-03T10:00:00', zoneId: 'Asia/Seoul' },
     scheduleType: 'DEEP_WORK',
     plannedDuration: 'PT30M',
+    // 작업에 연결된 일정. 폼은 이것을 알아야 스페이스를 옮기는 칸을 내지 않는다.
+    taskId: 12,
     ...(recurring
       ? { recurrence: { seriesId: 4, occurrenceDate: '2026-11-03' } }
       : {}),
@@ -209,6 +211,7 @@ test('a fast schedule response cannot mount a form with an unknown category; tit
   h.setCategory({ isLoading: false, error: null, id: 7 })
   const form = h.render()
   assert.equal(form.props.initialValues.categoryId, 7)
+  assert.equal(form.props.initialValues.taskId, 12, 'the form is told the schedule is tied to a task')
   await form.props.onSubmit({
     ...form.props.initialValues,
     title: 'changed title',

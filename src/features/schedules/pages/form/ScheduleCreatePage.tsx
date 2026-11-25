@@ -49,7 +49,7 @@ const ScheduleCreatePage = () => {
     (dateParam && parseDateKey(dateParam) ? dateParam : undefined)
   // 일정은 개인 단위다. 어느 화면에서 열든, 어떤 스페이스가 골라져 있든 나의 스페이스에서 시작한다.
   const affiliation = useCreateAffiliation('schedule')
-  const { defaultSpaceId } = useSpaces()
+  const { defaultSpaceId, error: workspaceError } = useSpaces()
 
   const initialValues = useMemo(() => {
     void offsetMinutes
@@ -77,16 +77,23 @@ const ScheduleCreatePage = () => {
     // 불러오는 중의 나의 스페이스 id는 0이다. 그때는 고른 스페이스로 대신 만들지 않고 저장을 미룬다.
     const personalSpaceId = defaultSpaceId || undefined
     if (personalSpaceId === undefined) {
+      // 못 받은 것이면 기다려도 풀리지 않는다. 폼 맨 위의 "스페이스 다시 확인"을 알려 준다.
       addToast(
-        '스페이스 정보를 불러오는 중이에요. 잠시 뒤 다시 저장해 주세요.',
+        workspaceError
+          ? '스페이스 정보를 불러오지 못했어요. 위의 "스페이스 다시 확인"을 누른 뒤 다시 저장해 주세요.'
+          : '스페이스 정보를 불러오는 중이에요. 잠시 뒤 다시 저장해 주세요.',
         'error',
       )
       return false
     }
+    // 폼의 프로젝트 칸은 나의 스페이스의 프로젝트만 보여 준다. 폼이 아직 스페이스를 못 받았어도(undefined)
+    // 고른 프로젝트는 나의 스페이스 것이므로 그대로 보낸다. 다른 스페이스를 들고 있을 때만 버린다.
     const placement: PersonalPlacement = {
       spaceId: personalSpaceId,
       projectId:
-        values.spaceId === personalSpaceId ? (values.categoryId ?? null) : null,
+        values.spaceId === undefined || values.spaceId === personalSpaceId
+          ? (values.categoryId ?? null)
+          : null,
     }
     if (rule) {
       await createRecurringSchedule(values, rule, placement)
@@ -156,7 +163,7 @@ const ScheduleCreatePage = () => {
       // 응답에 시리즈 ID가 없어도 서버는 만들었다. 다시 만들지 않도록 화면을 닫고 확인할 곳만 알린다.
       if (!created.id)
         addToast(
-          '반복 일정을 만들었어요. 설정 → 반복 관리에서 만들어진 반복을 확인해 주세요.',
+          '반복 일정을 만들었어요. 나의 스페이스를 고른 뒤 설정 → 반복 관리에서 확인해 주세요.',
           'info',
         )
       else addToast('반복 일정을 만들었어요.', 'success')

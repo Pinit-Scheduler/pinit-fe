@@ -223,6 +223,11 @@ for (const kind of ['task', 'schedule']) {
       recurrenceVersion: 13,
     }
     let tree = render()
+    assert.equal(
+      find(tree, CategoryPicker).props.personalOnly,
+      kind === 'schedule' ? true : undefined,
+      'only the schedule form limits the space and the assignee to me',
+    )
     await tree.props.onSubmit({ preventDefault() {} })
     assert.equal(submitted.at(-1).categoryId, 7)
     assert.equal(submitted.at(-1).categoryChanged, false)

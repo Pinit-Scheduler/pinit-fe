@@ -132,7 +132,8 @@ export function switcherLabel(
 
 /**
  * 일정 조회 캐시 key에서 요청이 읽는 스페이스 범위를 가리키는 부분. 모든 스페이스를 읽는 요청은
- * 고른 스페이스·프로젝트를 보내지 않으므로 선택이 바뀌어도 같은 key다.
+ * 고른 스페이스·프로젝트를 보내지 않으므로 선택이 바뀌어도 같은 key다. 그래서 화면의 목록이 그대로 남는다
+ * (선택이 바뀔 때 나는 `schedule:changed`에는 같은 key로 백그라운드에서 다시 받는다).
  */
 export function scheduleScopeKey(
   allSpaces: boolean,

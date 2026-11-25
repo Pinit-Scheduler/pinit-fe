@@ -6,6 +6,7 @@ import {
   affiliationImpact,
   affiliationSummary,
   needsRecordDisclosure,
+  personalScheduleHelp,
 } from './affiliationImpact'
 import { fadeIn, shouldFadeText } from './motion'
 import SpaceMark from './SpaceMark'
@@ -55,6 +56,8 @@ export default function AffiliationFields({
   /**
    * 일정은 개인 단위다. 켜면 나의 스페이스와(고치는 중이면) 지금 있는 스페이스만 고를 수 있고,
    * 담당자는 내가 아닐 때 내가 맡는 것만 고를 수 있다. 팀 스페이스로 보내거나 남에게 맡길 수 없다.
+   * 작업에 연결된 일정(`hasLinkedItem`)은 작업의 스페이스를 따라가므로 스페이스를 고르지 못한다.
+   * 일정을 옮기면 서버가 연결 작업까지 옮기기 때문이다.
    */
   personalOnly?: boolean
   allowedActions?: AllowedActions
@@ -168,7 +171,9 @@ export default function AffiliationFields({
   const spaceOptions = workspace.spaces.filter(
     (space) =>
       !space.deleted &&
-      (!personalOnly || space.personal || space.id === fromSpaceId),
+      (!personalOnly ||
+        space.id === fromSpaceId ||
+        (space.personal && !hasLinkedItem)),
   )
   const memberOptions = (draft?.members ?? []).filter(
     (member) =>
@@ -385,8 +390,13 @@ export default function AffiliationFields({
       </fieldset>
       {personalOnly && (
         <p className="space-help">
-          일정은 팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요. 팀과 함께 볼
-          일은 작업으로 만들어 주세요.
+          {personalScheduleHelp({
+            creating,
+            linked: hasLinkedItem,
+            inTeamSpace:
+              workspace.spaces.find((space) => space.id === fromSpaceId)
+                ?.personal === false,
+          })}
         </p>
       )}
       {noteLines.map((line) => (
@@ -438,7 +448,9 @@ export default function AffiliationFields({
       )}
       {value.assigneeId === null && (
         <p className="space-help">
-          담당자 미정 작업은 스페이스 목록에 남고 오늘의 내 작업에서는 제외돼요.
+          {kind === 'schedule'
+            ? '담당자 미정 일정은 오늘의 일정에 나오지 않아요. 내가 맡으면 내 일정에 보여요.'
+            : '담당자 미정 작업은 스페이스 목록에 남고 오늘의 내 작업에서는 제외돼요.'}
         </p>
       )}
     </fieldset>

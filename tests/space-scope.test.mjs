@@ -126,6 +126,8 @@ test('the schedule screen reads every space once and counts only my schedules', 
     { id: 1, spaceId: -7, assigneeId: 7, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T09:00:00' } },
     { id: 2, spaceId: 31, assigneeId: 9, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T10:00:00' } },
     { id: 3, spaceId: 31, assigneeId: null, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T11:00:00' } },
+    // 이 날에는 다른 사람의 일정만 있다. 내 일정만 세면 점이 없어야 한다.
+    { id: 4, spaceId: 31, assigneeId: 9, state: 'NOT_STARTED', date: { dateTime: '2026-11-09T09:00:00' } },
   ]
   const dayjs = (value) => ({
     value,
@@ -141,7 +143,7 @@ test('the schedule screen reads every space once and counts only my schedules', 
     },
     '@shared/utils/datetime': {
       getTodayWithOffset: () => dayjs('2026-11-10'),
-      getWeekDays: () => ['2026-11-08'],
+      getWeekDays: () => ['2026-11-08', '2026-11-09'],
       toApiDateTimeWithZone: () => ({ dateTime: '2026-11-10T12:00:00', zoneId: 'Asia/Seoul' }),
       toDateFromApi: (date) => date.dateTime,
       toDateKey: (value) => (typeof value === 'string' ? value : (value.dateTime ?? value.value)).slice(0, 10),
@@ -177,7 +179,7 @@ test('the schedule screen reads every space once and counts only my schedules', 
   assert.deepEqual(
     queries.map((query) => query.key),
     everySpace.map((query) => query.key),
-    'another selected space or project is the same list, so nothing is read again',
+    'another selected space or project is the same key, so the rows on screen are kept',
   )
   queries.length = 0
   render({ allSpaces: false, own: false })
@@ -199,15 +201,20 @@ test('the schedule screen reads every space once and counts only my schedules', 
     ],
     'no request asks the server for mine: one personal rule is applied to what comes back',
   )
-  // 받은 세 건 가운데 내 일정은 하나다. 점·달력 숫자·지난 일정 안내가 모두 그 하나만 센다.
+  // 받은 네 건 가운데 내 일정은 하나다. 점·달력 숫자·지난 일정 안내가 모두 그 하나만 센다.
   const mine = render({ allSpaces: true, own: true })
-  assert.deepEqual(JSON.parse(JSON.stringify(mine.week.presenceMap)), { '2026-11-08': { hasSchedule: true, hasOverdue: true } })
+  assert.deepEqual(JSON.parse(JSON.stringify(mine.week.presenceMap)), {
+    '2026-11-08': { hasSchedule: true, hasOverdue: true },
+    '2026-11-09': { hasSchedule: false, hasOverdue: false },
+  })
   assert.equal(mine.month.summaryByDate['2026-11-08'].total, 1)
+  assert.equal(mine.month.summaryByDate['2026-11-09'], undefined)
   assert.deepEqual(JSON.parse(JSON.stringify(mine.overdue.summary)), { hasOverdue: true, count: 1, earliestDate: '2026-11-08' })
   const everyone = render({ allSpaces: false, own: false })
+  assert.equal(everyone.week.presenceMap['2026-11-09'].hasSchedule, true)
   assert.equal(everyone.month.summaryByDate['2026-11-08'].total, 3)
-  assert.equal(everyone.overdue.summary.count, 3)
-  // 스페이스가 나중에 도착해도 다시 읽지 않고 같은 응답을 다시 거른다.
+  assert.equal(everyone.overdue.summary.count, 4)
+  // 스페이스가 나중에 도착해도, 받아 둔 같은 응답을 그릴 때 다시 거른다(거르려고 다시 받지는 않는다).
   selection.spaces = []
   assert.equal(render({ allSpaces: true, own: true }).overdue.summary.count, 2, 'before spaces load the unassigned one still counts')
 })
@@ -322,4 +329,9 @@ test('a create form keeps the affiliation it opened with while the screen behind
   assert.deepEqual(render(), { spaceId: 22, categoryId: 7 })
   workspace = { ...workspace, selectedSpaceId: 31, selectedProjectId: null }
   assert.deepEqual(render(), { spaceId: 22, categoryId: 7 }, 'a later selection change does not rewrite the form')
+  // 일정 폼은 같은 화면 위에서 열어도 나의 스페이스다: 훅이 종류를 규칙에 넘긴다.
+  slots.length = 0
+  index = 0
+  workspace = { ...workspace, selectedSpaceId: 22, selectedProjectId: 7 }
+  assert.deepEqual(JSON.parse(JSON.stringify(useCreateAffiliation('schedule'))), { spaceId: -4 })
 })

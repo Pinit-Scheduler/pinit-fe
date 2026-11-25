@@ -53,7 +53,13 @@ const RecurrencesPage = () => {
   const { addToast } = useToast()
   const location = useLocation()
   const { open } = useRouteSurfaceNavigation()
-  const { selectedSpaceId, selectedProjectId } = useSpaces()
+  const { selectedSpaceId, selectedProjectId, defaultSpaceId } = useSpaces()
+  // 새 반복 일정은 늘 나의 스페이스에 만들어진다. 이 목록은 고른 스페이스만 보이므로, 다른 스페이스를
+  // 골랐을 때는 반복 일정이 여기에 모인다고 말하지 않는다. 불러오는 중(0, null)에는 평소 문구를 둔다.
+  const outsidePersonal =
+    !!defaultSpaceId &&
+    selectedSpaceId !== null &&
+    selectedSpaceId !== defaultSpaceId
   const confirmation = useRecurrenceScope()
   const [renaming, setRenaming] = useState<{
     id: number
@@ -223,9 +229,11 @@ const RecurrencesPage = () => {
         <p className="recurrences__eyebrow">설정</p>
         <h1 className="recurrences__title">반복 관리</h1>
         <p className="recurrences__description">
-          일정이나 작업을 만들 때 "반복"을 켜면 여기에 모여요. 회차는 오늘부터
-          28일 치를 미리 만들고 매시간 이어서 만들어요. 회차 하나만 바꾸려면
-          일정·작업 화면에서 그 회차를 고치세요.
+          {outsidePersonal
+            ? '작업을 만들 때 "반복"을 켜면 여기에 모여요. 새 반복 일정은 나의 스페이스에 만들어져서, 나의 스페이스를 골라야 여기에 보여요.'
+            : '일정이나 작업을 만들 때 "반복"을 켜면 여기에 모여요.'}{' '}
+          회차는 오늘부터 28일 치를 미리 만들고 매시간 이어서 만들어요. 회차
+          하나만 바꾸려면 일정·작업 화면에서 그 회차를 고치세요.
         </p>
       </header>
 
@@ -262,7 +270,21 @@ const RecurrencesPage = () => {
       )}
       {!error && items !== undefined && rows.length === 0 && (
         <div className="recurrences__placeholder recurrences__placeholder--notice">
-          {status === 'ACTIVE' ? (
+          {status !== 'ACTIVE' ? (
+            '끝난 반복이 없어요.'
+          ) : outsidePersonal ? (
+            <>
+              이 스페이스에는 반복이 없어요.{' '}
+              <Link
+                to="/app/tasks/new"
+                state={{ backgroundLocation: location }}
+                onClick={surfaceLinkClick(open, '/app/tasks/new')}
+              >
+                작업 추가
+              </Link>
+              에서 "반복"을 켜 보세요. 반복 일정은 나의 스페이스에 만들어져요.
+            </>
+          ) : (
             <>
               아직 반복이 없어요.{' '}
               <Link
@@ -282,8 +304,6 @@ const RecurrencesPage = () => {
               </Link>
               에서 "반복"을 켜 보세요.
             </>
-          ) : (
-            '끝난 반복이 없어요.'
           )}
         </div>
       )}

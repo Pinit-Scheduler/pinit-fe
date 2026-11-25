@@ -288,6 +288,8 @@ const ScheduleEditPage = () => {
       ? {
           spaceId: schedule.spaceId,
           assigneeId: schedule.assigneeId,
+          // 작업에 연결된 일정인지 폼이 알아야 한다(연결 일정은 스페이스를 옮기지 못한다). 저장 요청에는 싣지 않는다.
+          taskId: schedule.taskId ?? undefined,
           expectedVersion: schedule.version,
           recurrenceVersion: schedule.recurrence?.version,
           title: schedule.title,

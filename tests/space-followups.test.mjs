@@ -199,9 +199,21 @@ test('the conflict dialog can always be closed, and a failed reload offers retry
   assert.equal(plainDialog.tree.props.closing, false)
   assert.equal(conflictDialog({ closing: true }).tree.props.closing, true, 'the exit reaches the modal')
 })
-const affiliationFields = (props, store = {}) => {
+const affiliationFields = (props, store = {}, draft = null) => {
+  // 서버 초안은 effect에서 오므로 정적 렌더에는 없다. 초안이 필요한 테스트는 그 상태 칸을 받은 것으로 채운다.
+  const react = draft
+    ? {
+        ...React,
+        useState: (initial) =>
+          React.useState(
+            initial && typeof initial === 'object' && 'draft' in initial
+              ? { key: `${draft.spaceId}:${props.kind ?? 'task'}:0`, draft, error: null }
+              : initial,
+          ),
+      }
+    : React
   const Fields = load('features/spaces/AffiliationFields.tsx', {
-    react: React,
+    react,
     'react/jsx-runtime': jsxRuntime,
     '@shared/api/config': { buildApiUrl: (path) => path },
     '@shared/api/httpClient': { httpClient: () => new Promise(() => {}) },
@@ -247,7 +259,7 @@ const personalStore = {
   selectedSpaceId: 31,
   spaces: [
     { id: -7, name: '나의 스페이스', personal: true, deleted: false, members: [{ memberId: 7, nickname: '나' }] },
-    { id: 31, name: '핀잇 개선', personal: false, deleted: false, members: [{ memberId: 7, nickname: '나' }, { memberId: 9, nickname: '준호' }] },
+    { id: 31, name: '핀잇 개선', personal: false, deleted: false, members: [{ memberId: 7, nickname: '나' }, { memberId: 9, nickname: '준호' }, { memberId: 11, nickname: '서연' }] },
     { id: 44, name: '주말 러닝 모임', personal: false, deleted: false, members: [{ memberId: 7, nickname: '나' }] },
   ],
   projects: [
@@ -265,12 +277,12 @@ test('a new schedule can only be filed under my own space: no space or assignee 
   assert.equal(optionsOf(html, '스페이스'), null)
   assert.equal(optionsOf(html, '담당자'), null)
   assert.deepEqual(optionsOf(html, '프로젝트'), ['프로젝트 없음', '건강 루틴'], 'only projects of my space')
-  assert.match(html, /일정은 팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요/)
+  assert.match(html, /일정은 나의 스페이스에 내 일정으로 만들어요\. 팀과 함께 볼 일은 작업으로 만들어 주세요\./)
   // The same fields for a task still offer every space and the assignee.
   const task = affiliationFields({ kind: 'task', value: { categoryId: null } }, personalStore)
   assert.deepEqual(optionsOf(task, '스페이스'), ['스페이스 선택', '나의 스페이스 · 본인 전용', '핀잇 개선', '주말 러닝 모임'])
   assert.notEqual(optionsOf(task, '담당자'), null)
-  assert.doesNotMatch(task, /다른 사람에게 맡길 수 없어요/)
+  assert.doesNotMatch(task, /내 일정으로 만들어요|맡길 수 없어요|맡길 수는 없어요/)
 })
 test('an existing team schedule can stay or come to my space, never go to another team space', () => {
   const mine = affiliationFields(
@@ -297,6 +309,61 @@ test('an existing team schedule can stay or come to my space, never go to anothe
     personalStore,
   )
   assert.equal(optionsOf(personal, '스페이스'), null)
+  assert.match(mine, /이 일정은 팀 스페이스에 있어요\. 나의 스페이스로 가져올 수 있고, 다른 팀 스페이스로 보내거나 다른 사람에게 맡길 수는 없어요\./)
+  assert.match(personal, /일정은 팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요/)
+  assert.doesNotMatch(mine, /참여자 3명이 이 일정을 함께 봐요/, 'a schedule is personal: nothing says the team sees it')
+})
+test('who a schedule can be given to: the one who holds it now, or me', () => {
+  // 서버 초안에는 그 스페이스의 참여자 셋이 모두 들어 있다.
+  const draft = {
+    spaceId: 31,
+    defaultAssignee: { memberId: 7, nickname: '나' },
+    members: [{ memberId: 7, nickname: '나' }, { memberId: 9, nickname: '준호' }, { memberId: 11, nickname: '서연' }],
+    allowedActions: {},
+  }
+  const editing = (assigneeId) =>
+    affiliationFields(
+      { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: 31, value: { spaceId: 31, categoryId: null, assigneeId } },
+      personalStore,
+      draft,
+    )
+  assert.deepEqual(optionsOf(editing(9), '담당자'), ['나 · 나', '준호'], 'held by 준호: keep it or take it, never 서연')
+  assert.deepEqual(optionsOf(editing(null), '담당자'), ['담당자 미정', '나 · 나'], 'held by nobody: leave it or take it')
+  assert.equal(optionsOf(editing(7), '담당자'), null, 'held by me: no choice at all')
+  // The task form keeps every participant.
+  const task = affiliationFields({ kind: 'task', creating: false, fromSpaceId: 31, value: { spaceId: 31, categoryId: null, assigneeId: 9 } }, personalStore, draft)
+  assert.deepEqual(optionsOf(task, '담당자'), ['담당자 미정', '나 · 나', '준호', '서연'])
+})
+test('a schedule tied to a task cannot be moved from the schedule form: its place follows the task', () => {
+  const linked = affiliationFields(
+    { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: 31, hasLinkedItem: true, value: { spaceId: 31, categoryId: 88, assigneeId: 7 } },
+    personalStore,
+  )
+  assert.equal(optionsOf(linked, '스페이스'), null, 'moving it would move the team task with it')
+  assert.match(linked, /작업에 연결된 일정은 작업의 스페이스를 따라가요\. 옮기려면 작업을 옮겨 주세요\./)
+  assert.deepEqual(optionsOf(linked, '프로젝트'), ['프로젝트 없음', '작업 카드 개선'])
+})
+test('the help under an unassigned item speaks of the right thing', () => {
+  const schedule = affiliationFields(
+    { kind: 'schedule', personalOnly: true, creating: false, fromSpaceId: -7, value: { spaceId: -7, categoryId: null, assigneeId: null } },
+    personalStore,
+  )
+  assert.match(schedule, /담당자 미정 일정은 오늘의 일정에 나오지 않아요\. 내가 맡으면 내 일정에 보여요\./)
+  assert.doesNotMatch(schedule, /담당자 미정 작업은/)
+  const task = affiliationFields({ kind: 'task', creating: false, fromSpaceId: 31, value: { spaceId: 31, categoryId: null, assigneeId: null } }, personalStore)
+  assert.match(task, /담당자 미정 작업은 스페이스 목록에 남고 오늘의 내 작업에서는 제외돼요\./)
+})
+test('the schedule form help says what applies to the schedule being edited', () => {
+  const { personalScheduleHelp, affiliationImpact } = load('features/spaces/affiliationImpact.ts')
+  const help = (input) => personalScheduleHelp({ creating: false, linked: false, inTeamSpace: false, ...input })
+  assert.match(help({ creating: true, linked: true, inTeamSpace: true }), /나의 스페이스에 내 일정으로 만들어요/)
+  assert.match(help({ linked: true, inTeamSpace: true }), /작업의 스페이스를 따라가요/)
+  assert.match(help({ inTeamSpace: true }), /나의 스페이스로 가져올 수 있고/)
+  assert.match(help({}), /팀 스페이스로 보내거나 다른 사람에게 맡길 수 없어요/)
+  // 팀 스페이스에 남아 있는 일정에도 "참여자가 함께 본다"는 줄은 없다. 작업에는 그대로 있다.
+  const staying = { creating: false, fromSpaceId: 44, to: impactTo, assignee: null, destinationMemberIds: null, hasLinkedItem: false, dependencyCount: 0 }
+  assert.deepEqual(plain(affiliationImpact({ ...staying, kind: 'schedule' })), [])
+  assert.deepEqual(plain(affiliationImpact({ ...staying, kind: 'task' }).map((line) => line.kind)), ['share'])
 })
 
 const impactTo = { id: 44, name: '주말 러닝 모임', personal: false, memberCount: 3 }

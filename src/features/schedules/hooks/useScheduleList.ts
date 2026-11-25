@@ -29,7 +29,8 @@ const useScheduleList = (
   const dateKey = toDateKey(selectedDate)
   const { selectedSpaceId, selectedProjectId } = useSpaces()
   // fetchSchedules reads the selected space and project, so they belong to the key. With
-  // allSpaces it reads neither, so another selection is the same list.
+  // allSpaces it reads neither, so another selection keeps the key and the rows on screen
+  // (the selection still raises schedule:changed, which refetches this key in the background).
   const key = enabled
     ? `${SCHEDULE_DAY_GROUP}${dateKey}@${zoneId}/${scheduleScopeKey(allSpaces, selectedSpaceId, selectedProjectId)}`
     : null
