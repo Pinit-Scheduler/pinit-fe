@@ -567,10 +567,18 @@ const cardHarness = () => {
       MOTION_FAST_MS: 120,
       useChangedWhileMounted: () => h.changed,
     },
-    '@features/spaces/cardPath': { cardPath: () => ({ spaceId: 31, text: '제품팀 › 11월 릴리즈' }) },
+    // The real rule, so the card test fails if the card stops asking it.
+    '@features/spaces/cardPath': load('features/spaces/cardPath.ts', {}),
     '@features/spaces/SpacePath': ({ path }) => (path ? React.createElement('em', null, path.text) : null),
     '@features/spaces/scope': { routeScope: () => null },
-    '@features/spaces/store': { useSpaces: () => ({ selectedSpaceId: null, selectedProjectId: null, spaces: [], projects: [] }) },
+    '@features/spaces/store': {
+      useSpaces: () => ({
+        selectedSpaceId: null,
+        selectedProjectId: null,
+        spaces: [{ id: 31, name: '제품팀', personal: false }],
+        projects: [{ id: 88, name: '11월 릴리즈' }],
+      }),
+    },
   })
   h.render = (actions, schedule = day(5, '2026-11-10T09:00:00')) => {
     h.actions = { canComplete: true, canCancel: false, isMutating: false, isLocked: false, lastError: null, ...actions }

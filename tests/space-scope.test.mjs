@@ -57,6 +57,17 @@ test('the mind map and the schedules are mine alone: no space scope is shown on 
   for (const path of ['/app/statistics', '/app/today', '/app/tasks', '/app/plan', '/app/spaces', '/app/schedules/5'])
     assert.equal(isSpaceFreeScreen(path), false, path)
 })
+test('the top bar names a scope everywhere except on the screens that belong to no space', () => {
+  const { scopeLabelFor } = load('features/spaces/scope.ts')
+  const mine = { name: '나의 스페이스', personal: true }
+  const team = { name: '핀잇 개선', personal: false }
+  const project = { name: '작업 카드 개선' }
+  assert.equal(scopeLabelFor('/app/schedules', mine, team, project), null, 'a schedule belongs to no space')
+  assert.equal(scopeLabelFor('/app/mind-map', mine, team, project), null)
+  assert.equal(scopeLabelFor('/app/tasks', mine, team, project), '핀잇 개선 › 작업 카드 개선')
+  assert.equal(scopeLabelFor('/app/statistics', mine, team, project), '모든 스페이스')
+  assert.equal(scopeLabelFor('/app/deadline-risk', mine, team, project), '나의 스페이스')
+})
 test('choosing a project stays on scoped lists and leaves detail screens', () => {
   const { projectSelectionTarget } = load('features/spaces/scope.ts')
   assert.equal(projectSelectionTarget('/app/schedules'), '/app/tasks')

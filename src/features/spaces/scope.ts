@@ -105,6 +105,25 @@ export function scopeCrumb(
   return project ? `${space.name} › ${project.name}` : space.name
 }
 
+/**
+ * 상단 경로에 보일 범위 이름. 스페이스와 상관없는 내 화면(마인드맵, 일정)에는 없다(`null`).
+ * 나의 스페이스만 보는 화면은 나의 스페이스를, 그 밖은 고른 스페이스·프로젝트나 "모든 스페이스"를 말한다.
+ */
+export function scopeLabelFor(
+  pathname: string,
+  personalSpace: { name: string; personal: boolean } | null,
+  selectedSpace: { name: string; personal: boolean } | null,
+  selectedProject: { name: string } | null,
+): string | null {
+  if (isSpaceFreeScreen(pathname)) return null
+  const scope = routeScope(pathname)
+  return scopeCrumb(
+    scope,
+    scope === 'personal' ? personalSpace : selectedSpace,
+    selectedProject,
+  )
+}
+
 export function switcherLabel(
   scope: RouteScope,
   space: { name: string } | null,

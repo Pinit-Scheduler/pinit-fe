@@ -12,7 +12,7 @@ import type { MouseEvent } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useScheduleCache } from '@contexts/ScheduleCacheContext'
 import { usePresence, MOTION_FAST_MS, useChangedWhileMounted } from '@shared/motion'
-import { cardPath } from '@features/spaces/cardPath'
+import { schedulePath } from '@features/spaces/cardPath'
 import SpacePath from '@features/spaces/SpacePath'
 import { routeScope } from '@features/spaces/scope'
 import { useSpaces } from '@features/spaces/store'
@@ -213,17 +213,13 @@ const ScheduleCard = ({
             )}
             {/* 일정은 스페이스에 속하지 않는다. 작업에 연결된 일정만 그 작업의 자리를 보인다. */}
             <SpacePath
-              path={
-                schedule.taskId == null
-                  ? null
-                  : cardPath(
-                      routeScope(pathname),
-                      { spaceId: selectedSpaceId, projectId: selectedProjectId },
-                      schedule,
-                      spaces,
-                      projects,
-                    )
-              }
+              path={schedulePath(
+                routeScope(pathname),
+                { spaceId: selectedSpaceId, projectId: selectedProjectId },
+                schedule,
+                spaces,
+                projects,
+              )}
             />
           </div>
           {description && (
