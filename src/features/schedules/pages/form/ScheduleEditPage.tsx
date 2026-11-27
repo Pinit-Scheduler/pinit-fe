@@ -36,7 +36,6 @@ import {
 import { fixedChanges } from '@features/recurrence/utils/recurrenceRules'
 
 import { useRouteSurfaceNavigation } from '@shared/routing/RouteSurface'
-import { useCategories } from '@features/categories'
 
 const LABELS = {
   title: '제목',
@@ -49,13 +48,6 @@ const LABELS = {
 const ScheduleEditPage = () => {
   const { scheduleId } = useParams()
   const { complete } = useRouteSurfaceNavigation()
-  const {
-    scheduleCategory,
-    isLoading: categoryLoading,
-    hasLoaded: categoryLoaded,
-    error: categoryLoadError,
-    reload: reloadCategories,
-  } = useCategories()
   const { addToast } = useToast()
   // Keep the edit session's original snapshot; background events must not remount the draft.
   const { schedule, isLoading, error, replace } = useScheduleDetail(scheduleId, {
@@ -109,27 +101,12 @@ const ScheduleEditPage = () => {
       })
     }
   }
-  const affiliation = (values: ScheduleFormValues) => {
-    const location = values.locationChanged || values.categoryChanged
-    if (!location && !values.assigneeChanged) return undefined
-    return {
-      ...(location
-        ? { spaceId: values.spaceId, projectId: values.categoryId ?? null }
-        : {}),
-      ...(values.assigneeChanged && values.assigneeId !== undefined
-        ? { assigneeId: values.assigneeId }
-        : {}),
-    }
-  }
   const seriesRef = (values: ScheduleFormValues) => ({
     ...schedule!.recurrence!,
     version: values.recurrenceVersion ?? schedule!.recurrence!.version,
   })
 
   const handleClose = useCallback(() => complete('/app/schedules'), [complete])
-  const categoryId = schedule
-    ? (schedule.projectId ?? scheduleCategory(schedule.id)?.id ?? null)
-    : null
 
   useEffect(() => {
     if (!schedule && !isLoading) {
@@ -151,7 +128,6 @@ const ScheduleEditPage = () => {
             seriesRef(values),
             selected,
             seriesChanges(values),
-            affiliation(values),
           )
           return message
         },
@@ -165,8 +141,8 @@ const ScheduleEditPage = () => {
       const plannedDuration = parseDurationInput(
         values.plannedDurationMinutes ?? '',
       )
+      // 일정은 개인 것이라 위치·담당자를 보내지 않는다(BE ADR-0037 §8).
       const payload = {
-        ...affiliation(values),
         expectedVersion: values.expectedVersion,
         title: values.title,
         description: values.description,
@@ -256,7 +232,6 @@ const ScheduleEditPage = () => {
         scope,
         seriesChanges(values),
         true,
-        affiliation(values),
       )
       if (outcome === 'cancelled') return false
       if (outcome === 'updated') {
@@ -286,22 +261,19 @@ const ScheduleEditPage = () => {
     void offsetMinutes
     return schedule
       ? {
-          spaceId: schedule.spaceId,
-          assigneeId: schedule.assigneeId,
           expectedVersion: schedule.version,
           recurrenceVersion: schedule.recurrence?.version,
           title: schedule.title,
           description: schedule.description,
           date: toDateFromApi(schedule.date),
           scheduleType: schedule.scheduleType ?? 'DEEP_WORK',
-          categoryId,
           plannedDurationMinutes: (() => {
             const minutes = parseIsoDurationMinutes(schedule.plannedDuration)
             return minutes ? String(minutes) : ''
           })(),
         }
       : undefined
-  }, [offsetMinutes, schedule, categoryId])
+  }, [offsetMinutes, schedule])
 
   if (!scheduleId) {
     return (
@@ -326,34 +298,10 @@ const ScheduleEditPage = () => {
           중요도·난이도 정보를 조정할 수 있습니다.
         </p>
       </header>
-      {isLoading || (categoryLoading && !categoryLoaded) || !schedule ? (
+      {isLoading || !schedule ? (
         <p className="schedule-form-page__status">일정을 불러오는 중...</p>
-      ) : categoryLoadError && !categoryLoaded ? (
-        <div className="schedule-form-page__status" role="alert">
-          <p>{categoryLoadError}</p>
-          <p>프로젝트를 확인해야 일정을 수정할 수 있어요.</p>
-          <button
-            type="button"
-            onClick={() => void reloadCategories().catch(() => {})}
-          >
-            다시 시도
-          </button>
-        </div>
       ) : (
         <>
-          {categoryLoadError && (
-            <div role="alert">
-              <p>
-                {categoryLoadError} 작성 중인 내용은 유지돼요.
-              </p>
-              <button
-                type="button"
-                onClick={() => void reloadCategories().catch(() => {})}
-              >
-                프로젝트 다시 확인
-              </button>
-            </div>
-          )}
           {keptInput && <MyInputDisclosure rows={keptInput} open={false} />}
           <ScheduleForm
             allowedActions={schedule?.allowedActions}

@@ -98,18 +98,7 @@ const ScheduleForm = ({
     submissionLock.current = true
     form.setSubmitting(true)
     try {
-      const saved = await onSubmit(
-        {
-          ...form.values,
-          // 일정은 개인 것이다. 스페이스·프로젝트·담당자를 이 폼에서 고르지 않으므로 바뀔 일이 없다.
-          // 수정 화면은 이 표시가 참일 때만 위치와 담당자를 보낸다.
-          locationChanged: false,
-          assigneeChanged: false,
-          affiliationChanged: false,
-          categoryChanged: false,
-        },
-        ruleWithStart,
-      )
+      const saved = await onSubmit(form.values, ruleWithStart)
       if (saved === false) return
       form.reset(initialValues)
       setRule(null)

@@ -55,9 +55,11 @@ const RecurrencesPage = () => {
   const location = useLocation()
   const { open } = useRouteSurfaceNavigation()
   const { selectedSpaceId, selectedProjectId, defaultSpaceId } = useSpaces()
-  // 새 반복 일정은 늘 나의 스페이스에 만들어진다. 이 목록은 고른 스페이스만 보이므로, 다른 스페이스를
-  // 골랐을 때는 반복 일정이 여기에 모인다고 말하지 않는다.
-  const outsidePersonal = outsidePersonalSpace(defaultSpaceId, selectedSpaceId)
+  // 반복 일정(FIXED)은 모두 개인 것이라 나의 스페이스 전체(프로젝트 없음)를 골랐을 때만 목록에 나온다(BE ADR-0037 §9).
+  // 팀 스페이스나 프로젝트를 골랐을 때는 반복 일정이 여기에 모인다고 말하지 않는다.
+  const fixedHidden =
+    outsidePersonalSpace(defaultSpaceId, selectedSpaceId) ||
+    selectedProjectId !== null
   const confirmation = useRecurrenceScope()
   const [renaming, setRenaming] = useState<{
     id: number
@@ -227,8 +229,8 @@ const RecurrencesPage = () => {
         <p className="recurrences__eyebrow">설정</p>
         <h1 className="recurrences__title">반복 관리</h1>
         <p className="recurrences__description">
-          {outsidePersonal
-            ? '작업을 만들 때 "반복"을 켜면 여기에 모여요. 새 반복 일정은 나의 스페이스에 만들어져서, 나의 스페이스를 골라야 여기에 보여요.'
+          {fixedHidden
+            ? '작업을 만들 때 "반복"을 켜면 여기에 모여요. 반복 일정은 나만 보는 개인 일정이라 나의 스페이스 전체를 골라야 여기에 보여요.'
             : '일정이나 작업을 만들 때 "반복"을 켜면 여기에 모여요.'}{' '}
           회차는 오늘부터 28일 치를 미리 만들고 매시간 이어서 만들어요. 회차
           하나만 바꾸려면 일정·작업 화면에서 그 회차를 고치세요.
@@ -270,9 +272,9 @@ const RecurrencesPage = () => {
         <div className="recurrences__placeholder recurrences__placeholder--notice">
           {status !== 'ACTIVE' ? (
             '끝난 반복이 없어요.'
-          ) : outsidePersonal ? (
+          ) : fixedHidden ? (
             <>
-              이 스페이스에는 반복이 없어요.{' '}
+              여기에는 반복 작업이 없어요.{' '}
               <Link
                 to="/app/tasks/new"
                 state={{ backgroundLocation: location }}
@@ -280,7 +282,7 @@ const RecurrencesPage = () => {
               >
                 작업 추가
               </Link>
-              에서 "반복"을 켜 보세요. 반복 일정은 나의 스페이스에 만들어져요.
+              에서 "반복"을 켜 보세요. 반복 일정은 나의 스페이스 전체를 고르면 보여요.
             </>
           ) : (
             <>

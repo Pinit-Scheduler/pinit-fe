@@ -325,6 +325,8 @@ const day = (id, dateTime, extra = {}) => ({
   state: 'NOT_STARTED',
   date: { dateTime, zoneId: 'UTC' },
   allowedActions: { edit: true },
+  // The tab harness's member is 1; a schedule is mine when I own it (BE ADR-0037).
+  ownerId: 1,
   ...extra,
 })
 
@@ -474,17 +476,13 @@ test('the schedules tab keeps the day list through a refresh and through failure
 test('the schedules tab reads every space and lists only my schedules', () => {
   const h = tabHarness()
   h.workspace.memberId = 7
-  h.workspace.spaces = [
-    { id: -7, personal: true, members: [{ memberId: 7 }] },
-    { id: 31, personal: false, members: [{ memberId: 7 }, { memberId: 9 }] },
-  ]
   const html = h.render({
     data: [
-      day(1, '2026-11-10T09:00:00', { spaceId: -7, assigneeId: 7 }),
-      day(2, '2026-11-10T10:00:00', { spaceId: 31, assigneeId: 9 }),
-      day(3, '2026-11-10T11:00:00', { spaceId: 31, assigneeId: null }),
-      day(4, '2026-11-10T12:00:00', { spaceId: 31, assigneeId: 7 }),
-      day(5, '2026-11-10T13:00:00', { spaceId: -7, assigneeId: null }),
+      day(1, '2026-11-10T09:00:00', { spaceId: -7, ownerId: 7, assigneeId: 7 }),
+      day(2, '2026-11-10T10:00:00', { spaceId: 31, ownerId: 9, assigneeId: 9 }),
+      day(3, '2026-11-10T11:00:00', { spaceId: 31, ownerId: 9, assigneeId: 7 }),
+      day(4, '2026-11-10T12:00:00', { spaceId: 31, ownerId: 7, assigneeId: 9 }),
+      day(5, '2026-11-10T13:00:00', { spaceId: -7, ownerId: 7, assigneeId: null }),
     ],
   })
   // Whatever space is selected, every list on the page is read from all spaces and counts mine only.
@@ -494,13 +492,13 @@ test('the schedules tab reads every space and lists only my schedules', () => {
     day: { allSpaces: true },
     overdue: { allSpaces: true, own: true },
   })
-  assert.deepEqual([...html.matchAll(/<article>일정 (\d)<\/article>/g)].map(([, id]) => Number(id)), [1, 4, 5], 'another member\'s and a team schedule held by nobody are not listed')
+  assert.deepEqual([...html.matchAll(/<article>일정 (\d)<\/article>/g)].map(([, id]) => Number(id)), [1, 4, 5], 'only schedules I own are listed, whoever is assigned')
   assert.doesNotMatch(html, /팀 전체|숨겨져 있어요/, 'there is no team view to switch to')
 })
 
 test('until the workspace says who I am the day is loading; if it cannot, the list says so and retries', () => {
   const h = tabHarness()
-  const rows = [day(1, '2026-11-10T09:00:00', { assigneeId: 7 })]
+  const rows = [day(1, '2026-11-10T09:00:00', { ownerId: 7 })]
   h.workspace.memberId = 0
   let html = h.render({ data: rows })
   assert.match(html, /status-panel--loading/, 'rows cannot be told apart yet')

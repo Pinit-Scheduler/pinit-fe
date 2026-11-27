@@ -85,37 +85,19 @@ export type ScheduleSimpleRequest = {
   date: DateTimeWithZone
   scheduleType: 'DEEP_WORK' | 'QUICK_TASK' | 'ADMIN_TASK'
   plannedDuration?: string
-  spaceId?: number
-  projectId?: number | null
-  assigneeId?: number | null
   expectedVersion?: number
 }
 export type ScheduleSimplePatchRequest = Partial<ScheduleSimpleRequest>
-/**
- * 일정을 만든다. 일정은 개인 단위라서 고른 스페이스·프로젝트를 빌려 쓰지 않는다.
- * `spaceId`가 없으면 위치를 보내지 않고, 서버가 만든 사람의 나의 스페이스에 둔다.
- */
+/** 일정을 만든다. 일정은 개인 것이라 위치와 담당자를 보내지 않는다. 서버가 만든 사람의 것으로 둔다(ADR-0037 §8). */
 export async function createSchedule(payload: ScheduleSimpleRequest) {
   const revision = getResourceRevision()
-  const {
-    spaceId,
-    projectId,
-    assigneeId,
-    expectedVersion: _version,
-    ...schedule
-  } = payload
+  const { expectedVersion: _version, ...schedule } = payload
   void _version
   return normalizeSchedule(
     await httpClient<WorkspaceScheduleView<ScheduleResponse>>(url(), {
       method: 'POST',
       json: {
         schedule: { ...schedule, date: toApiDateTimeWithZone(schedule.date) },
-        ...(spaceId === undefined || spaceId === null
-          ? {}
-          : { location: { spaceId, projectId: projectId ?? null } }),
-        ...(assigneeId !== undefined
-          ? { assignee: { memberId: assigneeId ?? null } }
-          : {}),
       },
     }),
     revision,
@@ -126,8 +108,7 @@ export async function updateSchedule(
   payload: ScheduleSimplePatchRequest,
 ) {
   const revision = getResourceRevision()
-  const { spaceId, projectId, assigneeId, expectedVersion, ...schedule } =
-    payload
+  const { expectedVersion, ...schedule } = payload
   const version =
     expectedVersion ?? getMetadata('schedule', scheduleId)?.version
   if (version === undefined)
@@ -145,12 +126,6 @@ export async function updateSchedule(
               ? { date: toApiDateTimeWithZone(schedule.date) }
               : {}),
           },
-          ...(spaceId === undefined
-            ? {}
-            : { location: { spaceId, projectId: projectId ?? null } }),
-          ...(assigneeId !== undefined
-            ? { assignee: { memberId: assigneeId ?? null } }
-            : {}),
         },
       },
     ),

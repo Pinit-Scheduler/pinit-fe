@@ -27,7 +27,7 @@ const EMPTY: Record<string, DaySummary> = {}
 /**
  * 월간 달력용 날짜별 일정 요약. 월 범위 API가 없으므로 달력에 보이는 주마다 주간 API를 한 번씩 부른다.
  * 다른 화면에서 일정이 바뀌면(schedule:changed) 다시 받는다. 다시 받는 동안에도 이 달의 숫자는 그대로 둔다.
- * 받은 일정은 그대로 두고 화면에 그릴 때 센다. 내 일정만 세는 기준(회원·스페이스)이 나중에 도착하면 받아 둔 응답을
+ * 받은 일정은 그대로 두고 화면에 그릴 때 센다. 내 일정만 세는 기준(회원)이 나중에 도착하면 받아 둔 응답을
  * 다시 거른다(거르려고 다시 받을 필요는 없다. `schedule:changed`가 오면 다른 변경처럼 백그라운드로 다시 받는다).
  */
 const useMonthlySchedules = (
@@ -36,7 +36,7 @@ const useMonthlySchedules = (
   { allSpaces = false, own = false }: Options = {},
 ): UseMonthlySchedulesReturn => {
   const monthKey = month.format('YYYY-MM')
-  const { selectedSpaceId, selectedProjectId, memberId, spaces } = useSpaces()
+  const { selectedSpaceId, selectedProjectId, memberId } = useSpaces()
   const zoneId = toApiDateTimeWithZone(month).zoneId
   // month는 렌더마다 새 dayjs 객체지만, 요청은 키(달·범위)가 바뀔 때만 다시 간다.
   const key = enabled
@@ -54,9 +54,9 @@ const useMonthlySchedules = (
   )
   const summaryByDate = useMemo(() => {
     if (query.data === undefined) return EMPTY
-    const counted = own ? ownSchedules(query.data, memberId, spaces) : query.data
+    const counted = own ? ownSchedules(query.data, memberId) : query.data
     return summarizeByDate(counted, (schedule) => toDateKey(schedule.date))
-  }, [query.data, own, memberId, spaces])
+  }, [query.data, own, memberId])
   return {
     summaryByDate,
     // Only marks the grid aria-busy. The counts stay on screen while they refresh.

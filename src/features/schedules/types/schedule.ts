@@ -52,16 +52,8 @@ export type ScheduleRequest = {
 }
 
 export type ScheduleFormValues = {
-  spaceId?: number
-  assigneeId?: number | null
   expectedVersion?: number
   recurrenceVersion?: number
-  affiliationChanged?: boolean
-  locationChanged?: boolean
-  assigneeChanged?: boolean
-  categoryId?: number | null
-  /** 폼을 열었을 때와 비교한 사용자 분류 변경 여부 */
-  categoryChanged?: boolean
   title: string
   description: string
   date: Date

@@ -346,6 +346,20 @@ test('mismatched response scope is rejected before any preview titles are stored
   assert.match(host.render().error, /선택한 스페이스·프로젝트의 제안이 아니에요/)
 })
 
+test('replan reason labels cover OUTSIDE_SPACE and keep the fallback for unknown codes', () => {
+  assert.equal(utils.replanReasonLabel('OUTSIDE_SPACE'), '선택한 스페이스 밖 작업의 일정은 유지해요.')
+  assert.equal(utils.replanReasonLabel('OUTSIDE_PROJECT'), '선택한 프로젝트 밖 작업의 일정은 유지해요.')
+  assert.equal(utils.replanReasonLabel('NOT_ASSIGNED_TO_YOU'), '나에게 배정되지 않은 작업의 일정은 유지해요.')
+  assert.equal(utils.replanReasonLabel('SOMETHING_NEW'), '현재 조건에서 이동할 수 없어요. 기존 일정을 유지해요.')
+})
+
+// ADR-0037 §10: my schedule linked to a task in another space stays where it is.
+const withOutsideSpace = () => {
+  const base = preview()
+  return { ...base, protectedSchedules: [...base.protectedSchedules,
+    { scheduleId: 105, title: '다른 스페이스 작업', start: '2026-11-09T05:00:00Z', end: '2026-11-09T05:30:00Z', reason: 'OUTSIDE_SPACE' }] }
+}
+
 test('rendered preview exposes before/after, protected reasons and original-slot policy in requested timezone', () => {
   const dayjs = require('dayjs')
   dayjs.extend(require('dayjs/plugin/utc'))
@@ -354,7 +368,7 @@ test('rendered preview exposes before/after, protected reasons and original-slot
     react: React, 'react/jsx-runtime': require('react/jsx-runtime'), dayjs,
     '@features/spaces/store': { useSpaces: () => ({ loading: false, error: null, memberId: 1, selectedProjectId: null,
       selectedSpace: { id: 10, name: '공유 공간', version: 1, members: [{ memberId: 1, role: 'MEMBER' }], allowedActions: { edit: false } }, selectedProject: null }) },
-    '../hooks/useDayReplan': () => ({ delay: '30', preview: preview(), phase: 'idle', selectedIds: [101], appliedCount: null }),
+    '../hooks/useDayReplan': () => ({ delay: '30', preview: withOutsideSpace(), phase: 'idle', selectedIds: [101], appliedCount: null }),
     '../utils/replanning': utils, './DayReplanningPanel.css': {},
     '@shared/motion/usePresence': { usePresence: (value) => ({ mounted: Boolean(value), closing: false, value: value || undefined }) },
   }).default
@@ -369,7 +383,11 @@ test('rendered preview exposes before/after, protected reasons and original-slot
   assert.match(html, /시간 보정 설정 반영/)
   assert.match(html, /체크한 일정만/)
   assert.match(html, /공유 공간 전체/)
-  assert.match(html, /나에게 배정된 작업 일정/)
+  assert.match(html, /공유 공간 전체의 작업 일정만 옮겨요/)
+  assert.match(html, /선택한 범위 밖 작업의 일정은 그대로/)
+  assert.doesNotMatch(html, /다른 사람의 일정/)
+  assert.match(html, /스페이스 밖 작업의 일정은 유지/)
+  assert.doesNotMatch(html, /현재 조건에서 이동할 수 없어요/)
 })
 
 test('central cache invalidation removes changed IDs and preserves protected active state and other entries', () => {

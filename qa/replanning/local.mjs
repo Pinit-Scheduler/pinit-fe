@@ -29,6 +29,7 @@ const getFixture = async () => {
   assert.equal(info.fixture, true, 'Refuse writes without a disposable fixture marker')
   assert.ok(Number.isSafeInteger(info.memberId) && Number.isSafeInteger(info.spaceId))
   assert.ok(Number.isSafeInteger(info.auditCount) && Number.isSafeInteger(info.outboxCount))
+  assert.ok(Number.isSafeInteger(info.otherSpaceScheduleId), 'Fixture must expose the other-space schedule (BE ADR-0037 fixture)')
   return info
 }
 let info = await getFixture()
@@ -118,6 +119,8 @@ try {
     if (url.pathname === '/v2/plans') return json({ date, zoneId: info.zoneId, window: { start: { dateTime: `${date}T09:00:00`, zoneId: info.zoneId }, end: { dateTime: `${date}T23:00:00`, zoneId: info.zoneId } }, blocks: [], unplaced: [], routines: [], objective: { dailyObjectiveWork: 'PT4H', existingTaskWork: 'PT0S', plannedWork: 'PT0S', used: 'PT0S' } })
     if (url.pathname === '/v2/projects/snapshot') return json({ projects: project ? [project] : [], taskAssignments: {}, scheduleAssignments: {} })
     if (url.pathname === '/v2/workspace/tasks') return json({ tasks: [], totalPages: 1, totalElements: 0 })
+    // Task split (ADR-0035) reads its summary on every app screen; answer it as unavailable so the app does not crash.
+    if (url.pathname === '/v2/task-splits/summary') return json({ available: false, consent: { currentVersion: 'local-fixture', consented: false, provider: 'local-fixture' }, quota: { limit: 0, used: 0, remaining: 0, resetsAt: info.now }, archiveCount: 0 })
     return json([])
   })
   const openPlan = async () => {
@@ -148,7 +151,11 @@ try {
     const timer = setTimeout(() => reject(new Error('Native fixture preview did not arrive')), 15_000)
     started.then(() => { clearTimeout(timer); resolve() }, reject)
   })
-  const spaceAIds = new Set([...native.at(-1).result.changes, ...native.at(-1).result.protectedSchedules, ...native.at(-1).result.unplaced].map((item) => item.scheduleId))
+  // BE ADR-0037 §10: every reply covers my whole day; the requested space only narrows what may move.
+  const spaceA = native.at(-1).result
+  const spaceAMovable = new Set([...spaceA.changes, ...spaceA.unplaced].map((item) => item.scheduleId))
+  assert.ok(spaceAMovable.size > 0)
+  assert.equal(spaceA.protectedSchedules.find((item) => item.scheduleId === info.otherSpaceScheduleId)?.reason, 'OUTSIDE_SPACE')
   await chooseSpace('QA space B')
   holdPreview = false
   releasePreview()
@@ -159,7 +166,12 @@ try {
   await page.getByRole('heading', { name: '변경 전후' }).waitFor()
   const spaceB = native.at(-1)
   assert.equal(spaceB.payload.spaceId, info.otherSpaceId)
-  assert.equal([...spaceB.result.changes, ...spaceB.result.protectedSchedules, ...spaceB.result.unplaced].some((item) => spaceAIds.has(item.scheduleId)), false)
+  assert.equal(spaceB.result.spaceId, info.otherSpaceId)
+  // Space B moves none of space A's schedules; they stay as OUTSIDE_SPACE obstacles.
+  assert.equal([...spaceB.result.changes, ...spaceB.result.unplaced].some((item) => spaceAMovable.has(item.scheduleId)), false)
+  const spaceBReasons = new Map(spaceB.result.protectedSchedules.map((item) => [item.scheduleId, item.reason]))
+  for (const id of spaceAMovable) assert.equal(spaceBReasons.get(id), 'OUTSIDE_SPACE')
+  assert.equal(spaceBReasons.has(info.otherSpaceScheduleId), false)
   await chooseSpace('QA space A')
   await openPlan()
   await chooseProject()
@@ -219,7 +231,7 @@ try {
   await page.screenshot({ path: path.join(runtime, 'replan-native-mobile-denied.png'), fullPage: true })
   assert.deepEqual(errors, [])
   assert.deepEqual(escaped, [])
-  const report = { passed: true, boundary: 'genuine FE -> native REST -> Task service -> disposable H2; test identity; workspace/auth display fixtures', scenarios: ['late-space-A-response-discarded', 'space-B-excludes-space-A', 'selected-project-carried-through-preview-and-apply', 'actual-stale-version-409-retains-selection', 'selected-existing-ID-applied', 'native-info-and-next-preview-prove-persisted-start', 'unselected-starts-unchanged', 'actual-membership-denial-clears-preview', 'conflict-and-denial-add-no-audit-or-outbox', 'mobile-no-overflow'], nativeCalls: native.map(({ path, payload, status }) => ({ path, spaceId: payload.spaceId, projectId: payload.projectId, selectedCount: payload.selectedScheduleIds?.length, status })), pageErrors: errors.length, externalRequests: escaped.length }
+  const report = { passed: true, boundary: 'genuine FE -> native REST -> Task service -> disposable H2; test identity; workspace/auth display fixtures', scenarios: ['late-space-A-response-discarded', 'space-B-protects-space-A-as-OUTSIDE_SPACE', 'space-A-protects-other-space-schedule-as-OUTSIDE_SPACE', 'selected-project-carried-through-preview-and-apply', 'actual-stale-version-409-retains-selection', 'selected-existing-ID-applied', 'native-info-and-next-preview-prove-persisted-start', 'unselected-starts-unchanged', 'actual-membership-denial-clears-preview', 'conflict-and-denial-add-no-audit-or-outbox', 'mobile-no-overflow'], nativeCalls: native.map(({ path, payload, status }) => ({ path, spaceId: payload.spaceId, projectId: payload.projectId, selectedCount: payload.selectedScheduleIds?.length, status })), pageErrors: errors.length, externalRequests: escaped.length }
   await writeFile(path.join(runtime, 'report.json'), JSON.stringify(report, null, 2))
   console.log(JSON.stringify(report, null, 2))
 } finally {

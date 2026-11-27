@@ -127,9 +127,6 @@ for (const kind of ['task', 'schedule']) {
     let scheduleValues = {
       title: 'draft',
       description: 'details',
-      categoryId: 7,
-      spaceId: -4,
-      assigneeId: null,
       expectedVersion: 7,
       recurrenceVersion: 9,
       date: new Date(),
@@ -224,19 +221,22 @@ for (const kind of ['task', 'schedule']) {
     }
     let tree = render()
     await tree.props.onSubmit({ preventDefault() {} })
-    assert.equal(submitted.at(-1).categoryId, 7)
-    assert.equal(submitted.at(-1).categoryChanged, false)
     assert.equal(submitted.at(-1).expectedVersion, 7)
     assert.equal(submitted.at(-1).recurrenceVersion, 9)
-    assert.equal(submitted.at(-1).assigneeId, null)
-    assert.equal(submitted.at(-1).locationChanged, false)
-    assert.equal(submitted.at(-1).assigneeChanged, false)
+    if (kind === 'task') {
+      assert.equal(submitted.at(-1).categoryId, 7)
+      assert.equal(submitted.at(-1).categoryChanged, false)
+      assert.equal(submitted.at(-1).assigneeId, null)
+      assert.equal(submitted.at(-1).locationChanged, false)
+      assert.equal(submitted.at(-1).assigneeChanged, false)
+    }
     tree = render()
     if (kind === 'schedule') {
-      // 일정은 개인 것이고 어느 스페이스에도 속하지 않는다. 일정 폼에는 스페이스·프로젝트·담당자 칸이 없고,
-      // 수정 화면이 위치와 담당자를 보내게 하는 표시는 늘 false다.
+      // 일정은 개인 것이고 어느 스페이스에도 속하지 않는다(BE ADR-0037 §8). 일정 폼에는 스페이스·프로젝트·담당자 칸이 없고,
+      // 위치·담당자 변경 표시도 넘기지 않는다.
       assert.equal(find(tree, CategoryPicker), null, 'the schedule form asks for no space, project or assignee')
-      assert.equal(submitted.at(-1).affiliationChanged, false)
+      for (const key of ['categoryId', 'spaceId', 'assigneeId', 'locationChanged', 'assigneeChanged', 'affiliationChanged', 'categoryChanged'])
+        assert.equal(Object.hasOwn(submitted.at(-1), key), false, key)
     } else {
       assert.notEqual(find(tree, CategoryPicker), null, 'the task form still does')
       find(tree, CategoryPicker).props.onChange({
@@ -296,7 +296,6 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     events = [],
     toasts = [],
     exits = [],
-    seriesAssigned = [],
     seriesUpdated = []
   let categoryId = 7,
     failCategory = false,
@@ -321,10 +320,6 @@ const createTaskEdit = ({ recurring = false } = {}) => {
       assignTaskCategory: async (...args) => {
         if (failCategory) throw new Error('category failed')
         assigned.push(args)
-      },
-      assignSeriesCategory: async (...args) => {
-        if (failCategory) throw new Error('category failed')
-        seriesAssigned.push(args)
       },
     },
     '../components/TaskForm': { default: TaskForm },
@@ -376,7 +371,6 @@ const createTaskEdit = ({ recurring = false } = {}) => {
     events,
     toasts,
     exits,
-    seriesAssigned,
     seriesUpdated,
     refreshCategory: (value) => {
       categoryId = value
@@ -441,7 +435,6 @@ test('recurring task content and project scope commit atomically and a rejection
   }
   h.failContent(true)
   await form.props.onSubmit(values)
-  assert.deepEqual(h.seriesAssigned, [])
   assert.deepEqual(h.seriesUpdated, [])
   assert.deepEqual(h.events, [])
   assert.deepEqual(h.exits, [])
@@ -451,46 +444,15 @@ test('recurring task content and project scope commit atomically and a rejection
   assert.equal(h.seriesUpdated.length, 1)
   assert.equal(h.seriesUpdated[0][1], 'ALL')
   assert.equal(h.seriesUpdated[0][4].projectId, 8)
-  assert.deepEqual(h.seriesAssigned, [])
   assert.deepEqual(h.exits, ['/app/tasks'])
 })
 
-test('a committed series category write stays successful when its follow-up refresh fails', async () => {
-  let fail = false
-  const writes = []
-  const snapshot = {
-    categories: [{ id: 7, name: 'work', builtIn: false }],
-    taskAssignments: {},
-    scheduleAssignments: { 9: 7 },
-  }
+test('the categories store has no schedule or series location writer (BE ADR-0037 §8)', () => {
   const store = load('../src/features/categories/store.ts', {
     '@shared/utils/sameData': load('../src/shared/utils/sameData.ts'),
     react: { useEffect() {}, useSyncExternalStore: (_subscribe, get) => get() },
     '@shared/api/config': { buildApiUrl: (path) => path },
-    '@shared/api/httpClient': {
-      httpClient: async (_url, options) => {
-        if (_url.startsWith('/workspace/recurrences/') && !options?.method)
-          return {
-            spaceId: -1,
-            projectId: 7,
-            version: 2,
-            assigneeId: null,
-            allowedActions: {},
-          }
-        if (options?.method === 'PATCH') {
-          writes.push(options.json)
-          return {
-            spaceId: -1,
-            projectId: options.json.location.projectId,
-            version: 3,
-            assigneeId: null,
-            allowedActions: {},
-          }
-        }
-        if (fail) throw apiError('refresh failed', 500)
-        return snapshot
-      },
-    },
+    '@shared/api/httpClient': { httpClient: async () => ({}) },
     '@shared/api/authTokens': { getAccessToken: () => 'actor-1' },
     '@shared/utils/events': {
       onDataChanged: () => () => {},
@@ -498,12 +460,9 @@ test('a committed series category write stays successful when its follow-up refr
       onScheduleChanged: () => () => {},
     },
   })
-  await store.reloadCategories()
-  fail = true
-  await store.assignSeriesCategory(4, 8, 'ALL', '2026-11-03')
-  assert.equal(writes.length, 1)
-  assert.equal(writes[0].expectedVersion, 2)
-  assert.equal(writes[0].location.projectId, 8)
-  assert.equal(store.useCategories().hasLoaded, true)
-  assert.equal(store.useCategories().error, 'refresh failed')
+  assert.equal(typeof store.assignTaskCategory, 'function')
+  for (const name of ['assignScheduleCategory', 'assignSeriesCategory']) {
+    assert.equal(Object.hasOwn(store, name), false, name)
+    assert.equal(Object.hasOwn(store.useCategories(), name), false, name)
+  }
 })

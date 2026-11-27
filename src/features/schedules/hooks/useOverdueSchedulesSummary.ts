@@ -39,12 +39,12 @@ const summarize = (schedules: ScheduleResponse[], todayKey: string): OverdueSumm
 
 /**
  * 지난 날짜의 미완료 일정 요약과 재조회 함수.
- * 받은 일정은 그대로 두고 화면에 그릴 때 센다. 내 일정만 세는 기준(회원·스페이스)이 나중에 도착하면 받아 둔 응답을
+ * 받은 일정은 그대로 두고 화면에 그릴 때 센다. 내 일정만 세는 기준(회원)이 나중에 도착하면 받아 둔 응답을
  * 다시 거른다(거르려고 다시 받을 필요는 없다. `schedule:changed`가 오면 다른 변경처럼 백그라운드로 다시 받는다).
  */
 const useOverdueSchedulesSummary = ({ allSpaces = false, own = false }: Options = {}) => {
   const { offsetMinutes } = useTimePreferences()
-  const { selectedSpaceId, selectedProjectId, memberId, spaces } = useSpaces()
+  const { selectedSpaceId, selectedProjectId, memberId } = useSpaces()
   const today = getTodayWithOffset(offsetMinutes)
   const todayKey = toDateKey(today)
   const key = `schedules/overdue/${todayKey}@${offsetMinutes}/${scheduleScopeKey(allSpaces, selectedSpaceId, selectedProjectId)}`
@@ -57,8 +57,8 @@ const useOverdueSchedulesSummary = ({ allSpaces = false, own = false }: Options 
   const summary = useMemo(() => {
     // 실패하면 배너를 띄우지 않는다.
     if (query.data === undefined) return NONE
-    return summarize(own ? ownSchedules(query.data, memberId, spaces) : query.data, todayKey)
-  }, [query.data, own, memberId, spaces, todayKey])
+    return summarize(own ? ownSchedules(query.data, memberId) : query.data, todayKey)
+  }, [query.data, own, memberId, todayKey])
   return {
     summary,
     refetch: query.refetch,
