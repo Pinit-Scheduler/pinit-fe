@@ -175,21 +175,17 @@ export const reloadCategories = (): Promise<void> => {
   pending = request
   return request
 }
-const assign = async (
-  kind: 'tasks' | 'schedules',
-  id: number,
-  categoryId: number | null,
-) => {
-  const resource = kind === 'tasks' ? 'task' : 'schedule'
-  let current = getMetadata(resource, id)
+/** 작업의 프로젝트를 바꾼다. 일정과 반복 일정은 개인 것이라 위치를 보내지 않는다(BE ADR-0037 §8). */
+export const assignTaskCategory = async (id: number, categoryId: number | null) => {
+  let current = getMetadata('task', id)
   if (!current) {
     const revision = getResourceRevision()
     const view = await httpClient<WorkspaceMetadata>(
-      buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
+      buildApiUrl(`/workspace/tasks/${id}`, 'v2'),
     )
-    if (!rememberMetadata(resource, id, view, revision))
+    if (!rememberMetadata('task', id, view, revision))
       throw new ClientGuardError(
-        `${kind === 'tasks' ? '작업' : '일정'} 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.`,
+        '작업 접근 권한이 바뀌었어요. 목록에서 다시 확인해 주세요.',
       )
     current = view
   }
@@ -198,7 +194,7 @@ const assign = async (
   if (current.spaceId === spaceId && current.projectId === categoryId) return
   const revision = getResourceRevision()
   const result = await httpClient<WorkspaceMetadata>(
-    buildApiUrl(`/workspace/${kind}/${id}`, 'v2'),
+    buildApiUrl(`/workspace/tasks/${id}`, 'v2'),
     {
       method: 'PATCH',
       json: {
@@ -207,45 +203,12 @@ const assign = async (
       },
     },
   )
-  rememberMetadata(resource, id, result, revision)
-  const field = kind === 'tasks' ? 'taskAssignments' : 'scheduleAssignments'
-  const next = { ...state[field] }
+  rememberMetadata('task', id, result, revision)
+  const next = { ...state.taskAssignments }
   if (categoryId === null) delete next[id]
   else next[id] = categoryId
-  state = { ...state, [field]: next }
+  state = { ...state, taskAssignments: next }
   emit()
-}
-export const assignSeriesCategory = async (
-  id: number,
-  categoryId: number | null,
-  scope: 'ALL' | 'FOLLOWING' | 'TEMPLATE' = 'TEMPLATE',
-  fromDate?: string,
-) => {
-  const revision = getResourceRevision()
-  const current = await httpClient<WorkspaceMetadata>(
-    buildApiUrl(`/workspace/recurrences/${id}`, 'v2'),
-  )
-  const project = state.categories.find((item) => item.id === categoryId)
-  const spaceId = project?.spaceId ?? current.spaceId
-  const result = await httpClient<WorkspaceMetadata>(
-    buildApiUrl(`/workspace/recurrences/${id}`, 'v2'),
-    {
-      method: 'PATCH',
-      json: {
-        expectedVersion: current.version,
-        recurrence: {
-          scope: scope === 'TEMPLATE' ? 'ALL' : scope,
-          fromDate,
-          changes: {},
-        },
-        location: { spaceId, projectId: categoryId },
-      },
-    },
-  )
-  rememberMetadata('series', id, result, revision)
-  if (pending) await pending.catch(() => {})
-  // 프로젝트 배정은 이미 저장됐다. 이후 조회 실패는 store.error로 알리고 저장 실패로 바꾸지 않는다.
-  await reloadCategories().catch(() => {})
 }
 export const createCategory = async (name: string) => {
   const requestedBy = sessionKey()
@@ -278,10 +241,6 @@ export const deleteCategory = async (id: number) => {
   if (pending) await pending.catch(() => {})
   await reloadCategories()
 }
-export const assignTaskCategory = (id: number, value: number | null) =>
-  assign('tasks', id, value)
-export const assignScheduleCategory = (id: number, value: number | null) =>
-  assign('schedules', id, value)
 export function useCategories() {
   const snapshot = useSyncExternalStore(
     (listener) => {
@@ -329,7 +288,5 @@ export function useCategories() {
     scheduleCategory: (id: number) => find(visible.scheduleAssignments[id]),
     seriesCategory: (id: number) => find(visible.seriesAssignments?.[id]),
     assignTaskCategory,
-    assignScheduleCategory,
-    assignSeriesCategory,
   }
 }

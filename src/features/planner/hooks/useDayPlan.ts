@@ -91,7 +91,6 @@ const useDayPlan = ({
     selectedSpaceId,
     selectedProjectId,
     memberId,
-    spaces,
     error: workspaceError,
     reload: reloadWorkspace,
   } = useSpaces()
@@ -125,11 +124,11 @@ const useDayPlan = ({
     ? null
     : (query.error ?? (memberKnown ? null : (workspaceError ?? null)))
   const isInitialLoading = data === undefined && error === null
-  // 받은 일정은 캐시에 그대로 두고 여기서 내 일정만 남긴다. 회원·스페이스 정보가 늦게 와도 빈 목록이 캐시에 남지 않는다.
+  // 받은 일정은 캐시에 그대로 두고 여기서 내 일정만 남긴다. 회원 정보가 늦게 와도 빈 목록이 캐시에 남지 않는다.
   const loadedSchedules = data?.schedules ?? NO_SCHEDULES
   const schedules = useMemo(
-    () => ownSchedules(loadedSchedules, memberId, spaces),
-    [loadedSchedules, memberId, spaces],
+    () => ownSchedules(loadedSchedules, memberId),
+    [loadedSchedules, memberId],
   )
   return {
     plan: data?.plan ?? null,

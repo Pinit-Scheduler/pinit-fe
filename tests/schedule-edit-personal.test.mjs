@@ -5,18 +5,15 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { errorMessage } from './support/errors.mjs'
 
+// BE ADR-0037 §8: a schedule is personal. The edit page sends only its content and never waits for
+// project data; '@features/categories' is left out of the stubs so importing it again fails here.
 const createHarness = ({ recurring = false } = {}) => {
-  const assigned = [],
-    saved = [],
+  const saved = [],
     exits = [],
-    seriesAssigned = [],
     seriesUpdated = [],
     events = [],
     toasts = []
-  const savedCategory = { current: null }
-  let failCategory = false,
-    failContent = false
-  let category = { isLoading: true, error: null, id: null }
+  let failContent = false
   const ScheduleForm = () => null
   const schedule = {
     id: 9,
@@ -25,6 +22,10 @@ const createHarness = ({ recurring = false } = {}) => {
     date: { dateTime: '2026-11-03T10:00:00', zoneId: 'Asia/Seoul' },
     scheduleType: 'DEEP_WORK',
     plannedDuration: 'PT30M',
+    // The read-time display place and owner (ADR-0037 §7); the form must not echo them back.
+    spaceId: 31,
+    projectId: 7,
+    assigneeId: 1,
     ...(recurring
       ? { recurrence: { seriesId: 4, occurrenceDate: '2026-11-03' } }
       : {}),
@@ -38,7 +39,7 @@ const createHarness = ({ recurring = false } = {}) => {
       useCallback: (fn) => fn,
       useEffect() {},
       useMemo: (fn) => fn(),
-      useRef: () => savedCategory,
+      useRef: () => ({ current: null }),
       useState: (initial) => [initial, () => {}],
     },
     'react-router-dom': { useParams: () => ({ scheduleId: '9' }) },
@@ -97,22 +98,6 @@ const createHarness = ({ recurring = false } = {}) => {
       useRouteSurfaceNavigation: () => ({
         complete: (fallback) => exits.push(fallback),
       }),
-    },
-    '@features/categories': {
-      useCategories: () => ({
-        ...category,
-        scheduleCategory: () =>
-          category.id === null ? null : { id: category.id },
-        reload: async () => {},
-      }),
-      assignScheduleCategory: async (...args) => {
-        if (failCategory) throw new Error('category failed')
-        assigned.push(args)
-      },
-      assignSeriesCategory: async (...args) => {
-        if (failCategory) throw new Error('category failed')
-        seriesAssigned.push(args)
-      },
     },
   }
   const source = readFileSync(
@@ -184,64 +169,56 @@ const createHarness = ({ recurring = false } = {}) => {
   }
   return {
     render: () => findForm(module.exports.default()),
-    setCategory: (next) => {
-      category = { hasLoaded: !next.isLoading && !next.error, ...next }
-    },
-    failCategory: (value) => {
-      failCategory = value
-    },
     failContent: (value) => {
       failContent = value
     },
-    assigned,
     saved,
     exits,
-    seriesAssigned,
     seriesUpdated,
     events,
     toasts,
   }
 }
 
-test('a fast schedule response cannot mount a form with an unknown category; title-only save preserves it after category lookup', async () => {
+// Values an old open tab or a future form could still carry; none of them may reach the server.
+const stray = {
+  spaceId: 31,
+  assigneeId: 2,
+  categoryId: 8,
+  categoryChanged: true,
+  locationChanged: true,
+  assigneeChanged: true,
+  affiliationChanged: true,
+}
+const AFFILIATION = ['spaceId', 'projectId', 'assigneeId', 'location', 'assignee']
+
+test('the edit form mounts as soon as the schedule loads and carries no place or assignee', () => {
+  const form = createHarness().render()
+  assert.ok(form, 'no project lookup gates the editor')
+  for (const key of ['spaceId', 'assigneeId', 'categoryId'])
+    assert.equal(Object.hasOwn(form.props.initialValues, key), false, key)
+  assert.equal(form.props.initialValues.title, 'original')
+})
+
+test('a title-only save sends only content, even when the submitted values carry stray place fields', async () => {
   const h = createHarness()
-  assert.equal(h.render(), null)
-  h.setCategory({ isLoading: false, error: null, id: 7 })
   const form = h.render()
-  assert.equal(form.props.initialValues.categoryId, 7)
   await form.props.onSubmit({
     ...form.props.initialValues,
+    ...stray,
     title: 'changed title',
   })
   assert.equal(h.saved.length, 1)
-  assert.deepEqual(h.assigned, [])
+  const [id, payload] = h.saved[0]
+  assert.equal(id, 9)
+  assert.equal(payload.title, 'changed title')
+  for (const key of AFFILIATION)
+    assert.equal(Object.hasOwn(payload, key), false, key)
   assert.deepEqual(h.exits, ['/app/schedules'])
-})
-
-test('failed category lookup cannot expose a destructive default None; recovery uses the existing assignment', () => {
-  const h = createHarness()
-  h.setCategory({ isLoading: false, error: 'temporary failure', id: null })
-  assert.equal(h.render(), null)
-  assert.deepEqual(h.assigned, [])
-  h.setCategory({ isLoading: false, error: null, id: 7 })
-  assert.equal(h.render().props.initialValues.categoryId, 7)
-})
-
-test('confirmed uncategorized schedules remain editable with an explicit None value', async () => {
-  const h = createHarness()
-  h.setCategory({ isLoading: false, error: null, id: null })
-  const form = h.render()
-  assert.equal(form.props.initialValues.categoryId, null)
-  await form.props.onSubmit({
-    ...form.props.initialValues,
-    title: 'changed title',
-  })
-  assert.deepEqual(h.assigned, [])
 })
 
 test('moving a schedule publishes both the old date and the saved new date', async () => {
   const h = createHarness()
-  h.setCategory({ isLoading: false, error: null, id: null })
   const form = h.render()
   const nextDate = new Date('2026-11-04T01:00:00Z')
   await form.props.onSubmit({ ...form.props.initialValues, date: nextDate })
@@ -250,84 +227,25 @@ test('moving a schedule publishes both the old date and the saved new date', asy
   assert.equal(h.events[0].schedule.date.toISOString(), nextDate.toISOString())
 })
 
-test('title-only ALL recurrence edit never rewrites category overrides on other occurrences', async () => {
+test('an ALL recurrence edit sends only the content changes, with no place argument', async () => {
   const h = createHarness({ recurring: true })
-  h.setCategory({ isLoading: false, error: null, id: 7 })
   const form = h.render()
   await form.props.onSubmit({
     ...form.props.initialValues,
+    ...stray,
     title: 'renamed for all occurrences',
   })
-  assert.deepEqual(h.seriesAssigned, [])
   assert.equal(h.seriesUpdated.length, 1)
+  assert.equal(h.seriesUpdated[0].length, 4, 'no affiliation argument')
   assert.equal(h.seriesUpdated[0][1], 'ALL')
-  assert.equal(h.seriesUpdated[0][2].title, 'renamed for all occurrences')
+  assert.deepEqual(h.seriesUpdated[0][2], { title: 'renamed for all occurrences' })
   assert.deepEqual(h.exits, ['/app/schedules'])
 })
 
-test('an explicitly changed recurrence category still applies to the confirmed scope', async () => {
-  const h = createHarness({ recurring: true })
-  h.setCategory({ isLoading: false, error: null, id: 7 })
+test('a failed save preserves the editor and the retry still sends no place', async () => {
+  const h = createHarness()
   const form = h.render()
-  await form.props.onSubmit({
-    ...form.props.initialValues,
-    title: 'renamed',
-    categoryId: 8,
-    categoryChanged: true,
-  })
-  assert.deepEqual(h.seriesAssigned, [])
-  assert.equal(h.seriesUpdated.length, 1)
-  assert.equal(h.seriesUpdated[0][4].projectId, 8)
-})
-
-test('background category refresh failure keeps the mounted schedule editor and its stable identity', async () => {
-  const h = createHarness()
-  h.setCategory({ isLoading: false, hasLoaded: true, error: null, id: 7 })
-  const original = h.render()
-  h.setCategory({
-    isLoading: false,
-    hasLoaded: true,
-    error: 'refresh failed',
-    id: 7,
-  })
-  const duringFailure = h.render()
-  assert.ok(duringFailure)
-  assert.equal(duringFailure.type, original.type)
-  await duringFailure.props.onSubmit({
-    ...original.props.initialValues,
-    title: 'unsaved title before refresh',
-  })
-  assert.equal(h.saved[0][1].title, 'unsaved title before refresh')
-  assert.deepEqual(h.assigned, [])
-})
-
-test('title-only save after a category refresh never writes the stale form category back', async () => {
-  const h = createHarness()
-  h.setCategory({ isLoading: false, error: null, id: 7 })
-  const original = h.render()
-  h.setCategory({ isLoading: false, error: null, id: 8 })
-  const latest = h.render()
-  await latest.props.onSubmit({
-    ...original.props.initialValues,
-    title: 'title edit',
-    categoryChanged: false,
-  })
-  assert.deepEqual(h.assigned, [])
-  assert.equal(h.saved[0][1].title, 'title edit')
-  assert.equal(Object.hasOwn(h.saved[0][1], 'projectId'), false)
-  assert.equal(Object.hasOwn(h.saved[0][1], 'assigneeId'), false)
-})
-
-test('schedule content and project save atomically; failed save preserves the editor', async () => {
-  const h = createHarness()
-  h.setCategory({ isLoading: false, error: null, id: 7 })
-  const form = h.render()
-  const values = {
-    ...form.props.initialValues,
-    title: 'saved title',
-    categoryId: 8,
-    categoryChanged: true,
-  }
+  const values = { ...form.props.initialValues, ...stray, title: 'saved title' }
   h.failContent(true)
   await assert.rejects(form.props.onSubmit(values), /content failed/)
   assert.equal(h.saved.length, 0)
@@ -336,24 +254,18 @@ test('schedule content and project save atomically; failed save preserves the ed
   h.failContent(false)
   await h.render().props.onSubmit(values)
   assert.equal(h.saved.length, 1)
-  assert.equal(h.saved[0][1].projectId, 8)
+  for (const key of AFFILIATION)
+    assert.equal(Object.hasOwn(h.saved[0][1], key), false, key)
   assert.equal(h.events[0].reason, 'updated')
-  assert.deepEqual(h.assigned, [])
   assert.deepEqual(h.exits, ['/app/schedules'])
 })
 
-test('recurring schedule content and project scope commit atomically; retry keeps the same draft', async () => {
+test('a failed recurring save keeps the draft; the retry commits content only', async () => {
   const h = createHarness({ recurring: true })
-  h.setCategory({ isLoading: false, error: null, id: 7 })
   const form = h.render()
-  const values = {
-    ...form.props.initialValues,
-    categoryId: 8,
-    categoryChanged: true,
-  }
+  const values = { ...form.props.initialValues, ...stray, title: 'renamed' }
   h.failContent(true)
   await assert.rejects(form.props.onSubmit(values), /content failed/)
-  assert.deepEqual(h.seriesAssigned, [])
   assert.deepEqual(h.seriesUpdated, [])
   assert.deepEqual(h.events, [])
   assert.deepEqual(h.exits, [])
@@ -361,6 +273,6 @@ test('recurring schedule content and project scope commit atomically; retry keep
   await h.render().props.onSubmit(values)
   assert.equal(h.seriesUpdated.length, 1)
   assert.equal(h.seriesUpdated[0][1], 'ALL')
-  assert.equal(h.seriesUpdated[0][4].projectId, 8)
+  assert.equal(h.seriesUpdated[0].length, 4)
   assert.deepEqual(h.exits, ['/app/schedules'])
 })

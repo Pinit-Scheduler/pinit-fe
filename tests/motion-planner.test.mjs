@@ -297,7 +297,7 @@ test('useDayPlan clears a failure while it retries and shows a retry without a p
 })
 
 test('a window past midnight also reads the next day; schedules arrive once each, in start order', async () => {
-  const day = (date, ...entries) => entries.map(([id, time]) => ({ id, date: { dateTime: `${date}T${time}:00` } }))
+  const day = (date, ...entries) => entries.map(([id, time]) => ({ id, ownerId: 7, date: { dateTime: `${date}T${time}:00` } }))
   const reads = []
   const host = dayPlanHarness(
     async ({ date }) => ({ date, window: { end: { dateTime: '2026-11-11T02:00:00' } } }),
@@ -317,12 +317,12 @@ test('a window past midnight also reads the next day; schedules arrive once each
 })
 
 test('the plan avoids my schedules from every space, not the schedules of the selected space', async () => {
-  // 제품팀(31)을 골랐다. 나의 스페이스에 내 일정이, 제품팀에 다른 사람과 담당자 없는 일정이 있다.
+  // 제품팀(31)을 골랐다. 내 일정은 1·4이고, 2·3은 다른 사람의 일정이다(mock은 아직 그것도 준다).
   const rows = [
-    { id: 1, spaceId: -7, assigneeId: 7, date: { dateTime: '2026-11-10T14:00:00' } },
-    { id: 2, spaceId: 31, assigneeId: 9, date: { dateTime: '2026-11-10T11:00:00' } },
-    { id: 3, spaceId: 31, assigneeId: null, date: { dateTime: '2026-11-10T16:00:00' } },
-    { id: 4, spaceId: 31, assigneeId: 7, date: { dateTime: '2026-11-10T09:00:00' } },
+    { id: 1, spaceId: -7, ownerId: 7, date: { dateTime: '2026-11-10T14:00:00' } },
+    { id: 2, spaceId: 31, ownerId: 9, date: { dateTime: '2026-11-10T11:00:00' } },
+    { id: 3, spaceId: 31, ownerId: 9, date: { dateTime: '2026-11-10T16:00:00' } },
+    { id: 4, spaceId: 31, ownerId: 7, date: { dateTime: '2026-11-10T09:00:00' } },
   ]
   const scopes = []
   let reloads = 0
@@ -357,12 +357,8 @@ test('the plan avoids my schedules from every space, not the schedules of the se
   await settle()
   workspace.error = null
   scopes.length = 1
-  // 회원과 스페이스가 나중에 도착하면 받아 둔 응답을 다시 거른다. 빈 목록이 캐시에 남지 않는다.
+  // 회원이 나중에 도착하면 받아 둔 응답을 다시 거른다. 빈 목록이 캐시에 남지 않는다.
   workspace.memberId = 7
-  workspace.spaces = [
-    { id: -7, personal: true, members: [{ memberId: 7 }] },
-    { id: 31, personal: false, members: [{ memberId: 7 }, { memberId: 9 }] },
-  ]
   const known = host.render(props)
   assert.deepEqual(Array.from(known.schedules, (schedule) => schedule.id), [4, 1], 'mine only, in start order')
   assert.equal(host.render(props).schedules, known.schedules, 'the same list object while nothing changes')

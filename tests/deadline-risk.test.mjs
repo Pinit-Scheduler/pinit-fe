@@ -54,7 +54,7 @@ const Item = load('../src/features/deadline-risk/components/DeadlineRiskItem.tsx
   '../utils/deadlineRiskView': view,
 }).default
 
-test('page announces personal-space-only tasks and schedules before forecast loading completes', () => {
+test('page announces personal-space-only tasks and all-my-schedules time before forecast loading completes', () => {
   const Page = load('../src/features/deadline-risk/pages/DeadlineRiskPage.tsx', {
     react: { useState: React.useState, useRef: React.useRef, useEffect: React.useEffect },
     'react/jsx-runtime': jsxRuntime,
@@ -68,8 +68,8 @@ test('page announces personal-space-only tasks and schedules before forecast loa
     './DeadlineRiskPage.css': {},
   }).default
   const html = renderToStaticMarkup(React.createElement(Page))
-  assert.match(html, /개인 스페이스의 작업과 일정만 반영해요/)
-  assert.match(html, /팀이나 다른 스페이스의 작업·일정은 포함하지 않아요/)
+  assert.match(html, /개인 스페이스의 작업만 살펴봐요/)
+  assert.match(html, /스페이스와 상관없이 내 모든 일정을 피해서 계산해요/)
   assert.match(html, /계산하고 있어요/)
 })
 

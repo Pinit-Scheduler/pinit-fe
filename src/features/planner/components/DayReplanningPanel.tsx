@@ -61,8 +61,8 @@ const DayReplanningContent = ({ date, zoneId, onApplied, disabled = false, scope
         {delayError && <p id="day-replan-delay-error" className="day-replan__error">{delayError}</p>}
       </form>
 
-      <p className="day-replan__scope">{scopeLabel} · 나에게 배정된 작업 일정</p>
-      <p className="day-replan__policy">약속·반복·진행 중·일시정지·완료 일정과 다른 사람의 일정은 그대로 두고, 생활 시간과 마감·선행 작업을 지켜 배치해요. 일정 사이에는 10분을 비워요.</p>
+      <p className="day-replan__scope">{scopeLabel}의 작업 일정만 옮겨요</p>
+      <p className="day-replan__policy">약속·반복·진행 중·일시정지·완료 일정과 선택한 범위 밖 작업의 일정은 그대로 두고, 생활 시간과 마감·선행 작업을 지켜 배치해요. 범위 밖의 완료하지 않은 내 일정과도 겹치지 않게 하고, 일정 사이에는 10분을 비워요.</p>
       {!isToday && <p className="day-replan__error" role="status">날짜가 바뀌었어요. 오늘 계획을 다시 열어 주세요.</p>}
       {replan.error && <p className="day-replan__error" role="alert">{replan.error}</p>}
       {replan.accessDenied && <p className="day-replan__error" role="status">스페이스 접근 권한을 다시 확인해 주세요. <button type="button" onClick={onReloadSpace}>스페이스 다시 불러오기</button></p>}

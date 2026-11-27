@@ -189,7 +189,7 @@ test('weekly schedules forward mine', async () => {
   assert.equal(plainWeek.has('mine'), false)
   assert.equal(plainWeek.get('spaceId'), '31')
 })
-test('Schedule create never borrows the selected space: without a location the server files it under my own space', async () => {
+test('Schedule create and edit never send a location or assignee; the server keeps the schedule personal (BE ADR-0037 §8)', async () => {
   const calls = []
   const api = load('features/schedules/api/schedules.ts', {
     dayjs: { default: () => ({}) },
@@ -209,12 +209,14 @@ test('Schedule create never borrows the selected space: without a location the s
   })
   const schedule = { title: '산책', description: '', date: '2026-11-11T09:00:00', scheduleType: 'QUICK_TASK' }
   await api.createSchedule(schedule)
-  assert.equal(Object.hasOwn(calls.at(-1).json, 'location'), false)
-  assert.equal(Object.hasOwn(calls.at(-1).json, 'assignee'), false)
-  await api.createSchedule({ ...schedule, spaceId: -4 })
-  assert.deepEqual(plain(calls.at(-1).json.location), { spaceId: -4, projectId: null }, 'the selected project is not borrowed either')
-  await api.createSchedule({ ...schedule, spaceId: -4, projectId: 5 })
-  assert.deepEqual(plain(calls.at(-1).json.location), { spaceId: -4, projectId: 5 })
+  assert.equal(calls.at(-1).method, 'POST')
+  assert.deepEqual(Object.keys(calls.at(-1).json), ['schedule'], 'the selected space is not borrowed')
+  assert.deepEqual(Object.keys(calls.at(-1).json.schedule).sort(), ['date', 'description', 'scheduleType', 'title'])
+  await api.updateSchedule(9, { expectedVersion: 3, title: '산책 길게' })
+  assert.equal(calls.at(-1).method, 'PATCH')
+  assert.deepEqual(Object.keys(calls.at(-1).json).sort(), ['expectedVersion', 'schedule'])
+  assert.equal(calls.at(-1).json.expectedVersion, 3)
+  assert.equal(calls.at(-1).json.schedule.title, '산책 길게')
 })
 test('Invitation transport uses server-issued same-origin URL and marks token requests sensitive', async () => {
   const calls = []

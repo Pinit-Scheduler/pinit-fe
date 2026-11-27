@@ -98,56 +98,19 @@ test('breadcrumb names the scope the screen uses', () => {
     '내 공부',
   )
 })
-test('a schedule belongs to whoever put it on their schedule, whoever holds the task', () => {
+test('a schedule is mine only when I own it (BE ADR-0037: the owner alone reads a schedule)', () => {
   const { ownSchedules } = load('features/spaces/scope.ts')
-  const spaces = [
-    { id: -7, personal: true, members: [{ memberId: 7 }] },
-    { id: 31, personal: false, members: [{ memberId: 7 }, { memberId: 9 }] },
-  ]
-  // 제품팀(31)의 작업을 일정에 올리면 서버는 작업의 담당자를 일정에 복사한다. 올린 사람은 ownerId에 남는다.
   const day = [
-    { id: 1, spaceId: 31, ownerId: 7, assigneeId: 9 }, // 내가 올렸다. 작업 담당은 준호다.
-    { id: 2, spaceId: 31, ownerId: 7, assigneeId: null }, // 내가 올렸다. 작업 담당자가 없다.
-    { id: 3, spaceId: 31, ownerId: 9, assigneeId: 9 }, // 준호가 자기 작업을 올렸다.
-    { id: 4, spaceId: 31, ownerId: 9, assigneeId: null }, // 준호가 담당자 없는 작업을 올렸다.
-    { id: 5, spaceId: 31, ownerId: 9, assigneeId: 7 }, // 준호가 올렸고 담당이 나다(전부터 내 일정으로 보이던 것).
+    { id: 1, ownerId: 7, assigneeId: 7 },
+    { id: 2, ownerId: 7, assigneeId: 9 },
+    { id: 3, ownerId: 9, assigneeId: 7 },
+    { id: 4, ownerId: 9, assigneeId: null },
+    { id: 5, ownerId: 7, assigneeId: null, spaceId: 31 },
   ]
   const ids = (list) => Array.from(list, (item) => item.id)
-  assert.deepEqual(ids(ownSchedules(day, 7, spaces)), [1, 2, 5], 'what I registered is mine even when someone else holds the task')
-  // 준호가 올린 것(3·4·5)은 준호의 일정이다. 1은 서버가 그를 담당으로 적어 둔 동안에는 그에게도 보인다.
-  assert.deepEqual(ids(ownSchedules(day, 9, spaces)), [1, 3, 4, 5], 'and what 준호 registered is his')
-})
-test('my schedules are the ones I hold, plus unassigned ones where nobody else is', () => {
-  const { ownSchedules } = load('features/spaces/scope.ts')
-  const member = (memberId) => ({ memberId })
-  const spaces = [
-    { id: -7, personal: true, members: [member(7)] },
-    { id: 22, personal: false, members: [member(7)] },
-    { id: 31, personal: false, members: [member(7), member(9)] },
-  ]
-  const day = [
-    { id: 1, spaceId: -7, assigneeId: 7 },
-    { id: 2, spaceId: -7, assigneeId: null },
-    { id: 3, spaceId: 22, assigneeId: null },
-    { id: 4, spaceId: 31, assigneeId: 7 },
-    { id: 5, spaceId: 31, assigneeId: 9 },
-    { id: 6, spaceId: 31, assigneeId: null },
-    { id: 7, assigneeId: 7 },
-    { id: 8, assigneeId: null },
-  ]
-  const ids = (list) => Array.from(list, (item) => item.id)
-  assert.deepEqual(
-    ids(ownSchedules(day, 7, spaces)),
-    [1, 2, 3, 4, 7, 8],
-    'a team schedule held by someone else or by nobody is not mine',
-  )
-  // The other member of the shared space gets only that space from the server.
-  const theirDay = day.filter((item) => item.spaceId === 31)
-  assert.deepEqual(ids(ownSchedules(theirDay, 9, [spaces[2]])), [5], 'they see only what they hold there')
-  // A space in the trash, or one that has not loaded yet, never turns an unassigned schedule into a team one by guess.
-  assert.deepEqual(ids(ownSchedules([{ id: 9, spaceId: 99, assigneeId: null }], 7, spaces)), [9])
-  assert.deepEqual(ids(ownSchedules(day, 7, [])), [1, 2, 3, 4, 6, 7, 8], 'before spaces load only assignments decide')
-  assert.deepEqual(ids(ownSchedules(day, 0, spaces)), [], 'until I am known nothing is shown as mine')
+  assert.deepEqual(ids(ownSchedules(day, 7)), [1, 2, 5], 'the owner decides, not the assignee or the space')
+  assert.deepEqual(ids(ownSchedules(day, 9)), [3, 4])
+  assert.deepEqual(ids(ownSchedules(day, 0)), [], 'until I am known nothing is shown as mine')
 })
 test('the schedule screen reads every space once and counts only my schedules', async () => {
   const requests = []
@@ -156,17 +119,13 @@ test('the schedule screen reads every space once and counts only my schedules', 
     selectedSpaceId: 22,
     selectedProjectId: 7,
     memberId: 7,
-    spaces: [
-      { id: -7, personal: true, members: [{ memberId: 7 }] },
-      { id: 31, personal: false, members: [{ memberId: 7 }, { memberId: 9 }] },
-    ],
   }
   const rows = [
-    { id: 1, spaceId: -7, assigneeId: 7, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T09:00:00' } },
-    { id: 2, spaceId: 31, assigneeId: 9, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T10:00:00' } },
-    { id: 3, spaceId: 31, assigneeId: null, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T11:00:00' } },
+    { id: 1, spaceId: -7, ownerId: 7, assigneeId: 7, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T09:00:00' } },
+    { id: 2, spaceId: 31, ownerId: 9, assigneeId: 9, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T10:00:00' } },
+    { id: 3, spaceId: 31, ownerId: 9, assigneeId: null, state: 'NOT_STARTED', date: { dateTime: '2026-11-08T11:00:00' } },
     // 이 날에는 다른 사람의 일정만 있다. 내 일정만 세면 점이 없어야 한다.
-    { id: 4, spaceId: 31, assigneeId: 9, state: 'NOT_STARTED', date: { dateTime: '2026-11-09T09:00:00' } },
+    { id: 4, spaceId: 31, ownerId: 9, assigneeId: 9, state: 'NOT_STARTED', date: { dateTime: '2026-11-09T09:00:00' } },
   ]
   const dayjs = (value) => ({
     value,
@@ -253,9 +212,9 @@ test('the schedule screen reads every space once and counts only my schedules', 
   assert.equal(everyone.week.presenceMap['2026-11-09'].hasSchedule, true)
   assert.equal(everyone.month.summaryByDate['2026-11-08'].total, 3)
   assert.equal(everyone.overdue.summary.count, 4)
-  // 스페이스가 나중에 도착해도, 받아 둔 같은 응답을 그릴 때 다시 거른다(거르려고 다시 받지는 않는다).
-  selection.spaces = []
-  assert.equal(render({ allSpaces: true, own: true }).overdue.summary.count, 2, 'before spaces load the unassigned one still counts')
+  // 회원을 아직 모르면 받아 둔 같은 응답에서 아무것도 내 일정으로 세지 않는다(거르려고 다시 받지는 않는다).
+  selection.memberId = 0
+  assert.equal(render({ allSpaces: true, own: true }).overdue.summary.hasOverdue, false, 'until I am known nothing is counted as mine')
 })
 test('a new item starts in the space and project of the screen behind the form', () => {
   const { createAffiliationFor } = load('features/spaces/scope.ts')

@@ -169,37 +169,16 @@ export function outsidePersonalSpace(
 }
 
 /**
- * 일정 화면이 보여 주는 내 일정. 일정은 개인 단위이고, 일정에 올린 사람이 그 일정의 작업자다.
- * 작업과 일정은 묶이지 않는다: 누가 작업을 맡았는지와 상관없이 일정은 올린 사람의 것이다.
- * - 내가 올린 일정(`ownerId`). 서버는 아직 작업의 담당자를 일정에 복사하므로, 다른 사람이 맡은 작업을
- *   내 일정에 올리면 `assigneeId`는 그 사람이다. 그래도 내 일정이다.
- * - 내가 담당인 일정. 서버가 올린 사람을 작업자로 남기기 전에 만들어진, 다른 사람이 올리고 내가 담당인
- *   일정을 잃지 않으려고 남긴다. 서버가 바뀌면 위 조건과 같아진다.
- * - 담당자가 없는 일정은, 다른 참여자가 있는 팀 스페이스의 것이 아니면 내 것으로 본다
- *   (나의 스페이스, 나만 있는 스페이스, 스페이스를 아직 모르는 일정). 그 일정을 볼 사람이 나뿐이다.
- * 다른 사람이 올렸고 내가 담당도 아닌 일정은 내 일정이 아니다.
+ * 일정 화면이 보여 주는 내 일정: 내가 주인(`ownerId`)인 일정. 일정은 개인 것이고 주인만 읽는다(BE ADR-0037).
+ * 서버도 내 일정만 돌려주지만 받은 응답을 그릴 때 한 번 더 거른다(mock API는 아직 볼 수 있는 스페이스의 일정을 모두 준다).
  * 회원을 아직 모르면(불러오는 중의 0) 아무것도 내 일정으로 보지 않는다.
  */
-export function ownSchedules<
-  T extends { ownerId?: number; assigneeId?: number | null; spaceId?: number },
->(
+export function ownSchedules<T extends { ownerId: number }>(
   schedules: T[],
   memberId: number,
-  spaces: { id: number; personal: boolean; members: unknown[] }[],
 ): T[] {
   if (!memberId) return []
-  const shared = new Set(
-    spaces
-      .filter((space) => !space.personal && space.members.length >= 2)
-      .map((space) => space.id),
-  )
-  return schedules.filter(
-    (schedule) =>
-      schedule.ownerId === memberId ||
-      (schedule.assigneeId == null
-        ? schedule.spaceId === undefined || !shared.has(schedule.spaceId)
-        : schedule.assigneeId === memberId),
-  )
+  return schedules.filter((schedule) => schedule.ownerId === memberId)
 }
 
 export function sheetProjects<

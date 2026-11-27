@@ -168,7 +168,6 @@ const SchedulesTabPage = () => {
   const { offerScheduleUndo } = useTrashUndo()
   const {
     memberId,
-    spaces,
     error: workspaceError,
     reload: reloadWorkspace,
   } = useSpaces()
@@ -232,10 +231,10 @@ const SchedulesTabPage = () => {
       }),
     [schedulesByDate, schedulesById],
   )
-  // 날짜별 목록은 모든 스페이스의 일정을 받아 내 일정만 보여 준다.
+  // 서버는 내 일정만 주지만, 그릴 때 한 번 더 내 일정(`ownerId`)만 남긴다.
   const schedules = useMemo(
-    () => ownSchedules(daySchedules, memberId, spaces),
-    [daySchedules, memberId, spaces],
+    () => ownSchedules(daySchedules, memberId),
+    [daySchedules, memberId],
   )
   // The week dots failing never blanks the day list; it only raises a toast.
   const scheduleError = scheduleErrorRaw ?? presenceError
