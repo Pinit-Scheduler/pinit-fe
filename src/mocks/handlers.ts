@@ -909,7 +909,8 @@ export const handleMockRequest = async (
   )
   if (recurrences) return recurrences
 
-  const trash = handleTrash(path, method)
+  // 휴지통의 일정은 부른 회원의 것만 다룬다(ADR-0037 §5).
+  const trash = handleTrash(path, method, mockCategoryOwnerId(request) ?? undefined)
   if (trash) return trash
 
   const calibration = await handleCalibration(

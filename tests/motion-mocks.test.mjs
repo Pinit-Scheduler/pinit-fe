@@ -195,7 +195,6 @@ test('schedule state actions follow the server rules', async () => {
       scheduleType: 'QUICK_TASK',
       plannedDuration: 'PT45M',
     },
-    location: { spaceId: 2, projectId: null },
   })
   assert.equal(created.status, 201)
   const id = created.body.schedule.id
@@ -358,7 +357,7 @@ test('a save answers before its own changed frame, so the client can recognise t
   controller.abort()
 })
 
-test('scheduling a task bumps the task version and gives the schedule to its assignee', async () => {
+test('scheduling a task bumps the task version and makes the scheduler its assignee', async () => {
   const { api } = setup()
   const created = await api('/v2/workspace/tasks', 'POST', {
     task: {
@@ -379,9 +378,12 @@ test('scheduling a task bumps the task version and gives the schedule to its ass
     },
   })
   assert.equal(scheduled.status, 201)
-  assert.equal(scheduled.body.assigneeId, 4)
+  // 일정은 올린 사람의 것이고, 올리는 순간 작업의 담당자가 올린 사람이 된다(ADR-0037 §3).
+  assert.equal(scheduled.body.schedule.ownerId, 1)
+  assert.equal(scheduled.body.assigneeId, 1)
   const task = await api(`/v2/workspace/tasks/${created.body.task.id}`)
   assert.equal(task.body.version, created.body.version + 1)
+  assert.equal(task.body.assigneeId, 1)
   const stale = await api(`/v2/workspace/tasks/${created.body.task.id}/state`, 'POST', {
     expectedVersion: created.body.version,
     action: 'COMPLETE',
@@ -390,29 +392,22 @@ test('scheduling a task bumps the task version and gives the schedule to its ass
   assert.equal(stale.body.code, 'VERSION_CONFLICT')
 })
 
-test('moving a schedule clears an assignee who is not in the destination, and keeps one who is', async () => {
+test('the schedule list holds only my schedules, placed by the task each one is linked to', async () => {
   const { api } = setup()
   const { start, end } = weekRange()
   const team = await api(`/v2/workspace/schedules?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&spaceId=2`)
   assert.equal(team.status, 200)
-  const theirs = team.body.find((view) => view.assigneeId !== null && view.assigneeId !== 1)
-  const mine = team.body.find((view) => view.assigneeId === 1)
-  assert.ok(theirs && mine, 'the fixture has a team schedule held by another member and one held by me')
-  // 일정은 올린 사람의 것이다. 팀원이 맡은 일정은 그 팀원이 올린 것으로 심겨 있어야 일정 화면의 "내 일정이 아닌 것"을 볼 수 있다.
-  assert.equal(theirs.schedule.ownerId, theirs.assigneeId, 'a teammate-held seed is registered by that teammate')
-  assert.equal(mine.schedule.ownerId, 1)
-  // 나의 스페이스에는 나만 있다. 담당자를 고르지 않고 옮기면 다른 사람의 담당은 풀린다(서버 clearForeignAssignee와 같다).
-  const moved = await api(`/v2/workspace/schedules/${theirs.schedule.id}`, 'PATCH', {
-    expectedVersion: theirs.version,
-    location: { spaceId: -1, projectId: null },
-  })
-  assert.equal(moved.status, 200)
-  assert.equal(moved.body.spaceId, -1)
-  assert.equal(moved.body.assigneeId, null)
-  const kept = await api(`/v2/workspace/schedules/${mine.schedule.id}`, 'PATCH', {
-    expectedVersion: mine.version,
-    location: { spaceId: -1, projectId: null },
-  })
-  assert.equal(kept.status, 200)
-  assert.equal(kept.body.assigneeId, 1, 'I am a member of my own space')
+  assert.ok(team.body.length > 0, 'my schedules linked to tasks in the team space')
+  // 일정은 개인 것이다(ADR-0037). 팀원의 일정은 팀 스페이스로 걸러도 나오지 않고, 담당자는 언제나 주인이다.
+  for (const view of team.body) {
+    assert.equal(view.schedule.ownerId, 1)
+    assert.equal(view.assigneeId, 1)
+    assert.equal(view.spaceId, 2)
+    assert.equal(typeof view.schedule.taskId, 'number')
+  }
+  const teammate = await api(`/v2/workspace/schedules?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&spaceId=2`, 'GET', undefined, { as: 4 })
+  assert.ok(teammate.body.length > 0, 'the fixture has a teammate who registered a schedule')
+  assert.ok(teammate.body.every((view) => view.schedule.ownerId === 4))
+  const theirs = teammate.body[0]
+  assert.equal((await api(`/v2/workspace/schedules/${theirs.schedule.id}`)).status, 404)
 })

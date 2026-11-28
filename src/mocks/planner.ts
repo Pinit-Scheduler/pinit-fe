@@ -28,7 +28,8 @@ import {
   replaceMockRoutines,
 } from './db'
 import { blocksPlacement } from '../features/planner/utils/planData'
-import { inheritMockTaskScheduleCategory } from './categories'
+import { inheritMockTaskScheduleCategory, mockCategoryOwnerId } from './categories'
+import { bumpVersion, placementOf } from './workspaceState'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -257,7 +258,10 @@ export const handlePlans = async (
     const scheduledTaskIds = new Set(
       mockSchedules.map((schedule) => schedule.taskId).filter(Boolean),
     )
+    // 장애물은 스페이스와 상관없이 내 모든 일정이다(ADR-0037 §10). 남의 일정은 자리를 차지하지 않는다.
+    const actor = mockCategoryOwnerId(request) ?? 1
     const daySchedules = mockSchedules.filter((schedule) => {
+      if (schedule.ownerId !== actor) return false
       const span = scheduleSpan(schedule)
       return span.end > wake.valueOf() && span.start < windowEnd
     })
@@ -417,6 +421,7 @@ export const handlePlans = async (
         path,
       )
 
+    const actor = mockCategoryOwnerId(request) ?? 1
     const rejections: PlanRejection[] = []
     const seen = new Set<number>()
     const spans: {
@@ -444,8 +449,9 @@ export const handlePlans = async (
       seen.add(task.id)
       if (isCompleted(task))
         reject('TASK_COMPLETED', `task ${task.id} is completed`)
+      // 내 일정이 연결돼 있을 때만 거부한다. 남의 일정이면 승인할 때 가져간다(ADR-0037 §3, §10).
       const linked = mockSchedules.find(
-        (schedule) => schedule.taskId === task.id,
+        (schedule) => schedule.taskId === task.id && schedule.ownerId === actor,
       )
       if (linked)
         reject(
@@ -456,15 +462,18 @@ export const handlePlans = async (
       const end = start + effectiveExpectedMinutes(task) * 60000
       if (start < Date.now())
         reject('STARTS_IN_PAST', `starts at ${block.startTime}, before now`)
-      mockSchedules.filter(blocksPlacement).forEach((schedule) => {
-        const span = scheduleSpan(schedule)
-        if (start < span.end && span.start < end) {
-          reject(
-            'OVERLAPS_SCHEDULE',
-            `overlaps schedule ${schedule.id} "${schedule.title}"`,
-          )
-        }
-      })
+      mockSchedules
+        .filter((schedule) => schedule.ownerId === actor)
+        .filter(blocksPlacement)
+        .forEach((schedule) => {
+          const span = scheduleSpan(schedule)
+          if (start < span.end && span.start < end) {
+            reject(
+              'OVERLAPS_SCHEDULE',
+              `overlaps schedule ${schedule.id} "${schedule.title}"`,
+            )
+          }
+        })
       spans.push({ index, taskId: task.id, start, end })
     })
     spans.forEach((a) =>
@@ -497,9 +506,17 @@ export const handlePlans = async (
       const task = mockTasks.find(
         (candidate) => candidate.id === block.taskId,
       ) as Task
+      // 손으로 올리는 것과 같다: 남의 연결을 끊고 작업의 담당자를 나로 바꾼다. 일정은 내 것이다.
+      const taken = mockSchedules.find((schedule) => schedule.taskId === task.id)
+      if (taken) {
+        taken.taskId = undefined
+        bumpVersion('schedule', taken.id)
+      }
+      placementOf('task', task.id).assigneeId = actor
+      bumpVersion('task', task.id)
       const schedule: ScheduleResponse = {
         id: nextScheduleId(),
-        ownerId: task.ownerId ?? 1,
+        ownerId: actor,
         title: task.title,
         description: task.description,
         date: { dateTime: block.startTime, zoneId: body.zoneId },

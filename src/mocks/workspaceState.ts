@@ -220,7 +220,11 @@ const ownerOf = (kind: ResourceKind, id: number) => {
   return 1
 }
 
-/** 배치가 없으면(예전 경로로 만든 작업, 반복 회차) 만든 사람의 개인 스페이스에 둔다. */
+/**
+ * 배치가 없으면(예전 경로로 만든 작업, 반복 회차) 만든 사람의 개인 스페이스에 둔다.
+ * 일정의 배치는 버전과 변경 기록의 스트림(주인의 개인 스페이스)만 뜻한다. 일정은 어느 스페이스·프로젝트에도
+ * 속하지 않고, 응답의 자리는 읽을 때 연결 작업으로 계산한다(ADR-0037 §7, §8).
+ */
 export const placementOf = (kind: ResourceKind, id: number): Placement => {
   let placement = placements[kind].get(id)
   if (!placement) {
@@ -238,6 +242,14 @@ export const placementOf = (kind: ResourceKind, id: number): Placement => {
 
 export const setPlacement = (kind: ResourceKind, id: number, placement: Placement) =>
   placements[kind].set(id, placement)
+
+/** 일정과 FIXED 반복의 저장 관례: 주인의 개인 스페이스, 프로젝트 없음, 담당자는 주인(ADR-0037 §8). */
+export const personalPlacement = (owner: number, version = 1): Placement => ({
+  spaceId: personalSpaceId(owner),
+  projectId: null,
+  assigneeId: owner,
+  version,
+})
 
 export const bumpVersion = (kind: ResourceKind, id: number) => {
   const placement = placementOf(kind, id)
@@ -361,11 +373,8 @@ type SeedSchedule = {
   plannedDuration: string
   duration: string
   task?: string
-  spaceId: number
-  projectId: number | null
-  assigneeId: number | null
-  /** 일정에 올린 사람. 적지 않으면 맡은 사람이 올린 것으로 본다(담당자가 없으면 데모 회원). */
-  ownerId?: number
+  /** 일정의 주인(올린 사람). 일정은 개인 것이라 스페이스·프로젝트·담당자가 없다(ADR-0037 §1). */
+  ownerId: number
 }
 
 const seedTasks: SeedTask[] = [
@@ -387,17 +396,17 @@ const seedTasks: SeedTask[] = [
 ]
 
 const seedSchedules: SeedSchedule[] = [
-  { title: '릴리즈 노트 초안 쓰기', description: '변경 목록부터', date: at(0, 10, 30), scheduleType: 'DEEP_WORK', state: 'NOT_STARTED', plannedDuration: 'PT1H', duration: 'PT0S', task: 'notes', spaceId: 2, projectId: 21, assigneeId: 1 },
-  { title: 'QA 싱크', description: '시나리오 담당 나누기', date: at(0, 15, 0), scheduleType: 'ADMIN_TASK', state: 'NOT_STARTED', plannedDuration: 'PT30M', duration: 'PT0S', spaceId: 2, projectId: 21, assigneeId: 1 },
-  { title: '결제 화면 접근성 점검', description: '스크린 리더로 한 번 더', date: at(0, 11, 0), scheduleType: 'DEEP_WORK', state: 'SUSPENDED', plannedDuration: 'PT1H30M', duration: 'PT40M', task: 'a11y', spaceId: 2, projectId: 21, assigneeId: 4 },
-  { title: '이탈 인터뷰 정리', description: '녹취 요약', date: at(-2, 14, 0), scheduleType: 'DEEP_WORK', state: 'COMPLETED', plannedDuration: 'PT1H', duration: 'PT1H10M', task: 'interview', spaceId: 2, projectId: 22, assigneeId: 5 },
-  { title: '주간 계획 회의', description: '이번 주 우선순위', date: at(-1, 10, 0), scheduleType: 'ADMIN_TASK', state: 'COMPLETED', plannedDuration: 'PT30M', duration: 'PT35M', spaceId: 2, projectId: null, assigneeId: 3 },
-  { title: '온보딩 문구 초안', description: '세 가지 안 쓰기', date: at(0, 13, 30), scheduleType: 'QUICK_TASK', state: 'NOT_STARTED', plannedDuration: 'PT40M', duration: 'PT0S', task: 'copy', spaceId: 2, projectId: 22, assigneeId: 1 },
-  { title: '3장 읽기', description: '메모 앱 켜 두기', date: at(1, 21, 0), scheduleType: 'QUICK_TASK', state: 'NOT_STARTED', plannedDuration: 'PT1H', duration: 'PT0S', task: 'chapter', spaceId: 3, projectId: 31, assigneeId: 1 },
-  { title: '저녁 걷기', description: '한강 산책로', date: at(0, 19, 30), scheduleType: 'QUICK_TASK', state: 'NOT_STARTED', plannedDuration: 'PT30M', duration: 'PT0S', task: 'walk', spaceId: -1, projectId: 12, assigneeId: 1 },
+  { title: '릴리즈 노트 초안 쓰기', description: '변경 목록부터', date: at(0, 10, 30), scheduleType: 'DEEP_WORK', state: 'NOT_STARTED', plannedDuration: 'PT1H', duration: 'PT0S', task: 'notes', ownerId: 1 },
+  { title: 'QA 싱크', description: '시나리오 담당 나누기', date: at(0, 15, 0), scheduleType: 'ADMIN_TASK', state: 'NOT_STARTED', plannedDuration: 'PT30M', duration: 'PT0S', ownerId: 1 },
+  { title: '결제 화면 접근성 점검', description: '스크린 리더로 한 번 더', date: at(0, 11, 0), scheduleType: 'DEEP_WORK', state: 'SUSPENDED', plannedDuration: 'PT1H30M', duration: 'PT40M', task: 'a11y', ownerId: 4 },
+  { title: '이탈 인터뷰 정리', description: '녹취 요약', date: at(-2, 14, 0), scheduleType: 'DEEP_WORK', state: 'COMPLETED', plannedDuration: 'PT1H', duration: 'PT1H10M', task: 'interview', ownerId: 5 },
+  { title: '주간 계획 회의', description: '이번 주 우선순위', date: at(-1, 10, 0), scheduleType: 'ADMIN_TASK', state: 'COMPLETED', plannedDuration: 'PT30M', duration: 'PT35M', ownerId: 3 },
+  { title: '온보딩 문구 초안', description: '세 가지 안 쓰기', date: at(0, 13, 30), scheduleType: 'QUICK_TASK', state: 'NOT_STARTED', plannedDuration: 'PT40M', duration: 'PT0S', task: 'copy', ownerId: 1 },
+  { title: '3장 읽기', description: '메모 앱 켜 두기', date: at(1, 21, 0), scheduleType: 'QUICK_TASK', state: 'NOT_STARTED', plannedDuration: 'PT1H', duration: 'PT0S', task: 'chapter', ownerId: 1 },
+  { title: '저녁 걷기', description: '한강 산책로', date: at(0, 19, 30), scheduleType: 'QUICK_TASK', state: 'NOT_STARTED', plannedDuration: 'PT30M', duration: 'PT0S', task: 'walk', ownerId: 1 },
 ]
 
-/** 기존 작업·일정(1~6, 1~4)은 개인 스페이스에, 발표 자료만 제품팀 릴리즈에 둔다. */
+/** 기존 작업(1~6)은 개인 스페이스에, 발표 자료만 제품팀 릴리즈에 둔다. 기존 일정(1~4)은 개인 것이다. */
 const legacyPlacements: [ResourceKind, number, Omit<Placement, 'version'>][] = [
   ['task', 4, { spaceId: 2, projectId: 21, assigneeId: 1 }],
 ]
@@ -451,9 +460,9 @@ const seed = () => {
     const id = nextScheduleId()
     mockSchedules.push({
       id,
-      // 일정은 올린 사람의 것이다. 팀원이 맡은 일정은 그 팀원이 올린 것으로 심어야
-      // 데모 회원의 일정 화면이 "내 일정이 아닌 것"을 거르는 것을 볼 수 있다.
-      ownerId: item.ownerId ?? item.assigneeId ?? 1,
+      // 일정은 올린 사람의 것이다. 작업에 연결된 일정은 그 작업의 담당자가 주인이다(ADR-0037 §3).
+      // 팀원의 일정도 심어 두어 데모 회원에게 남의 일정이 보이지 않는 것을 확인할 수 있다.
+      ownerId: item.ownerId,
       title: item.title,
       description: item.description,
       date: item.date,
@@ -463,12 +472,7 @@ const seed = () => {
       duration: item.duration,
       plannedDuration: item.plannedDuration,
     })
-    setPlacement('schedule', id, {
-      spaceId: item.spaceId,
-      projectId: item.projectId,
-      assigneeId: item.assigneeId,
-      version: 1,
-    })
+    setPlacement('schedule', id, personalPlacement(item.ownerId))
   }
 }
 seed()
