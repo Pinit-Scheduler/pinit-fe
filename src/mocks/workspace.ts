@@ -19,7 +19,7 @@ import {
 import { mockCategoryOwnerId } from './categories'
 import { effectiveExpectedMinutes } from './planner'
 import { handleRecurrences } from './recurrences'
-import { handleTrash, moveScheduleToTrash, moveTaskToTrash } from './trash'
+import { handleTrash, moveScheduleToTrash, moveTaskToTrash, restoreTrashedTask } from './trash'
 import {
   applyMockTaskDependencies,
   recomputeMockTaskReadiness,
@@ -41,6 +41,7 @@ import {
   nextProjectId,
   nextSpaceId,
   nicknameOf,
+  personalPlacement,
   personalSpaceId,
   placementOf,
   recordChange,
@@ -64,6 +65,8 @@ dayjs.extend(timezone)
  * `/v2/spaces…`, `/v2/projects…`, `/v2/space-invitations…`, `/v2/workspace/…` 개발용 모크.
  * 응답 모양은 서버 `WorkspaceResourceController`, `SpaceController`, `ProjectController`를 따른다.
  * 저장하는 쪽은 모두 expectedVersion을 확인하고, 바뀌면 실시간 스트림으로 `changed`를 보낸다.
+ * 일정은 개인 것이다(ADR-0037). 주인만 읽고 다루며, 응답의 자리는 연결 작업으로 계산하고 저장하지 않는다.
+ * 살아 있는 연결이 있으면 작업의 담당자 = 일정의 주인이다. 담당이 풀리면 연결을 끊는다.
  */
 
 const ZONE_ID = 'Asia/Seoul'
@@ -93,6 +96,16 @@ const conflict = (resourceType: string, resourceId: number, latestVersion: numbe
   )
 const versionRequired = () =>
   failure('VERSION_REQUIRED', 'expectedVersion이 필요합니다.', 409)
+/** 서버 `WorkspaceDomainControllerAdvice`의 도메인 규칙 위반(400 INVALID_REQUEST). */
+const invalid = (message: string) => failure('INVALID_REQUEST', message, 400)
+
+/** 서버 `ScheduleErrorMessages`와 같은 문구(ADR-0031, ADR-0037 §8). */
+export const PERSONAL_LOCATION_ONLY =
+  '일정은 내 일정으로만 둘 수 있어요. 스페이스나 프로젝트에 두려면 작업으로 만들어 주세요.'
+export const PERSONAL_ASSIGNEE_ONLY =
+  '일정은 만든 사람만 맡을 수 있어요. 다른 사람에게 맡기려면 작업으로 만들어 담당자를 정해 주세요.'
+const LINKED_SCHEDULE_CREATE =
+  "작업에 연결된 일정은 작업 화면의 '일정으로 배정'에서 만들어 주세요."
 
 const readJson = async <T>(request: Request): Promise<T | null> => {
   const raw = await request.text()
@@ -152,8 +165,11 @@ export const taskView = (actor: number, task: Task, extra: object = {}) => {
   const base = spacePermissions(actor, spaceOf(placement), false)
   const completed = isDone(task)
   const ready = (task.inboundDependencyCount ?? 0) === 0
+  // ALREADY_SCHEDULED는 내 일정이 연결돼 있을 때만이다. 남의 일정이면 올려서 가져갈 수 있다(ADR-0037 §2, §3).
   const scheduled =
-    !completed && ready && mockSchedules.some((schedule) => schedule.taskId === task.id)
+    !completed &&
+    ready &&
+    mockSchedules.some((schedule) => schedule.taskId === task.id && schedule.ownerId === actor)
   const split = splitViewOf(actor, task)
   // 쪼개기에 잠긴 원본은 바꿀 수 없다. 이유의 순서는 서버 `WorkspaceResourceService`와 같다.
   const locked = when(split.lock !== null, 'SPLIT_IN_PROGRESS')
@@ -219,22 +235,32 @@ const scheduleBody = (schedule: ScheduleResponse) => {
   }
 }
 
+/**
+ * 일정의 자리(ADR-0037 §7). 읽는 사람이 연결 작업을 지금 읽을 수 있으면 그 작업의 스페이스·프로젝트이고,
+ * 아니면 읽는 사람의 개인 스페이스다. 읽을 때 계산하고 저장하지 않는다(서버 `SchedulePlaceResolver`).
+ */
+const schedulePlace = (reader: number, schedule: ScheduleResponse) => {
+  const task = schedule.taskId == null ? undefined : findTask(schedule.taskId)
+  const placement = task ? placementOf('task', task.id) : undefined
+  return placement && visibleSpace(reader, placement)
+    ? { spaceId: placement.spaceId, projectId: placement.projectId }
+    : { spaceId: personalSpaceId(reader), projectId: null }
+}
+
 export const scheduleView = (
   actor: number,
   schedule: ScheduleResponse,
   extra: object = {},
 ) => {
-  const placement = placementOf('schedule', schedule.id)
-  const base = spacePermissions(actor, spaceOf(placement), false)
   const state = schedule.state
   const { allow, reasons } = createReasons()
+  // 일정은 주인만 읽으므로 스페이스 역할을 보지 않는다. assign·move는 늘 꺼지고 delete는 상태로만 정한다(ADR-0037 §2).
   const allowedActions: AllowedActions = {
-    edit: allow('edit', carry(base, 'edit')),
-    assign: allow('assign', carry(base, 'assign')),
-    move: allow('move', carry(base, 'move')),
+    edit: true,
+    assign: false,
+    move: false,
     delete: allow(
       'delete',
-      carry(base, 'delete'),
       when(!(state === 'NOT_STARTED' || state === 'COMPLETED'), 'SCHEDULE_RUNNING'),
     ),
     restore: false,
@@ -251,7 +277,11 @@ export const scheduleView = (
   }
   return {
     schedule: scheduleBody(schedule),
-    ...metadata('schedule', schedule.id),
+    // 자리는 연결 작업으로 계산하고, 담당자는 언제나 주인이다(ADR-0037 §8).
+    ...schedulePlace(actor, schedule),
+    assigneeId: schedule.ownerId,
+    assigneeNickname: nicknameOf(schedule.ownerId),
+    version: placementOf('schedule', schedule.id).version,
     allowedActions,
     unavailableReasons: reasons,
     recurrenceVersion: seriesVersion(schedule.recurrence?.seriesId),
@@ -365,6 +395,40 @@ const visibleSpace = (actor: number, placement: Placement) => {
   return Boolean(space && !space.deletedAt && memberOf(space, actor))
 }
 
+/**
+ * 일정과 FIXED 반복의 위치·담당자 검사(서버 `PersonalSchedulePlacement`). location은 생략 또는
+ * {spaceId: -주인, projectId: null}만, assignee는 생략 또는 {memberId: 주인}만 받는다. 위치를 먼저 본다.
+ * 받아들인 값은 아무것도 바꾸지 않는다. 어기면 400 응답을, 아니면 null을 돌려준다.
+ */
+const requirePersonal = (
+  owner: number,
+  location: Location | null | undefined,
+  assignee: Assignee | null | undefined,
+): Response | null => {
+  if (location != null && (location.spaceId !== personalSpaceId(owner) || location.projectId != null))
+    return invalid(PERSONAL_LOCATION_ONLY)
+  if (assignee != null && assignee.memberId !== owner) return invalid(PERSONAL_ASSIGNEE_ONLY)
+  return null
+}
+
+/**
+ * 일정과 작업의 연결을 끊는다. 일정의 상태·시간·내용과 작업의 완료 여부는 그대로이고 일정의 version만 오른다.
+ * 기록은 주인의 스트림에 `SCHEDULE UPDATED`로 남긴다(ADR-0037 §3, §13). 이미 끊겼으면 아무것도 하지 않는다.
+ */
+const cutLink = (actor: number, schedule: ScheduleResponse) => {
+  if (schedule.taskId == null) return false
+  schedule.taskId = undefined
+  bumpVersion('schedule', schedule.id)
+  emit(actor, 'schedule', schedule.id, 'UPDATED')
+  return true
+}
+
+/** 작업의 담당자가 연결 일정의 주인이 아니게 되면 연결을 끊는다(서버 `ScheduleLinkService.cutIfOwnerNotAssignee`). */
+const cutIfOwnerNotAssignee = (actor: number, task: Task) => {
+  const linked = mockSchedules.find((schedule) => schedule.taskId === task.id)
+  if (linked && linked.ownerId !== placementOf('task', task.id).assigneeId) cutLink(actor, linked)
+}
+
 // ---------------------------------------------------------------------------
 // 작업
 // ---------------------------------------------------------------------------
@@ -464,9 +528,10 @@ const visibleTask = (actor: number, id: number) => {
   const task = findTask(id)
   return task && canSee(actor, placementOf('task', id)) ? task : undefined
 }
+/** 일정은 주인만 읽는다. 스페이스 관리자도 남의 일정은 없는 것과 같다(ADR-0037 §2). */
 const visibleSchedule = (actor: number, id: number) => {
   const schedule = findSchedule(id)
-  return schedule && canSee(actor, placementOf('schedule', id)) ? schedule : undefined
+  return schedule && schedule.ownerId === actor ? schedule : undefined
 }
 
 const allowedFor = (view: { allowedActions: AllowedActions }, action: keyof AllowedActions) =>
@@ -518,23 +583,16 @@ type MoveResult = {
   removedDependencyCount: number
 }
 
-/** 작업을 옮기면 연결된 일정도 같은 위치로 간다. */
-const moveTask = (actor: number, task: Task, to: { spaceId: number; projectId: number | null }): MoveResult | null => {
+/**
+ * 작업만 옮긴다. 일정은 어느 스페이스에도 속하지 않으므로 함께 옮기지 않고 movedScheduleIds는 늘 비었다.
+ * 이동으로 담당이 풀리면 updateTask가 연결을 끊는다(ADR-0037 §3).
+ */
+const moveTask = (task: Task, to: { spaceId: number; projectId: number | null }): MoveResult | null => {
   const placement = placementOf('task', task.id)
   if (placement.spaceId === to.spaceId && placement.projectId === to.projectId) return null
   placement.spaceId = to.spaceId
   placement.projectId = to.projectId
-  const movedScheduleIds: number[] = []
-  for (const schedule of mockSchedules) {
-    if (schedule.taskId !== task.id) continue
-    const linked = placementOf('schedule', schedule.id)
-    linked.spaceId = to.spaceId
-    linked.projectId = to.projectId
-    linked.version += 1
-    movedScheduleIds.push(schedule.id)
-    emit(actor, 'schedule', schedule.id, 'UPDATED')
-  }
-  return { movedTaskIds: [], movedScheduleIds, removedDependencyCount: 0 }
+  return { movedTaskIds: [], movedScheduleIds: [], removedDependencyCount: 0 }
 }
 
 const updateTask = async (actor: number, task: Task, request: Request) => {
@@ -585,7 +643,7 @@ const updateTask = async (actor: number, task: Task, request: Request) => {
         fields.expectedDuration === 'PT0S' ? null : fields.expectedDuration
     recomputeMockTaskReadiness(mockTasks)
   }
-  if (destination) move = moveTask(actor, task, destination)
+  if (destination) move = moveTask(task, destination)
   // 다른 스페이스로 옮기면서 담당자를 고르지 않았는데 지금 담당자가 그곳에 없으면 비운다.
   if (assignee !== undefined) placement.assigneeId = assignee
   else if (destination) {
@@ -593,6 +651,8 @@ const updateTask = async (actor: number, task: Task, request: Request) => {
     if (placement.assigneeId !== null && space && !memberOf(space, placement.assigneeId))
       placement.assigneeId = null
   }
+  // 재배정, 담당 비우기, 이동으로 담당이 풀리면 연결을 끊는다. 일정 쪽 기록은 주인의 스트림으로 간다.
+  cutIfOwnerNotAssignee(actor, task)
   task.updatedAt = nowIso()
   placement.version += 1
   emit(actor, 'task', task.id, 'UPDATED')
@@ -631,15 +691,18 @@ const deleteTask = (actor: number, task: Task, searchParams: URLSearchParams) =>
   if (Number(expected) !== placement.version)
     return conflict('TASK', task.id, placement.version)
   if (!allowedFor(taskView(actor, task), 'delete')) return forbidden()
-  const deleteSchedules = searchParams.get('deleteSchedules') === 'true'
-  const linked = mockSchedules
-    .filter((schedule) => schedule.taskId === task.id)
-    .map((schedule) => schedule.id)
-  moveTaskToTrash(task.id, deleteSchedules)
+  // deleteSchedules는 지우는 사람 자신의 일정에만 적용한다. 남의 연결 일정은 연결만 끊긴다(ADR-0037 §5).
+  const moved = moveTaskToTrash(task.id, searchParams.get('deleteSchedules') === 'true', actor)
   recomputeMockTaskReadiness(mockTasks)
   placement.version += 1
-  // 연결 일정은 끊기거나 함께 휴지통으로 가며 버전이 오른다. 서버는 작업 이벤트 하나만 기록한다.
-  for (const id of linked) bumpVersion('schedule', id)
+  // 연결 일정은 끊기거나 함께 휴지통으로 가며 버전이 오른다. 끊긴 일정은 주인의 스트림에 UPDATED를 남긴다.
+  if (moved) {
+    for (const id of moved.trashedScheduleIds) bumpVersion('schedule', id)
+    for (const id of moved.cutScheduleIds) {
+      bumpVersion('schedule', id)
+      emit(actor, 'schedule', id, 'UPDATED')
+    }
+  }
   emit(actor, 'task', task.id, 'DELETED')
   return noContent()
 }
@@ -669,6 +732,9 @@ const scheduleTask = async (actor: number, task: Task, request: Request) => {
   const reason = view.unavailableReasons.schedule
   if (reason) return failure(reason, SCHEDULE_REASON_MESSAGES[reason] ?? '일정으로 옮길 수 없습니다.', 409)
   if (!body.schedule?.date) return badRequest('일정 시작 시각을 골라 주세요.')
+  // 가져가기: 남의 일정이 이 작업에 연결돼 있으면 그 연결을 끊는다. 그 일정은 주인의 독립 일정으로 남는다(ADR-0037 §3).
+  const taken = mockSchedules.find((item) => item.taskId === task.id)
+  if (taken) cutLink(actor, taken)
   const schedule: ScheduleResponse = {
     id: nextScheduleId(),
     ownerId: actor,
@@ -683,13 +749,9 @@ const scheduleTask = async (actor: number, task: Task, request: Request) => {
       body.schedule.plannedDuration ?? formatIsoMinutes(effectiveExpectedMinutes(task)),
   }
   mockSchedules.push(schedule)
-  // 서버처럼 일정은 작업의 담당자에게 가고, 작업 버전도 오른다(`touchCollaboration`).
-  setPlacement('schedule', schedule.id, {
-    spaceId: placement.spaceId,
-    projectId: placement.projectId,
-    assigneeId: placement.assigneeId,
-    version: 1,
-  })
+  // 일정은 올린 사람의 것이고, 올리는 순간 작업의 담당자가 올린 사람이 된다. 작업 버전도 오른다(`claimTask`).
+  setPlacement('schedule', schedule.id, personalPlacement(actor))
+  placement.assigneeId = actor
   task.updatedAt = nowIso()
   placement.version += 1
   emit(actor, 'task', task.id, 'UPDATED')
@@ -709,20 +771,27 @@ const restoreResource = async (
   if (!canSee(actor, placement)) return notFound()
   if (body.expectedVersion !== placement.version)
     return conflict(kind === 'task' ? 'TASK' : 'SCHEDULE', id, placement.version)
-  const restored = handleTrash(`/v2/trash/${kind}s/${id}/restore`, 'POST')
+  if (kind === 'task') {
+    const restored = restoreTrashedTask(id, actor)
+    if (!restored) return notFound()
+    placement.version += 1
+    recomputeMockTaskReadiness(mockTasks)
+    emit(actor, kind, id, 'RESTORED')
+    // 함께 지운 일정은 누가 복원하든 주인의 독립 일정으로 돌아오고, 기록은 주인의 스트림에 남는다.
+    // 응답의 restoredScheduleIds에는 부른 사람의 일정만 든다(ADR-0037 §5, §13).
+    for (const scheduleId of restored.scheduleIds) {
+      bumpVersion('schedule', scheduleId)
+      emit(actor, 'schedule', scheduleId, 'RESTORED')
+    }
+    return json(taskView(actor, findTask(id)!, { restoreResult: restored.result }))
+  }
+  // 일정 복원은 주인의 명령이다. 작업과 함께 지운 일정도 혼자 복원하고, 작업에 다시 잇지 않는다.
+  const restored = handleTrash(`/v2/trash/${kind}s/${id}/restore`, 'POST', actor)
   if (!restored) return notFound()
   if (!restored.ok) return restored
   const restoreResult = await restored.json()
   placement.version += 1
-  recomputeMockTaskReadiness(mockTasks)
   emit(actor, kind, id, 'RESTORED')
-  if (kind === 'task') {
-    for (const scheduleId of (restoreResult as { restoredScheduleIds?: number[] }).restoredScheduleIds ?? []) {
-      bumpVersion('schedule', scheduleId)
-      emit(actor, 'schedule', scheduleId, 'RESTORED')
-    }
-    return json(taskView(actor, findTask(id)!, { restoreResult }))
-  }
   return json(scheduleView(actor, findSchedule(id)!, { restoreResult }))
 }
 
@@ -738,7 +807,7 @@ const purgeResource = (
   if (!canSee(actor, placement)) return notFound()
   if (Number(expected) !== placement.version)
     return conflict(kind === 'task' ? 'TASK' : 'SCHEDULE', id, placement.version)
-  const purged = handleTrash(`/v2/trash/${kind}s/${id}`, 'DELETE')
+  const purged = handleTrash(`/v2/trash/${kind}s/${id}`, 'DELETE', actor)
   if (!purged) return notFound()
   if (purged.ok) {
     placement.version += 1
@@ -766,14 +835,13 @@ const listSchedules = (actor: number, searchParams: URLSearchParams) => {
   const end = param('end') ? Date.parse(param('end')!) : Infinity
   const spaceId = param('spaceId') === null ? null : Number(param('spaceId'))
   const projectId = param('projectId') === null ? null : Number(param('projectId'))
-  const mine = param('mine') === 'true'
+  // 모두 내 일정이다. spaceId·projectId는 계산한 자리로 거르고, mine은 받되 결과를 바꾸지 않는다(ADR-0037 §8).
   const items = mockSchedules
     .filter((schedule) => {
-      const placement = placementOf('schedule', schedule.id)
-      if (!visibleSpace(actor, placement)) return false
-      if (spaceId !== null && placement.spaceId !== spaceId) return false
-      if (projectId !== null && placement.projectId !== projectId) return false
-      if (mine && placement.assigneeId !== actor) return false
+      if (schedule.ownerId !== actor) return false
+      const place = schedulePlace(actor, schedule)
+      if (spaceId !== null && place.spaceId !== spaceId) return false
+      if (projectId !== null && place.projectId !== projectId) return false
       const instant = instantOf(schedule.date)
       return instant >= start && instant < end
     })
@@ -787,14 +855,10 @@ const createSchedule = async (actor: number, request: Request) => {
   if (!input?.title?.trim()) return badRequest('제목을 입력해 주세요.')
   if (!input.date?.dateTime) return badRequest('일정 시작 시각을 골라 주세요.')
   if (!input.scheduleType) return badRequest('일정 종류를 골라 주세요.')
-  const linkedTask = input.taskId == null ? undefined : visibleTask(actor, input.taskId)
-  const location = resolveLocation(
-    actor,
-    body?.location ?? (linkedTask ? placementOf('task', linkedTask.id) : undefined),
-  )
-  if (location instanceof Response) return location
-  const assignee = resolveAssignee(location.spaceId, body?.assignee, actor)
-  if (assignee instanceof Response) return assignee
+  // 일정은 개인 것이다. 팀 스페이스·프로젝트·남의 개인 스페이스나 다른 담당자를 고르면 조용히 무시하지 않고 거절한다.
+  const personal = requirePersonal(actor, body?.location, body?.assignee)
+  if (personal) return personal
+  if (input.taskId != null) return invalid(LINKED_SCHEDULE_CREATE)
   const schedule: ScheduleResponse = {
     id: nextScheduleId(),
     ownerId: actor,
@@ -803,12 +867,12 @@ const createSchedule = async (actor: number, request: Request) => {
     date: input.date,
     scheduleType: input.scheduleType,
     state: 'NOT_STARTED',
-    taskId: linkedTask?.id,
+    taskId: undefined,
     duration: 'PT0S',
     plannedDuration: input.plannedDuration ?? 'PT30M',
   }
   mockSchedules.push(schedule)
-  setPlacement('schedule', schedule.id, { ...location, assigneeId: assignee, version: 1 })
+  setPlacement('schedule', schedule.id, personalPlacement(actor))
   emit(actor, 'schedule', schedule.id, 'CREATED')
   return json(scheduleView(actor, schedule), 201)
 }
@@ -821,25 +885,13 @@ const updateSchedule = async (actor: number, schedule: ScheduleResponse, request
     assignee?: Assignee | null
   }>(request)
   const placement = placementOf('schedule', schedule.id)
+  // 서버 순서: 위치·담당자 검사가 버전 검사보다 먼저다. 받아들인 location·assignee는 아무것도 바꾸지 않고,
+  // 연결 작업도 옮기지 않는다(ADR-0037 §8).
+  const personal = requirePersonal(actor, body?.location, body?.assignee)
+  if (personal) return personal
   if (body?.expectedVersion == null) return versionRequired()
   if (body.expectedVersion !== placement.version)
     return conflict('SCHEDULE', schedule.id, placement.version)
-  const before = scheduleView(actor, schedule)
-  if (body.schedule && !allowedFor(before, 'edit')) return forbidden()
-  let destination: { spaceId: number; projectId: number | null } | null = null
-  if (body.location) {
-    if (!allowedFor(before, 'move')) return forbidden()
-    const resolved = resolveLocation(actor, body.location)
-    if (resolved instanceof Response) return resolved
-    destination = resolved
-  }
-  let assignee: number | null | undefined
-  if (body.assignee !== undefined && body.assignee !== null) {
-    if (!allowedFor(before, 'assign')) return forbidden()
-    const resolved = resolveAssignee(destination?.spaceId ?? placement.spaceId, body.assignee, placement.assigneeId)
-    if (resolved instanceof Response) return resolved
-    assignee = resolved
-  }
   if (body.schedule) {
     const fields = body.schedule
     if (fields.title !== undefined) schedule.title = fields.title
@@ -847,17 +899,6 @@ const updateSchedule = async (actor: number, schedule: ScheduleResponse, request
     if (fields.date !== undefined) schedule.date = fields.date
     if (fields.scheduleType !== undefined) schedule.scheduleType = fields.scheduleType
     if (fields.plannedDuration !== undefined) schedule.plannedDuration = fields.plannedDuration
-  }
-  if (destination) {
-    placement.spaceId = destination.spaceId
-    placement.projectId = destination.projectId
-  }
-  // 서버처럼, 옮기면서 담당자를 고르지 않았는데 지금 담당자가 그곳 참여자가 아니면 비운다.
-  if (assignee !== undefined) placement.assigneeId = assignee
-  else if (destination) {
-    const space = findSpace(destination.spaceId)
-    if (placement.assigneeId !== null && space && !memberOf(space, placement.assigneeId))
-      placement.assigneeId = null
   }
   ;(schedule as { updatedAt?: string }).updatedAt = nowIso()
   placement.version += 1
@@ -878,7 +919,8 @@ const changeScheduleState = async (actor: number, schedule: ScheduleResponse, re
   if (action === 'START') {
     if (state !== 'NOT_STARTED' && state !== 'SUSPENDED')
       return json({ message: '이 상태에서는 시작할 수 없습니다.' }, 409)
-    if (mockSchedules.some((item) => item.id !== schedule.id && item.state === 'IN_PROGRESS' && placementOf('schedule', item.id).assigneeId === actor))
+    // 상태 변경은 주인만 하므로 진행자는 늘 주인이다(ADR-0037 §4).
+    if (mockSchedules.some((item) => item.id !== schedule.id && item.state === 'IN_PROGRESS' && item.ownerId === actor))
       return json({ message: '이미 실행 중인 일정이 존재합니다.' }, 409)
     if (task && (task.inboundDependencyCount ?? 0) > 0)
       return json({ message: '이전 작업을 먼저 완료해 주세요.' }, 409)
@@ -923,10 +965,10 @@ const deleteSchedule = (actor: number, schedule: ScheduleResponse, searchParams:
   if (expected === null) return versionRequired()
   if (Number(expected) !== placement.version)
     return conflict('SCHEDULE', schedule.id, placement.version)
+  // 삭제는 주인의 명령이고 상태 규칙만 본다(ADR-0037 §5).
   const view = scheduleView(actor, schedule)
   if (view.unavailableReasons.delete === 'SCHEDULE_RUNNING')
     return failure('SCHEDULE_RUNNING', '진행 중이거나 일시정지한 일정은 삭제할 수 없습니다.', 409)
-  if (!allowedFor(view, 'delete')) return forbidden()
   moveScheduleToTrash(schedule.id)
   placement.version += 1
   emit(actor, 'schedule', schedule.id, 'DELETED')
@@ -939,29 +981,33 @@ const deleteSchedule = (actor: number, schedule: ScheduleResponse, searchParams:
 
 type SeriesLike = { id: number | null; [key: string]: unknown }
 
+const isFixed = (series: unknown) =>
+  (series as { mode?: unknown } | null | undefined)?.mode === 'FIXED'
+
 const seriesView = (series: SeriesLike, extra: object = {}) => ({
   recurrence: series,
   ...(series.id === null
     ? { spaceId: 0, projectId: null, assigneeId: null, assigneeNickname: null, version: 0 }
     : metadata('series', series.id)),
-  allowedActions: { edit: true, assign: true, move: true, delete: true },
+  // FIXED는 주인만 보고 고치고 지운다. 담당·이동은 끈다(ADR-0037 §9).
+  allowedActions: { edit: true, assign: !isFixed(series), move: !isFixed(series), delete: true },
   unavailableReasons: {},
   ...extra,
 })
 
-/** 반복의 위치를 그 회차들에도 맞춘다. */
-const placeOccurrences = (seriesId: number) => {
+/**
+ * FLEXIBLE 반복의 위치를 그 회차 작업에도 맞추고, 담당이 풀린 회차의 연결을 끊는다.
+ * FIXED 회차 일정은 개인 것이라 시리즈의 위치·담당자를 복사하지 않는다(ADR-0037 §9).
+ */
+const placeOccurrences = (actor: number, seriesId: number) => {
   const series = placementOf('series', seriesId)
-  const place = (kind: 'task' | 'schedule', id: number) => {
-    const placement = placementOf(kind, id)
+  for (const task of mockTasks.filter((item) => item.recurrence?.seriesId === seriesId)) {
+    const placement = placementOf('task', task.id)
     placement.spaceId = series.spaceId
     placement.projectId = series.projectId
     placement.assigneeId = series.assigneeId
+    cutIfOwnerNotAssignee(actor, task)
   }
-  mockTasks.filter((task) => task.recurrence?.seriesId === seriesId).forEach((task) => place('task', task.id))
-  mockSchedules
-    .filter((schedule) => schedule.recurrence?.seriesId === seriesId)
-    .forEach((schedule) => place('schedule', schedule.id))
 }
 
 const handleWorkspaceRecurrences = async (
@@ -1002,17 +1048,26 @@ const handleWorkspaceRecurrences = async (
     )
   }
   if (rest === '' && method === 'POST') {
-    const body = await readJson<{ recurrence?: unknown; location?: Location; assignee?: Assignee }>(request)
-    const location = resolveLocation(actor, body?.location)
-    if (location instanceof Response) return location
-    const assignee = resolveAssignee(location.spaceId, body?.assignee, actor)
-    if (assignee instanceof Response) return assignee
+    const body = await readJson<{ recurrence?: { mode?: unknown }; location?: Location; assignee?: Assignee }>(request)
+    let placement: Placement
+    if (isFixed(body?.recurrence)) {
+      // FIXED 시리즈는 전체가 개인 것이다. 일정과 같은 위치·담당자 규칙으로 거절한다(ADR-0037 §8, §9).
+      const personal = requirePersonal(actor, body?.location, body?.assignee)
+      if (personal) return personal
+      placement = personalPlacement(actor)
+    } else {
+      const location = resolveLocation(actor, body?.location)
+      if (location instanceof Response) return location
+      const assignee = resolveAssignee(location.spaceId, body?.assignee, actor)
+      if (assignee instanceof Response) return assignee
+      placement = { ...location, assigneeId: assignee, version: 1 }
+    }
     const response = await legacy(body?.recurrence ?? {})
     if (!response?.ok) return response
     const series = (await response.json()) as SeriesLike
     if (series.id !== null) {
-      setPlacement('series', series.id, { ...location, assigneeId: assignee, version: 1 })
-      placeOccurrences(series.id)
+      setPlacement('series', series.id, placement)
+      placeOccurrences(actor, series.id)
       emit(actor, 'series', series.id, 'CREATED')
     }
     return json(seriesView(series), 201)
@@ -1036,6 +1091,15 @@ const handleWorkspaceRecurrences = async (
     if (body?.expectedVersion == null) return versionRequired()
     if (body.expectedVersion !== placement.version)
       return conflict('RECURRENCE', id, placement.version)
+    const current = await legacy(undefined, 'GET')
+    if (!current?.ok) return current
+    if (isFixed((await current.json()) as SeriesLike)) {
+      // FIXED는 받아들인 위치·담당자로 아무것도 바꾸지 않는다(서버 `WorkspaceRecurrenceService.edit`).
+      const personal = requirePersonal(actor, body.location, body.assignee)
+      if (personal) return personal
+      body.location = null
+      body.assignee = null
+    }
     const dryRun = searchParams.get('dryRun') === 'true'
     let result: { series: SeriesLike; previous?: unknown; impact?: unknown }
     if (body.recurrence) {
@@ -1060,7 +1124,7 @@ const handleWorkspaceRecurrences = async (
         placement.assigneeId = resolved
       }
       placement.version += 1
-      placeOccurrences(id)
+      placeOccurrences(actor, id)
       emit(actor, 'series', id, 'UPDATED')
     }
     return json(seriesView(result.series, { previous: result.previous ?? null, impact: result.impact }))
@@ -1157,9 +1221,14 @@ const weeklyRecord = (space: MockSpace, start: string) => {
     const value = dayjs.tz(dateTime, ZONE_ID)
     return !value.isBefore(first) && value.isBefore(end)
   }
+  // 팀 숫자는 일정의 스페이스가 아니라 작업을 거쳐 센다. 이 스페이스의 휴지통에 없는 작업에 연결된 일정만이다(ADR-0037 §7).
+  // 모크에는 완료 일정의 credited_task_id가 없어 연결이 끊긴 완료 일정은 세지 않는다.
+  const linkedTask = (schedule: ScheduleResponse) =>
+    schedule.taskId == null ? undefined : findTask(schedule.taskId)
   const schedules = mockSchedules.filter(
     (schedule) =>
-      placementOf('schedule', schedule.id).spaceId === space.id &&
+      linkedTask(schedule) !== undefined &&
+      placementOf('task', schedule.taskId!).spaceId === space.id &&
       schedule.state !== 'NOT_STARTED' &&
       inWeek(dayjs.tz(schedule.date.dateTime, schedule.date.zoneId || ZONE_ID).tz(ZONE_ID).format('YYYY-MM-DDTHH:mm:ss')),
   )
@@ -1187,10 +1256,11 @@ const weeklyRecord = (space: MockSpace, start: string) => {
       const date = first.add(index, 'day').format('YYYY-MM-DD')
       return { date, elapsed: isoMinutes(sum(schedules.filter((schedule) => dayKey(schedule) === date))) }
     }),
-    byProject: group((schedule) => placementOf('schedule', schedule.id).projectId).map(
+    byProject: group((schedule) => placementOf('task', schedule.taskId!).projectId).map(
       ([projectId, value]) => ({ projectId, elapsed: isoMinutes(value) }),
     ),
-    byRunner: group((schedule) => placementOf('schedule', schedule.id).assigneeId ?? schedule.ownerId)
+    // 실행자는 언제나 주인이다(ADR-0037 §7).
+    byRunner: group((schedule) => schedule.ownerId)
       .filter(([memberId]) => memberId !== null)
       .map(([memberId, value]) => ({ memberId: memberId as number, elapsed: isoMinutes(value) })),
   }
@@ -1411,17 +1481,18 @@ const handleSpaces = async (
 
 const removeMember = (actor: number, space: MockSpace, memberId: number) => {
   space.members = space.members.filter((member) => member.memberId !== memberId)
-  // 나간 사람이 맡던 작업과 일정은 담당자 없음으로 남긴다.
-  for (const kind of ['task', 'schedule'] as const) {
-    const items = kind === 'task' ? mockTasks : mockSchedules
-    for (const item of items) {
-      const placement = placementOf(kind, item.id)
-      if (placement.spaceId === space.id && placement.assigneeId === memberId) {
-        placement.assigneeId = null
-        placement.version += 1
-      }
+  // 나간 사람이 맡던 작업은 담당자 없음으로 남긴다.
+  for (const task of mockTasks) {
+    const placement = placementOf('task', task.id)
+    if (placement.spaceId === space.id && placement.assigneeId === memberId) {
+      placement.assigneeId = null
+      placement.version += 1
     }
   }
+  // 그 사람의 일정 중 이 스페이스의 작업에 연결된 것만 끊는다. 일정은 그 사람 것으로 이어진다(ADR-0037 §3).
+  for (const schedule of mockSchedules)
+    if (schedule.ownerId === memberId && schedule.taskId != null && placementOf('task', schedule.taskId).spaceId === space.id)
+      cutLink(actor, schedule)
   space.version += 1
   spaceChanged(actor, space, 'UPDATED')
 }
@@ -1479,7 +1550,8 @@ const handleProjects = async (
     return json({
       projects: projects.map((project) => projectView(actor, project)),
       taskAssignments: assignments('task', mockTasks.map((task) => task.id)),
-      scheduleAssignments: assignments('schedule', mockSchedules.map((schedule) => schedule.id)),
+      // 일정은 프로젝트에 속하지 않는다. 서버도 빈 맵으로 답한다(ADR-0037 §8).
+      scheduleAssignments: {},
       seriesAssignments: {},
     })
   }
@@ -1547,27 +1619,25 @@ const handleProjects = async (
     if (!view.allowedActions.move) return forbidden()
     const target = body?.spaceId == null ? undefined : findSpace(body.spaceId)
     if (!target || !memberOf(target, actor) || target.deletedAt) return forbidden()
+    // 작업만 옮긴다. 일정은 옮기지 않고, 담당이 풀린 작업의 연결은 끊는다(ADR-0037 §3).
     const movedTaskIds: number[] = []
-    const movedScheduleIds: number[] = []
-    for (const kind of ['task', 'schedule'] as const) {
-      const items = kind === 'task' ? mockTasks : mockSchedules
-      for (const item of items) {
-        const placement = placementOf(kind, item.id)
-        if (placement.projectId !== project.id) continue
-        placement.spaceId = target.id
-        if (placement.assigneeId !== null && !memberOf(target, placement.assigneeId))
-          placement.assigneeId = null
-        placement.version += 1
-        ;(kind === 'task' ? movedTaskIds : movedScheduleIds).push(item.id)
-        emit(actor, kind, item.id, 'UPDATED')
-      }
+    for (const task of mockTasks) {
+      const placement = placementOf('task', task.id)
+      if (placement.projectId !== project.id) continue
+      placement.spaceId = target.id
+      if (placement.assigneeId !== null && !memberOf(target, placement.assigneeId))
+        placement.assigneeId = null
+      placement.version += 1
+      movedTaskIds.push(task.id)
+      emit(actor, 'task', task.id, 'UPDATED')
+      cutIfOwnerNotAssignee(actor, task)
     }
     project.spaceId = target.id
     project.version += 1
     projectChanged(actor, project, 'UPDATED')
     return json({
       ...projectView(actor, project),
-      moveResult: { movedTaskIds, movedScheduleIds, removedDependencyCount: 0 },
+      moveResult: { movedTaskIds, movedScheduleIds: [], removedDependencyCount: 0 },
     })
   }
   if (!match[2] && method === 'DELETE') {
@@ -1808,9 +1878,14 @@ export const mockWorkspaceRemote = {
   },
   deleteTask(taskId: number, by = TEAMMATE) {
     remoteTask(taskId)
-    moveTaskToTrash(taskId, false)
+    const moved = moveTaskToTrash(taskId, false, by)
     recomputeMockTaskReadiness(mockTasks)
     bumpVersion('task', taskId)
+    // 남이 작업을 지우면 내 연결 일정은 연결만 끊기고, 내 스트림에 UPDATED가 온다(ADR-0037 §5, §13).
+    for (const id of moved ? moved.cutScheduleIds : []) {
+      bumpVersion('schedule', id)
+      emit(by, 'schedule', id, 'UPDATED')
+    }
     emit(by, 'task', taskId, 'DELETED')
   },
 }
