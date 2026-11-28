@@ -64,14 +64,42 @@ test('creating a schedule rejects a non-personal location or a foreign assignee 
   }
 })
 
-test('a task-linked schedule is made only by scheduling the task', async () => {
-  const { api, taskNamed } = context()
+test('creating a schedule ignores taskId like the server DTO and makes a standalone schedule', async () => {
+  const { api, taskNamed, scheduleOfTask } = context()
+  const qa = taskNamed('QA 시나리오 정리')
+  assert.equal(scheduleOfTask(qa.id), undefined)
   const response = await api('/v2/workspace/schedules', 'POST', {
-    schedule: { ...scheduleBody(), taskId: taskNamed('QA 시나리오 정리').id },
+    schedule: { ...scheduleBody(), taskId: qa.id },
   })
-  assert.equal(response.status, 400)
-  assert.equal(response.body.code, 'INVALID_REQUEST')
-  assert.equal(response.body.message, "작업에 연결된 일정은 작업 화면의 '일정으로 배정'에서 만들어 주세요.")
+  assert.equal(response.status, 201)
+  assert.equal(response.body.schedule.taskId ?? null, null)
+  assert.equal(response.body.spaceId, -1)
+  assert.equal(response.body.projectId, null)
+  assert.equal(scheduleOfTask(qa.id), undefined)
+})
+
+test('editing someone else’s schedule checks the location before the 404, like the server', async () => {
+  const { api, taskNamed, scheduleOfTask } = context()
+  const theirs = scheduleOfTask(taskNamed('결제 화면 접근성 점검').id)
+  assert.equal(theirs.ownerId, 4)
+  const badLocation = await api(`/v2/workspace/schedules/${theirs.id}`, 'PATCH', {
+    expectedVersion: 1,
+    location: { spaceId: 2, projectId: null },
+  })
+  assert.equal(badLocation.status, 400)
+  assert.equal(badLocation.body.message, LOCATION_ONLY)
+  const badAssignee = await api(`/v2/workspace/schedules/${theirs.id}`, 'PATCH', {
+    expectedVersion: 1,
+    assignee: { memberId: 4 },
+  })
+  assert.equal(badAssignee.status, 400)
+  assert.equal(badAssignee.body.message, ASSIGNEE_ONLY)
+  const personal = await api(`/v2/workspace/schedules/${theirs.id}`, 'PATCH', {
+    expectedVersion: 1,
+    location: { spaceId: -1, projectId: null },
+  })
+  assert.equal(personal.status, 404)
+  assert.equal((await api('/v2/workspace/schedules/999999', 'PATCH', { expectedVersion: 1, assignee: { memberId: 3 } })).status, 400)
 })
 
 test('editing a schedule rejects a non-personal location before the version check and never moves anything', async () => {

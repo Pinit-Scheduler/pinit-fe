@@ -104,8 +104,6 @@ export const PERSONAL_LOCATION_ONLY =
   '일정은 내 일정으로만 둘 수 있어요. 스페이스나 프로젝트에 두려면 작업으로 만들어 주세요.'
 export const PERSONAL_ASSIGNEE_ONLY =
   '일정은 만든 사람만 맡을 수 있어요. 다른 사람에게 맡기려면 작업으로 만들어 담당자를 정해 주세요.'
-const LINKED_SCHEDULE_CREATE =
-  "작업에 연결된 일정은 작업 화면의 '일정으로 배정'에서 만들어 주세요."
 
 const readJson = async <T>(request: Request): Promise<T | null> => {
   const raw = await request.text()
@@ -858,7 +856,7 @@ const createSchedule = async (actor: number, request: Request) => {
   // 일정은 개인 것이다. 팀 스페이스·프로젝트·남의 개인 스페이스나 다른 담당자를 고르면 조용히 무시하지 않고 거절한다.
   const personal = requirePersonal(actor, body?.location, body?.assignee)
   if (personal) return personal
-  if (input.taskId != null) return invalid(LINKED_SCHEDULE_CREATE)
+  // 서버 `ScheduleSimpleRequest`에는 `taskId`가 없어 그 값은 버려진다. 실려 와도 독립 일정을 만든다.
   const schedule: ScheduleResponse = {
     id: nextScheduleId(),
     ownerId: actor,
@@ -877,18 +875,17 @@ const createSchedule = async (actor: number, request: Request) => {
   return json(scheduleView(actor, schedule), 201)
 }
 
-const updateSchedule = async (actor: number, schedule: ScheduleResponse, request: Request) => {
-  const body = await readJson<{
-    expectedVersion?: number
-    schedule?: ScheduleBody | null
-    location?: Location | null
-    assignee?: Assignee | null
-  }>(request)
+type ScheduleEditBody = {
+  expectedVersion?: number
+  schedule?: ScheduleBody | null
+  location?: Location | null
+  assignee?: Assignee | null
+}
+
+/** 위치·담당자 검사(`requirePersonal`)는 부르는 쪽이 일정 조회보다 먼저 끝낸다. */
+const updateSchedule = (actor: number, schedule: ScheduleResponse, body: ScheduleEditBody | null) => {
   const placement = placementOf('schedule', schedule.id)
-  // 서버 순서: 위치·담당자 검사가 버전 검사보다 먼저다. 받아들인 location·assignee는 아무것도 바꾸지 않고,
-  // 연결 작업도 옮기지 않는다(ADR-0037 §8).
-  const personal = requirePersonal(actor, body?.location, body?.assignee)
-  if (personal) return personal
+  // 받아들인 location·assignee는 아무것도 바꾸지 않고, 연결 작업도 옮기지 않는다(ADR-0037 §8).
   if (body?.expectedVersion == null) return versionRequired()
   if (body.expectedVersion !== placement.version)
     return conflict('SCHEDULE', schedule.id, placement.version)
@@ -1800,10 +1797,18 @@ export const handleWorkspace = async (
     const action = scheduleMatch[2]
     if (action === '/restore' && method === 'POST') return restoreResource(actor, 'schedule', id, request)
     if (action === '/purge' && method === 'DELETE') return purgeResource(actor, 'schedule', id, searchParams)
+    // 서버 `WorkspaceResourceService.updateSchedule` 순서: 위치·담당자 검사 → 일정 조회(404) → 버전 검사.
+    if (!action && method === 'PATCH') {
+      const body = await readJson<ScheduleEditBody>(request)
+      const personal = requirePersonal(actor, body?.location, body?.assignee)
+      if (personal) return personal
+      const editable = visibleSchedule(actor, id)
+      if (!editable) return failure('NOT_FOUND', '일정을 찾을 수 없습니다.', 404)
+      return updateSchedule(actor, editable, body)
+    }
     const schedule = visibleSchedule(actor, id)
     if (!schedule) return failure('NOT_FOUND', '일정을 찾을 수 없습니다.', 404)
     if (!action && method === 'GET') return json(scheduleView(actor, schedule))
-    if (!action && method === 'PATCH') return updateSchedule(actor, schedule, request)
     if (!action && method === 'DELETE') return deleteSchedule(actor, schedule, searchParams)
     if (action === '/state' && method === 'POST') return changeScheduleState(actor, schedule, request)
     return null

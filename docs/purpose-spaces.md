@@ -397,7 +397,7 @@ BE ADR-0037("일정은 주인만 읽고 바꾼다")이 운영에 반영된 뒤�
 
 ### 구현한 것
 
-- 일정 만들기·고치기(`src/mocks/workspace.ts`): `location`은 생략 또는 `{spaceId: -주인, projectId: null}`만, `assignee`는 생략 또는 `{memberId: 주인}`만 받는다. 그 밖은 400 `INVALID_REQUEST`와 서버 문구(`PERSONAL_LOCATION_ONLY`, `PERSONAL_ASSIGNEE_ONLY`)로 거절하고 위치를 먼저 본다. 고치기에서는 이 검사가 버전 검사보다 먼저이고, 받아들인 값은 아무것도 바꾸지 않으며 연결 작업도 옮기지 않는다. `taskId`를 실은 만들기는 400(`LINKED_SCHEDULE_CREATE`)이다.
+- 일정 만들기·고치기(`src/mocks/workspace.ts`): `location`은 생략 또는 `{spaceId: -주인, projectId: null}`만, `assignee`는 생략 또는 `{memberId: 주인}`만 받는다. 그 밖은 400 `INVALID_REQUEST`와 서버 문구(`PERSONAL_LOCATION_ONLY`, `PERSONAL_ASSIGNEE_ONLY`)로 거절하고 위치를 먼저 본다. 고치기에서는 이 검사가 일정 조회(남의 일정·없는 일정의 404)와 버전 검사보다 먼저이고, 받아들인 값은 아무것도 바꾸지 않으며 연결 작업도 옮기지 않는다. `taskId`를 실은 만들기는 서버처럼 그 값을 무시하고 독립 일정을 만든다(서버 DTO에 `taskId`가 없다).
 - 일정 목록·조회·수정·상태 변경·삭제: 주인만 한다. 스페이스 관리자에게도 남의 일정은 404다. 목록의 `spaceId`·`projectId`는 계산한 자리로 거르고 `mine`은 결과를 바꾸지 않는다.
 - 일정 응답: `spaceId`·`projectId`는 읽는 사람이 연결 작업을 지금 읽을 수 있으면 그 작업의 자리, 아니면 읽는 사람의 개인 스페이스다(삭제된 스페이스의 작업이면 개인). `assigneeId`·`assigneeNickname`은 주인, `allowedActions.assign`·`move`는 늘 꺼지고 `delete`는 상태로만 정한다. 일정의 배치는 버전과 변경 기록의 스트림(주인의 개인 스페이스)만 남기고, 심어 둔 일정도 주인 것으로 바꿨다(`workspaceState.ts`).
 - 올리기·연결 끊기: 작업을 일정에 올리면 작업의 담당자가 올린 사람이 되고, 남의 일정이 연결돼 있으면 그 연결을 끊는다(가져가기). `ALREADY_SCHEDULED`는 내 일정이 연결돼 있을 때만이다. 재배정·담당 비우기·작업 이동·프로젝트 이동·FLEXIBLE 반복의 위치·담당 변경으로 담당자가 일정의 주인이 아니게 되면 연결을 끊는다. 나가기·내보내기는 그 사람의 일정 중 그 스페이스 작업에 연결된 것을 끊는다. 끊긴 일정은 상태·시간을 그대로 두고 version이 오르며, 주인의 스트림에 `SCHEDULE UPDATED`를 남긴다.
@@ -417,7 +417,7 @@ BE ADR-0037("일정은 주인만 읽고 바꾼다")이 운영에 반영된 뒤�
 
 ### 검증
 
-- `npm test`(`node --test`) 1006개 통과, `npm run lint` 오류 없음, `npm run build` 성공(기존 chunk 크기 경고만).
-- 고치거나 더한 테스트: `tests/personal-schedule-mocks.test.mjs`(새 파일, 14개: 만들기·고치기의 400과 문구·검사 순서, 연결 일정 만들기 거절, 주인만 읽기, 계산한 자리, 가져가기와 주인 스트림의 기록, 재배정·작업 이동·프로젝트 이동, 나가기, FIXED·FLEXIBLE 반복, 휴지통의 혼자 복원·영구 삭제와 다시 잇지 않음, 남의 일정은 연결만 끊는 작업 삭제, 팀 주간 기록, 하루 계획 승인의 가져가기), `tests/motion-mocks.test.mjs`(팀 위치를 싣던 일정 만들기를 개인으로, 올리면 올린 사람이 담당, 일정 이동 시험을 "내 일정만, 작업의 자리로" 시험으로 바꿈). 새 시험 파일은 바꾸기 전 mock에서 모두 실패하는 것을 확인했다.
+- `npm test`(`node --test`) 1007개 통과, `npm run lint` 오류 없음, `npx tsc --noEmit -p .` 오류 없음, `npm run build` 성공(기존 chunk 크기 경고만).
+- 고치거나 더한 테스트: `tests/personal-schedule-mocks.test.mjs`(새 파일, 15개: 만들기·고치기의 400과 문구·검사 순서, 만들기에 실린 `taskId` 무시, 남의 일정 고치기에서 위치·담당자 검사가 404보다 먼저, 주인만 읽기, 계산한 자리, 가져가기와 주인 스트림의 기록, 재배정·작업 이동·프로젝트 이동, 나가기, FIXED·FLEXIBLE 반복, 휴지통의 혼자 복원·영구 삭제와 다시 잇지 않음, 남의 일정은 연결만 끊는 작업 삭제, 팀 주간 기록, 하루 계획 승인의 가져가기), `tests/motion-mocks.test.mjs`(팀 위치를 싣던 일정 만들기를 개인으로, 올리면 올린 사람이 담당, 일정 이동 시험을 "내 일정만, 작업의 자리로" 시험으로 바꿈). 새 시험 파일은 바꾸기 전 mock에서 모두 실패하는 것을 확인했다.
 - mock은 운영 묶음에 들지 않는다. `src/main.tsx`가 `import.meta.env.DEV && VITE_USE_MOCK_API === 'true'`일 때만 `./mocks/mockServer`를 동적으로 불러오고, `npm run build`의 `dist`에서 mock 문자열(`__pinitMock`, `mock-invite-`, 서버 문구, 심어 둔 작업 제목)이 나오지 않았다. 그래서 서비스 워커 캐시 이름(`pinit-cache-v44`)은 올리지 않았다.
 - 브라우저로는 확인하지 않았다. 운영 API·실제 BE로도 확인하지 않았다.
