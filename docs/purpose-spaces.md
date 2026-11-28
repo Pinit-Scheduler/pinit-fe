@@ -409,7 +409,7 @@ BE ADR-0037("일정은 주인만 읽고 바꾼다")이 운영에 반영된 뒤�
 
 ### 그대로 둔 것
 
-- mock에는 재배치(`/v2/plans/replan…`)가 없어 `OUTSIDE_SPACE` 보호는 흉내 내지 않았다.
+- 이때는 mock에 재배치(`/v2/plans/replan…`)가 없어 `OUTSIDE_SPACE` 보호를 흉내 내지 않았다. 아래 "오늘 남은 일정 재배치: mock API 더하기 (2026-11-28)"에서 더했다.
 - 완료 일정의 `credited_task_id`가 mock에 없다. 연결이 끊긴 완료 일정은 팀 주간 기록에서 빠진다(서버는 그 참조로 계속 센다).
 - 예전 개인 경로(`/v2/schedules…`, `/v2/tasks/{id}/schedules`)와 예전 카테고리(`/v2/categories`의 `scheduleAssignments`, `PUT /v2/categories/schedules/{id}`)는 고치지 않았다. 화면은 일정을 모두 workspace 경로로 다루고, 카테고리 mock에는 일정 배정을 확인하는 시험이 따로 있다. 서버는 앞의 경로를 주인 범위로 두고, 뒤의 일정 배정은 빈 맵과 400으로 답한다.
 - 일정 시작의 "다른 일정이 진행 중" 판정은 지금처럼 진행 중만 본다(서버는 일시정지도 센다). ADR-0037과 무관한 차이다.
@@ -420,4 +420,32 @@ BE ADR-0037("일정은 주인만 읽고 바꾼다")이 운영에 반영된 뒤�
 - `npm test`(`node --test`) 1007개 통과, `npm run lint` 오류 없음, `npx tsc --noEmit -p .` 오류 없음, `npm run build` 성공(기존 chunk 크기 경고만).
 - 고치거나 더한 테스트: `tests/personal-schedule-mocks.test.mjs`(새 파일, 15개: 만들기·고치기의 400과 문구·검사 순서, 만들기에 실린 `taskId` 무시, 남의 일정 고치기에서 위치·담당자 검사가 404보다 먼저, 주인만 읽기, 계산한 자리, 가져가기와 주인 스트림의 기록, 재배정·작업 이동·프로젝트 이동, 나가기, FIXED·FLEXIBLE 반복, 휴지통의 혼자 복원·영구 삭제와 다시 잇지 않음, 남의 일정은 연결만 끊는 작업 삭제, 팀 주간 기록, 하루 계획 승인의 가져가기), `tests/motion-mocks.test.mjs`(팀 위치를 싣던 일정 만들기를 개인으로, 올리면 올린 사람이 담당, 일정 이동 시험을 "내 일정만, 작업의 자리로" 시험으로 바꿈). 새 시험 파일은 바꾸기 전 mock에서 모두 실패하는 것을 확인했다.
 - mock은 운영 묶음에 들지 않는다. `src/main.tsx`가 `import.meta.env.DEV && VITE_USE_MOCK_API === 'true'`일 때만 `./mocks/mockServer`를 동적으로 불러오고, `npm run build`의 `dist`에서 mock 문자열(`__pinitMock`, `mock-invite-`, 서버 문구, 심어 둔 작업 제목)이 나오지 않았다. 그래서 서비스 워커 캐시 이름(`pinit-cache-v44`)은 올리지 않았다.
+- 브라우저로는 확인하지 않았다. 운영 API·실제 BE로도 확인하지 않았다.
+
+## 오늘 남은 일정 재배치: mock API 더하기 (2026-11-28)
+
+개발용 mock(`VITE_USE_MOCK_API=true`)에 오늘 남은 일정 재배치를 더해 `OUTSIDE_SPACE` 보호를 화면에서 볼 수 있게 했다. 서버 `DayReplanningService`·`DayReplanner`·`DayReplanningControllerV2`·`DayReplanningControllerAdvice`·`PlanningErrorMessages`(`pinit-monolith` main, 운영 코드 `11a5837a`)를 읽고 옮겼다. 운영 묶음과 화면 코드는 그대로다.
+
+### 구현한 것
+
+- `POST /v2/plans/replan`(미리보기)와 `POST /v2/plans/replan/apply`(적용)를 `src/mocks/replanning.ts`에 두고 `handlers.ts`가 하루 계획보다 먼저 부른다. 요청·응답 필드는 `src/features/planner/types/replan.ts`와 서버 `ReplanPreview`가 같다. 시각은 서버처럼 `Z`로 끝나는 instant이고, 응답의 `spaceId`·`projectId`는 요청 값 그대로다(둘 다 비면 `null`).
+- 미리보기는 늘 내 하루 전체를 본다. 장애물은 완료하지 않은 내 일정 전부와 생활 시간이고, 남의 일정은 싣지도 않고 자리도 차지하지 않는다. 완료한 일정은 보호 목록에 남지만 자리를 차지하지 않는다(ADR-0034). 스페이스·프로젝트는 옮길 대상만 줄인다.
+- 보호 사유와 순서는 서버와 같다: `OUTSIDE_TODAY` → `INDEPENDENT_APPOINTMENT` → `OUTSIDE_SPACE` → `OUTSIDE_PROJECT` → `NOT_ASSIGNED_TO_YOU`(연결 작업의 담당자만 본다) → `RECURRING_SCHEDULE` → `IN_PROGRESS` → `SUSPENDED` → `COMPLETED` → `TASK_UNAVAILABLE`(작업을 읽을 수 없음·완료·`availableFrom`이 오늘 뒤). 일정의 자리는 일정 응답과 같은 기준(연결 작업을 지금 읽을 수 있으면 그 작업의 자리, 아니면 내 개인 스페이스)이다. 보호 목록에는 오늘과 겹치는 일정만 싣는다.
+- 배치는 서버 `DayReplanner`를 그대로 옮겼다: 마감 → 중요도 → 난이도 → 일정 번호 순, 시작은 `max(지금 + 늦어진 시간, 원래 시작 + 늦어진 시간)`을 5분 단위로 올림, 양쪽 10분 간격, 선행이 끝난 뒤 10분, 후속 일정 시작 10분 전까지, 마감과 시간창 끝(수면 생활 시간이 있으면 자정, 없으면 23:00) 안. 못 놓은 블록은 `DEADLINE_PASSED`·`PREDECESSOR_NOT_PLACED`·`NO_FITTING_SLOT`으로 `unplaced`에 싣고 원래 자리를 지킨 채 다시 돌린다. 읽을 수 없는 작업과의 선후 관계는 닫힌 채로 `PREDECESSOR_NOT_PLACED`다. 진행 중 일정은 지금부터 남은 계획 길이(최소 15분)를 차지한다. 보정을 켜면 블록 길이를 보정 길이까지 늘리고 `calibrationApplied`가 켜진다.
+- 입력 검사: 늦어진 시간 0~240분 밖·빠진 필드는 400 `Bad Request`와 서버 문구·`errors`, 오늘이 아닌 날짜·회원 설정과 다른 시간대·옮길 일정 100개 초과도 400, 형이 맞지 않는 본문은 400 읽지 못한 본문이다. 쓸 수 없는 스페이스(없음·참여하지 않음·휴지통·남의 개인 스페이스)나 그 스페이스에 없는 프로젝트는 404 `SPACE_UNAVAILABLE`(`{code, message, ...}`)이다.
+- 적용: 고른 일정 0개·100개 초과·중복은 400 `SELECTION_RANGE`. 나머지는 409 `error: "REPLAN_CONFLICT"`와 서버 문구다. 15분이 지났거나 미래인 미리보기(`REPLAN_PREVIEW_EXPIRED`), 미리보기 뒤 일정·작업·생활 시간·보정·권한이 바뀌어 맞지 않는 토큰(`REPLAN_SNAPSHOT_CHANGED`, 버전이 오른 일정도 여기다), 변경 목록에 없는 일정(`REPLAN_NOT_IN_PREVIEW`), 이미 시작했거나 새 시작이 지난 일정(`REPLAN_STATE_CHANGED`), 고르지 않은 일정·생활 시간과의 겹침(`REPLAN_OVERLAP`), 선행이 후속보다 늦게 끝남(`REPLAN_DEPENDENCY_ORDER`). 하나라도 걸리면 아무것도 바꾸지 않는다. 통과하면 고른 일정의 시작·계획 길이를 바꾸고 version을 올리며, 요청 스페이스와 상관없이 주인의 스트림에 `SCHEDULE UPDATED`를 남긴다. 응답은 `{appliedScheduleIds}`(번호 순)다.
+
+### 줄인 것
+
+- 요일별 생활 시간 바꾸기(ADR-0027)는 mock에 없어 매주 생활 시간만 본다. 생활 시간은 하루 계획 mock과 같은 펼침(계획일 전날~다음 날)을 쓴다.
+- 보정 계수는 `calibration.ts`의 고정값이다. 서버는 미리보기 시각까지의 완료 기록으로 다시 구한다. 진행 중 일정의 누적 실행시간은 mock 일정의 `duration`이다.
+- 스냅숏 토큰은 SHA-256이 아니라 같은 길이(16진수 64자)의 결정적 해시다. 잠금·SERIALIZABLE·동시 변경 409(`REPLAN_CONCURRENT_CHANGE`)는 흉내 내지 않는다.
+- Bean Validation 위반은 필드 선언 순서로 모은다(서버는 순서가 정해져 있지 않다). 소수인 `delayMinutes`는 읽지 못한 본문으로 본다.
+- 적용은 시간 바뀜 알림(`timingChanged`)을 보내지 않는다.
+
+### 검증
+
+- `npm test`(`node --test`) 1016개 통과, `npm run lint` 오류 없음, `npm run build` 성공(기존 chunk 크기 경고만).
+- 더한 테스트: `tests/day-replanning-mocks.test.mjs`(새 파일, 9개: 내 하루 전체의 제안과 정확한 시각·간격, 스페이스·프로젝트 범위와 자리를 차지하는 `OUTSIDE_SPACE`·`OUTSIDE_PROJECT`, 보호 사유 순서와 완료 일정이 막지 않음, `unplaced` 사유, 생활 시간·보정, 미리보기 입력 검사와 404, 적용과 버전·주인 스트림, 버전이 바뀐 미리보기의 409, 적용의 만료·선택·시작·겹침·선후 검사). 시계는 테스트가 그날 08:00(서울)으로 고정한다. `handlers.ts`의 경로를 빼면 9개 모두 실패하는 것을 확인했다.
+- `npm run build`의 `dist`에서 재배치 mock 문자열(`setMockReplanClock`, `REPLAN_CONFLICT`, `SPACE_UNAVAILABLE`, 서버 문구, 심어 둔 작업 제목)이 나오지 않았다. 보호 사유 코드는 화면 라벨(`src/features/planner/utils/replanning.ts`)에만 있다. 그래서 서비스 워커 캐시 이름(`pinit-cache-v44`)은 올리지 않았다.
 - 브라우저로는 확인하지 않았다. 운영 API·실제 BE로도 확인하지 않았다.

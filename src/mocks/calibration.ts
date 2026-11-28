@@ -49,6 +49,18 @@ const calibration = (): TimeCalibrationResponse => ({
   ],
 })
 
+/**
+ * 보정을 켰으면 난이도의 계수(난이도 계수가 없으면 전체 계수), 껐으면 null. 오늘 남은 일정 재배치(`replanning.ts`)가
+ * 블록 길이를 늘릴 때 쓴다. 서버는 미리보기 시각의 완료 기록으로 계수를 다시 구하지만 여기서는 고정값이다.
+ */
+export const isMockCalibrationEnabled = () => calibrationEnabled
+
+export const mockCalibrationFactor = (difficulty: number): number | null => {
+  if (!calibrationEnabled) return null
+  const current = calibration()
+  return current.byDifficulty.find((entry) => entry.difficulty === difficulty)?.factor ?? current.overall.factor
+}
+
 const item = (scheduleId: number, title: string, difficulty: number, baseDuration: string, actualDuration: string, ratio: number): WeeklyReviewItem => ({
   scheduleId,
   taskId: scheduleId + 100,

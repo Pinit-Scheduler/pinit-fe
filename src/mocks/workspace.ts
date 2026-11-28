@@ -521,6 +521,15 @@ const findTask = (id: number) => mockTasks.find((task) => task.id === id)
 const findSchedule = (id: number) =>
   mockSchedules.find((schedule) => schedule.id === id)
 
+/**
+ * 읽는 사람이 지금 읽을 수 있는 작업. 일정의 자리(`schedulePlace`)와 같은 기준이고(삭제된 스페이스의 작업은 못 읽는다),
+ * 오늘 남은 일정 재배치(`replanning.ts`)가 서버 `SchedulePlaceResolver`처럼 쓴다.
+ */
+export const readableTask = (reader: number, id: number) => {
+  const task = findTask(id)
+  return task && visibleSpace(reader, placementOf('task', id)) ? task : undefined
+}
+
 /** 실제 서버처럼 접근할 수 없는 작업은 없는 것과 같다. */
 const visibleTask = (actor: number, id: number) => {
   const task = findTask(id)
