@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { readFile, mkdir, writeFile } from 'node:fs/promises'
+import { readFile, mkdir, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -83,6 +83,8 @@ await new Promise((resolve) => server.listen(5186, '127.0.0.1', resolve))
 let browser
 let page
 const fallbacks = []
+// Start from an empty runtime folder so a report and failure files never mix runs.
+await rm(runtime, { recursive: true, force: true })
 try {
   browser = await chromium.launch({ headless: true,
     ...(process.env.REPLAN_CHROMIUM_PATH ? { executablePath: process.env.REPLAN_CHROMIUM_PATH } : {}) })
@@ -114,8 +116,9 @@ try {
     }
     // ProjectHead reads summary.projects while a project is selected; an empty array crashes it.
     if (/^\/v2\/spaces\/-?\d+\/summary$/.test(url.pathname)) {
+      const id = Number(url.pathname.split('/')[3])
       const counts = { total: 0, completed: 0, running: 0, unassigned: 0, open: 0 }
-      return json({ spaceId: Number(url.pathname.split('/')[3]), asOf: info.now, projects: project ? [{ projectId: project.id, counts, nearestDueDate: null }] : [],
+      return json({ spaceId: id, asOf: info.now, projects: id === info.spaceId && project ? [{ projectId: project.id, counts, nearestDueDate: null }] : [],
         withoutProject: { counts, nearestDueDate: null }, members: [{ memberId: info.memberId, openAssignedCount: 0, nearestDueDate: null }], unassigned: { openCount: 0, nearestDueDate: null } })
     }
     if (url.pathname === '/v0/me/account') return json({ username: null, nickname: 'Fixture member', socialLogin: true, email: null, emailRequired: false })
