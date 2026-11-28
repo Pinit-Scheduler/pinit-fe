@@ -81,11 +81,13 @@ const server = createServer(async (request, response) => {
 })
 await new Promise((resolve) => server.listen(5186, '127.0.0.1', resolve))
 let browser
+let page
+const fallbacks = []
 try {
   browser = await chromium.launch({ headless: true,
     ...(process.env.REPLAN_CHROMIUM_PATH ? { executablePath: process.env.REPLAN_CHROMIUM_PATH } : {}) })
   const context = await browser.newContext({ viewport: { width: 1365, height: 1000 }, timezoneId: info.zoneId, serviceWorkers: 'block' })
-  const page = await context.newPage()
+  page = await context.newPage()
   await page.clock.install({ time: new Date(info.now) })
   const errors = [], escaped = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -110,6 +112,14 @@ try {
       const id = Number(url.pathname.split('/')[3])
       return json({ space: space(id), members: space(id).members, projects: id === info.spaceId && project ? [project] : [] })
     }
+    // ProjectHead reads summary.projects while a project is selected; an empty array crashes it.
+    if (/^\/v2\/spaces\/-?\d+\/summary$/.test(url.pathname)) {
+      const counts = { total: 0, completed: 0, running: 0, unassigned: 0, open: 0 }
+      return json({ spaceId: Number(url.pathname.split('/')[3]), asOf: info.now, projects: project ? [{ projectId: project.id, counts, nearestDueDate: null }] : [],
+        withoutProject: { counts, nearestDueDate: null }, members: [{ memberId: info.memberId, openAssignedCount: 0, nearestDueDate: null }], unassigned: { openCount: 0, nearestDueDate: null } })
+    }
+    if (url.pathname === '/v0/me/account') return json({ username: null, nickname: 'Fixture member', socialLogin: true, email: null, emailRequired: false })
+    if (url.pathname === '/v2/notifications/notices/unread-count') return json({ unreadCount: 0 })
     if (url.pathname === '/v2/workspace/events') return route.fulfill({ status: 200, contentType: 'text/event-stream', body: ': local display fixture\n\n' })
     if (url.pathname === '/v2/members/settings') return json({ zoneId: info.zoneId, dailyObjectiveWork: 'PT4H' })
     if (url.pathname === '/v2/members/now') return json(null)
@@ -121,6 +131,7 @@ try {
     if (url.pathname === '/v2/workspace/tasks') return json({ tasks: [], totalPages: 1, totalElements: 0 })
     // Task split (ADR-0035) reads its summary on every app screen; answer it as unavailable so the app does not crash.
     if (url.pathname === '/v2/task-splits/summary') return json({ available: false, consent: { currentVersion: 'local-fixture', consented: false, provider: 'local-fixture' }, quota: { limit: 0, used: 0, remaining: 0, resetsAt: info.now }, archiveCount: 0 })
+    fallbacks.push(`${route.request().method()} ${url.pathname}`)
     return json([])
   })
   const openPlan = async () => {
@@ -187,7 +198,8 @@ try {
   const beforeMutation = await getFixture()
   await fixtureWrite('touch')
   await page.getByRole('button', { name: '선택한 변경 적용', exact: true }).click()
-  await page.getByRole('alert').filter({ hasText: '현재 상태에서는' }).waitFor()
+  // The server's own 409 message (REPLAN_SNAPSHOT_CHANGED) is shown as is.
+  await page.getByRole('alert').filter({ hasText: '미리보기 뒤에 일정이나 계획 조건이 바뀌었어요' }).waitFor()
   assert.equal(native.at(-1).status, 409)
   const rejected = await getFixture()
   assert.equal(rejected.auditCount, beforeMutation.auditCount)
@@ -219,7 +231,8 @@ try {
   await fixtureWrite('revoke')
   await page.getByRole('button', { name: '선택한 변경 적용', exact: true }).click()
   await page.getByText('스페이스 접근 권한을 다시 확인해 주세요.', { exact: false }).waitFor()
-  assert.equal(await page.locator('.day-replan__changes').count(), 0)
+  // The cleared preview fades out (usePresence) before it leaves the DOM.
+  await page.locator('.day-replan__changes').waitFor({ state: 'detached', timeout: 5_000 })
   assert.equal(await page.getByRole('button', { name: '변경 미리보기', exact: true }).isDisabled(), true)
   assert.ok([403, 404, 410].includes(native.at(-1).status))
   const denied = await getFixture()
@@ -234,6 +247,13 @@ try {
   const report = { passed: true, boundary: 'genuine FE -> native REST -> Task service -> disposable H2; test identity; workspace/auth display fixtures', scenarios: ['late-space-A-response-discarded', 'space-B-protects-space-A-as-OUTSIDE_SPACE', 'space-A-protects-other-space-schedule-as-OUTSIDE_SPACE', 'selected-project-carried-through-preview-and-apply', 'actual-stale-version-409-retains-selection', 'selected-existing-ID-applied', 'native-info-and-next-preview-prove-persisted-start', 'unselected-starts-unchanged', 'actual-membership-denial-clears-preview', 'conflict-and-denial-add-no-audit-or-outbox', 'mobile-no-overflow'], nativeCalls: native.map(({ path, payload, status }) => ({ path, spaceId: payload.spaceId, projectId: payload.projectId, selectedCount: payload.selectedScheduleIds?.length, status })), pageErrors: errors.length, externalRequests: escaped.length }
   await writeFile(path.join(runtime, 'report.json'), JSON.stringify(report, null, 2))
   console.log(JSON.stringify(report, null, 2))
+} catch (error) {
+  // Leave enough evidence in the ignored runtime folder to see where the UI stopped.
+  await mkdir(runtime, { recursive: true })
+  await page?.screenshot({ path: path.join(runtime, 'failure.png'), fullPage: true }).catch(() => {})
+  await writeFile(path.join(runtime, 'failure.html'), (await page?.content().catch(() => '')) ?? '')
+  await writeFile(path.join(runtime, 'failure.json'), JSON.stringify({ message: String(error?.message ?? error), url: page?.url(), unstubbed: [...new Set(fallbacks)] }, null, 2))
+  throw error
 } finally {
   releasePreview?.()
   await browser?.close()
