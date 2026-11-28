@@ -32,6 +32,7 @@ import {
   vapidPublicKey,
 } from './db'
 import { effectiveExpectedMinutes, handlePlans } from './planner'
+import { handleReplanning } from './replanning'
 import { formatIsoMinutes, toTaskResponse } from './taskResponse'
 import { handleWorkspace } from './workspace'
 import { handleNotices } from './notices'
@@ -897,6 +898,9 @@ export const handleMockRequest = async (
 
   const onboarding = await handleOnboarding(path, method, request)
   if (onboarding) return onboarding
+
+  const replanning = await handleReplanning(path, method, request, mockProfileSettings.zoneId)
+  if (replanning) return replanning
 
   const plans = await handlePlans(path, method, searchParams, request)
   if (plans) return plans

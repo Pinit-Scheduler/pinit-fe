@@ -124,8 +124,8 @@ const DAY_INDEX: Record<number, DayOfWeek> = {
   0: 'SUNDAY',
 }
 
-/** 계획일 전날~다음 날에 시작하는 생활 시간 구간 */
-const routineOccurrences = (date: string, zoneId: string) => {
+/** 계획일 전날~다음 날에 시작하는 생활 시간 구간. 오늘 남은 일정 재배치(`replanning.ts`)도 쓴다. */
+export const routineOccurrences = (date: string, zoneId: string) => {
   const result: { routine: Routine; start: number; end: number }[] = []
   for (const offset of [-1, 0, 1]) {
     const day = dayjs.tz(`${date}T00:00:00`, zoneId).add(offset, 'day')
