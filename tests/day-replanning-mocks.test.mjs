@@ -205,7 +205,7 @@ test('blocks that cannot move are unplaced with the server reasons and keep thei
 })
 
 test('routines and time calibration shape the proposal', async () => {
-  const { api, preview, moved } = context()
+  const { api, preview, moved, task, schedule } = context()
   const lunch = await api('/v2/routines', 'PUT', {
     routines: [{
       kind: 'LUNCH', label: null, startTime: '11:00', duration: 'PT1H', remindAtStart: false,
@@ -220,6 +220,12 @@ test('routines and time calibration shape the proposal', async () => {
   // 예상 1시간 × 난이도 3 계수 1.3 = 78분 → 5분 단위로 올려 80분.
   assert.deepEqual(moved(calibrated)['릴리즈 노트 초안 쓰기'], [iso('12:10'), iso('13:30')])
   assert.ok(calibrated.changes.every((item) => item.calibrationApplied === true))
+
+  // 50분 × 난이도 1 계수 1.1 = 정확히 55분이다. 서버처럼 그대로 두고 60분으로 올리지 않는다.
+  task('릴리즈 노트 초안 쓰기').difficulty = 1
+  task('릴리즈 노트 초안 쓰기').expectedDuration = 'PT50M'
+  schedule('릴리즈 노트 초안 쓰기').plannedDuration = 'PT50M'
+  assert.deepEqual(moved((await preview()).body)['릴리즈 노트 초안 쓰기'], [iso('12:10'), iso('13:05')])
 })
 
 test('a preview rejects bad input like the server: 400 for delay, date, zone, and 404 for a space I cannot use', async () => {

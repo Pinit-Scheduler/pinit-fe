@@ -246,8 +246,10 @@ const spanOf = (schedule: ScheduleResponse, task: Task | undefined, now: number)
 /** `CalibratedDuration.scale`: 계수가 1이면 그대로, 아니면 5분 단위로 올리고 [5분, 24시간]으로 자른다. */
 const scale = (base: number, factor: number) => {
   if (factor === 1) return base
-  const scaled = Math.ceil((base * factor) / (5 * MINUTE)) * 5 * MINUTE
-  return Math.min(Math.max(scaled, 5 * MINUTE), 24 * 60 * MINUTE)
+  const step = 5 * MINUTE
+  // 서버는 BigDecimal로 곱한다. 부동소수 오차로 정확히 5분 배수인 값(50분 × 1.1 = 55분)이 한 칸 더 올라가지 않게 소수 6자리에서 자른다.
+  const steps = Math.ceil(Number(((base / step) * factor).toFixed(6)))
+  return Math.min(Math.max(steps * step, step), 24 * 60 * MINUTE)
 }
 
 // ---------------------------------------------------------------------------
